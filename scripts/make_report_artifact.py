@@ -94,7 +94,7 @@ def main() -> None:
     prompt = (run / "prompt.txt").read_text().strip()
     esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     model = meta["model"]
-    model_h = {"claude-opus-5": "Claude Opus 5", "gpt-5.6-sol": "GPT-5.6 Sol"}.get(model, model)
+    model_h = {"claude-opus-5": "Claude Opus 5", "gpt-5.6-sol": "GPT-5.6 Sol", "claude-haiku-4-5": "Claude Haiku 4.5", "gpt-5.6-luna": "GPT-5.6 Luna"}.get(model, model)
     secs = meta["wall_seconds"]
     md = MarkdownIt("commonmark", {"linkify": True, "typographer": True}).enable("table")
     body = md.render(report)

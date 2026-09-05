@@ -20,20 +20,30 @@ import socket,sys; s=socket.create_connection(("127.0.0.1",int(sys.argv[1])),2);
 EOF
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL}_s${SEED}"
-mkdir -p "$RUN/data"
-cp "$DATA_DIR"/*.jsonl "$RUN/data/"
-cp "$HERE/prompt.txt" "$RUN/prompt.txt"
+NAME="${STAMP}_${AGENT}_${MODEL}_s${SEED}"
+RUN="$ROOT/runs/$NAME"                      # host side: logs + meta, never visible to the agent
+AB_RUNS="/srv/agentbox/runs"               # outside agentbox's home so our group can traverse
+WORK="$AB_RUNS/$NAME"                  # agent side: data + prompt only
+mkdir -p "$RUN"
+sudo mkdir -p "$WORK/data"
+sudo cp "$DATA_DIR"/*.jsonl "$WORK/data/"
+sudo cp "$HERE/prompt.txt" "$WORK/prompt.txt"
+# agentbox owns the work dir; our group can traverse it (the launching shell cds in), nobody else.
+sudo mkdir -p "$AB_RUNS" && sudo chown "agentbox:$(id -gn)" "$AB_RUNS" "$WORK" "$WORK/data" && sudo chown agentbox "$WORK"/data/* "$WORK/prompt.txt"
+sudo chmod 750 "$AB_RUNS" "$WORK"
 cat > "$RUN/meta.json" <<EOF
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"timeout":"$TIMEOUT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(sha256sum "$HERE/prompt.txt" | cut -c1-64)",
  "cli_version":"$(/opt/agentbox/bin/$AGENT --version 2>/dev/null | head -1)"}
 EOF
-# The agent owns the run dir; the two log files stay ours because this shell
-# (not the agent) opens them for the redirects below.
-touch "$RUN/transcript.jsonl" "$RUN/stderr.log"
-sudo chown -R agentbox:agentbox "$RUN"
-sudo chown "$(id -un):$(id -gn)" "$RUN/transcript.jsonl" "$RUN/stderr.log"
+# Canary: from the agent's identity, the repo must be unreadable and the web unreachable.
+sudo -u agentbox ls "$ROOT" >/dev/null 2>&1 && { echo "CANARY FAIL: agentbox can read the repo" >&2; exit 3; }
+sudo -u agentbox getent hosts collusion.wiki >/dev/null 2>&1 && { echo "CANARY FAIL: agentbox can resolve DNS" >&2; exit 3; }
+[ "$(sudo -u agentbox find /tmp -maxdepth 2 -type f -readable 2>/dev/null | wc -l)" = "0" ] || { echo "CANARY FAIL: agentbox can read files in /tmp" >&2; exit 3; }
+sudo -u agentbox curl -s -m 5 -o /dev/null https://collusion.wiki/ && { echo "CANARY FAIL: direct egress works" >&2; exit 3; }
+sudo -u agentbox env HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" curl -s -m 5 -o /dev/null https://collusion.wiki/ && { echo "CANARY FAIL: proxy forwards non-vendor host" >&2; exit 3; }
+sudo -u agentbox env HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" curl -s -m 10 -o /dev/null https://api.anthropic.com/ || { echo "CANARY FAIL: vendor host unreachable via proxy" >&2; exit 3; }
+echo "canary ok: repo unreadable, egress blocked, vendor reachable" | tee "$RUN/canary.txt"
 
 ENVV=(HOME="$(getent passwd agentbox | cut -d: -f6)" PATH="/opt/agentbox/bin:/usr/local/bin:/usr/bin:/bin"
       HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" HTTP_PROXY="http://127.0.0.1:$PROXY_PORT" NO_PROXY="127.0.0.1,localhost"
@@ -45,19 +55,20 @@ START=$(date +%s)
 set +e
 case "$AGENT" in
   claude)
-    (cd "$RUN" && sudo -u agentbox env "${ENVV[@]}" timeout "$TIMEOUT" /opt/agentbox/bin/claude -p "$PROMPT" \
+    (cd "$WORK" && sudo -u agentbox env "${ENVV[@]}" timeout "$TIMEOUT" /opt/agentbox/bin/claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
       --dangerously-skip-permissions --no-chrome --no-session-persistence \
       --setting-sources user \
       --output-format stream-json --verbose \
+      --disallowedTools WebFetch WebSearch Task Skill ToolSearch RemoteTrigger SendMessage ListAgents Workflow CronCreate CronDelete CronList ScheduleWakeup EnterWorktree \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log")
     RC=$?
     ;;
   codex)
-    (cd "$RUN" && sudo -u agentbox env "${ENVV[@]}" timeout "$TIMEOUT" /opt/agentbox/bin/codex exec -C "$RUN" \
+    (cd "$WORK" && sudo -u agentbox env "${ENVV[@]}" timeout "$TIMEOUT" /opt/agentbox/bin/codex exec -C "$WORK" \
       --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
       --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
-      --json -o "$RUN/final_message.md" \
+      --json -o "$WORK/final_message.md" \
       "$PROMPT" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log")
     RC=$?
@@ -66,6 +77,10 @@ case "$AGENT" in
 esac
 set -e
 END=$(date +%s)
+# Pull the agent's outputs back to the host-side run dir, then remove its copy and
+# the CLI's per-user scratch (Claude Code writes task output under /tmp/claude-<uid>).
+sudo mv "$WORK"/* "$RUN"/ 2>/dev/null || true
+sudo rm -rf "$WORK" "/tmp/claude-$(id -u agentbox)"
 sudo chown -R "$(id -un):$(id -gn)" "$RUN"
 python3 - "$RUN" "$RC" "$((END-START))" <<'EOF'
 import json,sys,pathlib

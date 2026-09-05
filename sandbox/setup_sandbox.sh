@@ -42,11 +42,19 @@ sudo chmod 600 "$AB_HOME/.claude/.credentials.json" "$AB_HOME/.codex/auth.json"
 
 # Runs directory: owned by us, each run dir handed to agentbox at launch.
 mkdir -p "$HERE/../runs"
-sudo chmod 755 "$HOME"   # agentbox needs to traverse into the repo
+# The repo must NOT be readable by agentbox (it holds the answer key). Runs live in /srv/agentbox/runs.
+chmod o-rx "$HOME/Dev" "$HERE/.." 2>/dev/null || true
+sudo mkdir -p /srv/agentbox/runs && sudo chown "agentbox:$(id -gn)" /srv/agentbox/runs && sudo chmod 750 /srv/agentbox/runs
+# Our own world-readable scratch files in /tmp would otherwise be visible to agentbox.
+find /tmp -maxdepth 1 -user "$ME" -exec chmod o-rwx {} + 2>/dev/null || true
 
 # Egress lock: agentbox may only reach loopback.
 AB_UID="$(id -u agentbox)"
 sudo iptables -N AGENTBOX 2>/dev/null || sudo iptables -F AGENTBOX
+# No DNS either: the CLIs hand hostnames to the proxy (CONNECT), so the agent never
+# needs to resolve anything, and open DNS would be a covert channel.
+sudo iptables -A AGENTBOX -o lo -p udp --dport 53 -j REJECT
+sudo iptables -A AGENTBOX -o lo -p tcp --dport 53 -j REJECT
 sudo iptables -A AGENTBOX -o lo -j ACCEPT
 sudo iptables -A AGENTBOX -j REJECT --reject-with icmp-port-unreachable
 if ! sudo iptables -C OUTPUT -m owner --uid-owner "$AB_UID" -j AGENTBOX 2>/dev/null; then
@@ -55,6 +63,8 @@ fi
 # IPv6 too, if present
 if command -v ip6tables >/dev/null; then
   sudo ip6tables -N AGENTBOX 2>/dev/null || sudo ip6tables -F AGENTBOX
+  sudo ip6tables -A AGENTBOX -o lo -p udp --dport 53 -j REJECT
+  sudo ip6tables -A AGENTBOX -o lo -p tcp --dport 53 -j REJECT
   sudo ip6tables -A AGENTBOX -o lo -j ACCEPT
   sudo ip6tables -A AGENTBOX -j REJECT
   sudo ip6tables -C OUTPUT -m owner --uid-owner "$AB_UID" -j AGENTBOX 2>/dev/null \
