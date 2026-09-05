@@ -8,7 +8,7 @@
 # Conditions come from a config: CONFIG=configs/<name>.toml (default configs/default.toml) sets the prompt,
 # the time budget, the kill timeout, the data variant, the effort and the Claude tool denylist. Env vars
 # PROMPT, BUDGET_MIN, TIMEOUT, DATA_DIR, EFFORT override individual values. IMAGE (mbab-sandbox).
-# The run is named <stamp>_<agent>_<model>_s<seed>_<config name>.
+# The run is named <stamp>_<agent>_<model>_r<replicate>_<config name>_<run id>.
 #
 # Isolation comes from structure, not permissions:
 #   * the agent container is on an `internal` Docker network (no gateway, nothing routable)
@@ -16,7 +16,7 @@
 #   * the container sees /work (data/*.jsonl read-only + prompt.txt) and its own creds. No repo mount.
 #   * a canary container on the same network/mounts proves both facts before the agent starts.
 set -euo pipefail
-AGENT="${1:?claude|codex|react}"; MODEL="${2:?model id}"; SEED="${3:-1}"
+AGENT="${1:?claude|codex|react}"; MODEL="${2:?model id}"; REPLICATE="${3:-1}"
 IMAGE="${IMAGE:-mbab-sandbox}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROOT/configs/$CONFIG.toml"
@@ -32,10 +32,11 @@ read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 VARIANT="$(basename "$DATA_DIR")"
-RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_s${SEED}_${CFG_NAME}"
+RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN_ID:0:12}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
-NET="mbab-inner-$STAMP"; PROXY="mbab-proxy-$STAMP"; SECRETS="$RUN/.secrets"
+NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"
 mkdir -p "$RUN/work/data" "$SECRETS/claude" "$SECRETS/codex"
 cp "$DATA_DIR"/*.jsonl "$RUN/work/data/"
 # The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
@@ -65,10 +66,19 @@ if [ "$AGENT" = react ]; then
 fi
 if [ -f "$HOME/.codex/auth.json" ]; then cp "$HOME/.codex/auth.json" "$SECRETS/codex/auth.json"
 elif [ "$AGENT" = codex ]; then echo "no Codex credentials: run \`codex login\` on the host" >&2; exit 1; fi
-printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\n' > "$SECRETS/codex/config.toml"
+# Codex: ask for detailed reasoning summaries (and raw reasoning where the model emits it) so the
+# transcript carries them; keep session persistence on so the rollout (per-call token counts,
+# reasoning items) lands in $SECRETS/codex/sessions and can be copied to <run>/codex_sessions.
+printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
+# After every tool call, Claude Code feeds the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
+printf '{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"}]}]}}\n' > "$SECRETS/claude/settings.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
-cleanup() { docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true; docker rm -f "$PROXY" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; rm -rf "$SECRETS"; }
+cleanup() {
+  docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true; docker rm -f "$PROXY" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true
+  # Codex's session rollout is the only place with per-API-call usage and the reasoning items. Keep it (no credentials in it).
+  [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
+  rm -rf "$SECRETS"; }
 trap cleanup EXIT
 
 docker network create --internal "$NET" >/dev/null
@@ -99,7 +109,7 @@ GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
 
 cat > "$RUN/meta.json" <<JSON
-{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
+{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
  "prompt":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
@@ -107,31 +117,41 @@ JSON
 
 echo "run: $RUN"
 START=$(date +%s); set +e
+# The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
+TIME_ENV=(-e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN")
 case "$AGENT" in
   claude)
-    docker run -i "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
+    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
       --dangerously-skip-permissions --no-chrome --no-session-persistence --setting-sources user \
       ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
       --output-format stream-json --verbose \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   codex)
-    docker run -i "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
+    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
       --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
-      --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules --ephemeral \
+      --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
       --json -o /work/final_message.md "$PROMPT" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   react)
-    docker run -i "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
+    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
       --model "$MODEL" --effort "$EFFORT" --prompt-file /work/prompt.txt --cwd /work --budget-min "$BUDGET_MIN" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   *) echo "unknown agent $AGENT" >&2; exit 2 ;;
 esac
 set -e; END=$(date +%s)
 for f in report.md final_message.md; do [ -f "$RUN/work/$f" ] && cp "$RUN/work/$f" "$RUN/$f"; done
+# Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
+[ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
+# Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
+PYTHONPATH="$ROOT" python3 -m messageboard_audit.usage "$RUN" --quiet || echo "usage summary failed" >&2
 python3 - "$RUN" "$RC" "$((END-START))" <<'PY'
 import json,sys,pathlib
 run,rc,secs=pathlib.Path(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
 m=json.loads((run/"meta.json").read_text()); m.update(exit_code=rc,wall_seconds=secs,report_exists=(run/"report.md").exists())
+u=json.loads((run/"usage.json").read_text()) if (run/"usage.json").exists() else {}
+m["usage"]={k:u.get(k) for k in ("input_tokens","output_tokens","cache_read_tokens","cache_write_tokens","reasoning_tokens",
+            "cost_usd","api_calls","tool_calls","api_retries","api_errors","peak_context_tokens","terminal_reason","is_error","usage_source")}
 (run/"meta.json").write_text(json.dumps(m,indent=1)); print(json.dumps(m,indent=1))
 PY
+exit "$RC"

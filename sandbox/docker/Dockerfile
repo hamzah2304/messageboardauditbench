@@ -14,7 +14,7 @@ RUN set -eux; arch="$(uname -m)"; \
       curl -fsSL "https://github.com/openai/codex/releases/download/$CODEX_VERSION/$b-$arch-unknown-linux-musl.tar.gz" \
         | tar xz -C /usr/local/bin; mv "/usr/local/bin/$b-$arch-unknown-linux-musl" "/usr/local/bin/$b"; \
     done; chmod 755 /usr/local/bin/codex*
-COPY sandbox/proxy.py sandbox/react_agent.py /sandbox/
+COPY sandbox/proxy.py sandbox/react_agent.py sandbox/time_left.sh /sandbox/
 # Non-root: claude refuses --dangerously-skip-permissions as root.
 RUN useradd -m -u 1000 agent && mkdir -p /work && chown agent /work
 USER agent

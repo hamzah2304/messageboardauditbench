@@ -64,6 +64,12 @@ withheld from the agent. Shipped configs: `blind-20`, `blind-40`, `context-20`,
 `context-40` (the `context` prompt prepends a summary of the OpenAI/Hugging Face
 incident and says to treat this one as separate), plus `default` = `blind-20`.
 
+After every tool call the agent is told how much of the budget is left: Claude
+Code via a `PostToolUse` hook (`sandbox/time_left.sh`, wired through the
+throwaway `~/.claude/settings.json`), the ReAct scaffold by a line appended to
+each tool result. Codex has no equivalent hook, so it only gets the prompt's
+instruction to check `date`.
+
 ```
 CONFIG=blind-20   sandbox/docker/run_trial.sh claude claude-opus-5 1
 CONFIG=context-40 sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
@@ -106,6 +112,31 @@ Each run writes `runs/<timestamp>_<agent>_<model>_s<seed>/`: `canary.log`,
 `meta.json` (exit code, wall time, CLI version, prompt hash), `report.md` (and
 `final_message.md` for Codex) copied up from `work/`. `work/` is exactly what the
 agent saw. Exit code 124 means the timeout fired.
+
+What each run logs about the model calls (`<run>/usage.json`, written by
+`messageboard_audit/usage.py`; the key figures are copied into `meta.json` under
+`usage`, and Inspect reads the same numbers through `transcripts.py`):
+
+- tokens: input, output, cache read, cache write, **reasoning** (Claude Code's
+  `output_tokens_details.thinking_tokens`; Codex's `reasoning_output_tokens`;
+  OpenRouter's `completion_tokens_details.reasoning_tokens`), plus the peak
+  context size seen by any single call;
+- cost in USD where the vendor reports it (Claude Code, OpenRouter), API calls,
+  retries and errors, how the run ended (`terminal_reason`, `is_error`), and for
+  Claude the last rate-limit window;
+- `usage_source` says where the totals came from: the CLI's final event, a sum
+  of per-call usage (run killed before it finished), or the Codex rollout.
+
+Reasoning text is logged where the vendor exposes it. Claude Code emits
+`thinking` blocks (usually empty or a short summary for Claude 5 models) and
+running `system/thinking_tokens` estimates. Codex is configured with
+`model_reasoning_summary = "detailed"` and `show_raw_agent_reasoning = true`,
+and runs *without* `--ephemeral` so its session rollout, which holds a
+`token_count` per API call and every reasoning item (summaries, or encrypted
+blobs), is copied to `<run>/codex_sessions/`. The ReAct scaffold stores
+OpenRouter's `reasoning`/`reasoning_details` verbatim on each assistant event
+(and passes them back so the model keeps its chain of thought across tool
+calls), along with the serving provider, finish reason and latency per call.
 
 Live tail: `python3 sandbox/watch.py runs/<run>`.
 

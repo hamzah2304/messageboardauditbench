@@ -65,7 +65,8 @@ def main() -> int:
         rows.append({"report": str(dest.relative_to(out)), "run_dir": d.name, "partial": partial, "config": config,
                      "prompt_name": meta.get("prompt", "legacy"), "prompt_id": p8, "budget_min": budget, "data_variant": variant,
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "seed", "timeout", "exit_code",
-                                                  "wall_seconds", "cli_version", "prompt_sha256")}})
+                                                  "wall_seconds", "cli_version", "prompt_sha256")},
+                     "usage": meta.get("usage")})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit/usage.py)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     by = {}

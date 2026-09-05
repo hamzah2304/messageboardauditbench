@@ -21,6 +21,8 @@ from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.tool import ToolCall
 
+from messageboard_audit.usage import summarize
+
 
 @dataclass
 class Parsed:
@@ -176,7 +178,8 @@ def parse_codex(path: Path) -> Parsed:
                 p.messages.append(ChatMessageAssistant(content=[ContentText(text=it.get("text", ""))]))
                 p.turns += 1
             elif k == "reasoning":
-                p.messages.append(ChatMessageAssistant(content=[ContentReasoning(reasoning=it.get("text", ""))]))
+                # summary text with model_reasoning_summary=detailed; raw text when show_raw_agent_reasoning surfaces it
+                p.messages.append(ChatMessageAssistant(content=[ContentReasoning(reasoning=it.get("text") or "")]))
         elif t == "turn.completed":
             u = ev.get("usage", {})
             p.input_tokens += u.get("input_tokens", 0)
@@ -190,5 +193,21 @@ def parse_codex(path: Path) -> Parsed:
 
 
 def parse(agent: str, path: Path) -> Parsed:
+    """Messages from the dialect parser; token/cost figures from messageboard_audit.usage, which is
+    also what run_trial.sh writes to <run>/usage.json, so Inspect and meta.json always agree."""
     # react_agent.py deliberately writes the Claude Code dialect.
-    return parse_codex(path) if agent == "codex" else parse_claude(path)
+    p = parse_codex(path) if agent == "codex" else parse_claude(path)
+    u = summarize(path.parent, agent)
+    p.input_tokens, p.output_tokens = u["input_tokens"], u["output_tokens"]
+    p.cache_read_tokens, p.cache_write_tokens = u["cache_read_tokens"], u["cache_write_tokens"]
+    p.reasoning_tokens = u["reasoning_tokens"]
+    p.cost_usd = u.get("cost_usd", p.cost_usd)
+    p.duration_ms = u.get("duration_ms") or p.duration_ms
+    for k in ("usage_source", "api_calls", "api_retries", "api_errors", "peak_context_tokens", "stop_reason",
+              "terminal_reason", "is_error", "duration_api_ms", "ttft_ms", "thinking_blocks", "thinking_chars",
+              "reasoning_tokens_estimated", "reasoning_items", "reasoning_summary_chars", "latency_ms_mean", "permission_denials"):
+        if u.get(k) is not None:
+            p.extra[k] = u[k]
+    if u.get("last_rate_limit"):
+        p.extra["last_rate_limit"] = u["last_rate_limit"]
+    return p

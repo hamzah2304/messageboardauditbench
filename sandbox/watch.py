@@ -37,8 +37,11 @@ def show_claude(ev: dict) -> None:
                     body = " ".join(x.get("text", "") for x in body if isinstance(x, dict))
                 print(f"    ↳ {clip(body or '', 200)}")
     elif t == "result":
-        print(f"■ done: {ev.get('subtype')} turns={ev.get('num_turns')} "
-              f"{ev.get('duration_ms', 0) / 1000:.0f}s cost=${ev.get('total_cost_usd', 0):.2f}")
+        u = ev.get("usage") or {}
+        think = (u.get("output_tokens_details") or {}).get("thinking_tokens") or u.get("reasoning_tokens") or 0
+        print(f"■ done: {ev.get('terminal_reason') or ev.get('subtype')} turns={ev.get('num_turns')} "
+              f"{ev.get('duration_ms', 0) / 1000:.0f}s cost=${ev.get('total_cost_usd') or 0:.2f} "
+              f"out={u.get('output_tokens', 0)} thinking={think} cache_read={u.get('cache_read_input_tokens', 0)}")
 
 
 def show_codex(ev: dict) -> None:
@@ -57,7 +60,8 @@ def show_codex(ev: dict) -> None:
             print(f"  ✎ {', '.join(c['path'].split('/')[-1] for c in it.get('changes', []))}")
     elif t == "turn.completed":
         u = ev.get("usage", {})
-        print(f"■ turn done: in={u.get('input_tokens')} out={u.get('output_tokens')}")
+        print(f"■ turn done: in={u.get('input_tokens')} cached={u.get('cached_input_tokens')} out={u.get('output_tokens')} "
+              f"reasoning={u.get('reasoning_output_tokens')}")
     elif t == "error":
         print(f"  ✗ {clip(ev.get('message', ''))}")
 
