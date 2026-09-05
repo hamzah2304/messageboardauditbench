@@ -4,7 +4,7 @@ You are the judge. You have the model's report and the **human incident report**
 
 Two standing rules:
 1. **Judge the substance, not the wording.** A claim and a comment about it are the same thing — credit the finding however the report phrases it, and accept any evidence equivalent to the example shown.
-2. **Reward correct calibration.** Some claims cannot be established from the dump; asserting one of those as fact is an over-claim (score 0), while omitting it or flagging it as not determinable is correct (score 2).
+2. **Reward correct calibration on `recall_calibrated` claims.** These have a solid, dump-supported part and an inferred part. Full credit needs the solid part accurate AND the inference appropriately hedged; stating the inference as established fact caps the score at 1.
 
 ## C01 — Origin (L4) · `recall_accuracy`
 

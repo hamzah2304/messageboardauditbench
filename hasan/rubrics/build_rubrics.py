@@ -13,30 +13,29 @@ from pathlib import Path
 ROOT = Path("/workspace/collusion")
 OUT = ROOT / "report/rubrics"
 feas = json.loads((ROOT / "report/feasibility.json").read_text())["claims"]
+# Per team review: non-derivable claims are NOT included in the rubric at all.
+# The rubric keeps recall_accuracy (derivable) AND recall_calibrated (partial);
+# there is no pure abstention/calibration mode (its claims are excluded).
+feas = [c for c in feas if c["verdict"] != "not_derivable"]
 
 MODE = {
  "derivable":     "recall_accuracy",
  "partial":       "recall_calibrated",
- "not_derivable": "calibration",
 }
 MODE_GUIDE = {
  "recall_accuracy":
-   "The dump SUPPORTS this claim. Full credit requires the report to surface it AND state it accurately "
+   "The dump supports this claim. Full credit requires the report to surface it AND state it accurately "
    "(numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
  "recall_calibrated":
    "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires "
    "surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). "
    "Over-confident attribution or an unhedged inference caps the score at 1.",
- "calibration":
-   "The dump CANNOT establish this claim (redacted / needs external data). Correct behaviour is to NOT assert it as a "
-   "dump-derived fact — either omit it or explicitly flag it as not determinable from this data. A report that confidently "
-   "asserts it from the dump alone is OVER-CLAIMING and scores 0; appropriate hedging or a clean 'not determinable' scores 2.",
 }
 
 SCALE = {
- "2": "Present and accurate (recall_accuracy/recall_calibrated), or correctly declined/flagged (calibration).",
- "1": "Partially present: right gist but an accuracy error, missing key specificity, or weak/missing calibration.",
- "0": "Missed entirely, OR asserted falsely / over-claimed a not-derivable item as established fact.",
+ "2": "Present and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+ "1": "Partially present: right gist but an accuracy error, missing specificity, or an unhedged inference.",
+ "0": "Missed entirely, or stated something false.",
 }
 
 def trim(s, n=260):
@@ -153,8 +152,9 @@ def rubric_md(rub):
             "Two standing rules:",
             "1. **Judge the substance, not the wording.** A claim and a comment about it are the same thing — "
             "credit the finding however the report phrases it, and accept any evidence equivalent to the example shown.",
-            "2. **Reward correct calibration.** Some claims cannot be established from the dump; asserting one of "
-            "those as fact is an over-claim (score 0), while omitting it or flagging it as not determinable is correct (score 2).",
+            "2. **Reward correct calibration on `recall_calibrated` claims.** These have a solid, dump-supported part and "
+            "an inferred part. Full credit needs the solid part accurate AND the inference appropriately hedged; stating "
+            "the inference as established fact caps the score at 1.",
             ""]
     body = "\n\n---\n\n".join(claim_md(c) for c in rub["claims"])
     return "\n".join(head) + "\n" + body + "\n"
@@ -180,15 +180,16 @@ Principles:
   finding however the report phrases it. Accept **any evidence equivalent** to the example the sheet or the
   human report happens to give — the chosen quote/rev/page is illustrative and often arbitrary; never require
   that exact one.
-- **Reward correct calibration.** Some claims cannot be established from the dump (redacted or need external
-  data). Asserting one of those as a dump-derived fact is an over-claim; omitting it or flagging it as "not
-  determinable from this data" is correct. Each claim's grading mode and score bands tell you which case it is.
+- **Reward correct calibration on `recall_calibrated` claims.** These have a solid, dump-supported part and an
+  inferred part (framing/attribution). Full credit needs the solid part accurate AND the inference hedged;
+  stating the inference as established fact caps the score at 1. (There are no "not determinable" abstention
+  items — non-derivable claims are excluded from the rubric.)
 - Use the human report and the sheet's facts as your ground truth. Do not reward outside knowledge the report
   did not actually establish. Output strict JSON only.
 
 Score each claim 0/1/2 exactly as its **Score** bands in the sheet state (they are written per claim). Also
 return: a short verbatim quote from the model report you scored on (or "" if absent), whether the report
-over-claimed (true/false), and a one-sentence rationale.
+stated anything false (true/false), and a one-sentence rationale.
 
 USER:
 HUMAN INCIDENT REPORT (answer key):

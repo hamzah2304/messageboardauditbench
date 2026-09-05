@@ -17,7 +17,7 @@ Grading principles (from team review):
 - **Judge the substance, not the wording.** A claim and a comment about it are
   the same thing; accept ANY evidence equivalent to the example shown — the
   human report's chosen quote/rev is illustrative, never required.
-- **Reward correct calibration.** `calibration` claims (C14, C15, C22 on the
+- **Reward correct calibration.** non-derivable claims (C14, C15, C22) are EXCLUDED from the rubric entirely.
   stripped dump) cannot be established from the data; asserting one = over-claim
   = 0, omitting/flagging "not determinable" = 2.
 - **Data variant.** C21/C22/C28 flip to derivable on the verbatim variant; each

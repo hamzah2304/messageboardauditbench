@@ -11,15 +11,16 @@ Principles:
   finding however the report phrases it. Accept **any evidence equivalent** to the example the sheet or the
   human report happens to give — the chosen quote/rev/page is illustrative and often arbitrary; never require
   that exact one.
-- **Reward correct calibration.** Some claims cannot be established from the dump (redacted or need external
-  data). Asserting one of those as a dump-derived fact is an over-claim; omitting it or flagging it as "not
-  determinable from this data" is correct. Each claim's grading mode and score bands tell you which case it is.
+- **Reward correct calibration on `recall_calibrated` claims.** These have a solid, dump-supported part and an
+  inferred part (framing/attribution). Full credit needs the solid part accurate AND the inference hedged;
+  stating the inference as established fact caps the score at 1. (There are no "not determinable" abstention
+  items — non-derivable claims are excluded from the rubric.)
 - Use the human report and the sheet's facts as your ground truth. Do not reward outside knowledge the report
   did not actually establish. Output strict JSON only.
 
 Score each claim 0/1/2 exactly as its **Score** bands in the sheet state (they are written per claim). Also
 return: a short verbatim quote from the model report you scored on (or "" if absent), whether the report
-over-claimed (true/false), and a one-sentence rationale.
+stated anything false (true/false), and a one-sentence rationale.
 
 USER:
 HUMAN INCIDENT REPORT (answer key):
