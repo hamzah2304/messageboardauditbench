@@ -121,6 +121,18 @@ loopback that only forwards to vendor API hosts. Network isolation held. But:
 
 Conclusion: rebuild on containers so isolation comes from structure.
 
+## 4b. Data leak found 2026-09-05 afternoon: `is_human_handle`
+
+`labels.jsonl` carried two of the authors' analysis fields the stripper missed:
+`is_human_handle` (their human/bot classification of every name; only 3 names
+flagged human, including the impersonation label) and `save_request_source`.
+Every run up to and including the context-prompt round saw them. Most agents
+touched the field in passing; Haiku (s1, s3_scan), Sonnet (s1, s3), Terra (s2)
+and Luna (s2) cite it in their reports. The stripper now drops both;
+`data/raw_stripped` and `data/verbatim` are rebuilt. Runs before this fix are
+mildly contaminated on the "who is human" question and should be re-run before
+any scored comparison.
+
 ## 5. Target design: Docker, structural isolation
 
 Threat model: prevent the agent reading anything but the data, reaching
