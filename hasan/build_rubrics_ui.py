@@ -151,7 +151,7 @@ function render(){
  const fx=(g.fact_check||[]).map(f=>`<tr><td class="tok">${esc(f.token)}</td><td><span class="st ${stCls(f.status)}">${esc(f.status)}</span></td><td class="q">${esc(f.detail||'')}</td></tr>`).join('');
  const ev=(g.evidence||[]).map(e=>`<div class="ev"><div class="file">${esc(e.file)}</div><div class="q">${esc(e.query)}</div><div class="r">${esc(e.result)}</div></div>`).join('');
  const maps=(c.maps_to||[]).join(', ');
- const scale=['2','1','0'].map(k=>`<tr class="s${k}"><td class="s">${k}</td><td>${esc(c.scoring[k])}</td></tr>`).join('');
+ const scale=['1','0.5','0'].map(k=>`<tr class="s${k}"><td class="s">${k}</td><td>${esc(c.scoring[k])}</td></tr>`).join('');
  document.getElementById('detail').innerHTML=
   `<div><span class="rbadge">${c.rubric_id}</span><span class="lvbadge lv${c.level}">L${c.level}</span><span class="tag">${esc(c.section)}</span>`+
    `<span class="vbadge" style="color:${v[2]};background:${v[3]}">${g.verdict.replace('_',' ')}${g.confidence!=null?' · conf '+g.confidence:''}</span>`+
@@ -164,7 +164,7 @@ function render(){
   (g.notes?`<div class="field"><div class="k">Feasibility notes (ground truth)</div><div class="v">${esc(g.notes)}</div></div>`:'')+
   (fx?`<div class="field"><div class="k">Fact-check (verbatim tokens)</div><table class="fx">${fx}</table></div>`:'')+
   (ev?`<div class="field"><div class="k">Evidence — queries actually run</div>${ev}</div>`:'')+
-  `<div class="field"><div class="k">Accuracy scale (max 2)</div><table class="scale">${scale}</table></div>`+
+  `<div class="field"><div class="k">Accuracy scale (0–1, one decimal)</div><table class="scale">${scale}</table></div>`+
   (c.trap?`<div class="field"><div class="k">Trap</div><div class="callout">${esc(c.trap)}</div></div>`:'');
 }
 function nextVis(from,dir){let i=from;for(let n=0;n<CL.length;n++){i+=dir;if(i<0||i>=CL.length)return from;if(vis(CL[i]))return i;}return from;}
