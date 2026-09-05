@@ -70,7 +70,7 @@ for rub in RUB["rubrics"]:
         human_ctx = find_context(HUMAN, cl["report_quote"]) or {"before": "", "match": cl["report_quote"], "after": ""}
         model_ctx = None
         if best and best["quote"]:
-            model_ctx = find_context(best["text"], best["quote"]) or {"before": "", "match": best["quote"], "after": ""}
+            model_ctx = find_context(best["text"], best["quote"], win=950) or {"before": "", "match": best["quote"], "after": ""}
         claims.append({"id": cid, "section": cl["section"], "grading_mode": cl["grading_mode"], "claim": cl["claim"],
                        "human_ctx": human_ctx,
                        "best": ({"score": best["score"], "cond": best["cond"], "model": best["model"],
@@ -112,7 +112,7 @@ button.primary{background:var(--accent);color:#fff;border-color:var(--accent);fo
 .human .box{border-left:4px solid var(--accent);background:var(--soft);font-size:15px}
 .human .ctx{color:#a08a7e}
 .human b{color:#7a3418;background:#f7ddcf;padding:0 2px;border-radius:3px}
-.model .box{border-left:4px solid #6C6EF0;background:#EEF0FF;font-size:20px;line-height:1.6}
+.model .box{border-left:4px solid #6C6EF0;background:#EEF0FF;font-size:20px;line-height:1.6;max-height:460px;overflow-y:auto}
 .model .ctx{color:#9a9ab5;font-size:15px}
 .model b{color:#2b2c8c;background:#dcdcfb;padding:0 3px;border-radius:3px}
 .byline{font-size:12.5px;color:var(--ink2);margin-top:8px}.byline b{color:var(--ink)}
