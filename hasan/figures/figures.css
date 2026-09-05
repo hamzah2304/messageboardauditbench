@@ -1,0 +1,373 @@
+/* Figure styles for the ProWiki microsite.
+   Every rule is scoped under a per-figure root class (.fig-visits,
+   .fig-activity, .fig-yearly, .fig-cashiers) which mount() adds to the
+   container. Colour/font tokens are the host page's :root tokens:
+     --vivid-background --vivid-foreground --dull-foreground --accent
+     --outside --hair --serif --sans --mono
+   Tokens a figure needs that the host does not define are declared on the
+   figure's own root class below. */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   visits — "ProWiki agent edits, and the OpenAI visits that followed"
+   ═══════════════════════════════════════════════════════════════════════ */
+.fig-visits{
+  /* indigo ramp for the OpenAI request series */
+  --v1:#2b3a63;          /* visits · registered to OpenAI  (most certain) */
+  --v2:#5d6d99;          /* visits · previously claimed by OpenAI */
+  --v3:#a3adc7;          /* visits · suspected home lines   (least certain) */
+  /* the brackets step back to a warm neutral so the indigo ramp is the only new voice */
+  --civ:#8a8577;
+}
+.fig-visits,.fig-visits *{box-sizing:border-box}
+.fig-visits .lab:focus-visible{outline:1.5px solid var(--accent);outline-offset:3px}
+
+/* ── the timeline: annotation lanes above, chart, annotation lanes below ── */
+.fig-visits .tl{position:relative;margin-top:6px}
+.fig-visits .lanes{position:relative}
+.fig-visits .plot{position:relative}
+.fig-visits svg{display:block;width:100%;height:auto;overflow:visible}
+.fig-visits .ax{font-family:var(--mono);font-size:10px;fill:var(--dull-foreground)}
+.fig-visits .axr{font-family:var(--mono);font-size:10px;fill:var(--v1)}
+.fig-visits .axlabel{font-family:var(--sans);font-size:11px;letter-spacing:.05em;fill:var(--dull-foreground)}
+.fig-visits .axlabel.r{fill:var(--v1)}
+.fig-visits .hair{stroke:var(--hair);stroke-width:1}
+.fig-visits .base{stroke:var(--vivid-foreground);stroke-width:1}
+.fig-visits .evrule{stroke-width:1;opacity:.3}
+.fig-visits .band{fill:transparent}
+.fig-visits .band:hover{fill:var(--dull-foreground);fill-opacity:.07}
+
+/* elbow leaders from each spread-out label to the day it describes */
+.fig-visits svg.leads{position:absolute;left:0;top:0;pointer-events:none;z-index:1;overflow:visible}
+.fig-visits .lead{fill:none;stroke-width:1;opacity:.5;stroke-linejoin:round}
+
+/* the incident brackets under the axis — one shared treatment, distinguished by
+   their boundaries and labels rather than by colour */
+.fig-visits .civs{position:relative;margin-top:2px}
+.fig-visits .civbar{position:absolute;top:0;height:5px;border-top:2px solid var(--civ);
+  border-left:1px solid var(--civ);border-right:1px solid var(--civ)}
+.fig-visits .civlab{position:absolute;font-family:var(--mono);font-size:9.5px;
+  color:var(--civ);white-space:nowrap;z-index:2}
+.fig-visits svg.civleads{position:absolute;left:0;top:0;pointer-events:none;z-index:1;overflow:visible}
+.fig-visits .civlead{fill:none;stroke:var(--civ);stroke-width:1;opacity:.55}
+
+.fig-visits .lab{position:absolute;transform:translateX(-50%);width:126px;
+  background:var(--vivid-background);      /* masks connectors passing behind */
+  font-family:var(--sans);font-size:11.5px;line-height:1.3;
+  padding:2px 5px;cursor:default;z-index:2}
+.fig-visits .lab .dt{font-family:var(--mono);font-size:10px;letter-spacing:.02em;display:block;
+  margin-bottom:1px}
+.fig-visits .lab .cond{color:var(--vivid-foreground);display:block}
+.fig-visits .lab .full{display:none;position:absolute;left:0;bottom:calc(100% + 6px);width:268px;z-index:10;
+  padding:6px 9px;background:var(--vivid-background);border:1px solid;box-shadow:0 3px 10px rgba(0,0,0,.08);
+  color:var(--vivid-foreground);font-size:11.5px;line-height:1.4;white-space:normal;text-align:left;cursor:default}
+.fig-visits .lab.ours .full{border-color:var(--accent)}
+.fig-visits .lab.out .full{border-color:var(--outside)}
+/* the note opens as a popover above the label (visits.js clamps it inside the figure); the label
+   itself does not move or grow, so the text under the pointer stays where it was */
+.fig-visits .lab:hover,.fig-visits .lab:focus-visible{z-index:9;box-shadow:0 0 0 1px currentColor}
+.fig-visits .lab:hover .full,.fig-visits .lab:focus-visible .full{display:block}
+/* --mk repeats the label's own colour as a token, so a rule that recolours the
+   text still has the provenance colour to paint with (see the phone markers) */
+.fig-visits .lab.ours{--mk:var(--accent);color:var(--mk)}
+.fig-visits .lab.out{--mk:var(--outside);color:var(--mk)}
+.fig-visits .tl.focusing .lab:not(:hover):not(:focus-visible){opacity:.35}
+
+.fig-visits .tip{position:absolute;pointer-events:none;opacity:0;transition:opacity .08s;z-index:12;
+  background:var(--vivid-background);border:1px solid var(--vivid-foreground);
+  padding:7px 10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;white-space:nowrap}
+.fig-visits .tip .d{color:var(--dull-foreground);margin-bottom:3px}
+.fig-visits .tip .sec{margin-top:5px;padding-top:4px;border-top:1px solid var(--hair)}
+.fig-visits .tip .r{display:flex;justify-content:space-between;gap:16px;
+  font-variant-numeric:tabular-nums}
+.fig-visits .tip .r span{color:var(--dull-foreground)}
+.fig-visits .tip .r.tot{border-top:1px solid var(--hair);margin-top:2px;padding-top:2px}
+
+@media (prefers-reduced-motion:reduce){.fig-visits *{transition:none!important}}
+@media (max-width:760px){
+  .fig-visits .lab{font-size:10.5px;max-width:120px}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   activity — "ProWiki Agent activity over time"
+   ═══════════════════════════════════════════════════════════════════════ */
+.fig-activity,.fig-activity *{box-sizing:border-box}
+
+/* header row: legend key + Linear/Log toggle, right-aligned (no title) */
+.fig-activity .head{display:flex;align-items:baseline;justify-content:flex-end;gap:20px;
+  border-bottom:1px solid var(--vivid-foreground);padding-bottom:8px;margin-bottom:14px}
+.fig-activity .right{display:flex;gap:22px;align-items:baseline;flex:none}
+.fig-activity .key{display:flex;gap:16px;font-family:var(--sans);font-size:11.5px;color:var(--dull-foreground)}
+.fig-activity .key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.fig-activity .scale{display:flex;gap:13px}
+.fig-activity .scale button{font-family:var(--sans);font-size:12px;letter-spacing:.04em;
+  color:var(--dull-foreground);background:none;border:0;padding:0 0 2px;cursor:pointer;
+  border-bottom:1px solid transparent}
+.fig-activity .scale button:hover{color:var(--vivid-foreground)}
+.fig-activity .scale button[aria-pressed="true"]{color:var(--vivid-foreground);
+  border-bottom-color:var(--vivid-foreground)}
+.fig-activity .scale button:focus-visible,.fig-activity .lab:focus-visible{outline:1.5px solid var(--accent);outline-offset:3px}
+
+/* ── the timeline: annotation lanes above, chart, annotation lanes below ── */
+.fig-activity .tl{position:relative}
+.fig-activity .lanes{position:relative}
+.fig-activity .plot{position:relative}
+.fig-activity svg{display:block;width:100%;height:auto;overflow:visible}
+.fig-activity .ax{font-family:var(--mono);font-size:10px;fill:var(--dull-foreground)}
+.fig-activity .axlabel{font-family:var(--sans);font-size:11px;letter-spacing:.05em;fill:var(--dull-foreground)}
+.fig-activity .hair{stroke:var(--hair);stroke-width:1}
+.fig-activity .base{stroke:var(--vivid-foreground);stroke-width:1}
+.fig-activity .evrule{stroke-width:1;opacity:.3}
+.fig-activity .band{fill:transparent}
+.fig-activity .band:hover{fill:var(--dull-foreground);fill-opacity:.07}
+
+/* elbow leaders from each spread-out label to the day it describes */
+.fig-activity svg.leads{position:absolute;left:0;top:0;pointer-events:none;z-index:1;overflow:visible}
+.fig-activity .lead{fill:none;stroke-width:1;opacity:.5;stroke-linejoin:round}
+
+/* the three agent civilizations */
+/* same warm neutral as .fig-visits; declared again because --civ is per-figure, not a host token */
+.fig-activity{--civ:#8a8577}
+.fig-activity .civs{position:relative;margin-top:2px}
+.fig-activity .civbar{position:absolute;top:0;height:5px;border-top:2px solid var(--civ);
+  border-left:1px solid var(--civ);border-right:1px solid var(--civ)}
+.fig-activity .civlab{position:absolute;font-family:var(--mono);font-size:9.5px;
+  color:var(--civ);white-space:nowrap;z-index:2}
+.fig-activity svg.civleads{position:absolute;left:0;top:0;pointer-events:none;z-index:1;overflow:visible}
+.fig-activity .civlead{fill:none;stroke:var(--civ);stroke-width:1;opacity:.55}
+
+.fig-activity .lab{position:absolute;transform:translateX(-50%);width:126px;
+  background:var(--vivid-background);      /* masks connectors passing behind */
+  font-family:var(--sans);font-size:11.5px;line-height:1.3;
+  padding:2px 5px;cursor:default;z-index:2}
+.fig-activity .lab .dt{font-family:var(--mono);font-size:10px;letter-spacing:.02em;display:block;
+  margin-bottom:1px}
+.fig-activity .lab .cond{color:var(--vivid-foreground);display:block}
+.fig-activity .lab .full{display:none;color:var(--vivid-foreground);margin-top:4px;
+  padding-top:4px;border-top:1px solid var(--hair);font-size:11.5px;line-height:1.4}
+.fig-activity .lab:hover,.fig-activity .lab:focus-visible{z-index:9;width:268px;
+  box-shadow:0 0 0 1px currentColor}
+.fig-activity .lab:hover .full,.fig-activity .lab:focus-visible .full{display:block}
+.fig-activity .lab.ours{color:var(--accent)}
+.fig-activity .lab.out{color:var(--outside)}
+.fig-activity .tl.focusing .lab:not(:hover):not(:focus-visible){opacity:.35}
+
+.fig-activity .tip{position:absolute;pointer-events:none;opacity:0;transition:opacity .08s;z-index:12;
+  background:var(--vivid-background);border:1px solid var(--vivid-foreground);
+  padding:7px 10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;white-space:nowrap}
+.fig-activity .tip .d{color:var(--dull-foreground);margin-bottom:3px}
+.fig-activity .tip .r{display:flex;justify-content:space-between;gap:16px}
+.fig-activity .tip .r span{color:var(--dull-foreground)}
+
+@media (prefers-reduced-motion:reduce){.fig-activity *{transition:none!important}}
+@media (max-width:760px){
+  .fig-activity .head{flex-wrap:wrap}
+  .fig-activity .lab{font-size:10.5px;max-width:120px}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   yearly — "Yearly edits to the dse wiki, 2001–2026"
+   ═══════════════════════════════════════════════════════════════════════ */
+.fig-yearly,.fig-yearly *{box-sizing:border-box}
+.fig-yearly .plot{position:relative;margin-top:14px}
+.fig-yearly svg{display:block;width:100%;height:auto;overflow:visible}
+.fig-yearly .ax{font-family:var(--mono);font-size:10px;fill:var(--dull-foreground)}
+.fig-yearly .axlabel{font-family:var(--sans);font-size:11px;letter-spacing:.05em;fill:var(--dull-foreground)}
+.fig-yearly .hair{stroke:var(--hair);stroke-width:1}
+.fig-yearly .base{stroke:var(--vivid-foreground);stroke-width:1}
+.fig-yearly .band{fill:transparent}
+.fig-yearly .band:hover{fill:var(--dull-foreground);fill-opacity:.07}
+
+.fig-yearly .tip{position:absolute;pointer-events:none;opacity:0;transition:opacity .08s;z-index:12;
+  background:var(--vivid-background);border:1px solid var(--vivid-foreground);
+  padding:7px 10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;white-space:nowrap}
+.fig-yearly .tip .d{color:var(--dull-foreground);margin-bottom:3px}
+.fig-yearly .tip .r{display:flex;justify-content:space-between;gap:16px;
+  font-variant-numeric:tabular-nums}
+.fig-yearly .tip .r span{color:var(--dull-foreground)}
+
+@media (prefers-reduced-motion:reduce){.fig-yearly *{transition:none!important}}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   cashiers — static SVG timeline of the cashiers task rounds
+   ═══════════════════════════════════════════════════════════════════════ */
+.fig-cashiers{
+  --ink:#111;
+  --rule:#d6d6cc;
+}
+.fig-cashiers,.fig-cashiers *{box-sizing:border-box}
+.fig-cashiers .plot{width:100%}
+.fig-cashiers svg{display:block;width:100%;height:auto}
+.fig-cashiers svg text{font-family:var(--serif)}
+/* the fill-in-the-blank on the narrow layout: an underlined run of spaces.
+   Decoration colour does not follow fill, so it is set here. */
+.fig-cashiers .blank{
+  text-decoration:underline;
+  text-decoration-color:var(--accent);
+  text-decoration-thickness:0.9px;
+  text-underline-offset:1px;
+  text-decoration-skip-ink:none;
+}
+
+/* ---- wikis: edits per day by wiki, log scale ---- */
+/* Doubled selector: styles.css `figure.fig{padding:0}` out-specifies a lone class. */
+.fig-wikis{--surface:#f9fcf4}   /* open markers fill with this to punch through */
+figure.fig.fig-wikis{padding:2rem;background:var(--surface);outline:1px solid #eed}
+.fig-wikis .head{display:flex;justify-content:flex-start;padding-bottom:8px;margin-bottom:10px}
+.fig-wikis .key{display:flex;flex-wrap:wrap;gap:20px 28px;font-family:var(--sans);font-size:12px;color:var(--dull-foreground);line-height:1.35}
+/* Capping the long MediaWiki label is what leaves the titles room to fit one row. */
+.fig-wikis .kgroup{display:flex;flex-direction:column;gap:3px;max-width:240px}
+.fig-wikis .ktitle{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--vivid-foreground);margin-bottom:2px}
+.fig-wikis .kitem{display:flex;align-items:center;gap:8px}
+.fig-wikis .kitem .sw{flex:none;overflow:visible}
+.fig-wikis .plot{position:relative}
+.fig-wikis .plot svg{display:block;width:100%;height:auto;overflow:visible}
+.fig-wikis .sw{display:inline-block;width:34px;height:12px}
+.fig-wikis .ax{font-family:var(--mono);font-size:10px;fill:var(--dull-foreground)}
+.fig-wikis .axlabel{font-family:var(--sans);font-size:11px;letter-spacing:.05em;fill:var(--dull-foreground)}
+.fig-wikis .hair{stroke:var(--hair);stroke-width:1;stroke-dasharray:3 3}
+.fig-wikis .base{stroke:var(--vivid-foreground);stroke-width:1}
+/* One hue per series in --c; line, marker and tooltip row all read it. Chosen by
+   pairwise validation against this surface, so swap a hue only by re-validating.
+   Two known-and-accepted weak spots, not bugs: yellow is 2.09:1 here, and magenta
+   vs cyan collapses for deuteranopes — dse and probier separate by dash. */
+.fig-wikis .s-dse{--c:#d129e3}          /* magenta */
+.fig-wikis .s-probier{--c:#0093c4}      /* cyan */
+.fig-wikis .s-fractal{--c:#eda100}      /* yellow */
+.fig-wikis .s-usemod{--c:#e34948}       /* red */
+.fig-wikis .s-texteditors{--c:#008300}  /* green */
+.fig-wikis .s-publictestwiki{--c:#4a3aa7} /* violet */
+.fig-wikis .s-uncyclopedia{--c:#843c00}  /* umber */
+/* four edits between them; grey deliberately, to keep a real hue free */
+.fig-wikis .s-demo,.fig-wikis .s-gruender{--c:#8a8577}
+
+.fig-wikis .ln{fill:none;stroke:var(--c);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.fig-wikis .pt{fill:var(--c);stroke:var(--c);stroke-width:1.2}
+.fig-wikis .s-fractal .pt,.fig-wikis .s-demo .pt,.fig-wikis .s-gruender .pt,
+.fig-wikis .s-texteditors .pt,.fig-wikis .s-publictestwiki .pt,
+.fig-wikis .s-uncyclopedia .pt{fill:var(--surface)}
+/* after the series rules: equal specificity, so this has to win on order */
+.fig-wikis .pt.cross{fill:none}
+/* hovering a legend row or a line brings that series forward */
+.fig-wikis .plot .series,.fig-wikis .kitem{transition:opacity .12s,color .12s}
+.fig-wikis[data-focus] .plot .series{opacity:.12}
+.fig-wikis[data-focus] .plot .series.on{opacity:1}
+.fig-wikis[data-focus] .kitem{opacity:.45}
+/* colour, not weight — a bolder row would reflow the key */
+.fig-wikis[data-focus] .kitem.on{opacity:1;color:var(--vivid-foreground)}
+.fig-wikis .band{fill:transparent}
+.fig-wikis .band:hover{fill:var(--dull-foreground);fill-opacity:.07}
+.fig-wikis .tip{position:absolute;pointer-events:none;opacity:0;transition:opacity .08s;z-index:12;background:var(--vivid-background);border:1px solid var(--vivid-foreground);padding:7px 10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;white-space:nowrap}
+.fig-wikis .tip .d{color:var(--dull-foreground);margin-bottom:3px}
+.fig-wikis .tip .r{display:flex;justify-content:space-between;gap:16px;font-variant-numeric:tabular-nums}
+/* each row carries its own series class, so --c resolves per series */
+.fig-wikis .tip .r span{color:var(--c,var(--dull-foreground))}
+
+/* the "from outside the dumps" lanes sit in a very light amber box */
+
+/* everything below the axis that is reported from outside the dumps (the incident brackets and
+   the amber-dated labels) sits in one very light amber box */
+.fig-visits .outside{background:#fffdf5;border-radius:4px;box-shadow:0 0 0 8px #fffdf5;margin:10px 0 14px}
+.fig-visits .outside .lab{background:#fffdf5}
+.fig-visits .outside .civs{margin-top:0}
+.fig-visits .outside .lab{width:230px}
+.fig-visits .outside .lab .cond{display:inline}
+.fig-visits .outside .lab .dt{display:inline;margin-right:6px}
+.fig-visits .outside .lab{width:auto;max-width:none;white-space:nowrap}
+.fig-visits .outside{position:relative}
+.fig-visits .outside .lanes.below .lead{opacity:.75}
+.fig-visits .outside-label{position:absolute;right:-26px;top:50%;transform:translateY(-50%) rotate(180deg);writing-mode:vertical-rl;font-family:var(--sans);font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--outside);white-space:nowrap;line-height:1}
+/* the chart and its dump-derived labels sit in a very light green box, mirroring the amber one */
+.fig-visits .newbox{position:relative;background:#f9fcf4;border-radius:4px;box-shadow:0 0 0 8px #f9fcf4;margin:10px 0 14px}
+.fig-visits .newbox .lab{background:#f9fcf4}
+.fig-visits .newbox .tip{background:var(--vivid-background)}
+.fig-visits .newbox-label{position:absolute;right:-26px;top:50%;transform:translateY(-50%) rotate(180deg);writing-mode:vertical-rl;font-family:var(--sans);font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);white-space:nowrap;line-height:1}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Phones. Each figure's script sizes its SVG viewBox in CSS pixels and adds
+   an `m` class to its root below 600px; the rules here restyle the HTML parts
+   for that layout. Nothing here changes the wide layout.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* visits — numbered markers over the plot, the notes as two lists below it */
+.fig-visits .tl.m .ax{font-size:9px}
+.fig-visits .tl.m .lab{width:auto;max-width:none;padding:0;background:transparent;white-space:nowrap;cursor:pointer}
+.fig-visits .tl.m .lab .dt,.fig-visits .tl.m .lab .cond,.fig-visits .tl.m .lab .full{display:none}
+.fig-visits .tl.m .lab::before{content:attr(data-n);display:flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:50%;border:1px solid currentColor;background:var(--vivid-background);
+  font-family:var(--sans);font-size:10.5px;font-weight:600;line-height:1}
+.fig-visits .tl.m .lab:hover,.fig-visits .tl.m .lab:focus-visible{width:auto;box-shadow:none;white-space:nowrap}
+.fig-visits .tl.m .lab:hover .full,.fig-visits .tl.m .lab:focus-visible .full,
+.fig-visits .tl.m .lab:hover .cond,.fig-visits .tl.m .lab:hover .dt{display:none}
+/* Hover/focus fills the disc and reverses the number out of it. The fill and the
+   ring must name --mk, not currentColor: currentColor in any property other than
+   `color` resolves against this element's OWN colour, which this rule has just set
+   to the page background — so a currentColor fill would paint the disc, its ring
+   and its number all in #fffff8 and the marker would vanish. */
+.fig-visits .tl.m .lab:hover::before,.fig-visits .tl.m .lab:focus-visible::before{
+  background:var(--mk);border-color:var(--mk);color:var(--vivid-background)}
+.fig-visits .tl.m.focusing .lab:not(:hover):not(:focus-visible){opacity:1}
+
+.fig-visits .evlist{display:none;list-style:none;margin:6px 0 0;padding:0;
+  font-family:var(--sans);font-size:12.5px;line-height:1.4}
+.fig-visits .tl.m .evlist{display:block}
+.fig-visits .ev{position:relative;display:grid;grid-template-columns:20px auto 1fr;column-gap:8px;align-items:baseline;
+  padding:6px 0;border-top:1px solid var(--hair);cursor:pointer}
+.fig-visits .ev.ours{color:var(--accent)}
+.fig-visits .ev.out{color:var(--outside)}
+.fig-visits .ev .n{display:flex;align-items:center;justify-content:center;align-self:start;width:20px;height:20px;
+  border-radius:50%;border:1px solid currentColor;font-size:10.5px;font-weight:600;line-height:1}
+.fig-visits .ev .dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;white-space:nowrap}
+.fig-visits .ev .cond{color:var(--vivid-foreground);padding-right:18px}
+.fig-visits .ev .cond::after{content:"";position:absolute;right:4px;top:13px;width:6px;height:6px;
+  border-right:1px solid var(--dull-foreground);border-bottom:1px solid var(--dull-foreground);transform:rotate(45deg)}
+.fig-visits .ev.open .cond::after{transform:rotate(-135deg);top:16px}
+.fig-visits .ev .full{display:none;grid-column:2/-1;margin-top:3px;color:var(--vivid-foreground);
+  font-size:12px;line-height:1.45}
+.fig-visits .ev.open .full{display:block}
+.fig-visits .ev .evbtn{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;margin:0;background:none;cursor:pointer}
+.fig-visits .ev .evbtn:focus-visible{opacity:1;background:transparent;outline:1.5px solid var(--accent);outline-offset:2px}
+
+/* the two provenance boxes: their rotated edge labels become small headings */
+.fig-visits .tl.m .newbox,.fig-visits .tl.m .outside{display:flex;flex-direction:column;box-shadow:0 0 0 6px #f9fcf4}
+.fig-visits .tl.m .outside{box-shadow:0 0 0 6px #fffdf5}
+.fig-visits .tl.m .newbox-label,.fig-visits .tl.m .outside-label{position:static;order:-1;transform:none;
+  writing-mode:horizontal-tb;margin:0 0 2px;font-size:9px;line-height:1.2}
+.fig-visits .tl.m .outside .lab{background:transparent;width:auto}
+.fig-visits .tl.m .newbox .lab{background:transparent}
+.fig-visits .tl.m .civlab{font-size:9px}
+.fig-visits .tl.m .tip{font-size:11px;padding:6px 8px}
+
+/* wikis / yearly — nothing but type sizes; the scripts handle the geometry */
+.fig-wikis.m .ax,.fig-yearly.m .ax{font-size:9.5px}
+/* Full-bleed on phones, by cancelling the insets above it. width:auto is needed
+   because `.sec .wide` pins width:100%, and a fixed width slides the box rather
+   than widening it. Both values are styles.css's: .frame's 18px padding, and the
+   1.8rem `details.fact .fact-body` indent, which that file drops below 560 — so
+   the second query covers only the band where the indent is live. Change either
+   there and the bleed goes crooked; a symmetric calc(50% - 50vw) cannot do this,
+   because the fold makes the inset uneven. */
+@media (max-width:900px){
+  figure.fig.fig-wikis.m{width:auto;margin-left:-18px;margin-right:-18px}
+}
+@media (min-width:561px) and (max-width:900px){
+  details.fact .fact-body > figure.fig.fig-wikis.m{margin-left:calc(-18px - 1.8rem)}
+}
+.fig-wikis.m .key{gap:16px 18px;font-size:11px}
+.fig-wikis.m .kgroup{max-width:none}
+.fig-wikis.m .tip,.fig-yearly.m .tip{font-size:11px;padding:6px 8px}
+.fig-visits .axt{display:none;justify-content:space-between;gap:12px;margin:2px 0 4px;
+  font-family:var(--sans);font-size:11px;letter-spacing:.05em;color:var(--dull-foreground)}
+.fig-visits .axt .r{color:var(--v1)}
+.fig-visits .tl.m .axt{display:flex}
+
+/* below the sidenote margin the figure spans the viewport; the rotated edge labels stay inside the frame padding */
+@media (max-width:900px){
+  .fig-visits .newbox-label,.fig-visits .outside-label{right:-13px}
+}
+
+/* on a phone the chart shows only what the wiki data witnesses: the "previously known
+   timeline" box (civilization brackets and the outside-the-dumps events) is dropped */
+.fig-visits .tl.m .outside{display:none}
+/* ...and with nothing to contrast against, the remaining box loses its label and tint */
+.fig-visits .tl.m .newbox{background:transparent;box-shadow:none}
+.fig-visits .tl.m .newbox-label{display:none}
