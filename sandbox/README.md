@@ -33,7 +33,9 @@ the `claude` and `codex` binaries, non-root user `agent`), used for three roles:
 
 - Docker (on macOS: `colima start`, or Docker Desktop). The image builds itself
   on first run (`docker build -t mbab-sandbox -f sandbox/docker/Dockerfile .`).
-- Data: `scripts/fetch_data.sh && uv run python scripts/strip_analysis_fields.py data/raw data/raw_stripped`.
+- Data: `scripts/build_data.sh` (fetches, strips, builds `data/verbatim`, verifies
+  checksums). `DATA_DIR=data/verbatim` selects the verbatim variant; the run name
+  then ends in `_verbatim` and `meta.json` records `data_variant`.
 - Codex: `~/.codex/auth.json` from a normal `codex login` is copied in.
 - ReAct (any OpenRouter model, e.g. Kimi K3): put an OpenRouter key in
   `runs/.openrouter_key` (chmod 600) or export `OPENROUTER_API_KEY`. The

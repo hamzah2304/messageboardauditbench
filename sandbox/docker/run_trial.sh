@@ -5,7 +5,7 @@
 #   sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
 #   sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1   # ReAct scaffold via OpenRouter
 #
-# Env knobs: EFFORT (high), TIMEOUT (25m), DATA_DIR (data/raw_stripped), IMAGE (mbab-sandbox),
+# Env knobs: EFFORT (high), TIMEOUT (25m), DATA_DIR (data/raw_stripped; data/verbatim adds _verbatim to the run name), IMAGE (mbab-sandbox),
 #            BUDGET_MIN (20; react only: the loop stops issuing model calls after this).
 #
 # Isolation comes from structure, not permissions:
@@ -23,7 +23,9 @@ DATA_DIR="${DATA_DIR:-$ROOT/data/raw_stripped}"
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_s${SEED}"
+# Data variant (basename of DATA_DIR) goes into the run name unless it is the default, and always into meta.
+VARIANT="$(basename "$DATA_DIR")"; SUFFIX=""; [ "$VARIANT" = raw_stripped ] || SUFFIX="_$VARIANT"
+RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_s${SEED}${SUFFIX}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
 NET="mbab-inner-$STAMP"; PROXY="mbab-proxy-$STAMP"; SECRETS="$RUN/.secrets"
 mkdir -p "$RUN/work/data" "$SECRETS/claude" "$SECRETS/codex"
@@ -89,7 +91,7 @@ GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
 
 cat > "$RUN/meta.json" <<JSON
-{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"timeout":"$TIMEOUT",
+{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$HERE/../prompt.txt" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
 JSON
