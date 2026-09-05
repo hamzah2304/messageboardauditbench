@@ -1,55 +1,68 @@
 #!/usr/bin/env python3
 """
 Merge GPT-5.6 Sol snippet extractions into validation_data.json and regenerate validation.html.
+Model-generic: renders one panel per model in MODELS.
 
-Reads:  ../report/claims.json, ../reports/{gpt_5_6_sol,opus_5}.scores.json,
-        snippets/{human,gpt,opus}.json  (from extract_snippets.py)
+Reads:  ../report/claims.json, ../reports/<stem>.scores.json, snippets/{human,<key>}.json
 Writes: validation_data.json  and  validation.html
 """
-import json, re
+import json
 from pathlib import Path
 
 HERE = Path(__file__).parent
 ROOT = Path("/workspace/collusion")
 
+# key, display title, scores-file stem in ../reports/
+MODELS = [
+    ("gpt",   "GPT-5.6 Sol",      "gpt_5_6_sol"),
+    ("opus",  "Claude Opus 5",    "opus_5"),
+    ("haiku", "Claude Haiku 4.5", "haiku"),
+    ("luna",  "GPT-5.6 Luna",     "luna"),
+]
+
 claims = json.loads((ROOT / "report/claims.json").read_text())["claims"]
-gsc = json.loads((ROOT / "reports/gpt_5_6_sol.scores.json").read_text())["scores"]
-osc = json.loads((ROOT / "reports/opus_5.scores.json").read_text())["scores"]
 
 
 def load_snip(name):
     p = HERE / "snippets" / f"{name}.json"
-    if not p.exists():
-        return {}
-    return json.loads(p.read_text()).get("claims", {})
+    return json.loads(p.read_text()).get("claims", {}) if p.exists() else {}
 
 
-S = {k: load_snip(k) for k in ("human", "gpt", "opus")}
+def load_scores(stem):
+    p = ROOT / "reports" / f"{stem}.scores.json"
+    return json.loads(p.read_text()).get("scores", {}) if p.exists() else {}
 
 
-def field(doc, cid, key):
-    r = S[doc].get(cid) or {}
+HUMAN = load_snip("human")
+SNIP = {k: load_snip(k) for k, _, _ in MODELS}
+SCORE = {k: load_scores(stem) for k, _, stem in MODELS}
+
+
+def field(snip, cid, key):
+    r = snip.get(cid) or {}
     if not r.get("present", False):
         return ""
     return (r.get(key) or "").strip()
 
 
-emb = {"claims": [], "reports": {"gpt": {"title": "GPT-5.6 Sol"}, "opus": {"title": "Claude Opus 5"}},
-       "source": "snippets extracted by GPT-5.6 Sol (extract_snippets.py)"}
+emb = {"claims": [], "reports": {k: {"title": t} for k, t, _ in MODELS},
+       "source": "snippets + prefill scores from GPT-5.6 Sol"}
 for c in claims:
     cid = c["id"]
-    emb["claims"].append({
-        "id": cid, "level": c["level"], "section": c["section"], "derivable": c["derivable"],
-        "stratum": c["stratum"], "claim": c["claim"], "reference": c["dump_check"], "trap": c.get("trap", ""),
-        "human": {"context": field("human", cid, "context") or field("human", cid, "quote"),
-                  "highlight": field("human", cid, "highlight") or field("human", cid, "quote")},
-        "gpt": {"context": field("gpt", cid, "context") or field("gpt", cid, "quote"),
-                "highlight": field("gpt", cid, "highlight") or field("gpt", cid, "quote"),
-                "present": bool((S["gpt"].get(cid) or {}).get("present")), "prefill": gsc[cid]["score"]},
-        "opus": {"context": field("opus", cid, "context") or field("opus", cid, "quote"),
-                 "highlight": field("opus", cid, "highlight") or field("opus", cid, "quote"),
-                 "present": bool((S["opus"].get(cid) or {}).get("present")), "prefill": osc[cid]["score"]},
-    })
+    entry = {"id": cid, "level": c["level"], "section": c["section"], "derivable": c["derivable"],
+             "stratum": c["stratum"], "claim": c["claim"], "reference": c["dump_check"], "trap": c.get("trap", ""),
+             "human": {"context": field(HUMAN, cid, "context") or field(HUMAN, cid, "quote"),
+                       "highlight": field(HUMAN, cid, "highlight") or field(HUMAN, cid, "quote")},
+             "models": {}}
+    for k, _, _ in MODELS:
+        pf = (SCORE[k].get(cid) or {}).get("score", 0)
+        entry["models"][k] = {
+            "context": field(SNIP[k], cid, "context") or field(SNIP[k], cid, "quote"),
+            "highlight": field(SNIP[k], cid, "highlight") or field(SNIP[k], cid, "quote"),
+            "present": bool((SNIP[k].get(cid) or {}).get("present")),
+            "prefill": pf,
+        }
+    emb["claims"].append(entry)
 
 (HERE / "validation_data.json").write_text(json.dumps(emb, ensure_ascii=False))
 raw = (HERE / "validation_data.json").read_text()
@@ -84,21 +97,21 @@ h1{color:var(--accent);font-size:18px;margin:0}
 .ref{background:var(--soft);border-radius:8px;padding:10px 12px;font-size:13px;margin:8px 0}
 .ref b{color:var(--accent2)}
 .auto{font-size:11px;color:var(--mut);margin:6px 0 2px}
-.quote{background:var(--row);border-left:3px solid var(--border);border-radius:0 6px 6px 0;padding:8px 12px;font-size:13px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;max-height:300px;overflow:auto;margin-top:4px}
+.quote{background:var(--row);border-left:3px solid var(--border);border-radius:0 6px 6px 0;padding:8px 12px;font-size:13px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;max-height:260px;overflow:auto;margin-top:4px}
 mark{background:#ffe08a;color:#3a2c00;padding:0 1px;border-radius:2px}
-.panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
 @media(max-width:920px){.panels{grid-template-columns:1fr}}
-.panel{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--card)}
+.panel{border:1px solid var(--border);border-radius:10px;padding:13px;background:var(--card)}
 .model-tag{font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:5px}
-.mt-gpt{background:#2E7D6B}.mt-opus{background:var(--accent)}
+.mt-gpt{background:#2E7D6B}.mt-opus{background:var(--accent)}.mt-haiku{background:#7A5AA0}.mt-luna{background:#4A6B8A}
 .btns{display:flex;gap:8px;margin:8px 0}
-.vb{flex:1;border:2px solid var(--border);background:var(--card);border-radius:8px;padding:9px 0;font-weight:800;font-size:13px;cursor:pointer;color:var(--ink2)}
+.vb{flex:1;border:2px solid var(--border);background:var(--card);border-radius:8px;padding:8px 0;font-weight:800;font-size:12px;cursor:pointer;color:var(--ink2)}
 .vb:hover{border-color:var(--ink2)}
 .vb.miss.on{background:var(--miss-bg);border-color:var(--miss);color:var(--miss)}
 .vb.part.on{background:var(--part-bg);border-color:var(--part);color:var(--part)}
 .vb.full.on{background:var(--full-bg);border-color:var(--full);color:var(--full)}
 .noquote{color:var(--mut);font-style:italic;font-size:13px;padding:8px 0}
-textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-family:inherit;font-size:13px;resize:vertical;min-height:52px;margin-top:8px}
+textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-family:inherit;font-size:13px;resize:vertical;min-height:44px;margin-top:8px}
 .badge-val{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;background:var(--full-bg);color:var(--full);margin-left:6px}
 .badge-un{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;background:#eee;color:#888;margin-left:6px}
 .badge-abs{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;background:var(--miss-bg);color:var(--miss);margin-left:6px}
@@ -134,52 +147,46 @@ textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px
     <div class="ref" id="ref"></div>
     <div id="humanwrap"></div>
   </div>
-  <div class="panels">
-    <div class="panel" id="panel-gpt"></div>
-    <div class="panel" id="panel-opus"></div>
-  </div>
+  <div class="panels" id="panels"></div>
   <div class="interest" id="interest"></div>
-  <p class="hint">&larr;/&rarr; navigate &middot; Q/W/E score GPT &middot; O/P/[ score Opus &middot; 1/2/3 interest (not/neutral/interesting). Snippets by GPT-5.6 Sol. Autosaves locally; Save JSON to export.</p>
+  <p class="hint">&larr;/&rarr; navigate &middot; 1/2/3 interest (not/neutral/interesting). Snippets &amp; prefill scores by GPT-5.6 Sol. Autosaves locally; Save JSON to export.</p>
 </div>
 <script>
 __EMBED__
-var LS="claimval_v2";
+var MKEYS=Object.keys(VDATA.reports);
+var LS="claimval_v3";
 var V={}; try{V=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){V={}}
 VDATA.claims.forEach(function(c){
   if(!V[c.id]) V[c.id]={};
-  ["gpt","opus"].forEach(function(m){ if(!V[c.id][m]) V[c.id][m]={score:c[m].prefill,note:"",validated:false,auto:c[m].prefill}; });
+  if(!V[c.id].models) V[c.id].models={};
+  MKEYS.forEach(function(m){ if(!V[c.id].models[m]) V[c.id].models[m]={score:c.models[m].prefill,note:"",validated:false,auto:c.models[m].prefill}; });
   if(V[c.id].interest===undefined) V[c.id].interest=null;
 });
 var i=0;
 function esc(s){return (s||"").replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]});}
-function hl(text,phrase){
-  var h=esc(text||"");
-  if(!phrase) return h;
-  var p=esc(phrase).trim(); if(p.length<3) return h;
-  var re; try{re=new RegExp('('+p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','g');}catch(e){return h;}
-  return h.replace(re,'<mark>$1</mark>');
-}
+function hl(text,phrase){var h=esc(text||"");if(!phrase)return h;var p=esc(phrase).trim();if(p.length<3)return h;
+  var re;try{re=new RegExp('('+p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','g');}catch(e){return h;}return h.replace(re,'<mark>$1</mark>');}
 function save(){try{localStorage.setItem(LS,JSON.stringify(V))}catch(e){}}
-function counts(){var v=0,t=VDATA.claims.length*2,ic=0;VDATA.claims.forEach(function(c){["gpt","opus"].forEach(function(m){if(V[c.id][m].validated)v++});if(V[c.id].interest==='interesting')ic++;});return v+" / "+t+" validated · "+ic+" interesting";}
+function counts(){var v=0,t=VDATA.claims.length*MKEYS.length,ic=0;VDATA.claims.forEach(function(c){MKEYS.forEach(function(m){if(V[c.id].models[m].validated)v++});if(V[c.id].interest==='interesting')ic++;});return v+" / "+t+" validated · "+ic+" interesting";}
+function label(s){return s===0?"MISS":s===1?"PARTIAL":s===2?"FULL":"—";}
 function interestBar(c){var v=V[c.id].interest;
   return '<span class="il">Interest:</span>'
    +'<button class="ib not'+(v==='not'?' on':'')+'" data-int="not">Not interesting</button>'
    +'<button class="ib neu'+(v==='neutral'?' on':'')+'" data-int="neutral">Neutral</button>'
    +'<button class="ib int'+(v==='interesting'?' on':'')+'" data-int="interesting">★ Interesting</button>';}
-function label(s){return s===0?"MISS":s===1?"PARTIAL":s===2?"FULL":"—";}
 function panel(m,c){
-  var st=V[c.id][m]; var q=c[m].context;
+  var st=V[c.id].models[m]; var md=c.models[m]; var q=md.context;
   var badge = st.validated?'<span class="badge-val">validated</span>':'<span class="badge-un">auto: '+label(st.auto)+'</span>';
-  var abs = (!c[m].present)?'<span class="badge-abs">model: not found</span>':'';
-  var qhtml = q ? '<div class="quote">'+hl(q,c[m].highlight)+'</div>' : '<div class="noquote">GPT-5.6 Sol found no passage for this claim &mdash; scan the full report to confirm it is a genuine miss.</div>';
-  return '<div class="cc-head" style="margin:0 0 6px"><span class="model-tag '+(m==="gpt"?"mt-gpt":"mt-opus")+'">'+VDATA.reports[m].title+'</span>'+badge+abs+'</div>'
+  var abs = (!md.present)?'<span class="badge-abs">not found</span>':'';
+  var qhtml = q ? '<div class="quote">'+hl(q,md.highlight)+'</div>' : '<div class="noquote">GPT-5.6 Sol found no passage for this claim in this report.</div>';
+  return '<div class="panel"><div class="cc-head" style="margin:0 0 6px"><span class="model-tag mt-'+m+'">'+VDATA.reports[m].title+'</span>'+badge+abs+'</div>'
     + qhtml
     + '<div class="btns">'
     + '<button class="vb miss'+(st.score===0?" on":"")+'" data-m="'+m+'" data-s="0">Miss</button>'
     + '<button class="vb part'+(st.score===1?" on":"")+'" data-m="'+m+'" data-s="1">Partial</button>'
     + '<button class="vb full'+(st.score===2?" on":"")+'" data-m="'+m+'" data-s="2">Full</button>'
     + '</div>'
-    + '<textarea data-note="'+m+'" placeholder="Notes on '+VDATA.reports[m].title+' for this claim...">'+esc(st.note)+'</textarea>';
+    + '<textarea data-note="'+m+'" placeholder="Notes on '+VDATA.reports[m].title+'...">'+esc(st.note)+'</textarea></div>';
 }
 function render(){
   var c=VDATA.claims[i];
@@ -190,17 +197,16 @@ function render(){
   document.getElementById('cchead').innerHTML='<span class="lvl l'+c.level+'">L'+c.level+'</span><b>'+c.id+'</b><span>&middot; '+esc(c.section)+'</span><span class="tag t-'+c.derivable+'">derivable: '+c.derivable+'</span><span>&middot; '+strat+'</span>';
   document.getElementById('claimtxt').textContent=c.claim;
   document.getElementById('ref').innerHTML='<b>Verified reference (dump):</b> '+esc(c.reference)+(c.trap?'<br><b>Grader trap:</b> '+esc(c.trap):'');
-  document.getElementById('interest').innerHTML=interestBar(c);
   document.getElementById('humanwrap').innerHTML = c.human.context ? '<div class="auto">Human report passage:</div><div class="quote">'+hl(c.human.context,c.human.highlight)+'</div>' : '<div class="auto">Human report passage: <i>none found by GPT-5.6 Sol.</i></div>';
-  document.getElementById('panel-gpt').innerHTML=panel('gpt',c);
-  document.getElementById('panel-opus').innerHTML=panel('opus',c);
+  document.getElementById('panels').innerHTML=MKEYS.map(function(m){return panel(m,c);}).join('');
+  document.getElementById('interest').innerHTML=interestBar(c);
   wire();
 }
 function wire(){
   [].forEach.call(document.querySelectorAll('.vb'),function(b){b.onclick=function(){
-    var c=VDATA.claims[i],m=b.dataset.m,s=+b.dataset.s; V[c.id][m].score=s; V[c.id][m].validated=true; save(); render();};});
+    var c=VDATA.claims[i],m=b.dataset.m,s=+b.dataset.s; V[c.id].models[m].score=s; V[c.id].models[m].validated=true; save(); render();};});
   [].forEach.call(document.querySelectorAll('textarea[data-note]'),function(t){t.oninput=function(){
-    var c=VDATA.claims[i]; V[c.id][t.dataset.note].note=t.value; V[c.id][t.dataset.note].validated=true; save();
+    var c=VDATA.claims[i]; V[c.id].models[t.dataset.note].note=t.value; V[c.id].models[t.dataset.note].validated=true; save();
     document.getElementById('counter').textContent=counts();};});
   [].forEach.call(document.querySelectorAll('.ib'),function(b){b.onclick=function(){
     var c=VDATA.claims[i]; V[c.id].interest=(V[c.id].interest===b.dataset.int?null:b.dataset.int); save(); render();};});
@@ -212,20 +218,16 @@ document.getElementById('next').onclick=function(){go(1)};
 var jsel=document.getElementById('jump');
 VDATA.claims.forEach(function(c,idx){var o=document.createElement('option');o.value=idx;o.textContent=c.id+" (L"+c.level+") "+c.section;jsel.appendChild(o);});
 jsel.onchange=function(){i=+jsel.value;render()};
-function setScore(m,s){var c=VDATA.claims[i];V[c.id][m].score=s;V[c.id][m].validated=true;save();render();}
 document.addEventListener('keydown',function(e){
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;
   if(e.key==='ArrowLeft')go(-1); else if(e.key==='ArrowRight')go(1);
-  else if(e.key==='q')setScore('gpt',0);else if(e.key==='w')setScore('gpt',1);else if(e.key==='e')setScore('gpt',2);
-  else if(e.key==='o')setScore('opus',0);else if(e.key==='p')setScore('opus',1);else if(e.key==='[')setScore('opus',2);
   else if(e.key==='1')setInterest('not');else if(e.key==='2')setInterest('neutral');else if(e.key==='3')setInterest('interesting');
 });
 function exportObj(){
-  var out={validated_at:new Date().toISOString(),n_claims:VDATA.claims.length,verdicts:[]};
-  VDATA.claims.forEach(function(c){out.verdicts.push({id:c.id,level:c.level,section:c.section,claim:c.claim,
-    interest:V[c.id].interest,
-    gpt:{score:V[c.id].gpt.score,auto:V[c.id].gpt.auto,note:V[c.id].gpt.note,validated:V[c.id].gpt.validated},
-    opus:{score:V[c.id].opus.score,auto:V[c.id].opus.auto,note:V[c.id].opus.note,validated:V[c.id].opus.validated}});});
+  var out={validated_at:new Date().toISOString(),n_claims:VDATA.claims.length,models:MKEYS,verdicts:[]};
+  VDATA.claims.forEach(function(c){var row={id:c.id,level:c.level,section:c.section,claim:c.claim,interest:V[c.id].interest,models:{}};
+    MKEYS.forEach(function(m){var st=V[c.id].models[m];row.models[m]={score:st.score,auto:st.auto,note:st.note,validated:st.validated};});
+    out.verdicts.push(row);});
   return out;
 }
 document.getElementById('save').onclick=function(){
@@ -238,5 +240,5 @@ render();
 
 HTML = HTML.replace("__EMBED__", embed)
 (HERE / "validation.html").write_text(HTML)
-print("wrote validation_data.json and validation.html")
+print("wrote validation_data.json and validation.html for models:", [k for k, _, _ in MODELS])
 print("literal </script> count:", HTML.count("</script>"))
