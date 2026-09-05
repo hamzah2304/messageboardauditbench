@@ -55,7 +55,7 @@ body{padding-right:390px !important}
 '''
 
 INJECT_HTML = r'''<div id="cov-side">
-  <div class="csh"><h2>Rubric Coverage</h2>
+  <div class="csh"><h2>__TITLE__</h2>
     <button class="btn" id="cov-copy">Copy JSON</button><button class="btn save" id="cov-save">Save JSON</button>
     <span class="counter" id="cov-counter"></span></div>
   <div class="tabs"><button class="tab active" data-tab="claims">Claims (chronological)</button><button class="tab" data-tab="comments">Comments <span id="cov-cc"></span></button></div>
@@ -74,7 +74,7 @@ INJECT_HTML = r'''<div id="cov-side">
 <script>
 __EMBED__
 (function(){
-var LS="coverage_site_v1"; var C={}; try{C=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){}; if(!C.comments)C.comments=[];
+var LS="__LS_KEY__"; var C={}; try{C=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){}; if(!C.comments)C.comments=[];
 var ROOT=document.querySelector('article.essay')||document.querySelector('.main')||document.body;
 var supportsHL=(typeof Highlight!=="undefined"&&CSS&&CSS.highlights);
 var nodes=[],starts=[],FULL="";
@@ -124,8 +124,8 @@ qbtn.onclick=function(){if(!SEL)return;document.getElementById('cov-pop-q').text
 document.getElementById('cov-pop-cancel').onclick=function(){pop.style.display='none';};
 document.getElementById('cov-pop-add').onclick=function(){if(!SEL)return;C.comments.push({s:SEL.s,e:SEL.e,quote:SEL.quote,type:document.getElementById('cov-pop-type').value,claim:document.getElementById('cov-pop-claim').value||null,note:document.getElementById('cov-pop-note').value||"",ts:new Date().toISOString()});save();paintCmt();renderComments();pop.style.display='none';document.querySelector('#cov-side .tab[data-tab=comments]').click();};
 document.addEventListener('mousedown',function(e){if(!pop.contains(e.target)&&e.target!==qbtn)pop.style.display='none';});
-function exportObj(){return {saved_at:new Date().toISOString(),report:"human collusion.wiki report",n_claims:CDATA.claims.length,located:CDATA.claims.filter(function(c){return c.located}).length,unlocated_claims:CDATA.claims.filter(function(c){return !c.located}).map(function(c){return c.id}),comments:C.comments};}
-document.getElementById('cov-save').onclick=function(){var b=new Blob([JSON.stringify(exportObj(),null,1)],{type:"application/json"});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download="coverage_review.json";a.click();};
+function exportObj(){return {saved_at:new Date().toISOString(),reviewer:"__REVIEWER__",report:"human collusion.wiki report",n_claims:CDATA.claims.length,located:CDATA.claims.filter(function(c){return c.located}).length,unlocated_claims:CDATA.claims.filter(function(c){return !c.located}).map(function(c){return c.id}),comments:C.comments};}
+document.getElementById('cov-save').onclick=function(){var b=new Blob([JSON.stringify(exportObj(),null,1)],{type:"application/json"});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download="__DOWNLOAD__";a.click();};
 document.getElementById('cov-copy').onclick=function(){navigator.clipboard&&navigator.clipboard.writeText(JSON.stringify(exportObj(),null,1));this.textContent="Copied";var t=this;setTimeout(function(){t.textContent="Copy JSON"},1200);};
 renderClaims();renderComments();
 })();
@@ -133,8 +133,18 @@ renderClaims();renderComments();
 '''
 INJECT_HTML = INJECT_HTML.replace("__EMBED__", embed)
 html = html.replace("</head>", INJECT_CSS + "</head>", 1)
-html = html.replace("</body>", INJECT_HTML + "</body>", 1)
-(HERE / "coverage.html").write_text(html)
-print("wrote coverage.html bytes:", len(html))
+
+def write_review(name, title, ls_key, reviewer, download):
+    inject = (INJECT_HTML
+        .replace("__TITLE__", title)
+        .replace("__LS_KEY__", ls_key)
+        .replace("__REVIEWER__", reviewer)
+        .replace("__DOWNLOAD__", download))
+    out = html.replace("</body>", inject + "</body>", 1)
+    (HERE / name).write_text(out)
+    print(f"wrote {name} bytes:", len(out))
+
+write_review("coverage.html", "Rubric Coverage", "coverage_site_v1", "hasan", "coverage_review.json")
+write_review("coverage_hamzah.html", "Rubric Coverage (Hamzah)", "coverage_site_hamzah_v1", "hamzah", "coverage_review_hamzah.json")
 print("remaining stylesheet links:", len(re.findall(r'<link rel="stylesheet"', html)))
 print("</script> count (site has figure scripts too):", html.count("</script>"))
