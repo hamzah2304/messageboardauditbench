@@ -3,6 +3,7 @@
 Two dialects:
   * Claude Code  `claude -p --output-format stream-json --verbose`
   * Codex        `codex exec --json`
+  * ReAct        `sandbox/react_agent.py` (emits the Claude Code dialect)
 
 The output is a list of ChatMessageAssistant / ChatMessageTool in the order the
 agent produced them, plus a usage summary. Rendering them as ordinary messages
@@ -189,4 +190,5 @@ def parse_codex(path: Path) -> Parsed:
 
 
 def parse(agent: str, path: Path) -> Parsed:
+    # react_agent.py deliberately writes the Claude Code dialect.
     return parse_codex(path) if agent == "codex" else parse_claude(path)

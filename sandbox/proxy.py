@@ -6,7 +6,7 @@ connection from an agent has to come through here, and only hosts in ALLOW get
 through. Everything else is refused and logged, which doubles as a record of
 what the agent tried to reach.
 
-Usage: proxy.py [--port 3128] [--log denied.log]
+Usage: proxy.py [--bind 127.0.0.1] [--port 3128] [--log denied.log]
 """
 import argparse
 import select
@@ -23,6 +23,8 @@ ALLOW = {
     "chatgpt.com",
     "api.openai.com",
     "auth.openai.com",
+    # ReAct scaffold (sandbox/react_agent.py)
+    "openrouter.ai",
 }
 
 
@@ -83,6 +85,7 @@ def handle(client: socket.socket, addr, log) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--bind", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=3128)
     ap.add_argument("--log", default="-")
     args = ap.parse_args()
@@ -95,9 +98,9 @@ def main() -> None:
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", args.port))
+    srv.bind((args.bind, args.port))
     srv.listen(64)
-    log(f"listening on 127.0.0.1:{args.port} allow={sorted(ALLOW)}")
+    log(f"listening on {args.bind}:{args.port} allow={sorted(ALLOW)}")
     while True:
         c, a = srv.accept()
         threading.Thread(target=handle, args=(c, a, log), daemon=True).start()

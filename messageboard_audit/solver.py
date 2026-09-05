@@ -1,6 +1,6 @@
 """Solvers that run a coding-agent CLI in the sandbox, or replay a finished run.
 
-`cli_agent(...)` launches sandbox/run_trial.sh, then folds the CLI's transcript
+`cli_agent(...)` launches sandbox/docker/run_trial.sh, then folds the CLI's transcript
 and the report it wrote into Inspect state, so `inspect view` renders the whole
 session and the scorers see the report as the completion.
 
@@ -71,7 +71,7 @@ def cli_agent(agent: str, model: str, effort: str = "medium", timeout: str = "25
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         seed = state.epoch
-        cmd = [str(REPO / "sandbox" / "run_trial.sh"), agent, model, str(seed)]
+        cmd = [str(REPO / "sandbox" / "docker" / "run_trial.sh"), agent, model, str(seed)]
         env = {"EFFORT": effort, "TIMEOUT": timeout}
         proc = subprocess.run(
             cmd, cwd=REPO, env={**_os_environ(), **env},
