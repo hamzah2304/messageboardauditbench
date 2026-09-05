@@ -66,7 +66,7 @@ def main() -> None:
     run = Path(sys.argv[1])
     follow = "--no-follow" not in sys.argv
     path = run / "transcript.jsonl"
-    agent = "codex" if "codex" in run.name else "claude"
+    agent = "codex" if "_codex_" in run.name else "claude"  # react runs use the Claude dialect
     show = show_codex if agent == "codex" else show_claude
     with path.open() as f:
         while True:

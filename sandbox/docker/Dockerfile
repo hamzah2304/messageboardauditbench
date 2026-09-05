@@ -1,5 +1,5 @@
 # One image, three roles: agent (runs a CLI or the ReAct scaffold), proxy (sandbox/proxy.py), canary.
-# Nothing from the repo is copied in except proxy.py.
+# Nothing from the repo is copied in except proxy.py and react_agent.py.
 FROM python:3.12-slim
 ARG CODEX_VERSION=rust-v0.153.4
 ARG CLAUDE_VERSION=latest

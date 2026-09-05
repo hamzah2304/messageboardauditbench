@@ -7,10 +7,13 @@ is reference.
 
 **Update, later on 2026-09-05:** §5 is now implemented in `sandbox/docker/`
 (one Dockerfile, one launcher script; plain `docker`, no compose). Smoke-tested
-on macOS/colima: the canary passes and a Codex trial ran end to end. Claude
-trials need `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) because the
-macOS Keychain token is not usable from a Linux container. `solver.py` now
-calls the Docker launcher. `sandbox/README.md` is the operating doc.
+on macOS/colima: the canary passes and trials of all three agent types ran end
+to end. Claude credentials come from a one-time login inside the image
+(`sandbox/docker/claude_login.sh`) because the macOS Keychain token is not
+usable from a Linux container. `solver.py` calls the Docker launcher.
+`sandbox/README.md` is the operating doc. **Sections 4, 4a, 5, 6 and 7c/7d
+below describe the deleted permissions sandbox and are kept as history;
+their commands no longer work.**
 Branch `oscar/docker-sandbox` (2026-09-05, later): the permissions-based
 sandbox scripts were deleted, effort defaults to high, and a third agent type
 `react` (a minimal tool-calling loop over OpenRouter, for models like Kimi K3
@@ -47,7 +50,7 @@ Decisions already made (2026-09-04):
 | `scripts/fetch_data.sh` | downloads the 4.2 MB dump, verifies checksums, into `data/raw/` |
 | `scripts/strip_analysis_fields.py` | makes `data/raw_stripped/` (drops 44 fields + manifest) |
 | `scripts/make_report_artifact.py` | renders a run's report.md to a styled HTML page |
-| `sandbox/` | the **current, lightweight** sandbox (Linux user + iptables + allowlist proxy). Works, but see §4. |
+| `sandbox/` | historical entry: the lightweight sandbox (Linux user + iptables) was deleted on `oscar/docker-sandbox`; `sandbox/docker/` replaces it |
 | `sandbox/prompt.txt` | the blind prompt used for the baselines |
 | `sandbox/watch.py` | live tail of a run's transcript (Claude Code and Codex formats) |
 | `messageboard_audit/` | Inspect package: task, solver (live + replay), transcript converters, rubric scorer, starter rubric |
@@ -86,7 +89,7 @@ mock zeros: no judge API key was available on the VM.
 Verified for both runs: zero non-vendor network attempts (proxy log +
 transcripts + iptables counters), and neither agent read outside its run dir.
 
-## 4. Sandbox status (updated 2026-09-05, after the Haiku / Luna runs)
+## 4. Sandbox status (historical: permissions sandbox, deleted later the same day)
 
 The leaks below were all patched in `sandbox/run_trial.sh` and
 `sandbox/setup_sandbox.sh` before the second pair of runs, and verified with a
@@ -132,7 +135,7 @@ loopback that only forwards to vendor API hosts. Network isolation held. But:
 
 Conclusion: rebuild on containers so isolation comes from structure.
 
-## 5. Target design: Docker, structural isolation
+## 5. Target design: Docker, structural isolation (implemented in `sandbox/docker/`; the compose sketch below was not used)
 
 Threat model: prevent the agent reading anything but the data, reaching
 anything but its vendor API, and seeing hints of curation. Not defending
@@ -233,7 +236,7 @@ that adds back only what the human report prints verbatim (8 probe URLs, the
 24 May discovery requests, the 17 June `*.lhr.life` referrers) and replaces the
 dump's redacted name tokens with consistent fictional names, including the
 Cyrillic-е look-alike admin name. Full description and grading consequences in
-`docs/verbatim-data.md`. Run with `DATA_DIR=data/verbatim sandbox/run_trial.sh`.
+`docs/verbatim-data.md`. Run with `DATA_DIR=data/verbatim sandbox/docker/run_trial.sh`.
 `scripts/build_data.sh` rebuilds every variant from the download in one step
 and checks the result against the committed `data/SHA256SUMS.variants`; the
 build is deterministic (verified twice, byte-identical). The earlier reconstruction-based augmentation was abandoned the same day; see
@@ -250,7 +253,7 @@ localStorage until exported with Save JSON, so commit the export. Gaps: one
 label set per browser, the human sees the judge's prefill (not blind), and the
 recall column mixes graders (Claude for Sol/Opus, Sol for Haiku/Luna).
 
-### 7c. Fan-out reading tool `llm_scan` (off by default)
+### 7c. Fan-out reading tool `llm_scan` (historical: VM only, not wired into the Docker launcher)
 
 Motivation: the dump is ~10M tokens; no agent can read it, and the baselines
 all grep, sample and extrapolate. The UKAISI "seven steps" paper's scanner
@@ -292,7 +295,7 @@ read partial output; time spent scanning was time not spent counting. Fixes to
 try before judging the idea: smaller chunks with higher concurrency, tell the
 agent to run scans with `nohup ... &` and poll, and more than one seed.
 
-### 7d. Operational notes
+### 7d. Operational notes (VM only)
 
 - Sandbox users' copied OAuth tokens expire. If a trial fails with "OAuth
   session expired", re-run `sandbox/ensure_user.sh agentboxN` for each user.

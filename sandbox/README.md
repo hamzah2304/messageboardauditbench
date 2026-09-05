@@ -62,7 +62,7 @@ sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
 sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
 ```
 
-Knobs: `EFFORT=high`, `TIMEOUT=25m` (the prompt says ~20 minutes),
+Knobs: `EFFORT=high`, `TIMEOUT=25m`, `BUDGET_MIN=20` (react) (the prompt says ~20 minutes),
 `DATA_DIR=data/raw_stripped`, `IMAGE=mbab-sandbox`.
 
 Batch, one trial at a time per vendor (each CLI runs against one

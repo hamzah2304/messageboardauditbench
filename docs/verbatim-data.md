@@ -33,4 +33,4 @@ consistent across revisions, pages, labels and deletions:
 - Still not in the data, by decision: OpenAI-HQ visits, ChatGPT-User fetch reads, full IPs and provider attribution, edits on other wikis, the urlscan record. Rubric leaves on these stay `derivable: no`.
 - Counts differ from the report only by the 19 added request rows.
 
-Run with `DATA_DIR=data/verbatim sandbox/run_trial.sh ...`.
+Run with `DATA_DIR=data/verbatim sandbox/docker/run_trial.sh ...`.

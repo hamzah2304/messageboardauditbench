@@ -30,7 +30,7 @@ PROMPT = (REPO / "sandbox" / "prompt.txt").read_text()
 def messageboard_audit(
     agent: str = "claude",
     model: str = "claude-opus-5",
-    effort: str = "medium",
+    effort: str = "high",
     timeout: str = "25m",
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
@@ -50,7 +50,7 @@ def messageboard_audit_replay(
     for d in sorted((REPO / "runs").glob(runs_glob)):
         if not (d / "transcript.jsonl").exists() or d.name.startswith("failed"):
             continue
-        agent = "codex" if "codex" in d.name else "claude"
+        agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(
             Sample(input=PROMPT, id=d.name, metadata={"run_dir": str(d), "agent": agent})
         )

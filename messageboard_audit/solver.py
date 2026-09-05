@@ -66,7 +66,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 
 
 @solver
-def cli_agent(agent: str, model: str, effort: str = "medium", timeout: str = "25m") -> Solver:
+def cli_agent(agent: str, model: str, effort: str = "high", timeout: str = "25m") -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:

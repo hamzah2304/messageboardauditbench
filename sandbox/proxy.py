@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Allowlisting HTTP CONNECT proxy.
 
-The sandbox user can only reach 127.0.0.1 (iptables), so every outbound
-connection from an agent has to come through here, and only hosts in ALLOW get
-through. Everything else is refused and logged, which doubles as a record of
+The agent container sits on an internal Docker network with no gateway, so every
+outbound connection from an agent has to come through here (HTTPS_PROXY), and
+only hosts in ALLOW get through. Everything else is refused and logged, which doubles as a record of
 what the agent tried to reach.
 
 Usage: proxy.py [--bind 127.0.0.1] [--port 3128] [--log denied.log]

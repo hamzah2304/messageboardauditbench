@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run one trial in Docker with structural isolation. Same interface as sandbox/run_trial.sh:
+# Run one trial in Docker with structural isolation.
 #
 #   sandbox/docker/run_trial.sh claude claude-opus-5 1
 #   sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
@@ -18,7 +18,7 @@ AGENT="${1:?claude|codex|react}"; MODEL="${2:?model id}"; SEED="${3:-1}"
 EFFORT="${EFFORT:-high}"; TIMEOUT="${TIMEOUT:-25m}"; IMAGE="${IMAGE:-mbab-sandbox}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 DATA_DIR="${DATA_DIR:-$ROOT/data/raw_stripped}"
-[ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/fetch_data.sh then strip_analysis_fields.py" >&2; exit 1; }
+[ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
@@ -34,8 +34,6 @@ cp "$HERE/../prompt.txt" "$RUN/work/prompt.txt"
 PROMPT="$(cat "$HERE/../prompt.txt")"
 
 # Credentials: a throwaway copy, mounted as the container user's ~/.claude and ~/.codex.
-# Claude: prefer CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`; the only option on macOS,
-# where the Keychain entry is not usable from Linux). Else copy ~/.claude/.credentials.json (Linux).
 # Claude: a login done inside the container (sandbox/docker/claude_login.sh) lands in
 # runs/.claude-home/.credentials.json. Fallbacks: CLAUDE_CODE_OAUTH_TOKEN, or the host's
 # ~/.claude/.credentials.json (Linux hosts only; macOS keeps it in the Keychain).
@@ -56,7 +54,8 @@ if [ "$AGENT" = react ]; then
   [ -n "${OPENROUTER_API_KEY:-}" ] || { echo "no OpenRouter key: export OPENROUTER_API_KEY or write runs/.openrouter_key" >&2; exit 1; }
   REACT_ENV=(-e OPENROUTER_API_KEY)
 fi
-[ -f "$HOME/.codex/auth.json" ] && cp "$HOME/.codex/auth.json" "$SECRETS/codex/auth.json"
+if [ -f "$HOME/.codex/auth.json" ]; then cp "$HOME/.codex/auth.json" "$SECRETS/codex/auth.json"
+elif [ "$AGENT" = codex ]; then echo "no Codex credentials: run \`codex login\` on the host" >&2; exit 1; fi
 printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\n' > "$SECRETS/codex/config.toml"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
@@ -75,14 +74,14 @@ DOCKER_ARGS=(--rm --network "$NET" --dns 0.0.0.0 --cap-drop ALL --security-opt n
   -w /work "$IMAGE")
 
 # Canary: same image, network and mounts. Abort the trial if isolation does not hold.
-docker run "${DOCKER_ARGS[@]}" bash -c '
+case "$AGENT" in claude) VENDOR_HOST=api.anthropic.com ;; codex) VENDOR_HOST=chatgpt.com ;; react) VENDOR_HOST=openrouter.ai ;; *) echo "unknown agent $AGENT" >&2; exit 2 ;; esac
+docker run -e VENDOR_HOST="$VENDOR_HOST" "${DOCKER_ARGS[@]}" bash -c '
   fail=0
   getent hosts collusion.wiki >/dev/null 2>&1 && { echo "FAIL dns resolves"; fail=1; }
   curl -s -m 8 https://collusion.wiki/ >/dev/null 2>&1 && { echo "FAIL proxy let collusion.wiki through"; fail=1; }
   env -u HTTPS_PROXY -u HTTP_PROXY curl -s -m 8 https://collusion.wiki/ >/dev/null 2>&1 && { echo "FAIL direct egress"; fail=1; }
   env -u HTTPS_PROXY -u HTTP_PROXY curl -s -m 8 https://1.1.1.1/ >/dev/null 2>&1 && { echo "FAIL direct egress by ip"; fail=1; }
-  code=$(curl -s -m 20 -o /dev/null -w "%{http_code}" https://api.anthropic.com/); [ "$code" != 000 ] || { echo "FAIL vendor api unreachable via proxy"; fail=1; }
-  code=$(curl -s -m 20 -o /dev/null -w "%{http_code}" https://chatgpt.com/);       [ "$code" != 000 ] || { echo "FAIL chatgpt unreachable via proxy"; fail=1; }
+  code=$(curl -s -m 20 -o /dev/null -w "%{http_code}" "https://$VENDOR_HOST/"); [ "$code" != 000 ] || { echo "FAIL vendor host $VENDOR_HOST unreachable via proxy"; fail=1; }
   echo "--- files visible under /work:"; find /work -type f | sort
   echo "--- bind mounts:"; awk "\$2 ~ /^\/(work|home)/ {print \$2, \$4}" /proc/mounts
   exit $fail' > "$RUN/canary.log" 2>&1 || { cat "$RUN/canary.log"; echo "canary failed; trial aborted" >&2; exit 3; }
