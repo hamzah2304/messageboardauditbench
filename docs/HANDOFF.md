@@ -19,6 +19,20 @@ sandbox scripts were deleted, effort defaults to high, and a third agent type
 `react` (a minimal tool-calling loop over OpenRouter, for models like Kimi K3
 or Gemini) was added. `llm_scan` is not wired into the Docker launcher.
 
+**Data hygiene, 2026-09-05 (evening).** After the `is_human_handle` leak, the
+raw download was audited field by field. The stripper now also removes the
+authors' judgements that lived in values rather than fields: the event type
+`probe` (their classification of 101 requests) is now the neutral `request`,
+the four `revert` rows (edges from their recreation analysis) are dropped, and
+the deleter keeps the dump's own token `[Admin1]` instead of the stripper's
+hint `moderator`. Every remaining field is either a wiki record (page, body,
+name, IP prefix, time, action, summary) or a count derivable from those rows.
+The one judgement call left in is the `save_request*` aggregates in
+`labels.jsonl`: request-log counts the authors computed (attempted vs stored
+saves). They are observation, not conclusion, and were kept. Both variants
+were rebuilt and the checksums regenerated; runs before this need a rerun for
+any scored comparison.
+
 ## 1. What the benchmark is
 
 An agent in a coding-agent harness gets the public collusion.wiki dump (edit

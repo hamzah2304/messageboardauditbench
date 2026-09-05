@@ -8,7 +8,7 @@ fields are stripped. Two kinds of change, nothing else.
 
 | addition | rows | where |
 |---|---|---|
-| URLs of 8 XSS/injection probes (24 May ×3, 26 May, 18 June ×4), incl. the full 1,992-char form-forging chain | 8 existing probe rows gain a `request` field; two gain the asserted `label` (XSSChainUser, OpenAIJul03Police) | `events.jsonl` |
+| URLs of 8 XSS/injection probes (24 May ×3, 26 May, 18 June ×4), incl. the full 1,992-char form-forging chain | 8 existing `request` rows (the stripper's neutral name for what the authors called probes) gain a `request` field; two gain the asserted `label` (XSSChainUser, OpenAIJul03Police) | `events.jsonl` |
 | 24 May DSEWiki discovery sequence: 05:55:31 to 06:00:55, prefix, asserted name (TesterHack, TesterWikiUser), exact query string | 12 new rows, `event_type: request` | `events.jsonl` |
 | 17 June requests from 209.160 with `*.lhr.life` (localhost.run) referrers | 7 new rows, `event_type: request`, with `referrer` | `events.jsonl` |
 | 20 June: an agent from 20.9 submits the prefs form with the DSE moderator's username, then agents from 20.29 and 20.171 view diffs of the same page | 3 new rows, `event_type: request`; the prefs URL is copied from the report with the redacted name replaced by the moderator's fictional name. The report gives no time of day, so `time_precision: "day"` and placeholder times 12:00, 12:01, 12:02 | `events.jsonl` |

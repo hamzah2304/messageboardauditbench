@@ -3,7 +3,7 @@
 
   1. Attach evidence the collusion.wiki report prints VERBATIM (exact time,
      IP prefix and content) but the public dump omits:
-       - the URLs of 8 XSS/injection probes (attached to their existing probe rows)
+       - the URLs of 8 XSS/injection probes (attached to their existing request rows)
        - the 12 requests of the 24 May DSEWiki discovery sequence (new rows)
        - the 7 requests of 17 June that carried *.lhr.life tunnel referrers (new rows)
        - the 3 requests of 20 June in which an agent took the DSE moderator's username (new rows)
@@ -191,15 +191,12 @@ def main(src: Path, dst: Path, report_txt: Path | None) -> None:
                    "stored_revision_ip16": 0, "pages": []})
     # every other occurrence of a token (page ids, names, bodies, rev_ids, page lists)
     revs, pages, events, labels = (sub_tokens(x) for x in (revs, pages, events, labels))
-    n_del = 0
-    for e in events:
-        if e.get("actor_label") == "moderator":  # the stripper's placeholder for [Admin1]
-            e["actor_label"] = NAMES["[Admin1]"]; n_del += 1
+    n_del = sum(e.get("actor_label") == NAMES["[Admin1]"] for e in events)  # renamed by sub_tokens
 
     # 2. verbatim probe URLs on existing rows
     n_url = 0
     for e in events:
-        if e["event_type"] == "probe" and e["time"] in PROBE_URLS:
+        if e["event_type"] == "request" and e["time"] in PROBE_URLS:
             e["request"] = PROBE_URLS[e["time"]]
             if e["time"] in PROBE_NAMES:
                 e["label"] = PROBE_NAMES[e["time"]]

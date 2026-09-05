@@ -2,8 +2,14 @@
 """Make the 'raw' variant of the collusion.wiki dump.
 
 Drops every field that encodes the report authors' own analysis (page-family
-classification, event-source bookkeeping, probe classification) and keeps what
-the wiki itself would have recorded: page, revision text, name, IP prefix, time.
+classification, event-source bookkeeping, human/bot handle classification) and
+keeps what the wiki itself would have recorded: page, revision text, name, IP
+prefix, time. Also removes the authors' judgements that hide in values rather
+than fields: the event type "probe" (their classification of 101 requests)
+becomes the neutral "request"; probe event ids that embedded their source file
+name ("attacklog_raw_dse_...") are renumbered; the four "revert" rows, which are
+edges from their recreation analysis rather than log records, are dropped; and
+the deleter keeps the dump's redacted token "[Admin1]" instead of being renamed.
 
 Usage: strip_analysis_fields.py <in_dir> <out_dir>
 """
@@ -34,9 +40,9 @@ DROP = {
     "labels.jsonl": {"is_human_handle", "save_request_source"},
 }
 
-# The authors named the moderator "[Admin1]" in delete events; keep the fact
-# that a human deleted the page, not the analysts' actor id.
-RENAME_ACTOR = {"[Admin1]": "moderator"}
+# Values (not fields) that carry the authors' judgement.
+RETYPE_EVENT = {"probe": "request"}   # "probe" is their classification of these requests
+DROP_EVENT_TYPES = {"revert"}         # derived edges from their recreation analysis, not log rows
 
 
 def main(src: Path, dst: Path) -> None:
@@ -49,11 +55,12 @@ def main(src: Path, dst: Path) -> None:
                 for k in drop:
                     row.pop(k, None)
                 if fname == "events.jsonl":
-                    # event ids embed the analysts' source file names
-                    if row["event_type"] == "probe":
-                        row["event_id"] = f"probe:{n}"
-                    if row.get("actor_label") in RENAME_ACTOR:
-                        row["actor_label"] = RENAME_ACTOR[row["actor_label"]]
+                    if row["event_type"] in DROP_EVENT_TYPES:
+                        continue
+                    if row["event_type"] in RETYPE_EVENT:
+                        # ids of these rows embed the analysts' source file names; renumber
+                        row["event_type"] = RETYPE_EVENT[row["event_type"]]
+                        row["event_id"] = f"{row['event_type']}:{row.get('wiki', 'dse')}:{n}"
                 fout.write(json.dumps(row, ensure_ascii=False) + "\n")
                 n += 1
         print(f"{fname}: {n} rows, dropped {sorted(drop)}")
