@@ -74,13 +74,17 @@ def aggregate(key, title, per_claim, per_rubric):
     (HERE / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     return out
 
+def _san(s):
+    import re as _re
+    return _re.sub(r"[^0-9a-zA-Z]+", "_", s).strip("_")
+
 def resolve_reports(args):
-    # --baselines: grade every report/rubrics/baselines/*.md; else the default 4 or named keys.
+    # --baselines: report/rubrics/baselines/*.md ; --batch: report/rubrics/batch/*.md
+    # (blind/context conditions); else the default 4 or named keys.
     if args and args[0] == "--baselines":
-        out = []
-        for p in sorted((HERE / "baselines").glob("*.md")):
-            out.append((f"bl_{p.stem}".replace(".", "_").replace("-", "_"), p, p.stem))
-        return out
+        return [(f"bl_{_san(p.stem)}", p, p.stem) for p in sorted((HERE / "baselines").glob("*.md"))]
+    if args and args[0] == "--batch":
+        return [(_san(p.stem), p, p.stem) for p in sorted((HERE / "batch").glob("*.md"))]
     keys = args or ["gpt", "opus", "haiku", "luna"]
     return [(k, ROOT / REPORTS[k][1], REPORTS[k][0]) for k in keys]
 
