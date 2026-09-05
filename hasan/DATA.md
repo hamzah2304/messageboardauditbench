@@ -50,3 +50,13 @@ rubrics (`grade_with_rubrics.py --dir batch_r2`); recall only, no precision.
   react·kimi-k3 0.333, claude·opus-5 0.283, codex·terra 0.259, codex·luna 0.209,
   claude·sonnet-5 0.145, claude·haiku-4.5 0.067. The 10-min budget compresses
   scores vs the 20-min blind batch.
+
+## Round 2 — `blind-20` batch (`rubrics/batch_b20/`, `rubrics/graded_b20_*.json`)
+Same round-2 setup at a **20-minute** budget (verbatim data, xhigh, hardened
+blind prompt), 19 reports, r1/r2 across 10 model/harness pairs (react·gemini-flash
+absent; fable r1 only). Recall only.
+- Leaderboard (mean of replicates): react·sol 0.475, react·glm-5.3 0.420,
+  claude·opus-5 0.413, claude·fable 0.383, codex·sol 0.358, react·kimi-k3 0.319,
+  codex·terra 0.242, codex·luna 0.192, claude·sonnet-5 0.175, claude·haiku-4.5 0.075.
+- vs blind-10: opus-5 jumps 0.283→0.413 and glm-5.3 0.383→0.420 with more time;
+  react·sol stays flat ~0.47.
