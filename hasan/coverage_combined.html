@@ -1474,11 +1474,19 @@ body{padding-right:400px !important}
 .lvl.l1{background:#4A6B8A}.lvl.l2{background:#2E7D6B}.lvl.l3{background:#C15F3C}.lvl.l4{background:#7A5AA0}
 .bdg{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px}.b-ok{background:#D1FAE5;color:#065F46}.b-no{background:#FEF3C7;color:#92400E}
 .cclaim .t{font-size:12px;color:#1A1A1A}
-.cmt{background:#fff;border:1px solid #E0DDD4;border-left:4px solid #991B1B;border-radius:0 8px 8px 0;padding:7px 9px;margin:6px 0;font-size:12px}
+.cmt{background:#fff;border:1px solid #E0DDD4;border-left:5px solid #991B1B;border-radius:0 10px 10px 0;padding:12px 14px;margin:12px 0;font-size:14px;line-height:1.55;scroll-margin-top:70px}
 .cmt.note{border-left-color:#4A6B8A}.cmt.covered{border-left-color:#065F46}
-.cmt .au{font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;text-transform:uppercase}
-.cmt .q{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#FAFAF7;border-radius:5px;padding:3px 6px;margin:3px 0}
-.cmt .x{float:right;color:#999;cursor:pointer;font-weight:700;margin-left:6px}
+.cmt.sel{box-shadow:0 0 0 3px #ffd76b;border-color:#C15F3C}
+.cmt.rejected{opacity:.5}
+.cmt .au{font-size:11px;font-weight:800;padding:2px 7px;border-radius:5px;text-transform:uppercase}
+.cmt .q{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#FAFAF7;border-radius:6px;padding:6px 9px;margin:6px 0}
+.cmt .x{float:right;color:#999;cursor:pointer;font-weight:700;margin-left:6px;font-size:15px}
+.cmt .ar{display:flex;gap:8px;margin-top:8px}
+.cmt .ar button{flex:1;border:2px solid #E0DDD4;background:#fff;border-radius:8px;padding:7px 0;font-weight:800;font-size:12px;cursor:pointer;color:#666}
+.cmt .ar .ok.on{background:#D1FAE5;border-color:#065F46;color:#065F46}
+.cmt .ar .no.on{background:#FEE2E2;border-color:#991B1B;color:#991B1B}
+.cmt .st{font-size:11px;font-weight:800;padding:1px 7px;border-radius:5px;margin-left:6px}
+.cmt .st.a{background:#D1FAE5;color:#065F46}.cmt .st.r{background:#FEE2E2;color:#991B1B}
 .reply{margin:4px 0 0 10px;padding:4px 8px;border-left:2px solid #E0DDD4;font-size:12px}
 .reply .au{font-size:9px}
 .reply-add{display:flex;gap:5px;margin:6px 0 0 10px}
@@ -2725,12 +2733,14 @@ function renderComments(){
   document.getElementById('cov-cc').textContent="("+C.comments.length+")";
   var items=C.comments.map(function(m,i){return {m:m,i:i};}).filter(function(o){return !hidden[o.m.author];})
     .sort(function(a,b){return (a.m.s||0)-(b.m.s||0);});
-  document.getElementById('cov-comments').innerHTML=items.map(function(o){var m=o.m;
-    return '<div class="cmt '+m.type+'"><span class="x" data-del="'+o.i+'">✕</span>'
+  document.getElementById('cov-comments').innerHTML=items.map(function(o){var m=o.m;var stt=m.status;
+    return '<div class="cmt '+m.type+(stt==='rejected'?' rejected':'')+'" id="cmt-'+o.i+'"><span class="x" data-del="'+o.i+'">✕</span>'
       +'<span class="au au-'+m.author+'">'+esc(m.author)+'</span> '
       +'<b>'+(m.type==='gap'?'⚠ GAP':m.type==='covered'?'✓ COVERED':'NOTE')+'</b>'+(m.claim?' · '+m.claim:'')
+      +(stt?'<span class="st '+(stt==='approved'?'a':'r')+'">'+stt+'</span>':'')
       +'<div class="q" data-jump="'+o.i+'" style="cursor:pointer">'+esc((m.quote||'').slice(0,220))+'</div>'
       +(m.note?'<div>'+esc(m.note)+'</div>':'')
+      +'<div class="ar"><button class="ok'+(stt==='approved'?' on':'')+'" data-ap="'+o.i+'">✓ Approve</button><button class="no'+(stt==='rejected'?' on':'')+'" data-rj="'+o.i+'">✕ Reject</button></div>'
       +(m.replies||[]).map(function(rp,ri){return '<div class="reply"><span class="x" data-delr="'+o.i+'|'+ri+'">✕</span><span class="au au-'+(rp.author||'me')+'">'+esc(rp.author||'me')+'</span> '+esc(rp.text||'')+'</div>';}).join('')
       +'<div class="reply-add"><input data-rin="'+o.i+'" placeholder="reply..."><button data-rep="'+o.i+'">Reply</button></div>'
       +'</div>';}).join('')
@@ -2739,7 +2749,12 @@ function renderComments(){
   [].forEach.call(document.querySelectorAll('[data-jump]'),function(x){x.onclick=function(){var m=C.comments[+x.dataset.jump];if(m.s>=0)scrollTo(m.s,m.e);};});
   [].forEach.call(document.querySelectorAll('[data-delr]'),function(x){x.onclick=function(){var p=x.dataset.delr.split('|');C.comments[+p[0]].replies.splice(+p[1],1);save();renderComments();};});
   [].forEach.call(document.querySelectorAll('[data-rep]'),function(b){b.onclick=function(){var i=+b.dataset.rep;var inp=document.querySelector('[data-rin="'+i+'"]');var txt=(inp.value||'').trim();if(!txt)return;var au=(localStorage.getItem('cov_author')||'me');if(!C.comments[i].replies)C.comments[i].replies=[];C.comments[i].replies.push({author:au,text:txt,ts:new Date().toISOString()});save();renderComments();};});
+  [].forEach.call(document.querySelectorAll('[data-ap]'),function(b){b.onclick=function(){var i=+b.dataset.ap;C.comments[i].status=(C.comments[i].status==='approved'?null:'approved');save();renderFilt();renderComments();};});
+  [].forEach.call(document.querySelectorAll('[data-rj]'),function(b){b.onclick=function(){var i=+b.dataset.rj;C.comments[i].status=(C.comments[i].status==='rejected'?null:'rejected');save();renderFilt();renderComments();};});
 }
+function selectComment(i){document.querySelector('#cov-side .tab[data-tab=comments]').click();
+  [].forEach.call(document.querySelectorAll('.cmt'),function(el){el.classList.remove('sel');});
+  var el=document.getElementById('cmt-'+i);if(el){el.classList.add('sel');el.scrollIntoView({block:'center',behavior:'smooth'});}}
 document.getElementById('cov-pop-claim').innerHTML='<option value="">(optional) link a claim...</option>'+CDATA.claims.map(function(c){return '<option value="'+c.id+'">'+c.id+' — '+esc(c.claim.slice(0,46))+'</option>';}).join('');
 [].forEach.call(document.querySelectorAll('#cov-side .tab'),function(t){t.onclick=function(){document.querySelectorAll('#cov-side .tab').forEach(function(x){x.classList.remove('active')});t.classList.add('active');document.getElementById('cov-claims').style.display=t.dataset.tab==='claims'?'':'none';document.getElementById('cov-comments').style.display=t.dataset.tab==='comments'?'':'none';};});
 var SEL=null,qbtn=document.getElementById('cov-qbtn'),pop=document.getElementById('cov-pop');
@@ -2750,6 +2765,17 @@ document.addEventListener('mouseup',function(ev){
     var r=s.getRangeAt(0);if(!ROOT.contains(r.startContainer)||!ROOT.contains(r.endContainer)){qbtn.style.display='none';return;}
     var a=offOf(r.startContainer,r.startOffset),b=offOf(r.endContainer,r.endOffset);if(a<0||b<0||b<=a){qbtn.style.display='none';return;}
     SEL={s:a,e:b,quote:s.toString()};var rc=r.getBoundingClientRect();qbtn.style.left=(rc.left+window.scrollX)+"px";qbtn.style.top=(rc.bottom+window.scrollY+6)+"px";qbtn.style.display='block';},10);
+});
+ROOT.addEventListener('click',function(ev){
+  if(window.getSelection && !window.getSelection().isCollapsed)return; // a drag-select, not a click
+  var off=-1,cr=null;
+  if(document.caretRangeFromPoint)cr=document.caretRangeFromPoint(ev.clientX,ev.clientY);
+  else if(document.caretPositionFromPoint){var cp=document.caretPositionFromPoint(ev.clientX,ev.clientY);if(cp)off=offOf(cp.offsetNode,cp.offset);}
+  if(cr)off=offOf(cr.startContainer,cr.startOffset);
+  if(off<0)return;
+  var hit=-1,best=1e18;
+  C.comments.forEach(function(m,idx){if(m.s>=0&&off>=m.s&&off<=m.e){var w=m.e-m.s;if(w<best){best=w;hit=idx;}}});
+  if(hit>=0)selectComment(hit);
 });
 qbtn.onclick=function(){if(!SEL)return;document.getElementById('cov-pop-q').textContent=SEL.quote.slice(0,400);
   document.getElementById('cov-pop-author').value=localStorage.getItem('cov_author')||'';
