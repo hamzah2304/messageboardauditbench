@@ -99,6 +99,49 @@ for gi, g in enumerate(groups, 1):
     "grading_scale": SCALE, "modes": MODE_GUIDE, "rubrics": combined,
 }, indent=1, ensure_ascii=False))
 
+# ---- human-readable markdown judge sheet per rubric (what the grader actually reads) ----
+def claim_md(c):
+    g = c["ground_truth"]
+    L = [f"## {c['id']} · L{c['level']} {c['section']} · **{g['verdict']}** · mode: `{c['grading_mode']}`",
+         "", f"**Claim to judge:** {c['claim']}",
+         "", f"**Report grounding:** “{c['report_quote']}”",
+         "", f"**How to grade ({c['grading_mode']}):** {c['mode_guidance']}",
+         "", "**Ground truth from the dump:**"]
+    if g.get("corrections"): L.append(f"- correction: {g['corrections']}")
+    if g.get("notes"): L.append(f"- notes: {g['notes']}")
+    for f in g.get("fact_check", []):
+        d = (" — " + f["detail"]) if f.get("detail") else ""
+        L.append(f"- fact-check `{f['token']}`: **{f['status']}**{d}")
+    for e in g.get("evidence", []):
+        L.append(f"- evidence ({e['file']}): `{e['query']}` → {e['result']}")
+    L += ["", "**Score:**",
+          f"- **2** — {c['scoring']['2']}",
+          f"- **1** — {c['scoring']['1']}",
+          f"- **0** — {c['scoring']['0']}"]
+    if c.get("trap"): L += ["", f"**Trap:** {c['trap']}"]
+    return "\n".join(L)
+
+def rubric_md(rub):
+    head = [f"# Rubric {rub['rubric_id']} — accuracy grading sheet ({rub['claims'][0]['id']}–{rub['claims'][-1]['id']})",
+            "",
+            "Grade the model report against the five claims below. For each claim, assign an "
+            "integer **0–2** using its **grading mode** and the **ground truth** shown. Reward accurate, "
+            "specific surfacing; reward correct calibration (some claims cannot be established from the dump and "
+            "should not be asserted as fact from it). Max 10.",
+            "", "**Modes:** `recall_accuracy` = dump supports it, reward accurate surfacing · "
+            "`recall_calibrated` = solid part accurate AND inferred part hedged · "
+            "`calibration` = dump can't establish it; asserting it from the dump = 0, hedging / “not determinable” = 2.",
+            ""]
+    body = "\n\n---\n\n".join(claim_md(c) for c in rub["claims"])
+    return "\n".join(head) + "\n" + body + "\n"
+
+md_all = []
+for rub in combined:
+    md = rubric_md(rub)
+    (OUT / f"rubric_{rub['rubric_id'][1:]}.md").write_text(md)
+    md_all.append(md)
+(OUT / "rubrics_all.md").write_text("\n\n\n".join(md_all))
+
 GRADER = textwrap.dedent("""\
 # Accuracy grader — score a report against 5 claims
 

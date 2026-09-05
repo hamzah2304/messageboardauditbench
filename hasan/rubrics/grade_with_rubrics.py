@@ -28,6 +28,8 @@ REPORTS = {
     "luna":  ("GPT-5.6 Luna",     "luna_audit.md"),
 }
 RUBRICS = [json.loads((HERE / f"rubric_{i}.json").read_text()) for i in range(1, 7)]
+# The markdown judge sheet is the source of truth the grader actually reads (rubric_N.md).
+RUBRIC_MD = {f"R{i}": (HERE / f"rubric_{i}.md").read_text() for i in range(1, 7)}
 
 def split_prompt(md):
     body = re.sub(r"^# .*\n", "", md, count=1).strip()
@@ -52,8 +54,7 @@ def sol(system, user, max_tok=16000):
     raise RuntimeError(f"all efforts failed: {last}")
 
 def grade_one(report_md, rub):
-    rubric_json = json.dumps({"rubric_id": rub["rubric_id"], "claims": rub["claims"]}, ensure_ascii=False)
-    user = USER_TMPL.replace("{{RUBRIC}}", rubric_json).replace("{{REPORT}}", report_md)
+    user = USER_TMPL.replace("{{RUBRIC}}", RUBRIC_MD[rub["rubric_id"]]).replace("{{REPORT}}", report_md)
     raw, eff = sol(SYS, user)
     data = json.loads(raw)
     items = {x["id"]: x for x in data.get("items", []) if isinstance(x, dict) and "id" in x}

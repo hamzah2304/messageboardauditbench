@@ -17,8 +17,10 @@ flat = []
 for rub in R["rubrics"]:
     for c in rub["claims"]:
         flat.append({**c, "rubric_id": rub["rubric_id"]})
+# the actual markdown judge sheets the grader reads (rubric_N.md)
+md = {f"R{i}": (ROOT / f"report/rubrics/rubric_{i}.md").read_text() for i in range(1, R["n_rubrics"] + 1)}
 payload = {"scale": R["grading_scale"], "modes": R["modes"], "claims": flat,
-           "n_rubrics": R["n_rubrics"]}
+           "n_rubrics": R["n_rubrics"], "md": md}
 blob = json.dumps(payload, ensure_ascii=False).replace("</script", "<\\/script").replace("</", "<\\/")
 
 HTML = r"""<title>Rubrics &amp; Feasibility</title>
@@ -80,12 +82,26 @@ table.scale td.s{font-weight:800;text-align:center;width:34px;font-size:15px}
 .hint{color:var(--muted);font-size:12px;margin-left:auto}
 kbd{background:#fff;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;font-family:ui-monospace,monospace}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#D5D2C9;border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.mdsheet{border:1px solid var(--border);border-radius:8px;background:var(--card);padding:20px 26px;margin-bottom:16px;max-width:900px}
+.mdsheet h1{font-size:19px;color:var(--accent);margin:0 0 10px;border:none}
+.mdsheet h2{font-size:14.5px;color:var(--ink);margin:18px 0 6px;font-family:ui-monospace,Menlo,monospace}
+.mdsheet p{font-size:13.5px;line-height:1.55;margin:7px 0}
+.mdsheet ul{margin:6px 0 6px 4px;padding-left:18px}
+.mdsheet li{font-size:13px;line-height:1.5;margin:2px 0}
+.mdsheet code{background:var(--soft);color:var(--accent2);padding:1px 5px;border-radius:4px;font-size:12px}
+.mdsheet strong{color:var(--ink)}
+.mdsheet hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+.mdsheet .raw{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink2)}
 </style>
 
 <div class="wrap">
  <h1>Rubrics &amp; Feasibility</h1>
  <p class="sub" id="sub"></p>
  <header class="bar">
+  <span class="seg" id="viewtog">
+   <button data-v="cards" class="on">Rubric cards</button>
+   <button data-v="md">Grading&nbsp;.md</button>
+  </span>
   <span class="pill d">Derivable <b id="c-d">0</b></span>
   <span class="pill p">Partial <b id="c-p">0</b></span>
   <span class="pill n">Not derivable <b id="c-n">0</b></span>
@@ -94,9 +110,11 @@ kbd{background:#fff;border:1px solid var(--border);border-bottom-width:2px;borde
    <button data-r="R1">R1</button><button data-r="R2">R2</button><button data-r="R3">R3</button>
    <button data-r="R4">R4</button><button data-r="R5">R5</button><button data-r="R6">R6</button>
   </span>
+  <button id="copymd" style="display:none">Copy .md</button>
   <span class="hint"><kbd>j</kbd>/<kbd>k</kbd> move</span>
  </header>
- <div class="layout"><div class="list" id="list"></div><div class="card" id="detail"></div></div>
+ <div class="layout" id="cardsview"><div class="list" id="list"></div><div class="card" id="detail"></div></div>
+ <div id="mdview" style="display:none;margin-top:14px"></div>
 </div>
 
 <script id="data" type="application/json">__DATA__</script>
@@ -150,9 +168,49 @@ function render(){
   (c.trap?`<div class="field"><div class="k">Trap</div><div class="callout">${esc(c.trap)}</div></div>`:'');
 }
 function nextVis(from,dir){let i=from;for(let n=0;n<CL.length;n++){i+=dir;if(i<0||i>=CL.length)return from;if(vis(CL[i]))return i;}return from;}
+
+// ---- markdown judge-sheet view ----
+let view='cards';
+function mdToHtml(md){
+ const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ const inline=s=>esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+ const out=[]; let inList=false;
+ for(let line of md.split('\n')){
+  if(/^---\s*$/.test(line)){ if(inList){out.push('</ul>');inList=false;} out.push('<hr>'); continue; }
+  if(/^#\s+/.test(line)){ if(inList){out.push('</ul>');inList=false;} out.push('<h1>'+inline(line.replace(/^#\s+/,''))+'</h1>'); continue; }
+  if(/^##\s+/.test(line)){ if(inList){out.push('</ul>');inList=false;} out.push('<h2>'+inline(line.replace(/^##\s+/,''))+'</h2>'); continue; }
+  if(/^-\s+/.test(line)){ if(!inList){out.push('<ul>');inList=true;} out.push('<li>'+inline(line.replace(/^-\s+/,''))+'</li>'); continue; }
+  if(inList){out.push('</ul>');inList=false;}
+  if(line.trim()==='') continue;
+  out.push('<p>'+inline(line)+'</p>');
+ }
+ if(inList)out.push('</ul>');
+ return out.join('');
+}
+function renderMd(){
+ const ids=rub==='all'?Object.keys(D.md):[rub];
+ document.getElementById('mdview').innerHTML=ids.map(r=>'<div class="mdsheet">'+mdToHtml(D.md[r])+'</div>').join('');
+}
+function currentMdText(){ const ids=rub==='all'?Object.keys(D.md):[rub]; return ids.map(r=>D.md[r]).join('\n\n\n'); }
+function applyView(){
+ const md=view==='md';
+ document.getElementById('cardsview').style.display=md?'none':'grid';
+ document.getElementById('mdview').style.display=md?'block':'none';
+ document.getElementById('copymd').style.display=md?'inline-block':'none';
+ if(md)renderMd();
+}
+document.querySelectorAll('#viewtog button').forEach(b=>b.onclick=()=>{
+ view=b.dataset.v;document.querySelectorAll('#viewtog button').forEach(x=>x.classList.toggle('on',x===b));applyView();
+});
+document.getElementById('copymd').onclick=async()=>{
+ try{ await navigator.clipboard.writeText(currentMdText());
+   const b=document.getElementById('copymd');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy .md',1200);
+ }catch(e){ alert('Copy failed'); }
+};
 document.querySelectorAll('#rubfilter button').forEach(b=>b.onclick=()=>{
  rub=b.dataset.r;document.querySelectorAll('#rubfilter button').forEach(x=>x.classList.toggle('on',x===b));
- if(!vis(CL[cur])){const nx=nextVis(-1,1);if(nx>=0)cur=nx;}render();
+ if(!vis(CL[cur])){const nx=nextVis(-1,1);if(nx>=0)cur=nx;}
+ if(view==='md')renderMd(); else render();
 });
 document.addEventListener('keydown',e=>{
  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
