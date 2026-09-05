@@ -21,6 +21,8 @@ def nice(stem):  # bl_opus_5_s3 -> "Opus 5 · s3"
     return f"{name} · s{sess}" if sess else name
 
 gp = sorted((ROOT / "report/rubrics").glob("graded_bl_*.json"))
+# ignore the s1 batch (ran on raw_stripped / medium effort / older prompt); keep s3.
+gp = [p for p in gp if not p.stem.endswith("_s1")]
 graded = {p.stem[len("graded_"):]: json.loads(p.read_text()) for p in gp}
 # order columns by accuracy desc
 REPORTS = sorted(graded, key=lambda k: -graded[k]["accuracy"])
