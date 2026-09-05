@@ -5,10 +5,12 @@
 #   sandbox/run_trial.sh codex  gpt-5.6-sol   1
 #
 # Env knobs: EFFORT (default medium), TIMEOUT (default 25m), PROXY_PORT (3128),
-#            DATA_DIR (default data/raw_stripped).
+#            DATA_DIR (default data/raw_stripped), SCAN=1 to give the agent the
+#            llm_scan fan-out reading tool (sandbox/llm_scan.py, installed at
+#            /opt/agentbox/scan/llm_scan) and append sandbox/prompt_scan_addendum.txt.
 set -euo pipefail
 AGENT="${1:?claude|codex}"; MODEL="${2:?model id}"; SEED="${3:-1}"
-EFFORT="${EFFORT:-medium}"; TIMEOUT="${TIMEOUT:-25m}"; PROXY_PORT="${PROXY_PORT:-3128}"
+EFFORT="${EFFORT:-medium}"; TIMEOUT="${TIMEOUT:-25m}"; PROXY_PORT="${PROXY_PORT:-3128}"; SCAN="${SCAN:-0}"
 # One sandbox user per concurrent trial, so runs cannot see each other. Pick an
 # idle user from the pool (create more with sandbox/ensure_user.sh agentboxN).
 if [ -z "${SANDBOX_USER:-}" ]; then
@@ -30,20 +32,25 @@ import socket,sys; s=socket.create_connection(("127.0.0.1",int(sys.argv[1])),2);
 EOF
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-NAME="${STAMP}_${AGENT}_${MODEL}_s${SEED}"
+NAME="${STAMP}_${AGENT}_${MODEL}_s${SEED}"; [ "$SCAN" = 1 ] && NAME="${NAME}_scan"
 RUN="$ROOT/runs/$NAME"                      # host side: logs + meta, never visible to the agent
 AB_RUNS="/srv/agentbox/runs"               # outside agentbox's home so our group can traverse
 WORK="$AB_RUNS/$NAME"                  # agent side: data + prompt only
 mkdir -p "$RUN"
 sudo mkdir -p "$WORK/data"
 sudo cp "$DATA_DIR"/*.jsonl "$WORK/data/"
-sudo cp "$HERE/prompt.txt" "$WORK/prompt.txt"
+PROMPT_FILE="$RUN/prompt.txt"; cp "$HERE/prompt.txt" "$PROMPT_FILE"
+if [ "$SCAN" = 1 ]; then
+  [ -x /opt/agentbox/scan/llm_scan ] || { echo "install the scan tool: sudo mkdir -p /opt/agentbox/scan && sudo cp sandbox/llm_scan.py /opt/agentbox/scan/llm_scan && sudo chmod 755 /opt/agentbox/scan/llm_scan" >&2; exit 1; }
+  cat "$HERE/prompt_scan_addendum.txt" >> "$PROMPT_FILE"
+fi
+sudo cp "$PROMPT_FILE" "$WORK/prompt.txt"
 # The trial user owns its work dir; our group can traverse (the launching shell cds in); other sandbox users cannot.
 sudo mkdir -p "$AB_RUNS" && sudo chown "root:$(id -gn)" "$AB_RUNS" && sudo chown "$SBU:$(id -gn)" "$WORK" "$WORK/data" && sudo chown "$SBU" "$WORK"/data/* "$WORK/prompt.txt"
 sudo chmod 751 "$AB_RUNS" && sudo chmod 750 "$WORK"   # parent: traversable, not listable
 cat > "$RUN/meta.json" <<EOF
-{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"timeout":"$TIMEOUT","sandbox_user":"$SBU",
- "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(sha256sum "$HERE/prompt.txt" | cut -c1-64)",
+{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"timeout":"$TIMEOUT","sandbox_user":"$SBU","scan_tool":$SCAN,
+ "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(sha256sum "$PROMPT_FILE" | cut -c1-64)",
  "cli_version":"$(/opt/agentbox/bin/$AGENT --version 2>/dev/null | head -1)"}
 EOF
 # Canary: from the agent's identity, the repo must be unreadable and the web unreachable.
@@ -55,10 +62,11 @@ sudo -u "$SBU" env HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" curl -s -m 5 -o /d
 sudo -u "$SBU" env HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" curl -s -m 10 -o /dev/null https://api.anthropic.com/ || { echo "CANARY FAIL: vendor host unreachable via proxy" >&2; exit 3; }
 echo "canary ok: repo unreadable, egress blocked, vendor reachable" | tee "$RUN/canary.txt"
 
-ENVV=(HOME="$(getent passwd "$SBU" | cut -d: -f6)" PATH="/opt/agentbox/bin:/usr/local/bin:/usr/bin:/bin"
+SCANPATH=""; [ "$SCAN" = 1 ] && SCANPATH="/opt/agentbox/scan:"
+ENVV=(HOME="$(getent passwd "$SBU" | cut -d: -f6)" PATH="${SCANPATH}/opt/agentbox/bin:/usr/local/bin:/usr/bin:/bin"
       HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" HTTP_PROXY="http://127.0.0.1:$PROXY_PORT" NO_PROXY="127.0.0.1,localhost"
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_AUTOUPDATER=1 TERM=dumb)
-PROMPT="$(cat "$HERE/prompt.txt")"
+PROMPT="$(cat "$PROMPT_FILE")"
 
 echo "run: $RUN"
 START=$(date +%s)
@@ -89,7 +97,7 @@ set -e
 END=$(date +%s)
 # Pull the agent's outputs back to the host-side run dir, then remove its copy and
 # the CLI's per-user scratch (Claude Code writes task output under /tmp/claude-<uid>).
-sudo mv "$WORK"/* "$RUN"/ 2>/dev/null || true
+sudo find "$WORK" -mindepth 1 -maxdepth 1 -exec mv -t "$RUN" {} + 2>/dev/null || true   # includes dotdirs such as .llm_scan
 sudo rm -rf "$WORK" "/tmp/claude-$(id -u "$SBU")"
 sudo chown -R "$(id -un):$(id -gn)" "$RUN"
 python3 - "$RUN" "$RC" "$((END-START))" <<'EOF'

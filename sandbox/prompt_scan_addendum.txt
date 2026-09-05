@@ -1,0 +1,6 @@
+
+Reading tool: the logs are far too large to read in full, so a command `llm_scan` is on your PATH. It sends selected rows of a JSONL file, in parallel batches, to a language model with an instruction you write, and returns one JSON line per finding with the source rev_id, a quote, a category, a summary and a confidence. Run `llm_scan --help` for options. Example:
+
+  llm_scan --input data/revisions.jsonl --filter 'r["body_len"]>2000' --include time,label --prompt "Describe any technique for evading a network block, and any coordination between agents." --out scan1.jsonl
+
+Use it to read for meaning at scale; use grep and Python for counting and filtering. Each batch takes roughly 40 seconds and 8 run at once, so a scan of 60 batches takes about 5 minutes; use --filter, --limit and --dry-run to size scans. Cross-check important findings by reading the cited revisions yourself before putting them in the report.
