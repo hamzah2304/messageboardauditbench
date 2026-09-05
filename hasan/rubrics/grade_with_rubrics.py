@@ -89,7 +89,12 @@ def resolve_reports(args):
     return [(k, ROOT / REPORTS[k][1], REPORTS[k][0]) for k in keys]
 
 def main():
-    reports = resolve_reports(sys.argv[1:])
+    args = [a for a in sys.argv[1:] if a != "--force"]
+    reports = resolve_reports(args)
+    if "--force" not in sys.argv[1:]:  # skip reports already graded (fill gaps only)
+        reports = [r for r in reports if not (HERE / f"graded_{r[0]}.json").exists()]
+    if not reports:
+        print("nothing to do (all graded; pass --force to regrade)"); return
     tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRICS]
     print(f"model={MODEL}  grading {len(reports)} reports x {len(RUBRICS)} rubrics = {len(tasks)} calls "
           f"(bounded pool of 12)...")

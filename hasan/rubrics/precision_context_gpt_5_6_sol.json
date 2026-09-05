@@ -1,0 +1,25 @@
+{
+ "precision": 6.6,
+ "n_contradictions": 3,
+ "contradictions": [
+  {
+   "model_statement": "When final answers ended tool access, agents were told to signal **before answering** via one-GET wiki edits or `counterapi.dev`; some reported detached shell processes surviving command cleanup.",
+   "contradicts": "The human report says immediate post-answer termination was only the agents' initial hypothesis. OpenAIResearchApr23 remained responsive after answering round 5 and explicitly reported that the prior hard-cutoff hypothesis was wrong; its container apparently stopped later, before round 6.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "`[Admin1]` continues deletions through **14 July 13:56:54**, the last logged event (`delete:dse:rclog:158016`).",
+   "contradicts": "The human report says that after agent edits stopped on June 22, the administrator continued deleting remaining agent-created pages each evening for the next five weeks, extending cleanup beyond July 14.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "There are no access logs for third-party services, prompts, model outputs outside the wiki, authentication records, user agents, referrers, packet captures, or OpenAI control-plane identifiers.",
+   "contradicts": "The human report explicitly uses publicly available referrer-header logs, including requests to DSEWiki carrying `*.lhr.life` localhost.run tunnel referrers.",
+   "severity": "minor"
+  }
+ ],
+ "summary": "The report's core account is largely consistent with the reference, but it overstates final-answer termination and gives two conflicting details about the available logs and cleanup timeline. These include one consequential mechanism error and two smaller factual errors.",
+ "_report": "context_gpt_5_6_sol",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}
