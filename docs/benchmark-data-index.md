@@ -40,14 +40,16 @@ Which claims the data can actually support.
   condition. `graded_bl_*_s{1,3}.json` — the earlier seed baselines.
 - `precision_blind_*.json` / `precision_context_*.json` — precision score plus
   enumerated contradictions.
-- `graded_r2_<agent>_<model>_rep<n>.json` — round 2.
+- `graded_r2_*.json` / `graded_b20_*.json` / `graded_b30_*.json` — round 2 at the
+  10-, 20- and 30-minute budgets, per replicate.
 
 ## Graded inputs (`benchmark/graded_inputs/`)
 The exact report each grade file corresponds to, keyed to match. These are
 byte-identical copies of files in `reports/`, kept so a score can be traced to its
 input without reconstructing the mapping.
 - `blind_context/` — the blind-20 + context-20 batch (`--batch`).
-- `round2/` — the 21 round-2 reports (`--dir round2`); `_index.jsonl` carries run metadata.
+- `round2_blind10/`, `round2_blind20/`, `round2_blind30/` — the round-2 reports at each
+  budget (`--dir round2_blind10`, etc.); each `_index.jsonl` carries run metadata.
 - `seed_baselines/` — the s1/s3 seed baselines (`--baselines`).
 
 ## Viewers (`viewers/`)
@@ -63,10 +65,32 @@ local copy to rebuild).
 **Round 1 — blind-20 / context-20.** 17 reports across 9 models, graded on the 30-claim
 recall rubrics plus precision. Blind = dump only; context = dump plus background.
 
-**Round 2 — blind-10** (`benchmark/graded_inputs/round2/`). Runs on the **verbatim** data
-with the hardened blind prompt: 10-minute wall-clock budget, xhigh effort, r1/r2
-replicates across 11 model/harness pairs (claude / codex / react). Recall only.
-Leaderboard (mean of replicates): react·sol 0.467, codex·sol 0.417, react·glm-5.3 0.383,
-react·gemini-flash 0.382, claude·fable 0.367, react·kimi-k3 0.333, claude·opus-5 0.283,
-codex·terra 0.259, codex·luna 0.209, claude·sonnet-5 0.145, claude·haiku-4.5 0.067.
-The 10-minute budget compresses scores vs the 20-minute blind batch.
+**Round 2 — blind-10 / blind-20 / blind-30.** Runs on the **verbatim** data with the
+hardened blind prompt at xhigh effort, r1/r2 replicates, across up to 11 model/harness
+pairs (claude / codex / react). Recall only, no precision. The three batches differ only
+in the wall-clock budget the prompt states and the container enforces.
+
+Mean recall across replicates:
+
+| harness · model | 10 min | 20 min | 30 min |
+|---|---|---|---|
+| claude · opus-5 | 0.283 | 0.413 | 0.510 |
+| react · sol | 0.467 | 0.475 | 0.500 |
+| react · kimi-k3 | 0.333 | 0.319 | 0.449 |
+| react · gemini-flash | 0.382 | — | 0.425 |
+| codex · sol | 0.417 | 0.358 | 0.400 |
+| react · glm-5.3 | 0.383 | 0.420 | 0.392 |
+| claude · fable | 0.367 | 0.383 | — |
+| codex · terra | 0.259 | 0.242 | 0.334 |
+| codex · luna | 0.209 | 0.192 | 0.333 |
+| claude · sonnet-5 | 0.145 | 0.175 | 0.242 |
+| claude · haiku-4.5 | 0.067 | 0.075 | 0.125 |
+
+Gaps are missing runs, not zeros: react·gemini-flash has no blind-20 batch and
+claude·fable no blind-30. Three cells rest on a single replicate rather than two —
+claude·fable at blind-10 and blind-20, and claude·opus-5 at blind-30, which is the
+highest score in the table.
+
+Recall rises with budget for most models. Opus 5 is the clearest climb
+(0.283 → 0.413 → 0.510) and the only model above 0.5; react·sol plateaus at ~0.47–0.50,
+so the ranking at one budget does not carry to another.

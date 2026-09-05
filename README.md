@@ -26,19 +26,35 @@ flip between data variants (C21/C22/C28) carry a per-variant note.
 
 ## Headline result
 
-Round 2, 10-minute budget, verbatim data, mean recall across replicates:
+Round 2, blind prompt on the verbatim data, xhigh effort, mean recall across
+replicates at three wall-clock budgets:
 
-| harness · model | recall | | harness · model | recall |
-|---|---|---|---|---|
-| react · sol | 0.467 | | react · kimi-k3 | 0.333 |
-| codex · sol | 0.417 | | claude · opus-5 | 0.283 |
-| react · glm-5.3 | 0.383 | | codex · terra | 0.259 |
-| react · gemini-flash | 0.382 | | codex · luna | 0.209 |
-| claude · fable | 0.367 | | claude · sonnet-5 | 0.145 |
-| | | | claude · haiku-4.5 | 0.067 |
+| harness · model | 10 min | 20 min | 30 min |
+|---|---|---|---|
+| claude · opus-5 | 0.283 | 0.413 | **0.510** |
+| react · sol | 0.467 | 0.475 | 0.500 |
+| react · kimi-k3 | 0.333 | 0.319 | 0.449 |
+| react · gemini-flash | 0.382 | — | 0.425 |
+| codex · sol | 0.417 | 0.358 | 0.400 |
+| react · glm-5.3 | 0.383 | 0.420 | 0.392 |
+| claude · fable | 0.367 | 0.383 | — |
+| codex · terra | 0.259 | 0.242 | 0.334 |
+| codex · luna | 0.209 | 0.192 | 0.333 |
+| claude · sonnet-5 | 0.145 | 0.175 | 0.242 |
+| claude · haiku-4.5 | 0.067 | 0.075 | 0.125 |
 
-No configuration clears 0.5. The 10-minute budget compresses scores relative to the
-20-minute blind batch — see `docs/benchmark-data-index.md` for the full run history.
+The benchmark is far from saturated: the best configuration recovers about half
+the derivable claims, and the weakest recovers an eighth.
+
+Recall is strongly budget-sensitive, which is the point — this measures
+investigation, not recall of things already known. Opus 5 climbs steadily with
+time (0.283 → 0.413 → 0.510) and is the only model to clear 0.5. react·sol is
+strong immediately but plateaus around 0.47–0.50, so ranking at one budget says
+little about ranking at another.
+
+Read the top row with some caution: opus-5 at 30 min is a single replicate, as is
+claude·fable at 10 and 20 min. Dashes are missing runs, not zeros. Per-claim scores
+are in `benchmark/graded/`.
 
 ## Layout
 
@@ -69,7 +85,7 @@ scripts/build_data.sh --verify # check an existing build
 CONFIG=configs/blind-20.toml sandbox/docker/run_trial.sh claude claude-opus-5 1
 
 # grade a report set against the 30-claim rubrics
-python benchmark/rubrics/grade_with_rubrics.py --dir round2
+python benchmark/rubrics/grade_with_rubrics.py --dir round2_blind30
 
 # rebuild the browsable viewers
 cd viewers && for f in build_*.py; do python "$f"; done
