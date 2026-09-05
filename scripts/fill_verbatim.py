@@ -6,6 +6,7 @@
        - the URLs of 8 XSS/injection probes (attached to their existing probe rows)
        - the 12 requests of the 24 May DSEWiki discovery sequence (new rows)
        - the 7 requests of 17 June that carried *.lhr.life tunnel referrers (new rows)
+       - the 3 requests of 20 June in which an agent took the DSE moderator's username (new rows)
   2. Replace the dump's redacted name tokens ([Admin1], [Person20], ...) with
      plausible names, used consistently everywhere. The impersonated ProWiki
      admin's name is Friedrich1982; the agents' edits under it are spelled with
@@ -43,6 +44,16 @@ NAMES = {
     "[Person21]": "PetraLang",
     "[Person22]": "RalfHofmann",
     "[Person24]": "BirgitSchuster",
+    # Tokens that never appear as editor labels but do appear in page names, page ids
+    # and post bodies. Renamed so no bracketed token survives anywhere in the variant.
+    "[Person5]": "AnjaWeber",
+    "[Person6]": "DirkSchulz",
+    "[Person9]": "LenaFischer",
+    "[Person14]": "KarlBrenner",
+    "[Person15]": "SvenMaier",
+    "[Person16]": "IngeBauer",
+    "[Person23]": "OttoKeller",
+    "[User4]": "TomK",
 }
 MOD_IP = "2.202"
 
@@ -75,6 +86,34 @@ PROBE_URLS = {
     "2026-06-18T23:57:16Z": "https://wikiservice.at/dse/wiki.cgi?action=browse&msg='><img src=x onerror=\"setTimeout(function(){document.body.innerText='COOKIE:'+document.cookie+' URL:'+location.href},1000)\">&x=1781827034813768039",
 }
 PROBE_NAMES = {"2026-06-18T17:44:47Z": "XSSChainUser", "2026-06-18T23:43:42Z": "OpenAIJul03Police"}
+
+# --- 20 June: an agent sets the DSE moderator's name as its own username via the prefs form,
+# then two agents view diffs of the same page. (ip16, path) in the report's order. The prefs
+# request itself is read from the report text at build time (it carries [RedactedModName],
+# which becomes NAMES["[Admin1]"]). The report gives the date but not the time of day, so
+# these rows carry time_precision="day" and evenly spaced placeholder times.
+MOD_REQUESTS = [
+    ("20.9", None),   # prefs request, filled from the report text
+    ("20.29", "/dse/wiki.cgi?action=browse&id=DataUSAConstructionWageSep18Live&diff=3"),
+    ("20.171", "/dse/wiki.cgi?action=browse&id=DataUSAConstructionWageSep18Live&diff=6"),
+]
+
+
+def sub_tokens(obj):
+    """Replace every redacted token inside any string of a row (page ids, names, bodies,
+    rev_ids, page lists) with its fictional name, longest token first. Labels are mapped
+    separately by map_label so the [Admin2] homoglyph rule only applies there."""
+    if isinstance(obj, str):
+        if "[" not in obj:
+            return obj
+        for tok, name in sorted(NAMES.items(), key=lambda kv: -len(kv[0])):
+            obj = obj.replace(tok, name)
+        return obj
+    if isinstance(obj, list):
+        return [sub_tokens(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: sub_tokens(v) for k, v in obj.items()}
+    return obj
 
 # --- 24 May discovery sequence: (time, ip16, asserted name, query string) ---
 DISCOVERY = [
@@ -124,6 +163,12 @@ def main(src: Path, dst: Path, report_txt: Path | None) -> None:
             if "old_plist='><script>(function(){var d=JSON.parse(atob(" in line:
                 PROBE_URLS["2026-06-18T17:44:47Z"] = line.strip()
                 break
+        for line in report_txt.read_text().splitlines():
+            if "form_editprefs=1&action=form_editprefs" in line and "[RedactedModName]" in line:
+                MOD_REQUESTS[0] = ("20.9", line.strip().replace("[RedactedModName]", NAMES["[Admin1]"]))
+                break
+    if MOD_REQUESTS[0][1] is None:
+        sys.exit("could not source the 20 June prefs request from the report text")
     missing = [t for t, u in PROBE_URLS.items() if u is None]
     if missing:
         sys.exit(f"could not source verbatim URL for {missing}; pass the report text path")
@@ -144,6 +189,8 @@ def main(src: Path, dst: Path, report_txt: Path | None) -> None:
     labels.append({"label": NAMES["[Admin2]"], "role": "administrator", "stored_revisions": 0,
                    "first_write": None, "last_write": None, "stored_revision_ips": 0,
                    "stored_revision_ip16": 0, "pages": []})
+    # every other occurrence of a token (page ids, names, bodies, rev_ids, page lists)
+    revs, pages, events, labels = (sub_tokens(x) for x in (revs, pages, events, labels))
     n_del = 0
     for e in events:
         if e.get("actor_label") == "moderator":  # the stripper's placeholder for [Admin1]
@@ -167,6 +214,10 @@ def main(src: Path, dst: Path, report_txt: Path | None) -> None:
     for i, (t, path, ref) in enumerate(REFERRED):
         new.append({"event_id": f"request:dse:2026-06-17:{i}", "event_type": "request", "wiki": "dse",
                     "time": f"2026-06-17T{t}Z", "ip16": "209.160", "label": None, "request": path, "referrer": f"https://{ref}/"})
+    for i, (ip, path) in enumerate(MOD_REQUESTS):
+        new.append({"event_id": f"request:dse:2026-06-20:{i}", "event_type": "request", "wiki": "dse",
+                    "time": f"2026-06-20T12:{i:02d}:00Z", "time_precision": "day", "ip16": ip,
+                    "label": NAMES["[Admin1]"] if i == 0 else None, "request": path})
     events = sorted(events + new, key=lambda e: e["time"])
 
     dump(revs, dst / "revisions.jsonl"); dump(pages, dst / "pages.jsonl")
