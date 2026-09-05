@@ -61,7 +61,7 @@ Decisions already made (2026-09-04):
 | `docs/design-notes.md` | data inventory, recoverability table, task ideas, scoring design, lit pointers |
 | `docs/gdoc-comments.json` | comments posted to the planning Google Doc |
 | `scripts/fetch_data.sh` | downloads the 4.2 MB dump, verifies checksums, into `data/raw/` |
-| `scripts/strip_analysis_fields.py` | makes `data/raw_stripped/` (drops 44 fields + manifest) |
+| `scripts/strip_analysis_fields.py` | makes `data/raw_stripped/` (drops 50 fields + manifest, neutralises value-level judgements; see `docs/data-processing.md`) |
 | `scripts/make_report_artifact.py` | renders a run's report.md to a styled HTML page |
 | `sandbox/` | historical entry: the lightweight sandbox (Linux user + iptables) was deleted on `oscar/docker-sandbox`; `sandbox/docker/` replaces it |
 | `sandbox/prompt.txt` | the blind prompt used for the baselines |
