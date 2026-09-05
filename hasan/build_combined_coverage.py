@@ -44,7 +44,7 @@ if args:
 else:
     for p in sorted(glob.glob(str(HERE / "*.json"))):
         base = Path(p).name
-        if base in ("coverage_data.json", "validation_data.json"):
+        if base in ("coverage_data.json", "validation_data.json", "coverage_combined.json"):
             continue
         if is_review(p):
             pairs.append((author_of(p), p))
@@ -66,6 +66,20 @@ for author, path in pairs:
             "ts": c.get("ts", ""),
             "replies": c.get("replies", []),
         })
+# attach GPT-5.6 Sol auto-replies (author "llm", deletable in the UI)
+_rep = HERE / "snippets" / "comment_replies.json"
+if _rep.exists():
+    _rj = json.loads(_rep.read_text()).get("replies", {})
+    for m in merged:
+        r = _rj.get(m["id"])
+        if r:
+            cl = (" [" + ", ".join(r.get("claim_ids", [])) + "]") if r.get("claim_ids") else ""
+            m.setdefault("replies", []).insert(0, {
+                "author": "llm",
+                "text": f'{str(r.get("verdict","")).upper()}: {r.get("text","")}{cl}',
+                "ts": "",
+            })
+
 authors = sorted(set(authors))
 COLORS = ["#CDE9DD", "#DCE4F5", "#F5E4CC", "#EADCF0", "#E0EFE0", "#F5DCDC"]  # per-author highlight tints
 UNDER = ["#065F46", "#274456", "#92400E", "#4A3B76", "#2E7D6B", "#991B1B"]
@@ -97,7 +111,7 @@ embed = ("CDATA=" + neut(json.dumps(cov, ensure_ascii=False)) + ";\n"
 hl_css = "\n".join(
     f"::highlight(cmt-{i}){{background-color:{COLORS[i]};text-decoration:underline wavy {UNDER[i]}}}"
     for i in range(len(authors))) or "::highlight(cmt-0){background-color:#CDE9DD}"
-author_badge_css = "\n".join(
+author_badge_css = ".au{background:#eee;color:#555}\n.au-llm{background:#EDE7F6;color:#4A3B76}\n" + "\n".join(
     f".au-{a}{{background:{COLORS[author_slot[a]]};color:{UNDER[author_slot[a]]}}}" for a in authors)
 
 INJECT_CSS = r'''<style id="cov-style">
@@ -262,4 +276,11 @@ renderClaims();renderFilt();renderComments();save();
 html = html.replace("</head>", INJECT_CSS + "</head>", 1)
 html = html.replace("</body>", INJECT_HTML + "</body>", 1)
 (HERE / "coverage_combined.html").write_text(html)
+
+# final combined JSON on disk (round-trips back into this script)
+combined = {"saved_at": "build", "report": "human collusion.wiki report",
+            "n_claims": len(cov["claims"]), "authors": authors, "comments": merged}
+(HERE / "coverage_combined.json").write_text(json.dumps(combined, indent=1, ensure_ascii=False))
+n_rep = sum(len(m.get("replies", [])) for m in merged)
 print("wrote coverage_combined.html bytes:", len(html))
+print(f"wrote coverage_combined.json | {len(merged)} comments, {n_rep} replies")
