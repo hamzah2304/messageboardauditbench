@@ -57,9 +57,10 @@ elif [ -f "$HOME/.claude/.credentials.json" ]; then
 elif [ "$AGENT" = claude ]; then
   echo "no Claude credentials: run sandbox/docker/claude_login.sh once" >&2; exit 1
 fi
-# ReAct scaffold: OpenRouter key from env or runs/.openrouter_key (gitignored).
+# ReAct scaffold: OpenRouter key from runs/.openrouter_key.<model with / -> _> (per-model), else env, else runs/.openrouter_key (all gitignored).
 REACT_ENV=()
 if [ "$AGENT" = react ]; then
+  [ -s "$ROOT/runs/.openrouter_key.${MODEL//\//_}" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key.${MODEL//\//_}")"
   [ -z "${OPENROUTER_API_KEY:-}" ] && [ -s "$ROOT/runs/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key")"
   [ -n "${OPENROUTER_API_KEY:-}" ] || { echo "no OpenRouter key: export OPENROUTER_API_KEY or write runs/.openrouter_key" >&2; exit 1; }
   REACT_ENV=(-e OPENROUTER_API_KEY)
@@ -69,9 +70,11 @@ elif [ "$AGENT" = codex ]; then echo "no Codex credentials: run \`codex login\` 
 # Codex: ask for detailed reasoning summaries (and raw reasoning where the model emits it) so the
 # transcript carries them; keep session persistence on so the rollout (per-call token counts,
 # reasoning items) lands in $SECRETS/codex/sessions and can be copied to <run>/codex_sessions.
-printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
-# After every tool call, Claude Code feeds the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
-printf '{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"}]}]}}\n' > "$SECRETS/claude/settings.json"
+printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
+# After every tool call, Claude Code and Codex feed the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
+# Both CLIs accept the same hook file shape; Codex additionally needs the codex_hooks feature and the hook-trust bypass flag.
+HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"}]}]}}'
+printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
 cleanup() {
@@ -130,7 +133,7 @@ case "$AGENT" in
   codex)
     docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
       --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
-      --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
+      --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust --skip-git-repo-check --ignore-rules \
       --json -o /work/final_message.md "$PROMPT" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   react)
@@ -149,6 +152,19 @@ python3 - "$RUN" "$RC" "$((END-START))" <<'PY'
 import json,sys,pathlib
 run,rc,secs=pathlib.Path(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
 m=json.loads((run/"meta.json").read_text()); m.update(exit_code=rc,wall_seconds=secs,report_exists=(run/"report.md").exists())
+# Claude Code can silently switch models after a refusal ({"type":"system","subtype":"model_refusal_fallback",...}).
+# Such a trial is not a datapoint for the requested model: record it and fail (exit 4) so collect_reports skips it.
+fb=[json.loads(l) for l in (run/"transcript.jsonl").read_text().splitlines() if '"model_refusal_fallback"' in l]
+if fb:
+    m["model_fallback"]={"fallback_model":fb[0].get("fallback_model"),"trigger":fb[0].get("trigger"),"category":fb[0].get("api_refusal_category"),"events":len(fb)}
+    print(f"FAIL model fallback: {m['model']} -> {fb[0].get('fallback_model')} ({fb[0].get('api_refusal_category')})",file=sys.stderr)
+    if rc==0: rc=4; m["exit_code"]=rc
+# ReAct: a provider refusal ends the turn with no tool call (OpenRouter native_finish_reason "refusal"); same treatment, exit 5.
+rf=[l for l in (run/"transcript.jsonl").read_text().splitlines() if '"native_finish_reason": "refusal"' in l or '"finish_reason": "content_filter"' in l]
+if rf:
+    m["model_refusal"]={"events":len(rf)}
+    print(f"FAIL model refusal: {m['model']} refused ({len(rf)} refusal responses)",file=sys.stderr)
+    if rc==0: rc=5; m["exit_code"]=rc
 u=json.loads((run/"usage.json").read_text()) if (run/"usage.json").exists() else {}
 m["usage"]={k:u.get(k) for k in ("input_tokens","output_tokens","cache_read_tokens","cache_write_tokens","reasoning_tokens",
             "cost_usd","api_calls","tool_calls","api_retries","api_errors","peak_context_tokens","terminal_reason","is_error","usage_source")}

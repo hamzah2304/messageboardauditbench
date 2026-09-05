@@ -15,6 +15,8 @@ RUN set -eux; arch="$(uname -m)"; \
         | tar xz -C /usr/local/bin; mv "/usr/local/bin/$b-$arch-unknown-linux-musl" "/usr/local/bin/$b"; \
     done; chmod 755 /usr/local/bin/codex*
 COPY sandbox/proxy.py sandbox/react_agent.py sandbox/time_left.sh /sandbox/
+# `time_left` on the agent's PATH: the same remaining-time note the hooks inject, on demand.
+RUN chmod 755 /sandbox/time_left.sh && printf '#!/bin/sh\nexec /sandbox/time_left.sh --plain\n' > /usr/local/bin/time_left && chmod 755 /usr/local/bin/time_left
 # Non-root: claude refuses --dangerously-skip-permissions as root.
 RUN useradd -m -u 1000 agent && mkdir -p /work && chown agent /work
 USER agent
