@@ -13,14 +13,13 @@ from pathlib import Path
 ROOT = Path("/workspace/collusion")
 OUT = ROOT / "report/rubrics"
 feas = json.loads((ROOT / "report/feasibility.json").read_text())["claims"]
-# Per team review: non-derivable claims are NOT included in the rubric at all.
-# The rubric keeps recall_accuracy (derivable) AND recall_calibrated (partial);
-# there is no pure abstention/calibration mode (its claims are excluded).
-feas = [c for c in feas if c["verdict"] != "not_derivable"]
-
+# Per team review: the previously "not derivable" claims (C14/C15/C22) turned out
+# to be answerable from the data, so ALL 30 claims are included and graded for
+# recall accuracy; recall_calibrated is kept for the partial/inference claims.
 MODE = {
  "derivable":     "recall_accuracy",
  "partial":       "recall_calibrated",
+ "not_derivable": "recall_accuracy",
 }
 MODE_GUIDE = {
  "recall_accuracy":

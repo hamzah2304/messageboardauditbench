@@ -60,17 +60,7 @@ def grade_one(report_md, rub):
         except Exception: x["score"] = 0.0
     return rub["rubric_id"], items, eff
 
-def grade_report(key):
-    title, fn = REPORTS[key]
-    report_md = (ROOT / fn).read_text()
-    per_claim, per_rubric = {}, {}
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        futs = {ex.submit(grade_one, report_md, r): r["rubric_id"] for r in RUBRICS}
-        for f in as_completed(futs):
-            rid, items, eff = f.result()
-            per_claim.update(items)
-            got = round(sum(i["score"] for i in items.values()), 2); mx = len(items)
-            per_rubric[rid] = {"score": got, "max": mx, "effort": eff}
+def aggregate(key, title, per_claim, per_rubric):
     total = round(sum(i["score"] for i in per_claim.values()), 2); mx = len(per_claim)
     mode = {c["id"]: c["grading_mode"] for r in RUBRICS for c in r["claims"]}
     def mean(ids):
@@ -82,15 +72,46 @@ def grade_report(key):
            "accuracy": round(total / mx, 3) if mx else 0, "total": total, "max": mx,
            "by_mode": by_mode, "per_rubric": per_rubric, "scores": per_claim}
     (HERE / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
-    return key, out["accuracy"], out["total"], out["max"], by_mode
+    return out
+
+def resolve_reports(args):
+    # --baselines: grade every report/rubrics/baselines/*.md; else the default 4 or named keys.
+    if args and args[0] == "--baselines":
+        out = []
+        for p in sorted((HERE / "baselines").glob("*.md")):
+            out.append((f"bl_{p.stem}".replace(".", "_").replace("-", "_"), p, p.stem))
+        return out
+    keys = args or ["gpt", "opus", "haiku", "luna"]
+    return [(k, ROOT / REPORTS[k][1], REPORTS[k][0]) for k in keys]
 
 def main():
-    keys = sys.argv[1:] or ["gpt", "opus", "haiku", "luna"]
-    for k in keys: assert k in REPORTS, f"unknown report key {k}"
-    print(f"model={MODEL}  grading {keys} against 6 rubrics x 5 claims each...")
-    for k in keys:
-        key, acc, total, mx, by_mode = grade_report(k)
-        print(f"[{key}] accuracy={acc}  ({total}/{mx})  by_mode={by_mode}  -> graded_{key}.json")
+    reports = resolve_reports(sys.argv[1:])
+    tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRICS]
+    print(f"model={MODEL}  grading {len(reports)} reports x {len(RUBRICS)} rubrics = {len(tasks)} calls "
+          f"(bounded pool of 12)...")
+    acc = {key: {"title": title, "path": path, "per_claim": {}, "per_rubric": {}}
+           for (key, path, title) in reports}
+    def run(t):
+        key, path, title, rub = t
+        rid, items, eff = grade_one(path.read_text(), rub)
+        return key, rid, items, eff
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        futs = {ex.submit(run, t): t for t in tasks}
+        for f in as_completed(futs):
+            key, path, title, rub = futs[f]
+            try:
+                key, rid, items, eff = f.result()
+                a = acc[key]; a["per_claim"].update(items)
+                a["per_rubric"][rid] = {"score": round(sum(i["score"] for i in items.values()), 2),
+                                        "max": len(items), "effort": eff}
+            except Exception as e:
+                print(f"[{key}/{rub['rubric_id']}] FAILED: {e!r}")
+    rows = []
+    for key, a in acc.items():
+        out = aggregate(key, a["title"], a["per_claim"], a["per_rubric"])
+        rows.append((out["accuracy"], key, out["total"], out["max"], out["by_mode"]))
+    for accv, key, total, mx, by_mode in sorted(rows, reverse=True):
+        print(f"[{key}] accuracy={accv}  ({total}/{mx})  by_mode={by_mode}  -> graded_{key}.json")
 
 if __name__ == "__main__":
     main()

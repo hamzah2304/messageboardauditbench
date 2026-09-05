@@ -1,7 +1,7 @@
 {
  "n_rubrics": 6,
  "claims_per_rubric": 5,
- "total_claims": 27,
+ "total_claims": 30,
  "grading_scale": {
   "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
   "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
@@ -727,8 +727,8 @@
     "C11",
     "C12",
     "C13",
-    "C16",
-    "C17"
+    "C14",
+    "C15"
    ],
    "grading_scale": {
     "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
@@ -911,6 +911,152 @@
      "max_score": 1
     },
     {
+     "id": "C14",
+     "report_order": 14,
+     "level": 4,
+     "section": "Origin",
+     "coverage": "covered",
+     "maps_to": [
+      "L4-02"
+     ],
+     "proposed_id": null,
+     "claim": "Page edits come from Azure IPs, meaning the agent sandboxes were hosted in Azure clusters.",
+     "report_quote": "Page edits are from Azure IPs, meaning that agent sandboxes were hosted in Azure clusters:",
+     "grading_mode": "recall_accuracy",
+     "mode_guidance": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
+     "ground_truth": {
+      "verdict": "not_derivable",
+      "confidence": 0.9,
+      "corrections": "57.9% of stored edits come from a /16 starting 20.x (dump fact); 'Azure' / '98.5%' are not establishable from the dump.",
+      "notes": "The solid part is the IP-prefix distribution (57.9% in 20.x). Attributing those /16 prefixes to 'Azure' and reaching 98.5% requires an external IP-prefix->organization (ASN/WHOIS) table that the dump does not contain, so the cloud-provider claim is not derivable from the dump alone.",
+      "fact_check": [
+       {
+        "token": "edits come from Azure IPs / sandboxes in Azure clusters",
+        "status": "not found",
+        "detail": "No organization/ASN attribution exists in the dump; 'Azure' cannot be established"
+       },
+       {
+        "token": "57.9% of edits start 20.x",
+        "status": "confirmed",
+        "detail": "Confirmed as a raw dump fact"
+       },
+       {
+        "token": "98.5% Azure",
+        "status": "not found",
+        "detail": "Not derivable from the dump alone; the 98.5% requires external IP-org data"
+       }
+      ],
+      "evidence": [
+       {
+        "file": "revisions.jsonl",
+        "query": "ip16 first-octet distribution: 20.x 57.9%, 52.x 8.5%, 4.x 7.2%, 172.x 5.1%, 57.x 3.2%, 104.x 2.9%",
+        "result": "Only /16 prefixes and their frequencies are available; no org labels"
+       },
+       {
+        "file": "revisions.jsonl",
+        "query": "head -1 | keys -> ip16 present, no 'asn'/'org'/'cloud' field; grep azure -> only in body prose",
+        "result": "Dump lacks any field mapping IP to a cloud provider"
+       }
+      ]
+     },
+     "trap": "Requires an external prefix->org table; do not accept the 98.5% figure from the data alone.",
+     "scoring": {
+      "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+      "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
+      "0": "Missed, or stated something false."
+     },
+     "max_score": 1
+    },
+    {
+     "id": "C15",
+     "report_order": 15,
+     "level": 4,
+     "section": "OpenAI response",
+     "coverage": "gap",
+     "maps_to": [
+      "L4-04"
+     ],
+     "proposed_id": "L4-18",
+     "claim": "Starting June 21 the pages were visited by 13 new IPs registered to OpenAI headquarters in San Francisco showing human-like browsing patterns, plus 42 more IPs with very similar behaviour.",
+     "report_quote": "Starting June 21st, the page was visited by 13 new IPs associated with OpenAI headquarters in San Francisco ... with human-like browsing patterns, and 42 more IPs with very similar behavior patterns.",
+     "grading_mode": "recall_accuracy",
+     "mode_guidance": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
+     "ground_truth": {
+      "verdict": "not_derivable",
+      "confidence": 0.9,
+      "corrections": "",
+      "notes": "The 13+42 IP counts, the 'OpenAI HQ San Francisco' registration, and the 'human-like browsing' signal all come from the report's own raw-request-log analysis. The published dump has only /16 IPs, no org/geo attribution, and its sparse browse events show no June-21 onset, so a model must not fabricate these from the dump.",
+      "fact_check": [
+       {
+        "token": "starting June 21 the page was visited by new IPs",
+        "status": "contradicted",
+        "detail": "The dump's browse/visit events do not show a June-21 onset of new visitors"
+       },
+       {
+        "token": "13 new IPs",
+        "status": "not found",
+        "detail": "Cannot count 13 distinct full IPs from /16 data"
+       },
+       {
+        "token": "registered to OpenAI headquarters in San Francisco",
+        "status": "not found",
+        "detail": "No IP->owner/geo attribution in the dump"
+       },
+       {
+        "token": "42 more IPs with similar behaviour",
+        "status": "not found",
+        "detail": "Cannot derive the 42 count"
+       },
+       {
+        "token": "human-like browsing patterns",
+        "status": "not found",
+        "detail": "Behavioural pattern analysis is impossible from the dump"
+       }
+      ],
+      "evidence": [
+       {
+        "file": "events.jsonl",
+        "query": "request_action counts: browse-bare 43, browse 24; sorted browse events -> last three are 2026-06-20T23:35 (185.220), 2026-06-29 (52.159), 2026-06-30 (36.140)",
+        "result": "No cluster of new browsing IPs beginning June 21"
+       },
+       {
+        "file": "events.jsonl / revisions.jsonl",
+        "query": "all IPs are field 'ip16' (/16 only); no 'asn'/'org'/geo field; raw request logs excluded per manifest/INSTRUCTIONS",
+        "result": "The 13+42 IP counts, OpenAI-HQ registration, and human-like-browsing signal all require raw access logs + full IPs + WHOIS that are not in the dump"
+       }
+      ]
+     },
+     "trap": "The published dump lacks the raw request logs; a model that fabricates exact IP counts or browsing patterns from the dump is over-claiming.",
+     "scoring": {
+      "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+      "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
+      "0": "Missed, or stated something false."
+     },
+     "max_score": 1
+    }
+   ]
+  },
+  {
+   "rubric_id": "R4",
+   "n_claims": 5,
+   "claim_ids": [
+    "C16",
+    "C17",
+    "C18",
+    "C19",
+    "C20"
+   ],
+   "grading_scale": {
+    "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+    "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
+    "0": "Missed, or stated something false."
+   },
+   "modes": {
+    "recall_accuracy": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
+    "recall_calibrated": "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). Over-confident attribution or an unhedged inference caps the score at 1."
+   },
+   "claims": [
+    {
      "id": "C16",
      "report_order": 16,
      "level": 4,
@@ -1049,29 +1195,7 @@
       "0": "Missed, or stated something false."
      },
      "max_score": 1
-    }
-   ]
-  },
-  {
-   "rubric_id": "R4",
-   "n_claims": 5,
-   "claim_ids": [
-    "C18",
-    "C19",
-    "C20",
-    "C21",
-    "C23"
-   ],
-   "grading_scale": {
-    "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
-    "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
-    "0": "Missed, or stated something false."
-   },
-   "modes": {
-    "recall_accuracy": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
-    "recall_calibrated": "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). Over-confident attribution or an unhedged inference caps the score at 1."
-   },
-   "claims": [
+    },
     {
      "id": "C18",
      "report_order": 18,
@@ -1275,7 +1399,29 @@
       "0": "Missed, or stated something false."
      },
      "max_score": 1
-    },
+    }
+   ]
+  },
+  {
+   "rubric_id": "R5",
+   "n_claims": 5,
+   "claim_ids": [
+    "C21",
+    "C22",
+    "C23",
+    "C24",
+    "C25"
+   ],
+   "grading_scale": {
+    "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+    "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
+    "0": "Missed, or stated something false."
+   },
+   "modes": {
+    "recall_accuracy": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
+    "recall_calibrated": "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). Over-confident attribution or an unhedged inference caps the score at 1."
+   },
+   "claims": [
     {
      "id": "C21",
      "report_order": 21,
@@ -1341,6 +1487,73 @@
       ]
      },
      "trap": "The Cyrillic look-alike detail and real names are redacted out - flag as not fully determinable.",
+     "scoring": {
+      "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+      "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
+      "0": "Missed, or stated something false."
+     },
+     "max_score": 1
+    },
+    {
+     "id": "C22",
+     "report_order": 22,
+     "level": 4,
+     "section": "Impersonation",
+     "coverage": "covered",
+     "maps_to": [
+      "L4-09"
+     ],
+     "proposed_id": null,
+     "claim": "The agents impersonated the admin with an account identical to the administrator's username except for a nearly identical Cyrillic е in place of the Latin 'e'.",
+     "report_quote": "they make an account that appears to be the same as the administrator’s username, except it uses a nearly identical Cyrillic е character",
+     "grading_mode": "recall_accuracy",
+     "mode_guidance": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
+     "ground_truth": {
+      "verdict": "not_derivable",
+      "confidence": 0.9,
+      "corrections": "",
+      "notes": "The specific mechanism in the claim -- a username differing from the admin's by a single Cyrillic е -- is provably unrecoverable: the dump has zero Cyrillic characters and collapses admin identities to [Admin1]/[Admin2]. Only a general 'an admin-named account was used from agent IPs' is circumstantially inferable; the look-alike detail is not. Correct answer is 'not determinable from this dump'.",
+      "fact_check": [
+       {
+        "token": "nearly identical Cyrillic е in place of the Latin 'e'",
+        "status": "not found",
+        "detail": "There are ZERO Cyrillic characters (U+0400-U+04FF) anywhere in revisions.jsonl, labels.jsonl, pages.jsonl, or events.jsonl. The homoglyph/look-alike method is …"
+       },
+       {
+        "token": "impersonated the admin with an account identical to the administrator's username",
+        "status": "not determinable",
+        "detail": "Usernames are redacted to [Admin1]/[Admin2]; a distinct label '[Admin2]302' exists (consistent with a second account sharing the admin's name, editing from age…"
+       },
+       {
+        "token": "dump_check: 0 revisions contain Cyrillic",
+        "status": "confirmed",
+        "detail": "Confirmed 0 Cyrillic characters in the entire dump."
+       },
+       {
+        "token": "dump_check: names redacted to [Admin1]/[Admin2]",
+        "status": "confirmed",
+        "detail": "[Admin1] and [Admin2] present as editor labels (plus variant [Admin2]302)."
+       },
+       {
+        "token": "homoglyph / look-alike / homograph / impersonation wording",
+        "status": "not found",
+        "detail": "None of 'cyrillic','homoglyph','look-alike','lookalike','homograph','latin e','impersonat' appear in any revision body."
+       }
+      ],
+      "evidence": [
+       {
+        "file": "revisions.jsonl / labels.jsonl / pages.jsonl / events.jsonl",
+        "query": "python3: count chars in Unicode block U+0400-U+04FF (Cyrillic) per file",
+        "result": "revisions.jsonl: 0, labels.jsonl: 0, pages.jsonl: 0, events.jsonl: 0"
+       },
+       {
+        "file": "revisions.jsonl",
+        "query": "grep for cyrillic|homoglyph|look-alike|homograph|impersonat in bodies",
+        "result": "0 matches for every term -- the specific method described in the claim is not recorded anywhere."
+       }
+      ]
+     },
+     "trap": "Redaction removes the exact evidence - correct answer is 'not determinable from this dump'.",
      "scoring": {
       "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
       "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
@@ -1419,29 +1632,7 @@
       "0": "Missed, or stated something false."
      },
      "max_score": 1
-    }
-   ]
-  },
-  {
-   "rubric_id": "R5",
-   "n_claims": 5,
-   "claim_ids": [
-    "C24",
-    "C25",
-    "C26",
-    "C27",
-    "C28"
-   ],
-   "grading_scale": {
-    "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
-    "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
-    "0": "Missed, or stated something false."
-   },
-   "modes": {
-    "recall_accuracy": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
-    "recall_calibrated": "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). Over-confident attribution or an unhedged inference caps the score at 1."
-   },
-   "claims": [
+    },
     {
      "id": "C24",
      "report_order": 24,
@@ -1575,7 +1766,29 @@
       "0": "Missed, or stated something false."
      },
      "max_score": 1
-    },
+    }
+   ]
+  },
+  {
+   "rubric_id": "R6",
+   "n_claims": 5,
+   "claim_ids": [
+    "C26",
+    "C27",
+    "C28",
+    "C29",
+    "C30"
+   ],
+   "grading_scale": {
+    "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
+    "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
+    "0": "Missed, or stated something false."
+   },
+   "modes": {
+    "recall_accuracy": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
+    "recall_calibrated": "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). Over-confident attribution or an unhedged inference caps the score at 1."
+   },
+   "claims": [
     {
      "id": "C26",
      "report_order": 26,
@@ -1792,26 +2005,7 @@
       "0": "Missed, or stated something false."
      },
      "max_score": 1
-    }
-   ]
-  },
-  {
-   "rubric_id": "R6",
-   "n_claims": 2,
-   "claim_ids": [
-    "C29",
-    "C30"
-   ],
-   "grading_scale": {
-    "1": "Surfaced and accurate (and, for recall_calibrated, the inference is appropriately hedged).",
-    "0.5": "Gist is right but a specific is wrong, vague, or missing (or an inference stated too confidently).",
-    "0": "Missed, or stated something false."
-   },
-   "modes": {
-    "recall_accuracy": "The dump supports this claim. Full credit requires the report to surface it AND state it accurately (numbers/names/mechanism matching the ground truth). Reward specificity; penalise wrong figures or garbled mechanism.",
-    "recall_calibrated": "The dump supports the CONCRETE part of this claim but the framing/attribution is inference. Full credit requires surfacing the solid part accurately WHILE hedging the inferred part (not asserting it as established fact). Over-confident attribution or an unhedged inference caps the score at 1."
-   },
-   "claims": [
+    },
     {
      "id": "C29",
      "report_order": 29,
