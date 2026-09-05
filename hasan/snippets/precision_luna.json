@@ -1,0 +1,109 @@
+{
+ "precision_score": 7,
+ "rationale": "The report correctly states the principal aggregates and mechanisms, including 13,403 of 14,591 revisions on DSE, four reverts, 5,217 deletions affecting 5,144 pages, security probing, and the absence of observed probe success. Its clear errors are comparatively narrow: it gives an impossible ordering for cleanup, assigns the same revision IDs to two dates, and misstates the literal deletion actor label as “moderator” rather than [Admin1]. Numerous granular daily counts, page/label totals, and event-ID mappings are also not corroborated by the supplied ground truth, although the report is otherwise strongly calibrated about attribution, intent, and impact.",
+ "n_assertions_checked": 76,
+ "n_contradicted": 3,
+ "n_overclaim": 0,
+ "n_unsupported": 12,
+ "errors": [
+  {
+   "quote": "The operators responded with four recorded reverts on 19–21 June and then a large moderator-led deletion campaign beginning 4 June and accelerating from 19 June through 14 July.",
+   "issue": "contradicted",
+   "severity": "med",
+   "explanation": "This ordering is internally impossible: the verified deletion campaign began on 4 June, before the stated 19–21 June reverts, so it cannot have happened “then.”"
+  },
+  {
+   "quote": "The --help page continues to receive “GET write probe”/cohort updates (dse~--help@17–@19).",
+   "issue": "contradicted",
+   "severity": "med",
+   "explanation": "The report had already assigned these same immutable revision IDs, dse~--help@17–@19, to 16 June in the preceding timeline entry. The same revisions cannot also document continuation on 17 June."
+  },
+  {
+   "quote": "Every supplied deletion has actor label moderator",
+   "issue": "contradicted",
+   "severity": "med",
+   "explanation": "Verified fact L1-08 says all 5,217 deletion rows have actor_label=[Admin1], not the literal label “moderator,” although the human report identifies the responsible account as a site administrator/moderator."
+  },
+  {
+   "quote": "including 5,884 on 18 June alone, and touched at least 1,305 pages that day",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The ground truth confirms that 16–18 June contained 10,443 revisions and that 18 June had about 1,554 creates, but it does not provide either 5,884 revisions or 1,305 touched pages for 18 June."
+  },
+  {
+   "quote": "17 May: Three bare-browse probes appear from IP prefix 135.136 (probe:0–probe:2).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The verified facts establish 101 total probes with no observed successes, but do not confirm these three probe IDs, their date, their action type, or the 135.136 prefix."
+  },
+  {
+   "quote": "There are 35 revisions on 24 May, 436 on 26 May, and generally tens or fewer on most intervening days.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The ground truth confirms the first stored revision occurred on 24 May, but does not provide these daily revision counts."
+  },
+  {
+   "quote": "16 June: Volume jumps to 2,603 revisions. The edits span 745 dse pages and 714 distinct labels.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The human report confirms a major jump on 16 June, but the exact revision, page, and label counts in this sentence are not among the verified facts."
+  },
+  {
+   "quote": "17 June: 1,297 revisions are recorded.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "No supplied ground-truth fact confirms the exact 1,297 figure for 17 June."
+  },
+  {
+   "quote": "18 June: The main burst: 5,884 revisions, 1,305 pages, 898 distinct labels, and 148 IP prefixes in dse.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The verified facts support a large 16–18 June peak and 191 prefixes across all revisions, but not these four exact DSE-only statistics for 18 June."
+  },
+  {
+   "quote": "19–22 June: Activity declines but continues (481, 628, 631, and 816 dse revisions respectively).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The human report supports continued activity followed by collapse after 22 June, but it does not confirm these four exact daily DSE counts."
+  },
+  {
+   "quote": "Four event-log reverts are recorded: pages OpenAIDataUSAPoliceBridge20260129 and OpenAIResearchPoliceDataBridge194814 on 19 June, --help on 21 June, and OAITestFoo on 21 June (revert:delete:dse:rclog:145962, 146247, 146986, 146029).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "Verified fact L1-10 confirms exactly four reverts, but the supplied ground truth does not confirm these page names, dates, or event-ID assignments."
+  },
+  {
+   "quote": "Deletions begin on 4 June (2 events), reach 317 on 19 June, and then continue in large batches: 602 on 23 June, 440 on 30 June, 248 on 1 July, 88 on 2 July, and 512 on 13 July.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The 4 June start, 14 July end, and 602 deletions on 23 June are supported, but the other exact daily totals in this series are not confirmed by the ground truth."
+  },
+  {
+   "quote": "The last recorded deletion is 14 July 2026 13:56:54Z (delete:dse:rclog:158016).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "Verified fact L2-03 establishes that deletions ended on 14 July, but not this exact timestamp or event identifier."
+  },
+  {
+   "quote": "The event log also records a concentrated sequence of form_editprefs probes from IP prefix 52.87 on 18 June",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The ground truth confirms a 26-event form_editprefs probe family and shows an individual 52.87 request on 18 June, but does not establish a concentrated sequence from that prefix on that date."
+  },
+  {
+   "quote": "a request whose action string is literally <script>alert('XSS')</script> on 29 June (probe:16692)",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "Verified fact L3-15 confirms that one probe action is literally a script-alert payload, but the exact 29 June date, quoting, and probe identifier are not supplied."
+  }
+ ],
+ "good_calibration": [
+  "The data does not establish whether the activity was one person, one program, or a group of users, and it does not prove that any payload executed or that an external system was compromised.",
+  "However, the logs only expose truncated IP prefixes (ip16) and labels; those cannot uniquely identify people or machines.",
+  "These are consistent with security probing, but the supplied data does not show HTTP responses, permissions, successful execution, or server-side impact.",
+  "There is no evidence here of account suspension, IP blocking, configuration changes, disclosure, outage, or confirmation that a payload executed."
+ ],
+ "_model": "gpt-5.6-sol",
+ "_effort": "xhigh",
+ "_report": "luna"
+}

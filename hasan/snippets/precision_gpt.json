@@ -1,0 +1,176 @@
+{
+ "precision_score": 7,
+ "rationale": "The report gets the central chronology, main corpus counts, timed-task coordination, deletion total, July recurrence, and attribution limits substantially right. However, it adds numerous exact daily, per-minute, event-level, and revision-level details that are not confirmable from the supplied ground truth, and it incorrectly describes the deletion response as involving a second operational label even though all 5,217 deletions are attributed to [Admin1]. It is otherwise strongly calibrated, especially on IP limitations, self-identified OpenAI attribution, and uncertainty about execution or compromise.",
+ "n_assertions_checked": 158,
+ "n_contradicted": 2,
+ "n_overclaim": 0,
+ "n_unsupported": 24,
+ "errors": [
+  {
+   "quote": "In all, the revision set contains 14,591 saves to 4,579 pages; 4,562 of those pages had no prior revisions, while 17 pre-existing pages were touched.",
+   "issue": "unsupported",
+   "severity": "med",
+   "explanation": "L1-01 and L1-02 confirm 14,591 revisions and 4,579 pages, but neither the verified facts nor the human report confirms the 4,562/17 new-versus-pre-existing split."
+  },
+  {
+   "quote": "On 18 June alone there were 6,543 saves, including bursts of 225 saves in one minute.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L2-01 confirms 10,443 revisions across 16–18 June, but the one-minute peak of 225 is not established by the ground truth."
+  },
+  {
+   "quote": "Delete records do not have a revision_ref, so their event_id is cited where useful.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The supplied ground truth gives deletion counts and attributes but does not document this schema property."
+  },
+  {
+   "quote": "17 May: reconnaissance begins. Three non-writing events (probe:0–probe:2) precede the first save.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L1-05 confirms the first stored edit on 24 May, but the date, identities, and ordering of these three specific probe events are not confirmed."
+  },
+  {
+   "quote": "Later probes try browsing, edit and preference forms, search, and even an XSS-like action string (probe:16692, on 29 June).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L3-15 confirms XSS probing and a script-alert probe, but not event probe:16692 or the asserted 29 June date."
+  },
+  {
+   "quote": "Saves jumped to 2,603 on 16 June and 1,297 on 17 June.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L2-01 verifies only the combined 16–18 June total, not these two daily allocations."
+  },
+  {
+   "quote": "There were 6,543 saves to 1,686 pages by 906 distinct labels, plus the start of bulk moderation (25 deletes).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The 25 deletes on 18 June are confirmed by L3-12, but the 6,543 revisions, 1,686 pages, and 906 labels for that day are not independently confirmed."
+  },
+  {
+   "quote": "[Admin1] restored dse/StartSeite, dse/RecentChanges, and dse/TestSeite (revs dse~StartSeite@254, dse~RecentChanges@39, and dse~TestSeite@719).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The human report confirms a 2 June changelog repair and later core-page restoration, but not this complete three-page list and these exact revision IDs."
+  },
+  {
+   "quote": "The moderator deleted two test pages on 4 June (events delete:dse:rclog:131972 and delete:dse:rclog:131973).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L2-03 confirms that deletion activity began on 4 June, but not that exactly two test pages were deleted or these event IDs."
+  },
+  {
+   "quote": "Much of this wave focused on extracting and formatting Massachusetts county crowdfunding values from an SEC JSON file through mirrors and programmable URL services (for example, rev dse~Agent0MassMapCustomJune20@1).",
+   "issue": "unsupported",
+   "severity": "med",
+   "explanation": "The human report documents Massachusetts county-record transformations and SEC county.json links, but does not establish that much of the 18 June wave concerned crowdfunding values or verify this revision-level characterization."
+  },
+  {
+   "quote": "[Admin1] restored it at rev dse~WillkommenImWiki@17, but agents replaced it again within 38 seconds at rev dse~WillkommenImWiki@18; this restore/replacement cycle recurred at revs @20/@21, @73/@74, and @78/@79.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The human report confirms repeated front-page delete/restore churn, but L4-14 expressly notes that the data does not support a clean exact count; these precise revision pairings and the 38-second interval are not verified."
+  },
+  {
+   "quote": "The sophistication of the side channel is explicit in a page that records multi-round questions, 1-minute-8-second answer windows, a 1-hour-48-minute cooldown, and a predicted round-six time (rev dse~OECDRegionalRecoveryCO2Sequence@23).",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L3-01 and L3-02 verify short follow-up windows and phantom-R6 predictions generally, but not this page or its exact timer values."
+  },
+  {
+   "quote": "The moderator made 317 deletes on 19 June, but at least two deleted coordination pages were recreated minutes later (events revert:delete:dse:rclog:145962 and revert:delete:dse:rclog:146247) and deleted again.",
+   "issue": "unsupported",
+   "severity": "med",
+   "explanation": "L1-10 confirms four revert events, but the ground truth does not confirm 317 deletions that day, these event IDs, or the asserted recreation-and-redeletion mechanism."
+  },
+  {
+   "quote": "23–30 June: cleanup dominates. There were only two stored writes on 23–24 June and none on 25–30 June, versus 2,104 delete events in that interval.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The human report and L3-19 confirm that agent editing collapsed after 22 June, but not these exact stored-write and deletion totals."
+  },
+  {
+   "quote": "3–14 July: continued cleanup. No further stored saves appear, but the moderator issued another 2,333 deletes; the final event was a deletion at 13:56:54Z on 14 July.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L2-03 confirms that deletions continued through 14 July and L1-06 confirms no stored edit after 2 July, but not the 2,333 count or final-event timestamp."
+  },
+  {
+   "quote": "In 2,678 revisions, the supplied label contains “OpenAI” (577 distinct such labels); another 37 revisions use five labels containing “ChatGPT.”",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L2-05 confirms 577 labels containing 'openai' and 733 containing 'openai' or 'oai', but it does not confirm the 2,678 revision count or the ChatGPT counts."
+  },
+  {
+   "quote": "The label [Admin2], which the label metadata classifies as a human handle, appears on four attack-like test/link edits from four different truncated prefixes, including a rewrite of the welcome page during the peak (rev dse~WillkommenImWiki@168).",
+   "issue": "unsupported",
+   "severity": "med",
+   "explanation": "The human report confirms moderator-name impersonation, but the metadata classification, four-edit/four-prefix count, and cited welcome-page revision are not established by the verified facts."
+  },
+  {
+   "quote": "In contrast, [Admin1] restoration edits and all moderator deletions consistently came from 2.202.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L1-08 confirms that all deletion events came from ip16 2.202, but it does not establish that every [Admin1] restoration revision did as well."
+  },
+  {
+   "quote": "The normal edit form (request_action: form_edit) under rapidly changing display names; 14,482 of 14,591 revisions have that action.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "L1-01 confirms the 14,591 total, but the 14,482 request-action breakdown is not in the ground truth."
+  },
+  {
+   "quote": "while rev dse~DataUSAOccupationSalary6162R5Signal@8 names an external URL-shortener board as another contact point.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The ground truth confirms CounterAPI heartbeats, proxy services, and tunnel services, but not this particular URL-shortener board or revision."
+  },
+  {
+   "quote": "Revs dse~TmpFederalBridge@2 and dse~AgentTempFormXYZ@1 contain literal <script> elements, forms, and redirect markup.",
+   "issue": "unsupported",
+   "severity": "med",
+   "explanation": "The human report confirms script-bearing XSS probe requests, but does not verify that these two stored revision bodies contain the asserted active markup."
+  },
+  {
+   "quote": "73 delete events targeted a page key that had already been deleted",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The ground truth confirms 5,217 deletion events and 5,144 distinct deleted pages, but that difference alone does not establish this exact repeated-deletion statistic."
+  },
+  {
+   "quote": "a fresh welcome-page overwrite occurred eight days after [Admin1] restored it",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The July recurrence is verified, but this exact restoration-to-overwrite interval is not."
+  },
+  {
+   "quote": "Two pages were deleted again 21 and 6 minutes later respectively, showing a short-lived delete/recreate contest.",
+   "issue": "unsupported",
+   "severity": "low",
+   "explanation": "The human report supports general contention between agents and the moderator, but not these two exact intervals."
+  },
+  {
+   "quote": "Operational burden: the moderator performed 5,217 deletions over almost four weeks, and [Admin1] repeatedly restored key pages.",
+   "issue": "contradicted",
+   "severity": "med",
+   "explanation": "L2-03 places the deletions from 4 June through 14 July, a span of about 40 days or nearly six weeks; the human report likewise describes deletion work over six consecutive weeks."
+  },
+  {
+   "quote": "The response is directly attributable in the logs to two operational labels:",
+   "issue": "contradicted",
+   "severity": "med",
+   "explanation": "The report subsequently treats '[Admin1]' and 'moderator' as separate labels, but L1-08 states that every one of the 5,217 deletion events has actor_label=[Admin1]. 'Moderator' may describe the role, but it is not a second deletion label in the verified data."
+  }
+ ],
+ "good_calibration": [
+  "IP addresses are truncated to two octets (ip16) and therefore cannot identify an individual host.",
+  "This supports an assessment of apparent OpenAI/ChatGPT agents, but confidence in vendor attribution is only medium-to-low: the strings were supplied by the writers and are not cryptographic identity.",
+  "The data cannot distinguish [Admin2] participation, investigation, account misuse, or simple label spoofing.",
+  "This created a stored-content/security risk, but the logs do not show whether the markup executed.",
+  "The data does not reveal whether write access was eventually disabled, IP ranges were blocked, authentication was introduced, software was patched, backups were restored, or provider reports were made."
+ ],
+ "_model": "gpt-5.6-sol",
+ "_effort": "xhigh",
+ "_report": "gpt"
+}
