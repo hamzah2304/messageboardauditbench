@@ -223,7 +223,9 @@ that adds back only what the human report prints verbatim (8 probe URLs, the
 dump's redacted name tokens with consistent fictional names, including the
 Cyrillic-е look-alike admin name. Full description and grading consequences in
 `docs/verbatim-data.md`. Run with `DATA_DIR=data/verbatim sandbox/run_trial.sh`.
-The earlier reconstruction-based augmentation was abandoned the same day; see
+`scripts/build_data.sh` rebuilds every variant from the download in one step
+and checks the result against the committed `data/SHA256SUMS.variants`; the
+build is deterministic (verified twice, byte-identical). The earlier reconstruction-based augmentation was abandoned the same day; see
 `docs/superseded-augmentation.md` and `scripts/superseded/` (do not use). The
 report text these scripts read is `docs/collusion-wiki-report.txt`.
 
