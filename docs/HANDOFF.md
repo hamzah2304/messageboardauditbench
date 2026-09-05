@@ -254,17 +254,18 @@ Cyrillic-е look-alike admin name. Full description and grading consequences in
 and checks the result against the committed `data/SHA256SUMS.variants`; the
 build is deterministic (verified twice, byte-identical). The earlier reconstruction-based augmentation was abandoned the same day; see
 `docs/superseded-augmentation.md` and `scripts/superseded/` (do not use). The
-report text these scripts read is `docs/collusion-wiki-report.txt`.
+report text these scripts read is `benchmark/human_report.txt`.
 
-### 7b. Teammate's claim-validation UIs (`hasan/`, merged from `origin/main`)
+### 7b. Claim-validation UIs (`viewers/`)
 
-`hasan/validation.html` steps through the 68 rubric claims and lets a human
-score each model report miss/partial/full, prefilled with the auto-grader.
-`precision.html` and `coverage.html` are read-only views. Serve with
-`python3 -m http.server 8765 --directory hasan`. Labels live in the browser's
-localStorage until exported with Save JSON, so commit the export. Gaps: one
-label set per browser, the human sees the judge's prefill (not blind), and the
-recall column mixes graders (Claude for Sol/Opus, Sol for Haiku/Luna).
+The 68-claim validation UI has been superseded by the 30-claim rubric pipeline;
+its builder and data now live in `benchmark/legacy_68claim/`. The current viewers
+are built by `viewers/build_*.py` and served with
+`python3 -m http.server 8765 --directory viewers`. Generated HTML is gitignored —
+rebuild rather than commit. Labels live in the browser's localStorage until
+exported with Save JSON, so commit the export. Gaps: one label set per browser,
+the human sees the judge's prefill (not blind), and the recall column mixes
+graders (Claude for Sol/Opus, Sol for Haiku/Luna).
 
 ### 7c. Fan-out reading tool `llm_scan` (historical: VM only, not wired into the Docker launcher)
 
@@ -285,7 +286,7 @@ with citations) is what the collusion.wiki authors used themselves.
   `sandbox/prompt_scan_addendum.txt`, suffixes the run `_scan`, records
   `scan_tool` in meta. Default `SCAN=0` is byte-identical to the old behaviour.
 - `scripts/grade_recall.py runs/<a> runs/<b> ...` grades reports against the
-  68 claims in `hasan/validation_data.json` via `claude -p` (Sonnet 5 judge,
+  68 claims in `benchmark/legacy_68claim/validation_data.json` via `claude -p` (Sonnet 5 judge,
   no API key needed). Stricter than the Sol judge (Opus 0.44 vs 0.62) but
   same ordering. Per-claim grades for the experiment: `runs/grades_scan_experiment.json`
   (gitignored, local only).

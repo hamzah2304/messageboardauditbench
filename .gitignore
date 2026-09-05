@@ -1,12 +1,30 @@
+# --- python ---
 *.egg-info/
-.DS_Store
-.chrome-profile/
-.venv/
 __pycache__/
 *.pyc
-data/raw/
+.venv/
+
+# --- os / editor ---
+.DS_Store
+.chrome-profile/
+
+# --- run outputs ---
 logs/
-marginal.toml
 runs/
-hasan/snippets/*.log
+marginal.toml
+
+# --- data: fetched + built, verified by data/SHA256SUMS.variants ---
+# rebuild with scripts/fetch_data.sh && scripts/build_data.sh
+data/raw/
 data/augmented/
+data/raw_stripped/
+data/verbatim/
+
+# --- raw agent transcripts (multi-MB, not needed to reproduce grades) ---
+baselines/*/transcript.jsonl
+reports/**/transcript.jsonl
+
+# --- generated viewers: rebuild with viewers/build_*.py ---
+viewers/*.html
+!viewers/coverage_combined.html
+viewers/scratch/

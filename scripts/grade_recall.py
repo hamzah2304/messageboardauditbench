@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Grade report.md files for recall against the 68-claim rubric in hasan/validation_data.json.
+"""Grade report.md files for recall against the 68-claim rubric in benchmark/legacy_68claim/validation_data.json.
 
     scripts/grade_recall.py runs/<run1> runs/<run2> ...   [--judge claude-sonnet-5] [--out grades.json]
 
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-RUBRIC = ROOT / "hasan" / "validation_data.json"
+RUBRIC = ROOT / "benchmark" / "legacy_68claim" / "validation_data.json"
 
 SCHEMA = {
     "type": "object",

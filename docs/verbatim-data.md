@@ -1,6 +1,6 @@
 # data/verbatim: the public dump plus only what the report prints verbatim
 
-Built by `scripts/fill_verbatim.py data/raw_stripped data/verbatim docs/collusion-wiki-report.txt`
+Built by `scripts/fill_verbatim.py data/raw_stripped data/verbatim benchmark/human_report.txt`
 from the untouched download (`data/raw`, checksums verified) after the analysis
 fields are stripped. Two kinds of change, nothing else.
 
@@ -13,7 +13,7 @@ fields are stripped. Two kinds of change, nothing else.
 | 17 June requests from 209.160 with `*.lhr.life` (localhost.run) referrers | 7 new rows, `event_type: request`, with `referrer` | `events.jsonl` |
 | 20 June: an agent from 20.9 submits the prefs form with the DSE moderator's username, then agents from 20.29 and 20.171 view diffs of the same page | 3 new rows, `event_type: request`; the prefs URL is copied from the report with the redacted name replaced by the moderator's fictional name. The report gives no time of day, so `time_precision: "day"` and placeholder times 12:00, 12:01, 12:02 | `events.jsonl` |
 
-Every value is copied from the report text (`docs/collusion-wiki-report.txt`);
+Every value is copied from the report text (`benchmark/human_report.txt`);
 the long payload is read from that file at build time so it stays byte-exact.
 
 ## 2. Names for the dump's redacted tokens
