@@ -79,8 +79,12 @@ def _san(s):
     return _re.sub(r"[^0-9a-zA-Z]+", "_", s).strip("_")
 
 def resolve_reports(args):
+    # --dir <path>: grade every *.md in <path> (key = sanitized stem);
     # --baselines: report/rubrics/baselines/*.md ; --batch: report/rubrics/batch/*.md
     # (blind/context conditions); else the default 4 or named keys.
+    if args and args[0] == "--dir":
+        d = Path(args[1]) if Path(args[1]).is_absolute() else (HERE / args[1])
+        return [(_san(p.stem), p, p.stem) for p in sorted(d.glob("*.md"))]
     if args and args[0] == "--baselines":
         return [(f"bl_{_san(p.stem)}", p, p.stem) for p in sorted((HERE / "baselines").glob("*.md"))]
     if args and args[0] == "--batch":

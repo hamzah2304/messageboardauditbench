@@ -28,6 +28,9 @@ REPORTS = {"gpt": ("GPT-5.6 Sol", "gpt_5_6_sol_audit.md"), "opus": ("Claude Opus
 def _san(s): return re.sub(r"[^0-9a-zA-Z]+", "_", s).strip("_")
 
 def resolve(args):
+    if args and args[0] == "--dir":
+        d = Path(args[1]) if Path(args[1]).is_absolute() else (HERE / args[1])
+        return [(_san(p.stem), p) for p in sorted(d.glob("*.md"))]
     if args and args[0] == "--batch":
         return [(_san(p.stem), p) for p in sorted((HERE / "batch").glob("*.md"))]
     if args and args[0] == "--baselines":

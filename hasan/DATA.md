@@ -37,3 +37,16 @@ Canonical eval artifacts (mirrored from /workspace/collusion/report). Every
 scoreboard_batch.html (blind vs context, recall+precision), rubrics.html
 (rubrics + feasibility + grading .md), matching.html (claim-by-claim matching),
 feasibility.html, variants.html, new_claims.html.
+
+## Round 2 — `blind-10` batch (`rubrics/batch_r2/`, `rubrics/graded_r2_*.json`)
+Oscar's second-round runs on the **verbatim** data with the hardened blind
+prompt: 10-minute wall-clock budget, xhigh effort, r1/r2 replicates across 11
+model/harness pairs (claude / codex / react). Graded on the same 30-claim recall
+rubrics (`grade_with_rubrics.py --dir batch_r2`); recall only, no precision.
+- `batch_r2/*.md` — the 21 reports (`_index.jsonl` carries run metadata).
+- `graded_r2_<agent>_<model>_rep<n>.json` — per-claim recall scores.
+- Leaderboard (mean of replicates): react·sol 0.467, codex·sol 0.417,
+  react·glm-5.3 0.383, react·gemini-flash 0.382, claude·fable 0.367,
+  react·kimi-k3 0.333, claude·opus-5 0.283, codex·terra 0.259, codex·luna 0.209,
+  claude·sonnet-5 0.145, claude·haiku-4.5 0.067. The 10-min budget compresses
+  scores vs the 20-min blind batch.
