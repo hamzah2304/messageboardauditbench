@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ablations &amp; Baselines</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--paper:#E9EDE8;--surface:#FAFCF9;--surface-2:#E1E7E0;--ink:#141C1F;--ink-2:#4E5D5F;
+--ink-3:#74827F;--rule:#C7D0C8;--rule-soft:#D8E0D8;--blue:#1D5B7A;--sienna:#A4552C}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--paper:#121816;--surface:#1A211E;
+--surface-2:#232B27;--ink:#E5EBE4;--ink-2:#9DAAA3;--ink-3:#7B8880;--rule:#2E3833;
+--rule-soft:#262F2B;--blue:#6FB6D6;--sienna:#DE9163}}
+:root[data-theme=dark]{--paper:#121816;--surface:#1A211E;--surface-2:#232B27;--ink:#E5EBE4;
+--ink-2:#9DAAA3;--ink-3:#7B8880;--rule:#2E3833;--rule-soft:#262F2B;--blue:#6FB6D6;--sienna:#DE9163}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+font:16px/1.65 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+-webkit-font-smoothing:antialiased}
+main{max-width:940px;margin:0 auto;padding:3.5rem 1.5rem 6rem}
+h1,h2,h3,h4{font-family:Newsreader,Georgia,serif;font-weight:500;line-height:1.2;
+letter-spacing:-.015em;text-wrap:balance;margin:0}
+h1{font-size:2.75rem;margin-bottom:1.25rem}
+h2{font-size:1.75rem;margin:3rem 0 1rem;padding-bottom:.5rem;border-bottom:1px solid var(--rule)}
+h3{font-size:1.25rem;margin:2rem 0 .65rem}
+h4{font-size:1.05rem;font-weight:600;margin:1.5rem 0 .5rem}
+p{margin:0 0 1rem;max-width:74ch}
+ul,ol{margin:0 0 1.15rem;padding-left:1.35rem;max-width:74ch}
+li{margin-bottom:.4rem}
+li::marker{color:var(--ink-3)}
+a{color:var(--blue);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--blue) 32%,transparent)}
+a:hover{border-bottom-color:var(--blue)}
+a:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:2px}
+strong{font-weight:600}
+code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:.855em;
+background:var(--surface-2);padding:.12em .38em;border-radius:3px}
+hr{border:0;border-top:1px solid var(--rule);margin:2.75rem 0}
+blockquote{margin:0 0 1.15rem;padding:.6rem 0 .6rem 1.15rem;border-left:3px solid var(--sienna);
+color:var(--ink-2)}
+.tw{overflow-x:auto;margin:0 0 1.5rem;border:1px solid var(--rule);border-radius:3px;
+background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+thead th{text-align:left;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.7rem;
+font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+padding:.85rem 1rem;border-bottom:1px solid var(--rule);white-space:nowrap}
+tbody td{padding:.8rem 1rem;border-bottom:1px solid var(--rule-soft);vertical-align:top;
+color:var(--ink-2);line-height:1.55}
+tbody tr:last-child td{border-bottom:0}
+tbody td:first-child{color:var(--ink);white-space:nowrap}
+tbody td strong{color:var(--ink)}
+em{color:var(--ink-2)}
+@media(max-width:620px){h1{font-size:2rem}h2{font-size:1.4rem}main{padding-top:2.25rem}
+tbody td:first-child{white-space:normal}}
+</style></head><body><main><h1>Ablations &amp; Baselines</h1>
+<p>A protocol for checking that the benchmark measures investigation rather than something cheaper that correlates with it — and that the numbers underneath are solid enough to support any conclusion at all.</p>
+<p>Two failure modes:</p>
+<ul><li><strong>Wrong construct.</strong> The score is mostly long-context reading, descriptive statistics over typed columns, or prior knowledge about a public incident.</li><li><strong>Fake number.</strong> The measurement is too noisy, or the judge too gameable, to distinguish anything.</li></ul>
+<p>Both are settled by running baselines, not by arguing about them. The benchmark's real measurement range is <code>(best model) − (best shortcut)</code>, and neither edge is currently known.</p>
+<p><strong>Agree thresholds before running.</strong> Every decision rule below should be fixed in advance. Choosing a threshold after seeing the number is how a validation exercise turns into a justification exercise.</p>
+<p><strong>Stated up front, what would sink this:</strong> if the descriptive-statistics script and the genre-prior baseline together recover most of the claim set, this is not an investigation benchmark and the item set needs rebuilding rather than extending.</p>
+<hr>
+<h2>0. Characterise the haystack first</h2>
+<p>The premise is a corpus too large to read. That should be measured, not assumed — and these numbers belong in any writeup, because they are what make the task hard or easy. Figures quoted below are as reported in the planning doc and should be re-derived from the dump as part of this step.</p>
+<div class="tw"><table><thead><tr><th>Quantity</th><th>Why it matters</th></tr></thead><tbody><tr><td><strong>Evidence density</strong> — revisions that support at least one claim, over 14,591</td><td>If a few hundred revisions carry every claim, the needle rate is ~1–2% and that is the real difficulty parameter</td></tr><tr><td><strong>Redundancy</strong> — unique bodies after near-duplicate collapse</td><td>2,327 revisions sit on one page; if the corpus compresses heavily, "too large to read" is weaker than it sounds</td></tr><tr><td><strong>Distinct-content tokens</strong></td><td>The honest corpus size, as opposed to the raw byte count</td></tr><tr><td><strong>Concentration</strong> — 92% of revisions on one wiki, 72% of edits across three days</td><td>Determines whether stratified subsampling changes anything</td></tr></tbody></table></div>
+<p>Evidence density falls out of section 2's answer-key validation for free.</p>
+<hr>
+<h2>1. Measurement hygiene</h2>
+<p>Nothing below section 1 means anything until this holds.</p>
+<h3>What this item set can resolve</h3>
+<p>Work out the detectable effect size before running anything, because it constrains what the benchmark can ever claim. Treating the metric as a mean over derivable claims with per-item values in {0, 0.5, 1}, and taking the across-item standard deviation near 0.42 — 0.5 is the all-or-nothing worst case:</p>
+<div class="tw"><table><thead><tr><th>Derivable items</th><th>SE per condition</th><th>Detectable gap, unpaired</th><th>Detectable gap, paired</th></tr></thead><tbody><tr><td>62</td><td>5.3 pp</td><td>21.1 pp</td><td>10.7 pp</td></tr><tr><td>150</td><td>3.4 pp</td><td>13.6 pp</td><td>6.9 pp</td></tr><tr><td>300</td><td>2.4 pp</td><td>9.6 pp</td><td>4.8 pp</td></tr><tr><td>500</td><td>1.9 pp</td><td>7.4 pp</td><td>3.8 pp</td></tr></tbody></table></div>
+<p>At 80% power, two-sided α = .05. The paired column assumes the standard deviation of per-item differences is around 0.30, which should be measured rather than trusted.</p>
+<p>Two consequences worth deciding on now:</p>
+<ul><li><strong>At the current item count, only large gaps are resolvable</strong> — roughly 20 points unpaired. Two models a handful of points apart cannot be separated, however confident the numbers look.</li><li><strong>Compare paired, item by item.</strong> The item set is fixed across models, so a paired bootstrap or McNemar-style test over per-claim outcomes is far more powerful than differencing two scalars: detecting a 10-point gap needs on the order of 70 items paired against 280 unpaired. This is the single cheapest improvement available.</li></ul>
+<h3>Two variance sources, reduced by different things</h3>
+<p>Conflating these is a common error and they respond to opposite interventions.</p>
+<div class="tw"><table><thead><tr><th>Source</th><th>Reduced by</th><th>Supports the claim</th></tr></thead><tbody><tr><td><strong>Run-to-run</strong> — agent stochasticity</td><td>More runs per condition</td><td>"This difference is real for these items"</td></tr><tr><td><strong>Item-sampling</strong> — which claims made the set</td><td>More items</td><td>"This generalises beyond our claim set"</td></tr></tbody></table></div>
+<p>More runs do <strong>not</strong> shrink item-sampling error, because the items are the same every time. Decide which of the two claims the benchmark is meant to support; the second is the one a lab will ask about, and it needs items, not repetitions.</p>
+<p>Run k ≥ 5 per condition regardless, and report spread rather than a point estimate.</p>
+<h3>Judge validation</h3>
+<p>The rubric judge sets the noise floor for every other number on this page.</p>
+<ul><li>Have <strong>two people independently grade</strong> a stratified sample of (report, claim) pairs — stratified across level and across the 0/1/2 outcomes, since agreement on partial credit is where judges fail.</li><li>Compute <strong>human–human agreement first.</strong> That is the ceiling; the judge cannot meaningfully exceed it, and if humans disagree the rubric wording is the problem, not the model.</li><li>Then compute <strong>judge–human agreement</strong> on the same sample.</li><li>~20 examples, as sketched in the planning doc, cannot estimate agreement with usable precision. Aim for a sample sized to give a tight interval across all three outcome values and all four levels.</li><li><strong>Grade blind.</strong> Graders should not know which model produced a report.</li><li><strong>Swap the judge model.</strong> If the judge is also an evaluated model, check whether the ranking survives a different judge — self-enhancement bias is well documented and this benchmark is unusually exposed to it, since reports are long and stylistic.</li></ul>
+<h3>Prompt variance</h3>
+<p>The planning doc already contains two materially different prompts. Run one model under three or more variants. <strong>If prompt variance approaches model variance, the benchmark is measuring prompt engineering</strong>, and the prompt has to be frozen and reported as part of the benchmark definition.</p>
+<hr>
+<h2>2. Validate the answer key</h2>
+<p>The 68 claims are one team's reading of one corpus. Before measuring models against them, measure them against the corpus.</p>
+<p>Give a strong model each claim together with the dump and ask it to locate supporting evidence by <code>rev_id</code>, or to declare the claim unsupported. Generous conditions — long budget, full tooling, one claim at a time.</p>
+<p>This does three jobs at once:</p>
+<ul><li><strong>Tests the <code>derivable: yes / partly / no</code> labels</strong>, which are currently an assertion rather than a measurement. A claim labelled derivable whose evidence cannot be located under ideal conditions is mislabelled or wrong.</li><li><strong>Produces the evidence index</strong> that the oracle-context ablation in section 4 requires.</li><li><strong>Yields evidence density</strong> for section 0.</li></ul>
+<p>Any claim that survives this is a claim you can defend when a lab disputes its score.</p>
+<hr>
+<h2>3. Lower bounds — shortcut agents</h2>
+<p>Each implements exactly one degenerate strategy. Grade every one against the same rubric as a real run, and <strong>report per level, not just overall</strong> — the whole point is to find out which levels are hollow.</p>
+<div class="tw"><table><thead><tr><th>Baseline</th><th>What it is</th><th>A high score means</th></tr></thead><tbody><tr><td><strong>Descriptive statistics</strong></td><td>~40 lines of pandas: per-field counts, distinct values, min/max, top-k, cross-tabs. No LLM.</td><td>L1/L2 are a floor, not a measurement</td></tr><tr><td><strong>Chunk summariser</strong></td><td>Map-reduce summaries, no investigative framing, concatenated</td><td>The score is long-context summarisation</td></tr><tr><td><strong>No corpus</strong></td><td>Prompt only, no data</td><td>Prior knowledge or contamination</td></tr><tr><td><strong>Genre prior</strong></td><td>"Write an incident report about AI agents coordinating on a public wiki." No data, no specifics</td><td>The claim is guessable from the incident genre alone</td></tr><tr><td><strong>1% sample</strong></td><td>Random 1% of revisions, normal prompt</td><td>The corpus is redundant; size isn't doing the work</td></tr><tr><td><strong>Single-pass stuffing</strong></td><td>Whole corpus in context, one shot, no agentic loop</td><td>The agentic scaffold is ornamental</td></tr><tr><td><strong>Cheap model + good tools</strong></td><td>Small model, full grep/Python scaffold</td><td>We're ranking scaffolds, not auditors</td></tr></tbody></table></div>
+<p><strong>Start with descriptive statistics.</strong> The dump is typed JSONL, so a script with no investigative capability recovers revision counts, page counts, distinct editors, date range, deletion totals, top IP prefix, most-edited page and body-length distribution — a large share of L1 and L2 by construction.</p>
+<p><strong>Grading a non-report.</strong> A statistics dump is not prose, and a judge expecting a report will mark it down for form rather than content. Normalise before comparing: wrap each shortcut's output in the same report template, or extract atomic claims from every submission and grade claims rather than documents. Otherwise the shortcut baselines are unfairly penalised and the floor looks lower than it is.</p>
+<p><code>no corpus</code> and <code>genre prior</code> are distinct: the first tests memorised specifics, the second tests whether a claim is plausible-by-default for this kind of incident.</p>
+<hr>
+<h2>4. Upper bounds</h2>
+<div class="tw"><table><thead><tr><th>Baseline</th><th>What it is</th><th>What it tells us</th></tr></thead><tbody><tr><td><strong>Human, timed</strong></td><td>A colleague who hasn't read the report gets the dump, the same prompt, 30 minutes, same rubric</td><td>The ceiling. Close to mandatory when ground truth <em>is</em> human findings</td></tr><tr><td><strong>Oracle context</strong></td><td>Only the revisions containing evidence for the claims, from section 2</td><td>Big jump ⇒ we measure retrieval. Flat ⇒ reasoning is the binding constraint</td></tr><tr><td><strong>Verification, not generation</strong></td><td>Hand the model a mixed list of true / false / not-derivable claims and ask it to label each</td><td>Separates judgement from search. Strong verification with weak generation means the bottleneck is surfacing candidates, not assessing them</td></tr></tbody></table></div>
+<p>The human number decides how everything else reads. A human scoring below the frontier models means the corpus rewards machine-speed enumeration rather than judgement; a human well above them means there is real headroom to report.</p>
+<p>SummHay is the model here — human 56.1 against best system 41.2 is what makes its result legible.</p>
+<hr>
+<h2>5. Structural ablations</h2>
+<p>Same task, one variable changed. These decompose the score rather than bound it.</p>
+<div class="tw"><table><thead><tr><th>Ablation</th><th>Isolates</th></tr></thead><tbody><tr><td>Metadata only (no revision bodies)</td><td>Table statistics vs. reading text</td></tr><tr><td>Bodies only (no structured fields)</td><td>The inverse</td></tr><tr><td>Leakage stripped vs. intact (<code>page_family</code>, <code>page_family_cohort</code>, <code>bucket</code>)</td><td>How much of L3-01 / L3-02 / L2-09 is a column read</td></tr><tr><td>Time budget: 5 / 30 / 120 min</td><td>If flat, no real search is happening</td></tr><tr><td>Corpus size sweep, plus injected distractors</td><td>Needle-finding vs. reasoning</td></tr><tr><td>Drop the DSE wiki (92% of revisions)</td><td>Whether any finding depends on the long tail</td></tr><tr><td>Scaffold held fixed across models</td><td>Model capability vs. harness</td></tr></tbody></table></div>
+<hr>
+<h2>6. Judge-integrity battery</h2>
+<p>Not construct questions — these can invalidate the number outright, so run them before trusting any headline.</p>
+<div class="tw"><table><thead><tr><th>Attack</th><th>Passes if</th></tr></thead><tbody><tr><td><strong>Padding</strong> — duplicate and pad a good report without adding content</td><td>Score does not rise</td></tr><tr><td><strong>Keyword shotgun</strong> — every entity in the corpus with hedged assertions attached</td><td>Rubric recall stays low</td></tr><tr><td><strong>Claim volume</strong> — 200 low-confidence findings</td><td>Precision penalty bites; volume cannot buy recall</td></tr><tr><td><strong>Confidence laundering</strong> — the same claims hedged vs. asserted</td><td>Calibration scoring responds to stated confidence, not to hedging language</td></tr></tbody></table></div>
+<p>The third is the real test of the recall/precision combination. The fourth matters because the calibration metric is the most novel thing here and currently the least tested.</p>
+<hr>
+<h2>7. Contamination is a lifecycle problem, not one baseline</h2>
+<p>collusion.wiki, the source report, the investigation Discord and at least two GitHub repositories are public. Models released from here on may have trained on the findings. The benchmark therefore has a half-life, and it needs monitoring rather than a single check.</p>
+<ul><li>Run <strong>no corpus per model</strong>, not once — it is a per-model property.</li><li><strong>Record each evaluated model's training cutoff</strong> alongside its score.</li><li><strong>Watch no-corpus score against model release date.</strong> A rising line is contamination, not capability. This is the cleanest available signal and costs one extra condition per model.</li><li>If the dump is ever published, <strong>embed canary strings</strong> so future contamination is detectable.</li><li>Keep a <strong>held-out slice</strong> of claims that are never published, as a contamination control.</li></ul>
+<hr>
+<h2>8. External comparators</h2>
+<p>The statistical form of "is this just summarisation": run the same models here and on a benchmark that is <em>purely</em> the suspected confound, then compare orderings.</p>
+<div class="tw"><table><thead><tr><th>Benchmark</th><th>Role</th><th>Why</th></tr></thead><tbody><tr><td><strong><a href="https://arxiv.org/abs/2407.01370">SummHay</a></strong></td><td>Primary comparator</td><td>The null-hypothesis version of this benchmark: ~100 docs / ~100k tokens per haystack, 92 tasks, scored on <strong>Coverage of reference insights + Citation accuracy</strong> — nearly the metric pair proposed here independently. Ships a human baseline</td></tr><tr><td><strong>NoLiMa</strong></td><td>Long-context capacity</td><td>Built to defeat lexical matching, so it isolates context handling from grep-ability. RULER or HELMET are alternatives</td></tr><tr><td><strong><a href="https://arxiv.org/html/2407.01725v1">DiscoveryBench</a></strong></td><td>Open-ended discovery</td><td>264 tasks over 14 scientific datasets, ground truth from published findings — the nearest existing "grade a discovery against what humans concluded"</td></tr><tr><td><strong>DABstep / BIXBench</strong></td><td>Analysis over files</td><td>Isolates the compute-statistics-over-a-corpus component</td></tr></tbody></table></div>
+<p><strong>Protocol caveat, stated honestly.</strong> A rank correlation over three or four models is noise. Detecting subtle confounding needs on the order of eight or more models spanning a real capability range. With a handful, the only detectable signal is gross confounding — a near-identical ordering. Report it that way rather than quoting a correlation coefficient with false precision.</p>
+<p>Positioning rather than baselining:</p>
+<div class="tw"><table><thead><tr><th>Benchmark</th><th>Relation</th></tr></thead><tbody><tr><td><strong><a href="https://arxiv.org/html/2602.22755v1">AuditBench</a></strong></td><td>Nearest published relative — hidden behaviour in a <em>model</em> vs. hidden story in a <em>corpus</em>. Its tool-to-agent gap result, where tools that surfaced the right evidence still failed to help the agent, is the one to cite</td></tr><tr><td><strong><a href="https://arxiv.org/abs/2505.08775">HealthBench</a></strong></td><td>Proof that expert judgement scales as an answer key with nothing mechanical underneath: 5,000 conversations, 262 physicians, 48,562 rubric criteria</td></tr><tr><td><strong><a href="https://cdn.openai.com/papers/22265bac-3191-44e5-b057-7aaacd8e90cd/paperbench.pdf">PaperBench</a></strong> / <strong>RubricBench</strong></td><td>Where the grading machinery comes from — hierarchical rubric trees with binary leaves; RubricBench separates Information Recall / Analysis / Presentation so style cannot score</td></tr><tr><td><strong><a href="https://arxiv.org/html/2603.06422">Before You Hand Over the Wheel</a></strong></td><td>25 incident scenarios, 229 investigative questions — closest existing question taxonomy for the treasure-hunt half</td></tr></tbody></table></div>
+<p>Security benchmarks (CyberGym, ExploitBench, FuzzingBrain, AIxCC) are <strong>not</strong> useful comparators. Their answers settle themselves — a crash reproduces or it doesn't — so they never built machinery for judging whether a free-text finding is right, or whether it mattered. Cite for framing, not for method.</p>
+<hr>
+<h2>9. Item analysis</h2>
+<p>An item that every model gets, or that no model gets, carries no information about model ranking. Only items that separate models do work, and the count of those — not the headline item count — is the benchmark's effective size.</p>
+<ul><li>Compute a <strong>discrimination index</strong> per claim — point-biserial between item score and total — once there are enough runs to support it.</li><li><strong>Retire or reclassify</strong> items that never discriminate, keeping a deliberate handful as a contamination-resistant floor.</li><li><strong>Track effective size separately from nominal size.</strong> Sixty-eight claims of which a fraction discriminate is a much smaller benchmark than it appears, and section 1's power table should be read against the discriminating count.</li><li><strong>Check whether the levels dissociate.</strong> If L1 through L4 subscores move together across models, the ladder is decorative and one latent factor explains the score. If they come apart, the ladder is measuring distinct things and is worth keeping. This is a direct test of the "it's just summarisation" worry.</li><li><strong>Release item-level results</strong>, not just headline scores, so the construct is checkable by others (<a href="https://arxiv.org/pdf/2604.03244">arXiv 2604.03244</a>).</li></ul>
+<p><strong>Structural problem with the calibration metric.</strong> With only six not-derivable items, the score can take very few distinct values and carries a standard error around 20 points at mid-range. It cannot rank models regardless of what any run shows. This is the most novel part of the design and, as sized, the least informative — it needs substantially more not-derivable items, spanning a range of difficulty, before it can be a headline number.</p>
+<hr>
+<h2>10. Decision rules</h2>
+<p>Proposed triggers and actions, to be agreed <strong>before</strong> the runs.</p>
+<div class="tw"><table><thead><tr><th>Check</th><th>If</th><th>Then</th></tr></thead><tbody><tr><td>Judge–human agreement</td><td>Below human–human agreement by a wide margin</td><td>Fix rubric wording before any model comparison is reported</td></tr><tr><td>Prompt variance</td><td>Comparable to model variance</td><td>Freeze the prompt; report it as part of the benchmark</td></tr><tr><td>Descriptive statistics, L1+L2</td><td>Recovers most of those levels</td><td>Drop L1/L2 from the headline; report as a declared floor</td></tr><tr><td>Descriptive stats + genre prior, overall</td><td>Recovers most claims</td><td>Rebuild the item set; do not extend it</td></tr><tr><td>No corpus</td><td>A claim is recovered in most runs</td><td>Retire that claim</td></tr><tr><td>No-corpus vs. release date</td><td>Rising</td><td>Treat as contamination; refresh the item set</td></tr><tr><td>Human baseline</td><td>Below the frontier model</td><td>Reframe: the corpus rewards enumeration. Add items humans find easy and models do not</td></tr><tr><td>Oracle context</td><td>Large jump</td><td>Report retrieval and reasoning as separate scores</td></tr><tr><td>Padding or keyword shotgun</td><td>Score rises materially</td><td>Add length normalisation or a form-independent extraction step</td></tr><tr><td>Answer-key validation</td><td>Evidence unlocatable for a derivable claim</td><td>Relabel or remove the claim</td></tr></tbody></table></div>
+<hr>
+<h2>11. Order of operations</h2>
+<p>Dependencies, not a schedule.</p>
+<ol><li><strong>Characterise the corpus</strong> (§0) — needed to describe the task honestly.</li><li><strong>Validate the answer key</strong> (§2) — produces the evidence index §4 depends on, and fixes the derivability labels everything else is scored against.</li><li><strong>Validate the judge</strong> (§1) — no model comparison should be reported before this.</li><li><strong>Descriptive statistics and genre prior</strong> (§3) — before authoring any further items.</li><li><strong>Human baseline</strong> (§4) — sets how every other number reads.</li><li><strong>Judge-integrity battery</strong> (§6) — before any headline number leaves the team.</li><li>Everything else.</li></ol>
+<hr>
+<h2>Reading</h2>
+<ul><li><a href="https://arxiv.org/html/2505.10573v3">Measurement to Meaning: A Validity-Centered Framework for AI Evaluation</a> — vocabulary: content, convergent, discriminant, predictive, ecological validity.</li><li><a href="https://proceedings.neurips.cc/paper_files/paper/2025/file/1967e0fc3aa6cbbace562f5cb8e3954e-Paper-Datasets_and_Benchmarks_Track.pdf">Measuring What Matters: Construct Validity in LLM Benchmarks</a> — NeurIPS 2025; most benchmarks use convenience sampling and contested constructs.</li><li><a href="https://arxiv.org/pdf/2410.11672">Leaving the Barn Door Open for Clever Hans</a> — simple features often predict benchmark answers. The generalised lesson: always run the dumbest baseline you can build.</li><li><a href="https://arxiv.org/html/2607.12835v1">Can LLMs Write Reliable Rubrics?</a> — meta-evaluation of machine-written rubrics against human PaperBench judgements.</li><li><a href="https://arxiv.org/pdf/2604.03244">AI Evaluation Should Require Standardized Item-Level Data Releases</a> — the case for publishing per-item outcomes.</li></ul>
+<hr>
+<p><em>Compiled September 2026. No scoring results are used anywhere in this document; the power figures in section 1 are derived from item counts and metric structure alone. Corpus figures quoted in section 0 are as reported in the planning doc and are themselves on the list to verify. AuditBench and HealthBench figures were checked against source; other entries come from abstracts and search results, so verify specific numbers before citing. Several arXiv identifiers are recent and were not independently confirmed.</em></p></main></body></html>
