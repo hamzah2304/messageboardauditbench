@@ -1,0 +1,9 @@
+# Benchmark conditions for one trial. Systems (agent, model, seed) are chosen at launch.
+name = "context-30"
+prompt = "context"                 # sandbox/prompts/<prompt>.txt; {{BUDGET_MIN}} is filled in
+budget_min = 30                # what the prompt tells the agent
+timeout_min = 35             # hard kill of the container
+data_variant = "verbatim"     # data/<variant>; "verbatim" is the other built variant
+effort = "xhigh"              # reasoning effort passed to every scaffold
+# Claude Code tools withheld from the agent (web access, subagents, skills, scheduling).
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
