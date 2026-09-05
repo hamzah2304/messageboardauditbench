@@ -38,7 +38,9 @@ uv run inspect eval messageboard_audit/task.py@messageboard_audit \
   -T agent=codex  -T model=gpt-5.6-sol   -T config=context-40 --epochs 3
 ```
 
-`--epochs N` runs N seeds (the seed is passed to the CLI as the trial seed).
+`--epochs N` runs N independent replicates. Replicate numbers identify runs;
+they do not seed model sampling. Use `--max-samples 1` to serialize epochs when
+running a subscription-backed CLI.
 Conditions (prompt, budget, timeout, data variant, effort) come from `configs/<config>.toml`. `-T judge=anthropic/claude-sonnet-5` picks the judge.
 
 ## Import runs already on disk

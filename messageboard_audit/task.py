@@ -47,12 +47,15 @@ def messageboard_audit(
 
 @task
 def messageboard_audit_replay(
-    runs_glob: str = "*_s*",
+    runs_glob: str = "*",
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
     samples = []
     for d in sorted((REPO / "runs").glob(runs_glob)):
         if not (d / "transcript.jsonl").exists() or d.name.startswith("failed"):
+            continue
+        meta_path = d / "meta.json"
+        if not meta_path.exists() or _json.loads(meta_path.read_text()).get("exit_code") != 0:
             continue
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(

@@ -65,6 +65,8 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         data_variant=meta.get("data_variant"),
         effort=meta.get("effort"),
         exit_code=meta.get("exit_code"),
+        replicate=meta.get("replicate", meta.get("seed")),
+        run_id=meta.get("run_id"),
         cli_version=meta.get("cli_version"),
         model=meta.get("model"),
         **{f"cli_{k}": v for k, v in parsed.extra.items() if isinstance(v, (str, int, float))},
@@ -78,8 +80,8 @@ def cli_agent(agent: str, model: str, config: str = "default") -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        seed = state.epoch
-        cmd = [str(REPO / "sandbox" / "docker" / "run_trial.sh"), agent, model, str(seed)]
+        replicate = state.epoch
+        cmd = [str(REPO / "sandbox" / "docker" / "run_trial.sh"), agent, model, str(replicate)]
         env = {"CONFIG": config}
         proc = subprocess.run(
             cmd, cwd=REPO, env={**_os_environ(), **env},
@@ -90,6 +92,9 @@ def cli_agent(agent: str, model: str, config: str = "default") -> Solver:
         for line in proc.stdout.splitlines():
             if line.startswith("run: "):
                 run_dir = Path(line[5:].strip())
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout)[-2000:]
+            raise RuntimeError(f"trial failed with exit code {proc.returncode}: {detail}")
         if run_dir is None:
             state.metadata["launch_error"] = proc.stderr[-2000:]
             state.output = ModelOutput.from_content(model=agent, content="(trial did not launch)")

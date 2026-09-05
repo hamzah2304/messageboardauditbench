@@ -178,6 +178,7 @@ def main():
         # Pass reasoning back unmodified so reasoning models (Gemini 3, Anthropic, OpenAI) keep their
         # chain of thought across tool calls, as OpenRouter recommends.
         if m.get("reasoning_details"): assistant["reasoning_details"] = m["reasoning_details"]
+        elif m.get("reasoning"): assistant["reasoning"] = m["reasoning"]   # plaintext-only providers
         msgs.append(assistant)
         if not calls: break
         results = []

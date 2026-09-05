@@ -56,7 +56,8 @@ the `claude` and `codex` binaries, non-root user `agent`), used for three roles:
 
 ## Run
 
-Every trial is a system (agent + model + seed) under a config. Configs live in
+Every trial is a system (agent + model + replicate) under a config. Replicate
+numbers identify nondeterministic runs; they do not seed model sampling. Configs live in
 `configs/<name>.toml` and hold the benchmark-relevant conditions: which prompt
 (`sandbox/prompts/<name>.txt`), the time budget the prompt states, the hard
 kill timeout, the data variant, the reasoning effort, and the Claude Code tools
@@ -76,7 +77,7 @@ CONFIG=context-40 sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
 CONFIG=blind-20   sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
 ```
 
-Run names end in the config name. `meta.json` records the config, its hash,
+Run names include the config name and end in a unique run ID. `meta.json` records the config, its hash,
 the prompt name, the budget, the data variant, the effort, and the hash of the
 rendered prompt the agent saw. Env vars `PROMPT`, `BUDGET_MIN`, `TIMEOUT`,
 `DATA_DIR`, `EFFORT` override single values for one-off experiments; prefer a
@@ -86,7 +87,7 @@ Batch of many trials, concurrently:
 
 ```
 cat > matrix.txt <<'M'
-# agent  model                   config      seed
+# agent  model                   config      replicate
 claude   claude-opus-5           blind-20    1
 claude   claude-opus-5           context-20  1
 codex    gpt-5.6-sol             blind-40    1
@@ -103,11 +104,11 @@ everything at once. Every trial has its own network and proxy.
 Collect the reports for evaluation, one folder per config and prompt version:
 
 ```
-scripts/collect_reports.py     # -> reports/<config>_p<prompt8>/<agent>_<model>_s<seed>_<stamp>.md
+scripts/collect_reports.py     # -> reports/<config>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
                                #    + CONDITIONS.json per folder, reports/prompts/<prompt8>.txt, reports/index.jsonl
 ```
 
-Each run writes `runs/<timestamp>_<agent>_<model>_s<seed>/`: `canary.log`,
+Each run writes `runs/<timestamp>_<agent>_<model>_r<replicate>_<config>_<run-id>/`: `canary.log`,
 `proxy.log`, `transcript.jsonl` (the CLI's JSON event stream), `stderr.log`,
 `meta.json` (exit code, wall time, CLI version, prompt hash), `report.md` (and
 `final_message.md` for Codex) copied up from `work/`. `work/` is exactly what the

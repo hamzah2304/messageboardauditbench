@@ -4,14 +4,14 @@
     scripts/collect_reports.py [--out reports] [--runs runs] [--include-partial]
 
 Layout:
-    reports/<config>_p<prompt8>/<agent>_<model>_s<seed>_<stamp>.md
+    reports/<config>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
     reports/<config>_p<prompt8>/CONDITIONS.json   prompt name, budget, data variant, effort, prompt hash
     reports/prompts/<prompt8>.txt                 the exact prompt those runs saw
     reports/index.jsonl                           one line per report with the run's metadata
 <prompt8> is a hash of the rendered prompt, so editing a prompt or budget under the same
 config name lands in a new folder instead of mixing with older runs.
 
-Runs without an exit code (killed mid-way) are skipped unless --include-partial, in
+Runs without a successful exit code are skipped unless --include-partial, in
 which case their draft report from work/ is copied and flagged partial.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ def main() -> int:
         if not d.is_dir() or not meta_p.exists():
             continue
         meta = json.loads(meta_p.read_text())
-        partial = "exit_code" not in meta
+        partial = meta.get("exit_code") != 0
         if partial and not a.include_partial:
             continue
         report = d / "report.md"
@@ -51,7 +51,8 @@ def main() -> int:
         variant = meta.get("data_variant", "raw_stripped")
         stamp = d.name.split("_", 1)[0]
         model = str(meta["model"]).replace("/", "_")
-        name = f"{meta['agent']}_{model}_s{meta.get('seed', 0)}_{stamp}{'_partial' if partial else ''}.md"
+        replicate = meta.get("replicate", meta.get("seed", 0))
+        name = f"{meta['agent']}_{model}_r{replicate}_{stamp}{'_partial' if partial else ''}.md"
         config = meta.get("config", "legacy")
         dest = out / f"{config}_p{p8}" / name
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +65,8 @@ def main() -> int:
             (out / "prompts" / f"{p8}.txt").write_text(prompt)
         rows.append({"report": str(dest.relative_to(out)), "run_dir": d.name, "partial": partial, "config": config,
                      "prompt_name": meta.get("prompt", "legacy"), "prompt_id": p8, "budget_min": budget, "data_variant": variant,
-                     **{k: meta.get(k) for k in ("agent", "model", "effort", "seed", "timeout", "exit_code",
+                     "replicate": replicate,
+                     **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
                                                   "wall_seconds", "cli_version", "prompt_sha256")},
                      "usage": meta.get("usage")})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit/usage.py)
     out.mkdir(parents=True, exist_ok=True)
