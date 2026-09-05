@@ -5,9 +5,10 @@
 #   sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
 #   sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1   # ReAct scaffold via OpenRouter
 #
-# Env knobs: EFFORT (high), BUDGET_MIN (20; rendered into the prompt, react also stops calling the model after it),
-#            TIMEOUT (BUDGET_MIN+5 minutes; hard kill), DATA_DIR (data/raw_stripped; data/verbatim adds _verbatim to
-#            the run name; a non-default budget adds _b<min>), IMAGE (mbab-sandbox).
+# Conditions come from a config: CONFIG=configs/<name>.toml (default configs/default.toml) sets the prompt,
+# the time budget, the kill timeout, the data variant, the effort and the Claude tool denylist. Env vars
+# PROMPT, BUDGET_MIN, TIMEOUT, DATA_DIR, EFFORT override individual values. IMAGE (mbab-sandbox).
+# The run is named <stamp>_<agent>_<model>_s<seed>_<config name>.
 #
 # Isolation comes from structure, not permissions:
 #   * the agent container is on an `internal` Docker network (no gateway, nothing routable)
@@ -16,25 +17,29 @@
 #   * a canary container on the same network/mounts proves both facts before the agent starts.
 set -euo pipefail
 AGENT="${1:?claude|codex|react}"; MODEL="${2:?model id}"; SEED="${3:-1}"
-EFFORT="${EFFORT:-high}"; IMAGE="${IMAGE:-mbab-sandbox}"
-# Time budget: BUDGET_MIN is what the prompt tells the agent; the container is killed TIMEOUT later (default budget + 5 min).
-BUDGET_MIN="${BUDGET_MIN:-20}"; TIMEOUT="${TIMEOUT:-$((BUDGET_MIN + 5))m}"
+IMAGE="${IMAGE:-mbab-sandbox}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
-DATA_DIR="${DATA_DIR:-$ROOT/data/raw_stripped}"
+CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROOT/configs/$CONFIG.toml"
+[ -f "$CONFIG" ] || { echo "no config at $CONFIG" >&2; exit 1; }
+eval "$(python3 "$ROOT/scripts/read_config.py" "$CONFIG")"
+PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
+[ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
+BUDGET_MIN="${BUDGET_MIN:-$CFG_BUDGET_MIN}"; TIMEOUT="${TIMEOUT:-${CFG_TIMEOUT_MIN}m}"; EFFORT="${EFFORT:-$CFG_EFFORT}"
+DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
+read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-# Data variant (basename of DATA_DIR) goes into the run name unless it is the default, and always into meta.
-VARIANT="$(basename "$DATA_DIR")"; SUFFIX=""; [ "$VARIANT" = raw_stripped ] || SUFFIX="_$VARIANT"; [ "$BUDGET_MIN" = 20 ] || SUFFIX="${SUFFIX}_b${BUDGET_MIN}"
-RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_s${SEED}${SUFFIX}"
+VARIANT="$(basename "$DATA_DIR")"
+RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_s${SEED}_${CFG_NAME}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
 NET="mbab-inner-$STAMP"; PROXY="mbab-proxy-$STAMP"; SECRETS="$RUN/.secrets"
 mkdir -p "$RUN/work/data" "$SECRETS/claude" "$SECRETS/codex"
 cp "$DATA_DIR"/*.jsonl "$RUN/work/data/"
 # The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
-sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$HERE/../prompt.txt" > "$RUN/work/prompt.txt"
+sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$PROMPT_FILE" > "$RUN/work/prompt.txt"
 PROMPT="$(cat "$RUN/work/prompt.txt")"
 
 # Credentials: a throwaway copy, mounted as the container user's ~/.claude and ~/.codex.
@@ -94,8 +99,9 @@ GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
 
 cat > "$RUN/meta.json" <<JSON
-{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
- "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$HERE/../prompt.txt" | cut -c1-64)",
+{"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
+ "prompt":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
+ "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
 JSON
 
@@ -106,7 +112,7 @@ case "$AGENT" in
     docker run -i "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
       --dangerously-skip-permissions --no-chrome --no-session-persistence --setting-sources user \
-      --disallowedTools WebFetch WebSearch Task Skill ToolSearch RemoteTrigger SendMessage ListAgents Workflow CronCreate CronDelete CronList ScheduleWakeup EnterWorktree \
+      ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
       --output-format stream-json --verbose \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   codex)

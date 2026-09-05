@@ -56,30 +56,36 @@ the `claude` and `codex` binaries, non-root user `agent`), used for three roles:
 
 ## Run
 
+Every trial is a system (agent + model + seed) under a config. Configs live in
+`configs/<name>.toml` and hold the benchmark-relevant conditions: which prompt
+(`sandbox/prompts/<name>.txt`), the time budget the prompt states, the hard
+kill timeout, the data variant, the reasoning effort, and the Claude Code tools
+withheld from the agent. Shipped configs: `blind-20`, `blind-40`, `context-20`,
+`context-40` (the `context` prompt prepends a summary of the OpenAI/Hugging Face
+incident and says to treat this one as separate), plus `default` = `blind-20`.
+
 ```
-sandbox/docker/run_trial.sh claude claude-opus-5 1
-sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
-sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
+CONFIG=blind-20   sandbox/docker/run_trial.sh claude claude-opus-5 1
+CONFIG=context-40 sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
+CONFIG=blind-20   sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
 ```
 
-Knobs: `EFFORT=high`, `TIMEOUT=25m`, `BUDGET_MIN=20` (react) (the prompt says ~20 minutes),
-`DATA_DIR=data/raw_stripped`, `IMAGE=mbab-sandbox`.
-
-Time budget: `BUDGET_MIN=40` renders "you have 40 minutes" into the prompt
-(`sandbox/prompt.txt` holds a `{{BUDGET_MIN}}` placeholder), kills the
-container 5 minutes later, adds `_b40` to the run name and records
-`budget_min` plus the hash of the rendered prompt in `meta.json`.
+Run names end in the config name. `meta.json` records the config, its hash,
+the prompt name, the budget, the data variant, the effort, and the hash of the
+rendered prompt the agent saw. Env vars `PROMPT`, `BUDGET_MIN`, `TIMEOUT`,
+`DATA_DIR`, `EFFORT` override single values for one-off experiments; prefer a
+new config file for anything you will compare against.
 
 Batch of many trials, concurrently:
 
 ```
 cat > matrix.txt <<'M'
-# agent  model                  budget  seed  data_dir
-claude   claude-opus-5          20      1
-claude   claude-opus-5          40      1
-codex    gpt-5.6-sol            20      1     data/verbatim
-react    moonshotai/kimi-k3     20      1
-react    google/gemini-3.8-flash 20     1
+# agent  model                   config      seed
+claude   claude-opus-5           blind-20    1
+claude   claude-opus-5           context-20  1
+codex    gpt-5.6-sol             blind-40    1
+react    moonshotai/kimi-k3      blind-20    1
+react    google/gemini-3.8-flash context-40  1
 M
 sandbox/docker/run_batch.sh matrix.txt     # detached; progress in runs/batch_<stamp>.log
 ```
@@ -88,15 +94,12 @@ Lanes run concurrently. The claude and codex lanes run one trial at a time
 (one subscription each; `LANE_PARALLEL=1` lifts that); the react lane runs
 everything at once. Every trial has its own network and proxy.
 
-Collect the reports for evaluation, grouped by data variant, prompt and budget:
+Collect the reports for evaluation, one folder per config and prompt version:
 
 ```
-scripts/collect_reports.py            # -> reports/<variant>/p<prompt8>_b<budget>/<agent>_<model>_s<seed>_<stamp>.md
-                                      #    reports/prompts/<prompt8>.txt, reports/index.jsonl (all run metadata)
+scripts/collect_reports.py     # -> reports/<config>_p<prompt8>/<agent>_<model>_s<seed>_<stamp>.md
+                               #    + CONDITIONS.json per folder, reports/prompts/<prompt8>.txt, reports/index.jsonl
 ```
-
-`sandbox/llm_scan.py` and `prompt_scan_addendum.txt` (the fan-out reading
-tool, `SCAN=1` on the old launcher) are not wired into the Docker launcher.
 
 Each run writes `runs/<timestamp>_<agent>_<model>_s<seed>/`: `canary.log`,
 `proxy.log`, `transcript.jsonl` (the CLI's JSON event stream), `stderr.log`,
@@ -106,5 +109,6 @@ agent saw. Exit code 124 means the timeout fired.
 
 Live tail: `python3 sandbox/watch.py runs/<run>`.
 
-The prompt is `sandbox/prompt.txt`. It is deliberately blind: it does not say
-the editors were AI agents, nor that anything definitely happened.
+Prompts are in `sandbox/prompts/`: `blind` (no hint about who the editors were),
+`context` (with the Hugging Face incident summary), `legacy` (the earlier
+baselines' prompt). Each holds a `{{BUDGET_MIN}}` placeholder.

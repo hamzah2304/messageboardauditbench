@@ -56,6 +56,11 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         output_tokens=parsed.output_tokens,
         cache_read_tokens=parsed.cache_read_tokens,
         wall_seconds=meta.get("wall_seconds"),
+        config=meta.get("config"),
+        prompt=meta.get("prompt"),
+        budget_min=meta.get("budget_min"),
+        data_variant=meta.get("data_variant"),
+        effort=meta.get("effort"),
         exit_code=meta.get("exit_code"),
         cli_version=meta.get("cli_version"),
         model=meta.get("model"),
@@ -66,13 +71,13 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 
 
 @solver
-def cli_agent(agent: str, model: str, effort: str = "high", timeout: str = "25m") -> Solver:
+def cli_agent(agent: str, model: str, config: str = "default") -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         seed = state.epoch
         cmd = [str(REPO / "sandbox" / "docker" / "run_trial.sh"), agent, model, str(seed)]
-        env = {"EFFORT": effort, "TIMEOUT": timeout}
+        env = {"CONFIG": config}
         proc = subprocess.run(
             cmd, cwd=REPO, env={**_os_environ(), **env},
             capture_output=True, text=True,

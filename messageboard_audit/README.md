@@ -33,13 +33,13 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 
 ```
 uv run inspect eval messageboard_audit/task.py@messageboard_audit \
-  -T agent=claude -T model=claude-opus-5 --epochs 3
+  -T agent=claude -T model=claude-opus-5 -T config=blind-20 --epochs 3
 uv run inspect eval messageboard_audit/task.py@messageboard_audit \
-  -T agent=codex  -T model=gpt-5.6-sol   --epochs 3
+  -T agent=codex  -T model=gpt-5.6-sol   -T config=context-40 --epochs 3
 ```
 
 `--epochs N` runs N seeds (the seed is passed to the CLI as the trial seed).
-Knobs: `-T effort=high`, `-T timeout=25m`, `-T judge=anthropic/claude-sonnet-5`.
+Conditions (prompt, budget, timeout, data variant, effort) come from `configs/<config>.toml`. `-T judge=anthropic/claude-sonnet-5` picks the judge.
 
 ## Import runs already on disk
 

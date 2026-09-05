@@ -23,20 +23,24 @@ from messageboard_audit.scorer import process_metrics, rubric_scorer
 from messageboard_audit.solver import cli_agent, replay
 
 REPO = Path(__file__).resolve().parent.parent
-PROMPT = (REPO / "sandbox" / "prompt.txt").read_text()
+import subprocess, json as _json
+
+def _prompt_for(config: str) -> str:
+    cfg = _json.loads(subprocess.check_output(["python3", str(REPO / "scripts" / "read_config.py"), str(REPO / "configs" / f"{config}.toml"), "--json"]))
+    text = (REPO / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
+    return text.replace("{{BUDGET_MIN}}", str(cfg["budget_min"]))
 
 
 @task
 def messageboard_audit(
     agent: str = "claude",
     model: str = "claude-opus-5",
-    effort: str = "high",
-    timeout: str = "25m",
+    config: str = "default",
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
     return Task(
-        dataset=[Sample(input=PROMPT, id=f"{agent}:{model}")],
-        solver=cli_agent(agent=agent, model=model, effort=effort, timeout=timeout),
+        dataset=[Sample(input=_prompt_for(config), id=f"{agent}:{model}:{config}")],
+        solver=cli_agent(agent=agent, model=model, config=config),
         scorer=[rubric_scorer(judge=judge), process_metrics()],
     )
 
@@ -52,7 +56,7 @@ def messageboard_audit_replay(
             continue
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(
-            Sample(input=PROMPT, id=d.name, metadata={"run_dir": str(d), "agent": agent})
+            Sample(input=(d / "work" / "prompt.txt").read_text() if (d / "work" / "prompt.txt").exists() else "", id=d.name, metadata={"run_dir": str(d), "agent": agent})
         )
     if not samples:
         raise RuntimeError(f"no runs matched runs/{runs_glob}")
