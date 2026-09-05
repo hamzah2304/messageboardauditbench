@@ -37,7 +37,10 @@ DROP = {
         "source_refs", "related_event_id", "relation_type", "round_id",
         "page_held", "clock_note", "param_family", "success_observed",
     },
-    "labels.jsonl": {"is_human_handle", "save_request_source"},
+    # save_request* are per-name counts the authors computed from request logs the
+    # dump does not include (attempted vs stored saves): post-processing, dropped.
+    "labels.jsonl": {"is_human_handle", "save_request_source", "save_requests",
+                     "save_request_ips", "save_request_ip16", "save_request_pages"},
 }
 
 # Values (not fields) that carry the authors' judgement.

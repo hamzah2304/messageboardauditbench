@@ -27,9 +27,8 @@ the four `revert` rows (edges from their recreation analysis) are dropped, and
 the deleter keeps the dump's own token `[Admin1]` instead of the stripper's
 hint `moderator`. Every remaining field is either a wiki record (page, body,
 name, IP prefix, time, action, summary) or a count derivable from those rows.
-The one judgement call left in is the `save_request*` aggregates in
-`labels.jsonl`: request-log counts the authors computed (attempted vs stored
-saves). They are observation, not conclusion, and were kept. Both variants
+The `save_request*` aggregates in `labels.jsonl` (per-name counts the authors
+computed from request logs the dump does not include) were dropped too. Both variants
 were rebuilt and the checksums regenerated; runs before this need a rerun for
 any scored comparison.
 
