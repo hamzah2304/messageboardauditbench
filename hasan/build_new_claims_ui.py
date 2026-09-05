@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Approval UI for the report-grounded candidate claims in report/new_claims.json.
 
-Reviewer approves/rejects (and can edit) each candidate claim; the verbatim
-report quote is shown as grounding. Export JSON = approved claim objects (with
-edits) + statuses, ready to feed the feasibility subagent pass.
+Every substantive highlighted comment is a candidate claim (comments == claims).
+Reviewer approves/rejects (and can edit) each; the verbatim report quote is shown
+as grounding, plus its coverage verdict (gap/partial => NEW rubric claim;
+covered => restates an existing claim). Export JSON = approved claim objects
+(with edits) + statuses, ready to feed the data-feasibility subagent pass.
 
 Run:  cd hasan && python build_new_claims_ui.py   ->  new_claims.html
 """
@@ -11,7 +13,7 @@ import json
 from pathlib import Path
 
 ROOT = Path("/workspace/collusion")
-HERE = Path("/workspace/collusion/messageboardauditbench/hasan")
+HERE = ROOT / "messageboardauditbench/hasan"
 
 data = json.loads((ROOT / "report/new_claims.json").read_text())
 existing = json.loads((ROOT / "report/claims.json").read_text())["claims"]
@@ -20,7 +22,7 @@ exist_by_id = {c["id"]: c["claim"] for c in existing}
 payload = {"meta": data["meta"], "claims": data["claims"], "existing": exist_by_id}
 blob = json.dumps(payload, ensure_ascii=False).replace("</script", "<\\/script").replace("</", "<\\/")
 
-HTML = r"""<title>New Claims Review</title>
+HTML = r"""<title>Candidate Claims Review</title>
 <style>
 :root{
  --bg:#F4F3EE; --card:#FFFFFF; --border:#E0DDD4; --ink:#1A1A1A; --ink2:#666;
@@ -32,9 +34,9 @@ HTML = r"""<title>New Claims Review</title>
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);margin:0}
 .wrap{max-width:1400px;margin:0 auto;padding:18px 26px}
 h1{color:var(--accent);font-size:21px;margin:0 0 2px}
-.sub{color:var(--ink2);font-size:13px;margin:0 0 14px}
+.sub{color:var(--ink2);font-size:13px;margin:0 0 14px;max-width:1000px;line-height:1.4}
 header.bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0 12px;border-bottom:1px solid var(--border);
- display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+ display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .stat{font-size:13px;color:var(--ink2)}
 .stat b{color:var(--ink);font-size:15px}
 .pill{display:inline-block;padding:2px 9px;border-radius:11px;font-size:12px;font-weight:600}
@@ -46,20 +48,28 @@ button{font-family:inherit;cursor:pointer;border:1px solid var(--border);backgro
 button:hover{border-color:var(--accent)}
 button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
 button.primary:hover{background:var(--accent2)}
-.layout{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-top:14px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.seg button{border:none;border-radius:0;border-right:1px solid var(--border);padding:6px 11px;background:var(--card)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:var(--accent);color:#fff}
+.layout{display:grid;grid-template-columns:320px 1fr;gap:18px;margin-top:14px}
 .list{border:1px solid var(--border);border-radius:8px;background:var(--card);overflow:hidden;align-self:start;max-height:calc(100vh - 150px);overflow-y:auto}
-.li{padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px}
+.li{padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px}
 .li:last-child{border-bottom:none}
 .li:hover{background:var(--row)}
 .li.active{background:var(--soft)}
-.li .id{font-weight:600;color:var(--accent);font-family:ui-monospace,Menlo,monospace;font-size:12px;min-width:52px}
+.li.hidden{display:none}
+.li .id{font-weight:600;color:var(--accent);font-family:ui-monospace,Menlo,monospace;font-size:12px;min-width:34px}
 .li .lbl{color:var(--ink2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li .cov{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:.03em}
+.cov.gap{background:#DBEAFE;color:#1E40AF}.cov.partial{background:var(--warn-bg);color:var(--warn-tx)}.cov.covered{background:#EDECE6;color:#666}
 .dot{width:9px;height:9px;border-radius:50%;flex:none;background:#D5D2C9}
 .dot.ok{background:#10B981}.dot.bad{background:#EF4444}
 .card{border:1px solid var(--border);border-radius:8px;background:var(--card);padding:20px 22px}
 .lvbadge{display:inline-block;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:700;color:#fff;letter-spacing:.02em}
-.lv3{background:#6C6EF0}.lv4{background:#C15F3C}
+.lv1{background:#8A8F98}.lv2{background:#4F9D8C}.lv3{background:#6C6EF0}.lv4{background:#C15F3C}
 .tag{display:inline-block;background:var(--soft);color:var(--accent2);border-radius:6px;padding:2px 9px;font-size:12px;font-weight:600;margin-left:6px}
+.covbig{display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:700;margin-left:6px}
 .derv{font-size:12px;color:var(--ink2);margin-left:6px}
 .claimtext{font-size:17px;line-height:1.45;margin:14px 0 4px;font-weight:500}
 .claimtext[contenteditable=true]{outline:2px solid var(--accent);border-radius:6px;padding:6px 8px;background:#fff}
@@ -69,7 +79,7 @@ button.primary:hover{background:var(--accent2)}
 .field .v{font-size:14px;line-height:1.5;color:var(--ink)}
 .quote{border-left:3px solid var(--accent);background:var(--soft);padding:9px 13px;border-radius:0 6px 6px 0;
  font-size:14px;line-height:1.5;color:#3a2a22;font-style:italic}
-.refines{font-size:13px;color:var(--ink2);background:var(--row);border:1px solid var(--border);border-radius:6px;padding:8px 11px}
+.refines{font-size:13px;color:var(--ink2);background:var(--row);border:1px solid var(--border);border-radius:6px;padding:8px 11px;line-height:1.5}
 .refines code{color:var(--accent);font-weight:600}
 .mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
 .actions{display:flex;gap:10px;margin-top:20px;align-items:center;flex-wrap:wrap}
@@ -85,13 +95,18 @@ textarea.note{width:100%;margin-top:6px;border:1px solid var(--border);border-ra
 </style>
 
 <div class="wrap">
- <h1>New Claims Review</h1>
+ <h1>Candidate Claims Review</h1>
  <p class="sub" id="subtitle"></p>
  <header class="bar">
-  <span class="stat">Total <b id="s-total">0</b></span>
+  <span class="stat">Showing <b id="s-shown">0</b>/<b id="s-total">0</b></span>
   <span class="pill ok">Approved <b id="s-ok">0</b></span>
   <span class="pill bad">Rejected <b id="s-bad">0</b></span>
   <span class="pill pend">Pending <b id="s-pend">0</b></span>
+  <span class="seg" id="filter">
+   <button data-f="all" class="on">All</button>
+   <button data-f="new">New only</button>
+   <button data-f="covered">Covered</button>
+  </span>
   <button class="primary" id="save">Save approved JSON</button>
   <button id="copy">Copy JSON</button>
   <span class="hint"><kbd>j</kbd>/<kbd>k</kbd> move &nbsp; <kbd>a</kbd> approve &nbsp; <kbd>r</kbd> reject</span>
@@ -106,55 +121,69 @@ textarea.note{width:100%;margin-top:6px;border:1px solid var(--border);border-ra
 <script>
 const P = JSON.parse(document.getElementById('data').textContent);
 const CLAIMS = P.claims, EXIST = P.existing, META = P.meta;
-const LS = 'newclaims_review_v1';
-let S = {};    // id -> {status:'approved'|'rejected'|null, claim:editedText, note:''}
+const LS = 'candclaims_review_v2';
+let S = {};    // id -> {status, claim, note}
 try{ S = JSON.parse(localStorage.getItem(LS)) || {}; }catch(e){ S = {}; }
-let cur = 0, editing = false;
+let cur = 0, editing = false, filter = 'all';
 
+const isNew = c => c.coverage !== 'covered';
 function st(id){ if(!S[id]) S[id]={status:null, claim:null, note:''}; return S[id]; }
 function persist(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
+function esc(s){return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 document.getElementById('subtitle').textContent = META.purpose;
+document.getElementById('s-total').textContent = CLAIMS.length;
 
+function visible(c){ return filter==='all' || (filter==='new'&&isNew(c)) || (filter==='covered'&&!isNew(c)); }
+function covLabel(c){
+ if(c.coverage==='gap') return 'GAP &middot; new claim';
+ if(c.coverage==='partial') return 'PARTIAL &middot; refines '+(c.maps_to||[]).join(', ');
+ return 'COVERED by '+(c.maps_to||[]).join(', ');
+}
 function counts(){
- let ok=0,bad=0; for(const c of CLAIMS){const s=st(c.id).status; if(s==='approved')ok++; else if(s==='rejected')bad++;}
- document.getElementById('s-total').textContent=CLAIMS.length;
+ let ok=0,bad=0,shown=0;
+ for(const c of CLAIMS){const s=st(c.id).status; if(s==='approved')ok++; else if(s==='rejected')bad++; if(visible(c))shown++;}
  document.getElementById('s-ok').textContent=ok;
  document.getElementById('s-bad').textContent=bad;
  document.getElementById('s-pend').textContent=CLAIMS.length-ok-bad;
+ document.getElementById('s-shown').textContent=shown;
 }
 function renderList(){
  const el=document.getElementById('list'); el.innerHTML='';
  CLAIMS.forEach((c,i)=>{
   const s=st(c.id).status;
-  const d=document.createElement('div'); d.className='li'+(i===cur?' active':'');
+  const d=document.createElement('div'); d.className='li'+(i===cur?' active':'')+(visible(c)?'':' hidden');
   d.innerHTML='<span class="dot '+(s==='approved'?'ok':s==='rejected'?'bad':'')+'"></span>'+
-    '<span class="id">'+c.id+'</span><span class="lbl">'+esc(c.section)+'</span>';
+    '<span class="id">'+c.id+'</span>'+
+    '<span class="cov '+c.coverage+'">'+(c.coverage==='covered'?'COV':c.coverage.toUpperCase().slice(0,4))+'</span>'+
+    '<span class="lbl">'+esc(c.section)+'</span>';
   d.onclick=()=>{cur=i;editing=false;render();};
   el.appendChild(d);
  });
 }
-function esc(s){return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
 function render(){
  counts(); renderList();
  const c=CLAIMS[cur], s=st(c.id);
  const shownClaim = s.claim!=null ? s.claim : c.claim;
- const refines = c.source||'';
+ const covColors={gap:['#DBEAFE','#1E40AF'],partial:['#FEF3C7','#92400E'],covered:['#EDECE6','#666']}[c.coverage];
+ const rid = c.proposed_id ? '<span class="tag mono">would add '+c.proposed_id+'</span>' : '';
+ const mapsLinks = (c.maps_to||[]).map(id=>'<code>'+id+'</code>'+(EXIST[id]?' — '+esc(EXIST[id]):'')).join('<br>');
  const d=document.getElementById('detail');
  d.innerHTML=
   '<div><span class="lvbadge lv'+c.level+'">L'+c.level+'</span>'+
    '<span class="tag">'+esc(c.section)+'</span>'+
-   '<span class="derv">derivable: <b>'+esc(c.derivable)+'</b> &middot; '+esc(c.stratum)+'</span>'+
-   '<span style="float:right" class="mono">'+c.id+'</span></div>'+
+   '<span class="covbig" style="background:'+covColors[0]+';color:'+covColors[1]+'">'+covLabel(c)+'</span>'+
+   rid+
+   '<span style="float:right" class="mono">'+c.id+' &middot; #'+c.report_order+'</span></div>'+
+  '<div class="derv">level '+c.level+' &middot; '+esc(c.stratum)+' &middot; derivable: <b>'+esc(c.derivable)+'</b></div>'+
   '<div class="claimtext" id="ct" '+(editing?'contenteditable="true"':'')+'>'+esc(shownClaim)+'</div>'+
    (s.claim!=null?'<span class="edited">edited</span>':'')+
    ' <button id="editbtn" style="padding:3px 9px;font-size:12px">'+(editing?'Done':'Edit text')+'</button>'+
   '<div class="field"><div class="k">Verbatim report quote (grounding)</div><div class="quote">&ldquo;'+esc(c.report_quote)+'&rdquo;</div></div>'+
+  (mapsLinks?'<div class="field"><div class="k">'+(c.coverage==='covered'?'Restates existing rubric claim':'Refines existing rubric claim(s)')+'</div><div class="refines">'+mapsLinks+'</div></div>':'')+
   '<div class="field"><div class="k">Where in the dump / how checkable</div><div class="v">'+esc(c.dump_check)+'</div></div>'+
   '<div class="field"><div class="k">Suggested task prompt</div><div class="v">'+esc(c.prompt)+'</div></div>'+
   (c.trap?'<div class="field"><div class="k">Grader trap</div><div class="v">'+esc(c.trap)+'</div></div>':'')+
-  '<div class="field"><div class="k">Refines existing claim(s)</div><div class="refines">'+esc(refines)+'</div></div>'+
-  '<div class="field"><div class="k">Reviewer note (optional)</div><textarea class="note" id="note" placeholder="e.g. tighten wording, wrong level, merge with L3-13...">'+esc(s.note||'')+'</textarea></div>'+
+  '<div class="field"><div class="k">Reviewer note (optional)</div><textarea class="note" id="note" placeholder="e.g. tighten wording, wrong level, merge...">'+esc(s.note||'')+'</textarea></div>'+
   '<div class="actions">'+
    '<button class="approve'+(s.status==='approved'?' on':'')+'" id="ap">&#10003; Approve</button>'+
    '<button class="reject'+(s.status==='rejected'?' on':'')+'" id="rj">&#10007; Reject</button>'+
@@ -175,10 +204,21 @@ function render(){
  };
 }
 
+function nextVisible(from,dir){
+ let i=from;
+ for(let n=0;n<CLAIMS.length;n++){ i+=dir; if(i<0||i>=CLAIMS.length) return from; if(visible(CLAIMS[i])) return i; }
+ return from;
+}
+document.querySelectorAll('#filter button').forEach(b=>b.onclick=()=>{
+ filter=b.dataset.f;
+ document.querySelectorAll('#filter button').forEach(x=>x.classList.toggle('on',x===b));
+ if(!visible(CLAIMS[cur])){ const nx=nextVisible(-1,1); if(nx>=0)cur=nx; }
+ editing=false; render();
+});
 document.addEventListener('keydown',(e)=>{
  if(editing || e.target.tagName==='TEXTAREA') return;
- if(e.key==='j'||e.key==='ArrowDown'){cur=Math.min(CLAIMS.length-1,cur+1);render();e.preventDefault();}
- else if(e.key==='k'||e.key==='ArrowUp'){cur=Math.max(0,cur-1);render();e.preventDefault();}
+ if(e.key==='j'||e.key==='ArrowDown'){cur=nextVisible(cur,1);render();e.preventDefault();}
+ else if(e.key==='k'||e.key==='ArrowUp'){cur=nextVisible(cur,-1);render();e.preventDefault();}
  else if(e.key==='a'){const s=st(CLAIMS[cur].id);s.status=s.status==='approved'?null:'approved';persist();render();}
  else if(e.key==='r'){const s=st(CLAIMS[cur].id);s.status=s.status==='rejected'?null:'rejected';persist();render();}
 });
@@ -191,8 +231,11 @@ function buildExport(){
      if(s.note) o.review_note=s.note; approved.push(o); }
    else if(s.status==='rejected') rejected.push(c.id);
  }
- return {saved_at:new Date().toISOString(), n_approved:approved.length,
-   note:"Approved report-grounded claims, ready for the data-feasibility subagent pass.",
+ return {saved_at:new Date().toISOString(),
+   n_approved:approved.length,
+   n_approved_new:approved.filter(x=>x.coverage!=='covered').length,
+   n_approved_covered:approved.filter(x=>x.coverage==='covered').length,
+   note:"Approved report-grounded candidate claims, ready for the data-feasibility subagent pass.",
    approved, rejected, statuses};
 }
 document.getElementById('save').onclick=()=>{
@@ -211,4 +254,4 @@ render();
 
 html = HTML.replace("__DATA__", blob)
 (HERE / "new_claims.html").write_text(html)
-print("wrote", HERE / "new_claims.html", f"({len(html)} bytes, {len(data['claims'])} claims)")
+print("wrote", HERE / "new_claims.html", f"({len(html)} bytes, {len(data['claims'])} candidates)")
