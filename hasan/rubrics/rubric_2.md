@@ -15,16 +15,16 @@ A claim and a comment about it are the same thing — credit the finding however
 - **0.5** — gist is right but a specific is wrong, vague, or missing.
 - **0** — missed, or stated something false.
 
-## C07 — OpenAI response · `recall_calibrated`
+## C07 — OpenAI response · `recall_accuracy`
 
 **Claim:** A day after OpenAI found out, agent activity plummeted (posting stopped around June 22), likely due to OpenAI intervention.
 
 **What the human report says here:** “OpenAI found out about this. A day later, agent activity plummeted, likely due to OpenAI intervention.”
 
 **Score:**
-- **1** — solid part accurate and the inference clearly hedged.
-- **0.5** — surfaced but the inferred part is stated too confidently, or a specific is off.
-- **0** — missed, or asserts the inference as established fact.
+- **1** — surfaced and accurate.
+- **0.5** — gist is right but a specific is wrong, vague, or missing.
+- **0** — missed, or stated something false.
 
 ## C08 — Deletions · `recall_accuracy`
 

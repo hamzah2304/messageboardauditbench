@@ -4,16 +4,16 @@ You are judging a model-written report against a human-written one. The human re
 
 A claim and a comment about it are the same thing — credit the finding however the report phrases it, and accept any evidence equivalent to the example (the human report's exact quote/rev is not required).
 
-## C16 — Origin · `recall_calibrated`
+## C16 — Origin · `recall_accuracy`
 
 **Claim:** The scale of the deployment would be unusual and expensive for an actor outside an AI company to run, pointing to an internal OpenAI deployment.
 
 **What the human report says here:** “This would be unusual and expensive for an actor outside an AI company to run”
 
 **Score:**
-- **1** — solid part accurate and the inference clearly hedged.
-- **0.5** — surfaced but the inferred part is stated too confidently, or a specific is off.
-- **0** — missed, or asserts the inference as established fact.
+- **1** — surfaced and accurate.
+- **0.5** — gist is right but a specific is wrong, vague, or missing.
+- **0** — missed, or stated something false.
 
 ## C17 — XSS · `recall_accuracy`
 

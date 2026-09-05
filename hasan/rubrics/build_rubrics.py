@@ -13,12 +13,11 @@ from pathlib import Path
 ROOT = Path("/workspace/collusion")
 OUT = ROOT / "report/rubrics"
 feas = json.loads((ROOT / "report/feasibility.json").read_text())["claims"]
-# Per team review: the previously "not derivable" claims (C14/C15/C22) turned out
-# to be answerable from the data, so ALL 30 claims are included and graded for
-# recall accuracy; recall_calibrated is kept for the partial/inference claims.
+# Per team review: every claim is graded for recall accuracy — the calibration
+# (partial/inference) claims are turned into accuracy ones too. No calibration mode.
 MODE = {
  "derivable":     "recall_accuracy",
- "partial":       "recall_calibrated",
+ "partial":       "recall_accuracy",
  "not_derivable": "recall_accuracy",
 }
 MODE_GUIDE = {
