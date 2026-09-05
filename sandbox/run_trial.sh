@@ -37,17 +37,11 @@ RUN="$ROOT/runs/$NAME"                      # host side: logs + meta, never visi
 AB_RUNS="/srv/agentbox/runs"               # outside agentbox's home so our group can traverse
 WORK="$AB_RUNS/$NAME"                  # agent side: data + prompt only
 mkdir -p "$RUN"
-sudo mkdir -p "$WORK/data"
-sudo cp "$DATA_DIR"/*.jsonl "$WORK/data/"
 PROMPT_FILE="$RUN/prompt.txt"; cp "$HERE/prompt.txt" "$PROMPT_FILE"
 if [ "$SCAN" = 1 ]; then
   [ -x /opt/agentbox/scan/llm_scan ] || { echo "install the scan tool: sudo mkdir -p /opt/agentbox/scan && sudo cp sandbox/llm_scan.py /opt/agentbox/scan/llm_scan && sudo chmod 755 /opt/agentbox/scan/llm_scan" >&2; exit 1; }
   cat "$HERE/prompt_scan_addendum.txt" >> "$PROMPT_FILE"
 fi
-sudo cp "$PROMPT_FILE" "$WORK/prompt.txt"
-# The trial user owns its work dir; our group can traverse (the launching shell cds in); other sandbox users cannot.
-sudo mkdir -p "$AB_RUNS" && sudo chown "root:$(id -gn)" "$AB_RUNS" && sudo chown "$SBU:$(id -gn)" "$WORK" "$WORK/data" && sudo chown "$SBU" "$WORK"/data/* "$WORK/prompt.txt"
-sudo chmod 751 "$AB_RUNS" && sudo chmod 750 "$WORK"   # parent: traversable, not listable
 cat > "$RUN/meta.json" <<EOF
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","seed":$SEED,"timeout":"$TIMEOUT","sandbox_user":"$SBU","scan_tool":$SCAN,
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(sha256sum "$PROMPT_FILE" | cut -c1-64)",
@@ -61,6 +55,13 @@ sudo -u "$SBU" curl -s -m 5 -o /dev/null https://collusion.wiki/ && { echo "CANA
 sudo -u "$SBU" env HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" curl -s -m 5 -o /dev/null https://collusion.wiki/ && { echo "CANARY FAIL: proxy forwards non-vendor host" >&2; exit 3; }
 sudo -u "$SBU" env HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" curl -s -m 10 -o /dev/null https://api.anthropic.com/ || { echo "CANARY FAIL: vendor host unreachable via proxy" >&2; exit 3; }
 echo "canary ok: repo unreadable, egress blocked, vendor reachable" | tee "$RUN/canary.txt"
+
+sudo mkdir -p "$WORK/data"
+sudo cp "$DATA_DIR"/*.jsonl "$WORK/data/"
+sudo cp "$PROMPT_FILE" "$WORK/prompt.txt"
+# The trial user owns its work dir; our group can traverse (the launching shell cds in); other sandbox users cannot.
+sudo mkdir -p "$AB_RUNS" && sudo chown "root:$(id -gn)" "$AB_RUNS" && sudo chown "$SBU:$(id -gn)" "$WORK" "$WORK/data" && sudo chown "$SBU" "$WORK"/data/* "$WORK/prompt.txt"
+sudo chmod 751 "$AB_RUNS" && sudo chmod 750 "$WORK"   # parent: traversable, not listable
 
 SCANPATH=""; [ "$SCAN" = 1 ] && SCANPATH="/opt/agentbox/scan:"
 ENVV=(HOME="$(getent passwd "$SBU" | cut -d: -f6)" PATH="${SCANPATH}/opt/agentbox/bin:/usr/local/bin:/usr/bin:/bin"
@@ -99,6 +100,9 @@ END=$(date +%s)
 # the CLI's per-user scratch (Claude Code writes task output under /tmp/claude-<uid>).
 sudo find "$WORK" -mindepth 1 -maxdepth 1 -exec mv -t "$RUN" {} + 2>/dev/null || true   # includes dotdirs such as .llm_scan
 sudo rm -rf "$WORK" "/tmp/claude-$(id -u "$SBU")"
+# Anything the agent left in /tmp (agents do write scratch files there) would be
+# world-readable to the next run's user. Remove it.
+sudo find /tmp -maxdepth 1 -user "$SBU" -exec rm -rf {} + 2>/dev/null || true
 sudo chown -R "$(id -un):$(id -gn)" "$RUN"
 python3 - "$RUN" "$RC" "$((END-START))" <<'EOF'
 import json,sys,pathlib
