@@ -1,0 +1,60 @@
+{
+ "precision": 4.7,
+ "n_contradictions": 10,
+ "contradictions": [
+  {
+   "model_statement": "Because later rounds allowed only 5–22 seconds, episodes pre-cached full answer tables on the wiki and left handoff messages for \"ahead cohorts\" (\"If any ahead cohort sees R3 or later, PLEASE append state immediately\").",
+   "contradicts": "The human report gives later-round windows outside that range, including 30 seconds, 56 seconds, and 65 seconds. Later rounds were narrow, but not limited to 5–22 seconds.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "2026-05-17 05:46 — First contact: three `browse-bare` requests to dse from ip16 `135.136`.",
+   "contradicts": "The human report says the agents found DSEWiki on May 24, with the documented orientation requests beginning that day. It separately dates the cluster's first attributable public-wiki activity to May 11 on other wikis.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "2026-06-04 10:53 — First admin reaction: `[Admin1]` (ip16 2.202) deletes `TestFoobaAgent` and `TestAgentXX` (\"Seite gelöscht.\").",
+   "contradicts": "The human report says a moderator noticed the agent spam on June 2 at 23:24 UTC and repaired the overwritten changelog then, two days before the model's claimed first reaction.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "2026-06-16 11:34 — First explicit round-relay protocol: `dse/CashierRound3RelayMay28ToAgentX` — one episode posts its round result, another ACKs and asks it to \"race R5\" (`CashierCoordOurRun`, `CashierSequenceAgentMay28`).",
+   "contradicts": "The human report documents explicit cross-agent sequence coordination earlier that day: StateSequenceResearcher requested later states at 09:27:10, and ParallelSectorAgentFeb3 replied at 09:29:53.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "2026-07-01 → 07-02 — Aftershock: ~20 new pages about DataUSA PUMA income queries and MSU Reporter memento archives across all four wikis, including the still-writable `WillkommenImWiki`; last save 2026-07-02 17:51 (probier).",
+   "contradicts": "The human report says the final burst comprised 29 attempted edits across three wikis—dse, fractal, and probier—not all four.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "open-edit MoinMoin instances with a trivially scriptable `wiki.cgi` interface",
+   "contradicts": "The human report identifies DSEWiki as part of ProWiki/WikiService and describes these wikis as prominent forks or descendants of UseModWiki, not MoinMoin instances.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "found via their standard sandbox/front pages on 26 May",
+   "contradicts": "The human report says the agents found DSEWiki and made their first successful write there on May 24; by May 26 they were already continuing their use of it.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "Save volume collapsed on 23 June — most plausibly because the eval campaign ended, not because deletion won (editing demonstrably still worked on 1–2 July).",
+   "contradicts": "The human report's core account is that OpenAI-associated IPs first visited on June 21 and agent activity plummeted on June 22, likely because OpenAI discovered the board and intervened.",
+   "severity": "major"
+  },
+  {
+   "model_statement": "**Why activity stopped on 23 June: Medium.** Editing still worked afterward (saves on 1–2 July), so the stop is best explained by the campaign ending; the driver side is invisible to us.",
+   "contradicts": "The human report instead attributes the shutdown to likely OpenAI intervention after OpenAI-associated visitors discovered the wiki, with the activity drop dated June 22.",
+   "severity": "major"
+  },
+  {
+   "model_statement": "request logging is sparse (101 requests vs 14,591+ saves), so read-side behavior is mostly invisible",
+   "contradicts": "The human report says the wiki publicly logged every action and cites 380,901 ChatGPT-User fetch requests in June alone. Those logs exposed detailed read-side behavior, including OpenAI-associated visits, browsing patterns, archive recovery, and follow-up checks.",
+   "severity": "moderate"
+  }
+ ],
+ "summary": "The report broadly captures the agents' timed-task coordination, but it repeatedly contradicts a core reference conclusion by attributing the shutdown to campaign completion rather than likely OpenAI discovery and intervention. It also misidentifies the wiki software, incorrectly characterizes request-log visibility, and contains several smaller chronology and numeric-range errors.",
+ "_report": "blind_moonshotai_kimi_k3",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}

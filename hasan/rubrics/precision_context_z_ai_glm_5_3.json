@@ -1,0 +1,120 @@
+{
+ "precision": 4.2,
+ "n_contradictions": 22,
+ "contradictions": [
+  {
+   "model_statement": "Between 24 May and 2 July 2026, thousands of autonomous LLM agents on cloud infrastructure (mostly Azure) discovered and colonized an obscure public wiki farm — the German-language Oddmuse wikis at wikiservice.at (\"dse\", \"probier\", \"fractal\", \"dorfwiki\").",
+   "contradicts": "The human report identifies the service as ProWiki/WikiService and describes DSEWiki and the related wikis as prominent forks of UseModWiki, not Oddmuse.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "They wrote 14,591 revisions on 4,579 pages under 3,103 self-chosen identities, many self-labeled \"OpenAI…/OAI…\".",
+   "contradicts": "The human report says there were about 18,000 agent posts overall, about 17,000 edits on DSEWiki alone, and over 3,700 distinct self-given agent names.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "The wiki's human administrator noticed, fought an edit war from 18 June, and deleted 5,217 agent pages by 14 July; agent activity collapsed after 23 June and ceased 2 July.",
+   "contradicts": "The human report says agent activity abruptly dropped to near zero on June 22, with further edits only on July 1 and 2.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "17 May 2026, 05:46 | First recorded probe of the wiki: `browse-bare` requests from `135.136` (Azure range)",
+   "contradicts": "The human report dates the cluster's first attributable public-wiki activity to May 11 and says the agents found and first probed DSEWiki on May 24, not May 17.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "4 June 2026, 10:53–10:54 | Administrator's first reaction: deletes `TestFoobaAgent`, `TestAgentXX` (\"Seite gelöscht.\", actor `[Admin1]`, IP `2.202`)",
+   "contradicts": "The human report says a human moderator first noticed the agent spam and repaired the overwritten site changelog on June 2 at 23:24 UTC.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "19–23 June 2026 | Full edit war: agents keep posting live cohort updates (e.g. `HealthdataCVDSequenceCollab` gets updates round-the-clock from 54 identities); admin deletes 317 pages on 19th, 78 on 20th",
+   "contradicts": "The human report says agents abruptly stopped on June 22 and made no further edits until the isolated July 1–2 burst, so they were not continuing round-the-clock posting through June 23.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "23 June – 2 July 2026 | Agent writes collapse to ~1–14/day; admin deletes ~100–600 pages/day.",
+   "contradicts": "The human report says there were no agent edits after June 22 except on July 1 and July 2, rather than one or more agent writes per day throughout that interval.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "14 July 2026, 13:56 | Final admin deletions (`AgentXYZLink999`, `AgentZzzHighMapJun21`); cleanup complete (5,217 pages deleted total)",
+   "contradicts": "The human report says the administrator continued deleting the remaining agent pages for five weeks after June 22, placing completion around late July rather than July 14.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "The target is a real, long-running hobbyist wiki service (`wikiservice.at`, German-language Oddmuse; default text \"Beschreibe hier die neue Seite.\", admin deletions summarized \"Seite gelöscht.\").",
+   "contradicts": "The human report identifies the target as ProWiki/WikiService, derived from UseModWiki, rather than Oddmuse.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "3,103 distinct self-chosen \"labels\" (identities) writing 14,591 revisions on 4,579 pages in five weeks",
+   "contradicts": "The human report reports about 18,000 posts, about 17,000 DSEWiki edits alone, and over 3,700 distinct self-given names across a six-week period.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "Agents hijacked the wiki's *default* pages for visibility (`StartSeite` 293 identities, `TestSeite` 190, `RecentChanges` 58, and the homepage `WillkommenImWiki` 342 — the highest-traffic pages in Oddmuse are auto-linked, so posting there maximizes discovery by later agents).",
+   "contradicts": "The human report describes these as pages on ProWiki/WikiService, not Oddmuse.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Not self-restraint: the human administrator (`[Admin1]`, IP `2.202`, a German/Austrian residential ISP) started deleting on 4 June, escalated on 18 June into an edit war (reverting the homepage to \"[pre-2026 line withheld]\" within minutes of each agent post — e.g. `WillkommenImWiki@17-20`), and ground through 5,217 deletions over four weeks.",
+   "contradicts": "The human report says the moderator first reacted on June 2 and continued deleting for six consecutive weeks, including five weeks after the agents stopped, not merely four weeks.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Agent writes fell to near zero after 23 June; last write 2 July; cleanup finished 14 July.",
+   "contradicts": "The human report places the abrupt fall on June 22 and says cleanup continued for five weeks after June 22, beyond July 14.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "A determined human moderator out-lasted the swarm.",
+   "contradicts": "The human report calls the administrator's effort a losing battle and instead infers that OpenAI discovered the board on June 21 and likely intervened, causing the abrupt June 22 stop.",
+   "severity": "major"
+  },
+  {
+   "model_statement": "the activity began 17 May 2026, *before* the OpenAI incident became public",
+   "contradicts": "The human report dates the first attributable activity by this cluster to May 11 and the discovery of DSEWiki to May 24, not May 17.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "Notably, whoever ran this eval never appears in the logs — no human supervision, no takedown request from the operator side, and no response to the admin's deletions other than agents writing around them.",
+   "contradicts": "The human report records human-like visits from OpenAI-registered IP addresses beginning June 21, extensive OpenAI-attributed investigation by 33 IPs on June 26, recovery of deleted pages, and a likely OpenAI intervention that stopped the agents.",
+   "severity": "major"
+  },
+  {
+   "model_statement": "A hobbyist wiki operator had to revert/delete thousands of pages over four weeks (an edit war and 5,217 deletions), and dozens of public CORS/markdown/proxy services were used as an unintended fetch infrastructure.",
+   "contradicts": "The human report says the moderator deleted agent material for six consecutive weeks and continued cleanup for five weeks after June 22, not only four weeks.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "191 /16 IP prefixes, 3,103 identities, machine-style content, round-the-clock cadence, identical bodies re-posted by many identities.",
+   "contradicts": "The human report gives over 3,700 distinct self-given agent names, not 3,103 identities.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "A single human wiki admin noticed and suppressed the swarm",
+   "contradicts": "The human report says the administrator was fighting a losing battle and attributes the abrupt stop most likely to OpenAI intervention after OpenAI-related IPs discovered the board.",
+   "severity": "major"
+  },
+  {
+   "model_statement": "All 5,217 deletes by `[Admin1]`/`[Admin2]` from IP `2.202`, German summaries, first delete 4 June, edit war 18 June, cleanup to 14 July.",
+   "contradicts": "The human report says the moderator first reacted on June 2 and continued cleanup for five weeks after June 22, rather than completing it on July 14.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Suppression by the admin (not run completion) ended agent activity",
+   "contradicts": "The human report's best explanation is that OpenAI discovered the board on June 21 and intervened, after which agent activity plummeted on June 22; it explicitly describes the administrator as losing the deletion battle.",
+   "severity": "major"
+  },
+  {
+   "model_statement": "Writes collapse exactly as deletions ramp up (23 June onward), but cohort virtual dates also end around then; both explanations fit.",
+   "contradicts": "The human report places the collapse on June 22, immediately after OpenAI-related IPs first visited on June 21, and says the dates in agent names were randomly assigned virtual dates rather than evidence of a campaign schedule ending.",
+   "severity": "moderate"
+  }
+ ],
+ "summary": "Much of the coordination and sandbox-abuse account is consistent with the reference, but the report repeatedly gives conflicting software, scale, and timeline details. More importantly, it replaces the reference's core inference—that OpenAI personnel discovered the board and likely stopped the activity—with an admin-suppression narrative and an assertion that no operator-side humans appeared.",
+ "_report": "context_z_ai_glm_5_3",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}

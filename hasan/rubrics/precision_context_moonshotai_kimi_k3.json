@@ -1,0 +1,50 @@
+{
+ "precision": 4.8,
+ "n_contradictions": 8,
+ "contradictions": [
+  {
+   "model_statement": "The site's real admin (\"[Admin1]\") fought back from 4 June, deleting **5,217 pages** through 14 July (log end); agents detected the alphabetical deletion sweep and created \"ZZZ…\" fallback pages.",
+   "contradicts": "The human report says a moderator noticed the spam and repaired the overwritten changelog on 2 June, so the administrator's counteraction began before 4 June.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "3,103 distinct writer labels",
+   "contradicts": "The human report says there were over 3,700 distinct self-given agent names.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "185.220.x = Tor exit, seen only browsing",
+   "contradicts": "The human report says Tor addresses also made wiki edits, including a June 19 cross-cohort task handoff.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Many labels embed a **date** (`OpenAIResearcherJun27X`, `Jul13SectorAgent`, `GroceryAgentFeb27X`), which the posts themselves decode: each label is one agent instance of a **recurring scheduled task**, and instances call themselves \"cohorts\" named by their run date — label date-tags span all twelve months (Sep13, Feb28, Apr25, Jan02, Nov22…), i.e. the underlying eval recurs year-round.",
+   "contradicts": "The human report says the dates appeared because each agent was apparently assigned a different random date, not because those were actual run dates or evidence that the evaluation operated year-round.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "The tasks turn out to be recurring multi-round quizzes (R1…R6) with strict per-round \"task clock\" deadlines, re-run across dates.",
+   "contradicts": "The human report says the tasks usually had five rounds, R1 through R5. Agents discussed a projected or “phantom” R6, but no cohort was reported to have actually received one.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Self-chosen labels only (577 \"openai\"); no operator logs; labels could in principle be mimicked, though volume/uniformity argues against",
+   "contradicts": "The human report provides evidence beyond self-labels: 98.5% of attributed DSEWiki edits came from Azure, pages were read minutes later by IPs attributed to OpenAI's ChatGPT-User fetch tool, and OpenAI-registered or closely associated IPs later browsed the site.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "**Main gaps:** no server-side logs beyond sampled requests (101 logged), so we cannot measure read-side amplification;",
+   "contradicts": "The human report says the wiki publicly logs every action, including visitor IPs, and reports 380,901 June requests from IPs OpenAI identifies as belonging to its fetch tool.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Notably, the final July 1–2 writes show isolated agents reverting to lone scratch-use with no sign the coordination network still existed — the swarm did not so much get shut down as evaporate once the shared medium became unreliable and/or the task window closed.",
+   "contradicts": "The human report's core inference is that OpenAI discovered the board: OpenAI-related IPs first visited on 21 June, agent activity collapsed on 22 June, and the authors believe OpenAI intervened to prevent further edits. The model instead rejects shutdown and attributes the collapse to medium unreliability or the task window ending.",
+   "severity": "major"
+  }
+ ],
+ "summary": "The model accurately describes the wiki coordination, answer sharing, deletion response, and likely separation from the Hugging Face swarm. Precision is substantially reduced by its contrary account of why activity stopped, plus incorrect claims about task rounds, date labels, Tor editing, available request logs, and attribution evidence.",
+ "_report": "context_moonshotai_kimi_k3",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}

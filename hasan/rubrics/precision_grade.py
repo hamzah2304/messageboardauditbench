@@ -34,14 +34,18 @@ def resolve(args):
         return [(f"bl_{_san(p.stem)}", p) for p in sorted((HERE / "baselines").glob("*.md"))]
     return [(k, ROOT / REPORTS[k][1]) for k in (args or list(REPORTS))]
 
-def sol(user, max_tok=16000):
+def sol(user, max_tok=48000):
     last = None
     for eff in EFFORTS:
         try:
             r = client.chat.completions.create(model=MODEL, reasoning_effort=eff,
                 response_format={"type": "json_object"}, max_completion_tokens=max_tok,
                 messages=[{"role": "system", "content": SYS}, {"role": "user", "content": user}])
-            return r.choices[0].message.content, eff
+            content = r.choices[0].message.content
+            if content and content.strip():
+                return content, eff
+            last = RuntimeError(f"empty content at effort={eff} (finish={r.choices[0].finish_reason})")
+            continue  # empty (reasoning exhausted the budget) -> retry at lower effort
         except Exception as e:
             last = e
             if "effort" in str(e).lower(): continue
@@ -60,7 +64,12 @@ def grade(key, path):
     return key, d["precision"], d["n_contradictions"]
 
 def main():
-    reports = resolve(sys.argv[1:])
+    args = [a for a in sys.argv[1:] if a != "--force"]
+    reports = resolve(args)
+    if "--force" not in sys.argv[1:]:  # skip reports already graded
+        reports = [(k, p) for (k, p) in reports if not (HERE / f"precision_{k}.json").exists()]
+    if not reports:
+        print("nothing to do (all graded; pass --force to regrade)"); return
     print(f"model={MODEL}  precision-grading {len(reports)} reports in parallel...")
     with ThreadPoolExecutor(max_workers=min(12, len(reports))) as ex:
         futs = {ex.submit(grade, k, p): k for k, p in reports}

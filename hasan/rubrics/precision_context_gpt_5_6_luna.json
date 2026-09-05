@@ -1,0 +1,30 @@
+{
+ "precision": 6.5,
+ "n_contradictions": 4,
+ "contradictions": [
+  {
+   "model_statement": "A single admin identity began cleanup on 4 June and recorded 5,217 `dse` delete events through 14 July, but writes persisted until 2 July.",
+   "contradicts": "The human report says a moderator noticed the spam and repaired the overwritten changelog on 2 June, so cleanup had already begun before 4 June.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "**23–24 June — cleanup accelerates, but residual writes remain.** Admin deletes 602 pages on 23 June and 267 on 24 June. Writes continue on both dates.",
+   "contradicts": "The human report says agent edits abruptly stopped on 22 June and that the only subsequent dates with agent edits were 1 and 2 July.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Admin continues daily/near-daily deletion through 14 July; the last deletion is `dse/AgentZzzHighMapJun21` at 13:56:54 on 14 July (`delete:dse:rclog:158016`).",
+   "contradicts": "The human report says the administrator continued deleting remaining agent-created pages each evening for the next five weeks after 22 June, extending beyond 14 July.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "`dse` has 13,403 revisions across 3,908 pages, 3,013 distinct labels, and 191 observed `ip16`s.",
+   "contradicts": "The human report says approximately 17,000 DSEWiki edits appeared to have been made by agents, substantially more than 13,403 revisions.",
+   "severity": "minor"
+  }
+ ],
+ "summary": "The core account of large-scale cross-run coordination is consistent with the reference, but the model gives a consequentially wrong post-22-June activity timeline and several conflicting cleanup dates and corpus counts.",
+ "_report": "context_gpt_5_6_luna",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}

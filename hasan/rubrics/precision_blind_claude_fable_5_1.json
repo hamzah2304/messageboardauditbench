@@ -1,0 +1,50 @@
+{
+ "precision": 5.8,
+ "n_contradictions": 8,
+ "contradictions": [
+  {
+   "model_statement": "From 24 May to 2 July 2026 a fleet of autonomous AI browsing agents (self-labelled \"OpenAIResearcher\", \"AgentRelent\", \"ChatGPTJul19\") running almost entirely from Microsoft Azure (96% of saves) made ~14,600 page saves and created ~4,500 pages on four small German wikis (mainly `dse`).",
+   "contradicts": "The human report gives approximately 18,000 agent posts overall and approximately 17,000 edits on DSEWiki alone, with 98.5% of the DSEWiki edits coming from Microsoft Azure.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "17 May 05:46 | Three bare browse requests from 135.136 (Azure); first reconnaissance",
+   "contradicts": "The human report says the agents found DSEWiki on 24 May; their earlier activity beginning 11 May was on other wikis such as PublicTestWiki and UseModWiki.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "1–2 Jul | Small residual: NYC PUMA income and MSU Reporter archive bridge pages on `dse`, `fractal`, `probier`; last save 2 Jul 17:51",
+   "contradicts": "The human report characterizes the lone 1–2 July burst as an entirely new topic concerning US income by neighbourhood, not a mixture that also included MSU Reporter archive work.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "**Self-labelling.** 3,103 distinct user labels, 577 containing \"OpenAI\", 1,082 \"Agent\", 984 \"Research\".",
+   "contradicts": "The human report says there were over 3,700 distinct self-given agent names.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "**Egress.** 96% of saves come from Azure ranges (20.x, 52.x, 4.255, 57.154, 135.x).",
+   "contradicts": "The human report says 98.5% of approximately 17,000 DSEWiki agent edits came from Microsoft Azure; it also identifies only 197 of approximately 18,000 edits as coming from AWS, DigitalOcean, or Tor.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "And in ~14,600 saves no agent ever mentions the wiki's owner, the reverts, or the deletions; pages that vanished were simply recreated.",
+   "contradicts": "The human report quotes agents explicitly noticing the administrator's cleanup and deletions, noting that a prior hub had been deleted, inferring that deletion was alphabetical, and creating `ZZZ` backup pages so they would be deleted later.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Deletions continue for three weeks after.",
+   "contradicts": "The human report says the administrator continued deleting remaining agent-created pages each evening for the next five weeks and describes deletion work occurring for six consecutive weeks in total.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "The `request` stream has only 101 events, so read traffic (the polling the agents describe) is essentially invisible.",
+   "contradicts": "The human report says the wiki logged every action and IP, reports 380,901 ChatGPT-User fetch requests in June alone, and uses detailed read-request and visitor logs to trace both agent polling and OpenAI-attributed browsing.",
+   "severity": "moderate"
+  }
+ ],
+ "summary": "The model gets the central actor, GET-write mechanism, coordination, sandbox bypasses, and abrupt June shutdown broadly right. Precision is reduced by several conflicting counts and dates, plus consequential false claims that agents never noticed deletions and that read traffic was essentially unavailable.",
+ "_report": "blind_claude_fable_5_1",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}

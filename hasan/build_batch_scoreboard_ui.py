@@ -29,13 +29,27 @@ for p in sorted((ROOT / "report/rubrics").glob("graded_*.json")):
     else: continue
     graded[(cond, model)] = json.loads(p.read_text())
 
+prec = {}   # (cond, model) -> precision data
+for p in sorted((ROOT / "report/rubrics").glob("precision_*.json")):
+    stem = p.stem[len("precision_"):]
+    if stem.startswith("blind_"): cond, model = "blind", stem[len("blind_"):]
+    elif stem.startswith("context_"): cond, model = "context", stem[len("context_"):]
+    else: continue
+    prec[(cond, model)] = json.loads(p.read_text())
+
 models = sorted({m for (_, m) in graded}, key=lambda m: -(graded.get(("context", m), graded.get(("blind", m), {})).get("accuracy", 0)))
 rows = []
 for m in models:
     b = graded.get(("blind", m)); c = graded.get(("context", m))
+    pb = prec.get(("blind", m)); pc = prec.get(("context", m))
     rows.append({"model": m, "name": pretty(m),
                  "blind": b["accuracy"] if b else None, "context": c["accuracy"] if c else None,
-                 "delta": (round(c["accuracy"] - b["accuracy"], 3) if (b and c) else None)})
+                 "delta": (round(c["accuracy"] - b["accuracy"], 3) if (b and c) else None),
+                 "blind_prec": pb["precision"] if pb else None, "context_prec": pc["precision"] if pc else None,
+                 "blind_nc": pb["n_contradictions"] if pb else None, "context_nc": pc["n_contradictions"] if pc else None})
+# per (cond, model) contradiction lists for the detail panel
+contra = {cond: {m: (prec[(cond, m)].get("contradictions", []) if (cond, m) in prec else []) for m in models}
+          for cond in ("blind", "context")}
 
 # per-claim matrix data per condition
 claims = []
@@ -46,7 +60,8 @@ for rub in RUB["rubrics"]:
 matrix = {cond: {m: graded[(cond, m)]["scores"] if (cond, m) in graded else {} for m in models} for cond in ("blind", "context")}
 
 payload = {"rows": rows, "models": models, "names": {m: pretty(m) for m in models},
-           "claims": claims, "matrix": matrix, "grader": next(iter(graded.values()))["grader"] if graded else "?"}
+           "claims": claims, "matrix": matrix, "contra": contra,
+           "grader": next(iter(graded.values()))["grader"] if graded else "?"}
 blob = json.dumps(payload, ensure_ascii=False).replace("</script", "<\\/script").replace("</", "<\\/")
 
 HTML = r"""<title>Blind vs Context</title>
@@ -91,8 +106,11 @@ td.cell.sel{outline:2px solid var(--accent);outline-offset:-2px}
 <div class="wrap">
  <h1>Blind vs Context</h1>
  <p class="sub" id="sub"></p>
- <h2>Accuracy by model</h2>
+ <h2>Accuracy (recall) by model</h2>
  <table class="sumt" id="sumt"></table>
+ <h2>Precision (1–10) &amp; contradictions</h2>
+ <table class="sumt" id="prect"></table>
+ <div class="detail" id="pdetail" style="display:none"></div>
  <h2 style="display:inline-block">Per-claim<span id="condlabel"></span></h2>
  <span class="seg" id="condtog"><button data-c="context" class="on">Context</button><button data-c="blind">Blind</button></span>
  <div class="mwrap"><table class="mx" id="mx"></table></div>
@@ -120,6 +138,30 @@ function sumTable(){
      `<td class="delta ${dc}">${ds}</td></tr>`;
  });
  document.getElementById('sumt').innerHTML=h;
+}
+function pcls(p){return p==null?'':(p>=8?'s1':p>=5?'s05':'s0');}
+function precTable(){
+ const any=D.rows.some(r=>r.blind_prec!=null||r.context_prec!=null);
+ if(!any){document.getElementById('prect').innerHTML='<tr><td style="color:#999;padding:12px">Precision not graded yet — run precision_grade.py --batch.</td></tr>';return;}
+ let h='<tr><th>model</th><th>blind</th><th>context</th></tr>';
+ D.rows.forEach(r=>{
+  const cell=(p,nc,cond)=>p==null?'<td>–</td>':`<td class="cell ${pcls(p)}" style="width:auto;padding:7px 12px" data-c="${cond}" data-m="${r.model}"><b>${p.toFixed(1)}</b> <span style="font-weight:400;color:#666">· ${nc} contra</span></td>`;
+  h+=`<tr><td class="name">${esc(r.name)}</td>${cell(r.blind_prec,r.blind_nc,'blind')}${cell(r.context_prec,r.context_nc,'context')}</tr>`;
+ });
+ document.getElementById('prect').innerHTML=h;
+ document.querySelectorAll('#prect td.cell').forEach(td=>td.onclick=()=>showContra(td.dataset.c,td.dataset.m));
+}
+function showContra(cond,m){
+ const list=(D.contra[cond]||{})[m]||[]; const r=D.rows.find(x=>x.model===m);
+ const p=cond==='blind'?r.blind_prec:r.context_prec;
+ const sv={major:'s0',moderate:'s05',minor:''};
+ const items=list.length?list.map(x=>`<div style="margin:8px 0;padding:8px 11px;border:1px solid var(--border);border-radius:7px;background:var(--row)">`+
+   `<span class="mchip ${sv[x.severity]||''}" style="background:#eee">${esc(x.severity||'')}</span> `+
+   `<span style="font-style:italic">“${esc(x.model_statement)}”</span>`+
+   `<div style="font-size:12.5px;color:#666;margin-top:4px">↳ human report: ${esc(x.contradicts)}</div></div>`).join(''):'<div style="color:#065F46">No contradictions found.</div>';
+ const d=document.getElementById('pdetail'); d.style.display='block';
+ d.innerHTML=`<div class="k">${esc(NM[m])} · ${cond} · precision ${p!=null?p.toFixed(1):'–'}/10 · ${list.length} contradiction(s)</div>${items}`;
+ d.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 let sel=null;
 function matrix(){
@@ -149,7 +191,7 @@ function showCell(i,m,td){
 }
 document.querySelectorAll('#condtog button').forEach(b=>b.onclick=()=>{cond=b.dataset.c;
  document.querySelectorAll('#condtog button').forEach(x=>x.classList.toggle('on',x===b));matrix();});
-sumTable();matrix();
+sumTable();precTable();matrix();
 </script>
 """
 html = HTML.replace("__DATA__", blob)

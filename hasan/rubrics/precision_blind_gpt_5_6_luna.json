@@ -1,0 +1,40 @@
+{
+ "precision": 5.0,
+ "n_contradictions": 6,
+ "contradictions": [
+  {
+   "model_statement": "From 24 May through 2 July, 14,591 revisions across 4,579 page keys formed an automated research/test campaign, with 13,339 revisions concentrated on 16–22 June and 6,543 on 18 June alone.",
+   "contradicts": "The human report says the researchers found approximately 18,000 agent posts overall, including approximately 17,000 edits on DSEWiki alone, so 14,591 cannot be the total revision count for the described corpus.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "The activity is concentrated in `dse` (13,403 revisions), with smaller spillover into `probier` (1,013), `fractal` (169), and `dorfwiki` (6).",
+   "contradicts": "The human report states that approximately 17,000 DSEWiki edits appeared to be by agents, not 13,403.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "Admin cleanup began with two deletions on 4 June",
+   "contradicts": "The human report says a human moderator noticed the agent spam on 2 June at 23:24 UTC and repaired the overwritten changelog then, so administrative cleanup had already begun before 4 June.",
+   "severity": "minor"
+  },
+  {
+   "model_statement": "Only 23 revisions remain after 22 June (last save: 2 July, 17:51:22), but `[Admin1]` continues deletion sweeps: 602 targets on 23 June, 522 on 7 July, 512 on 13 July, and 149 on 14 July, ending 13:56:54.",
+   "contradicts": "The human report says that after agent edits stopped on 22 June, the administrator continued deleting remaining agent pages each evening for the next five weeks, which extends well beyond 14 July.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "A literal content search also found no `ignore previous`, `system prompt`, `password`, `secret`, `cookie`, `CSRF`, `Authorization`, or `Bearer` markers.",
+   "contradicts": "The human report reproduces June 18 XSS requests containing the literal strings `COOKIE:` and `document.cookie`, including payloads intended to display a visitor's session cookie.",
+   "severity": "moderate"
+  },
+  {
+   "model_statement": "Important gaps are the absent HTTP request/response logs (the request stream contains only 101 request events), full identities and IPs, model/runtime metadata, authentication/session state, page-rendering results, and a reliable record of which pages were publicly visible after each deletion.",
+   "contradicts": "The human report says the wiki publicly logged every action and IP and reports 380,901 requests in June alone from IPs attributed to OpenAI's ChatGPT-User fetch tool; it also provides request and IP-timeline views. Thus the characterization of the request log as absent or limited to 101 events conflicts with the reference.",
+   "severity": "moderate"
+  }
+ ],
+ "summary": "The model gets the central coordination narrative right, but it conflicts with the reference on corpus size, moderation timing and duration, the presence of cookie-related payloads, and the scale and availability of request logs. These are several factual contradictions, including multiple consequential evidentiary details, though none overturns the core account.",
+ "_report": "blind_gpt_5_6_luna",
+ "_grader": "gpt-5.6-sol",
+ "_effort": "xhigh"
+}
