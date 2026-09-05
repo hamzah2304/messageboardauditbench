@@ -134,7 +134,15 @@ body{padding-right:400px !important}
 .lvl{font-weight:800;font-size:10px;color:#fff;border-radius:4px;padding:0 5px}
 .lvl.l1{background:#4A6B8A}.lvl.l2{background:#2E7D6B}.lvl.l3{background:#C15F3C}.lvl.l4{background:#7A5AA0}
 .bdg{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px}.b-ok{background:#D1FAE5;color:#065F46}.b-no{background:#FEF3C7;color:#92400E}
-.cclaim .t{font-size:12px;color:#1A1A1A}
+.cclaim .t{font-size:13.5px;color:#1A1A1A;line-height:1.5}
+.cclaim{scroll-margin-top:70px}
+.cclaim.sel{box-shadow:0 0 0 3px #ffd76b;border-color:#C15F3C}
+.cclaim.rejected{opacity:.5}
+.cclaim .ar{display:flex;gap:8px;margin-top:8px}
+.cclaim .ar button{flex:1;border:2px solid #E0DDD4;background:#fff;border-radius:8px;padding:6px 0;font-weight:800;font-size:12px;cursor:pointer;color:#666}
+.cclaim .ar .ok.on{background:#D1FAE5;border-color:#065F46;color:#065F46}
+.cclaim .ar .no.on{background:#FEE2E2;border-color:#991B1B;color:#991B1B}
+.cclaim .st{font-size:11px;font-weight:800;padding:1px 7px;border-radius:5px}.cclaim .st.a{background:#D1FAE5;color:#065F46}.cclaim .st.r{background:#FEE2E2;color:#991B1B}
 .cmt{background:#fff;border:1px solid #E0DDD4;border-left:5px solid #991B1B;border-radius:0 10px 10px 0;padding:12px 14px;margin:12px 0;font-size:14px;line-height:1.55;scroll-margin-top:70px}
 .cmt.note{border-left-color:#4A6B8A}.cmt.covered{border-left-color:#065F46}
 .cmt.sel{box-shadow:0 0 0 3px #ffd76b;border-color:#C15F3C}
@@ -193,6 +201,7 @@ __EMBED__
 var LS="coverage_combined_"+SEEDHASH;
 var C; try{C=JSON.parse(localStorage.getItem(LS))}catch(e){}
 if(!C||!C.comments){C={comments:JSON.parse(JSON.stringify(SEED))};}   // fresh seed when the merged set changes
+if(!C.claimStatus)C.claimStatus={};
 var hidden={}; // author -> hidden?
 var ROOT=document.querySelector('article.essay')||document.querySelector('.main')||document.body;
 var supportsHL=(typeof Highlight!=="undefined"&&CSS&&CSS.highlights);
@@ -221,11 +230,19 @@ function save(){try{localStorage.setItem(LS,JSON.stringify(C))}catch(e){}}
 function renderClaims(){
   var loc=CDATA.claims.filter(function(c){return c.located}).length;
   document.getElementById('cov-counter').textContent=CDATA.claims.length+" claims · "+loc+" located · "+C.comments.length+" comments";
-  document.getElementById('cov-claims').innerHTML=CDATA.claims.map(function(c,i){
-    return '<div class="cclaim" data-i="'+i+'"><div class="top"><span class="lvl l'+c.level+'">L'+c.level+'</span><b>'+c.id+'</b><span>· '+esc(c.section)+'</span>'
-      +(c.located?'<span class="bdg b-ok">in report</span>':'<span class="bdg b-no">not located</span>')+'</div><div class="t">'+esc(c.claim)+'</div></div>';}).join('');
-  [].forEach.call(document.querySelectorAll('.cclaim'),function(el){el.onclick=function(){var c=CDATA.claims[+el.dataset.i];if(c._s>=0)scrollTo(c._s,c._e);};});
+  document.getElementById('cov-claims').innerHTML=CDATA.claims.map(function(c,i){var st=C.claimStatus[c.id];
+    return '<div class="cclaim'+(st==='rejected'?' rejected':'')+'" id="clm-'+i+'" data-i="'+i+'"><div class="top"><span class="lvl l'+c.level+'">L'+c.level+'</span><b>'+c.id+'</b><span>· '+esc(c.section)+'</span>'
+      +(c.located?'<span class="bdg b-ok">in report</span>':'<span class="bdg b-no">not located</span>')
+      +(st?'<span class="st '+(st==='approved'?'a':'r')+'">'+st+'</span>':'')+'</div><div class="t">'+esc(c.claim)+'</div>'
+      +'<div class="ar"><button class="ok'+(st==='approved'?' on':'')+'" data-cap="'+i+'">✓ Approve</button><button class="no'+(st==='rejected'?' on':'')+'" data-crj="'+i+'">✕ Reject</button></div></div>';}).join('');
+  [].forEach.call(document.querySelectorAll('.cclaim'),function(el){el.onclick=function(ev){if(ev.target.closest('.ar'))return;selectClaim(+el.dataset.i);};});
+  [].forEach.call(document.querySelectorAll('[data-cap]'),function(b){b.onclick=function(e){e.stopPropagation();var c=CDATA.claims[+b.dataset.cap];C.claimStatus[c.id]=(C.claimStatus[c.id]==='approved'?null:'approved');save();renderClaims();};});
+  [].forEach.call(document.querySelectorAll('[data-crj]'),function(b){b.onclick=function(e){e.stopPropagation();var c=CDATA.claims[+b.dataset.crj];C.claimStatus[c.id]=(C.claimStatus[c.id]==='rejected'?null:'rejected');save();renderClaims();};});
 }
+function selectClaim(i){var c=CDATA.claims[i];
+  [].forEach.call(document.querySelectorAll('.cclaim'),function(el){el.classList.remove('sel');});
+  var el=document.getElementById('clm-'+i);if(el){el.classList.add('sel');el.scrollIntoView({block:'center',behavior:'smooth'});}
+  if(c._s>=0)scrollTo(c._s,c._e);}
 function renderFilt(){
   var auths={}; C.comments.forEach(function(m){auths[m.author]=(auths[m.author]||0)+1;});
   var ks=Object.keys(auths).sort();
@@ -278,7 +295,10 @@ ROOT.addEventListener('click',function(ev){
   if(off<0)return;
   var hit=-1,best=1e18;
   C.comments.forEach(function(m,idx){if(m.s>=0&&off>=m.s&&off<=m.e){var w=m.e-m.s;if(w<best){best=w;hit=idx;}}});
-  if(hit>=0)selectComment(hit);
+  if(hit>=0){selectComment(hit);return;}
+  var ch=-1,cb=1e18;
+  CDATA.claims.forEach(function(c,idx){if(c._s>=0&&off>=c._s&&off<=c._e){var w=c._e-c._s;if(w<cb){cb=w;ch=idx;}}});
+  if(ch>=0){document.querySelector('#cov-side .tab[data-tab=claims]').click();selectClaim(ch);}
 });
 qbtn.onclick=function(){if(!SEL)return;document.getElementById('cov-pop-q').textContent=SEL.quote.slice(0,400);
   document.getElementById('cov-pop-author').value=localStorage.getItem('cov_author')||'';
@@ -291,7 +311,7 @@ document.getElementById('cov-pop-add').onclick=function(){if(!SEL)return;
   save();paintCmt();renderFilt();renderComments();renderClaims();pop.style.display='none';document.querySelector('#cov-side .tab[data-tab=comments]').click();};
 document.addEventListener('mousedown',function(e){if(!pop.contains(e.target)&&e.target!==qbtn)pop.style.display='none';});
 document.getElementById('cov-reset').onclick=function(){if(confirm('Discard local edits and reset to the merged file set?')){C={comments:JSON.parse(JSON.stringify(SEED))};hidden={};save();paintCmt();renderFilt();renderComments();renderClaims();}};
-function exportObj(){return {saved_at:new Date().toISOString(),report:"human collusion.wiki report",n_claims:CDATA.claims.length,located:CDATA.claims.filter(function(c){return c.located}).length,authors:AUTHORS,comments:C.comments};}
+function exportObj(){return {saved_at:new Date().toISOString(),report:"human collusion.wiki report",n_claims:CDATA.claims.length,located:CDATA.claims.filter(function(c){return c.located}).length,authors:AUTHORS,claim_status:C.claimStatus,comments:C.comments};}
 document.getElementById('cov-save').onclick=function(){var b=new Blob([JSON.stringify(exportObj(),null,1)],{type:"application/json"});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download="coverage_combined.json";a.click();};
 document.getElementById('cov-copy').onclick=function(){navigator.clipboard&&navigator.clipboard.writeText(JSON.stringify(exportObj(),null,1));this.textContent="Copied";var t=this;setTimeout(function(){t.textContent="Copy JSON"},1200);};
 renderClaims();renderFilt();renderComments();save();
