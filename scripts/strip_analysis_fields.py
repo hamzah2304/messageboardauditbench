@@ -31,7 +31,7 @@ DROP = {
         "source_refs", "related_event_id", "relation_type", "round_id",
         "page_held", "clock_note", "param_family", "success_observed",
     },
-    "labels.jsonl": set(),
+    "labels.jsonl": {"is_human_handle", "save_request_source"},
 }
 
 # The authors named the moderator "[Admin1]" in delete events; keep the fact

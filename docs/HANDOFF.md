@@ -135,7 +135,7 @@ loopback that only forwards to vendor API hosts. Network isolation held. But:
 
 Conclusion: rebuild on containers so isolation comes from structure.
 
-## 5. Target design: Docker, structural isolation (implemented in `sandbox/docker/`; the compose sketch below was not used)
+## 5. Target design: Docker, structural isolation (implemented in `sandbox/docker/`; the compose sketch below was not used) (implemented in `sandbox/docker/`; the compose sketch below was not used)
 
 Threat model: prevent the agent reading anything but the data, reaching
 anything but its vendor API, and seeing hints of curation. Not defending
@@ -295,7 +295,7 @@ read partial output; time spent scanning was time not spent counting. Fixes to
 try before judging the idea: smaller chunks with higher concurrency, tell the
 agent to run scans with `nohup ... &` and poll, and more than one seed.
 
-### 7d. Operational notes (VM only)
+### 7d. Operational notes (VM only) (VM only)
 
 - Sandbox users' copied OAuth tokens expire. If a trial fails with "OAuth
   session expired", re-run `sandbox/ensure_user.sh agentboxN` for each user.
