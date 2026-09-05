@@ -12,7 +12,9 @@ dump — and nothing else — and score its report against that write-up.
 
 An agent gets the stripped log dump in a network-isolated container, a time budget, and a
 prompt asking for an incident report. It gets no web access, no view of the human report,
-and no hints about what it will be graded on.
+and no hints about what it will be graded on. The whole thing is packaged as an
+[Inspect](https://inspect.aisi.org.uk/) eval — see
+[Inspect integration](#inspect-integration).
 
 Its report is then graded on two axes against **30 claims** drawn from the human audit:
 
@@ -61,6 +63,8 @@ are in `benchmark/graded/`.
 ```
 benchmark/      ground truth: human_report.txt (answer key), claims, feasibility,
                 rubrics, graded results, and the exact reports each grade came from
+messageboard_audit/
+                the Inspect task package — wraps the sandbox as an inspect eval
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
 scripts/        data build/fetch, grading, report collection
 configs/        trial conditions (budget, prompt, data variant, effort)
@@ -73,6 +77,9 @@ docs/           design notes, data processing, handoff
 ```
 
 ## Running it
+
+Two routes to the same trials: the scripts directly, or through Inspect
+(see [Inspect integration](#inspect-integration)). Both launch the same sandbox.
 
 ```bash
 uv sync                        # or: pip install -e .
@@ -107,6 +114,67 @@ from a plain clone.
 - [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
   design rationale and operational notes.
 - [`sandbox/README.md`](sandbox/README.md) — how isolation actually works.
+- [`messageboard_audit/README.md`](messageboard_audit/README.md) — the Inspect task
+  package in full.
+
+## Inspect integration
+
+The repo is packaged as an [Inspect](https://inspect.aisi.org.uk/) eval.
+`messageboard_audit/` is the task package, and `inspect-ai>=0.3` is a declared
+dependency in `pyproject.toml`, so `uv sync` installs it.
+
+Inspect does not replace the sandbox — it wraps it. The solver shells out to the
+same `sandbox/docker/run_trial.sh` that a manual run uses, so the isolation
+guarantees are identical either way. What Inspect adds is a standard log format,
+a viewer, and epoch handling.
+
+| file | role |
+|---|---|
+| `task.py` | two tasks: `messageboard_audit` (fresh trials) and `messageboard_audit_replay` (import runs already on disk) |
+| `solver.py` | `cli_agent` launches the sandbox runner; `replay` imports a finished run |
+| `transcripts.py` | converts Claude Code / Codex / ReAct event streams into Inspect messages and tool calls, so the viewer renders them natively |
+| `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`) and `process_metrics` (turns, tokens, wall time — no judge) |
+| `rubric.yaml` | the rubric that scorer grades against |
+
+```bash
+uv sync                                    # installs inspect-ai and this package
+export ANTHROPIC_API_KEY=...               # the judge needs a key even when the
+                                           # agents run on a subscription CLI
+
+# run fresh trials; conditions come from configs/<config>.toml
+uv run inspect eval messageboard_audit/task.py@messageboard_audit \
+  -T agent=claude -T model=claude-opus-5 -T config=blind-20 --epochs 3
+
+# or fold runs already on disk into one eval, without spending model time
+uv run inspect eval messageboard_audit/task.py@messageboard_audit_replay
+
+uv run inspect view                        # browse the .eval logs
+```
+
+`--epochs N` runs N independent replicates; the replicate number identifies a run
+and does not seed sampling. Use `--max-samples 1` to serialize epochs against a
+subscription-backed CLI. `messageboard_audit_replay` reads `runs/`, which is
+gitignored — it only has anything to import on a machine that has run trials.
+
+### Which scorer produced the headline numbers
+
+Two grading paths exist, and they are not the same rubric:
+
+- **`benchmark/rubrics/` — the 30-claim rubrics.** Every committed grade in
+  `benchmark/graded/` and every figure in the table above came from here, via
+  `grade_with_rubrics.py` with a GPT-5.6 Sol judge. Each claim was first checked
+  against the data by the feasibility pass, so non-derivable claims are excluded.
+  This is the benchmark's scoring.
+- **`messageboard_audit/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
+  LLM-seeded starter rubric: 12 weighted positive leaves (tagged derivable
+  yes/partly) plus 3 penalty leaves for specific over-claims, such as asserting
+  this is the same swarm that attacked Hugging Face. It has not been
+  human-validated. It exists so an `inspect eval` returns a score in one command.
+
+So Inspect is the run-and-inspect harness here, not the source of the reported
+results. Treat `rubric_scorer` output as indicative until `rubric.yaml` is
+validated the way the 30 claims were; `docs/design-notes.md` sketches the
+claim-precision and citation-support scorers meant to close that gap.
 
 ## Notes on reproducibility
 
