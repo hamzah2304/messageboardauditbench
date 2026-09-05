@@ -83,6 +83,8 @@ textarea.note{width:100%;margin-top:6px;border:1px solid var(--border);border-ra
    <button data-f="new">New only</button>
    <button data-f="covered">Covered</button>
   </span>
+  <button id="allok">Approve all</button>
+  <button id="allno">Reject all</button>
   <button class="primary" id="save">Save approved JSON</button>
   <button id="copy">Copy JSON</button>
   <span class="hint"><kbd>j</kbd>/<kbd>k</kbd> move &nbsp; <kbd>a</kbd> approve &nbsp; <kbd>r</kbd> reject</span>
@@ -214,6 +216,10 @@ function buildExport(){
    note:"Approved report-grounded candidate claims, ready for the data-feasibility subagent pass.",
    approved, rejected, statuses};
 }
+function setAll(v){ const scope=CLAIMS.filter(visible);
+ for(const c of scope) st(c.id).status=v; persist(); render(); }
+document.getElementById('allok').onclick=()=>setAll('approved');
+document.getElementById('allno').onclick=()=>{ if(confirm('Reject all '+CLAIMS.filter(visible).length+' shown candidates?')) setAll('rejected'); };
 document.getElementById('save').onclick=()=>{
  const blob=new Blob([JSON.stringify(buildExport(),null,1)],{type:'application/json'});
  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
