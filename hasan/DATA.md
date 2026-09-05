@@ -60,3 +60,14 @@ absent; fable r1 only). Recall only.
   codex·terra 0.242, codex·luna 0.192, claude·sonnet-5 0.175, claude·haiku-4.5 0.075.
 - vs blind-10: opus-5 jumps 0.283→0.413 and glm-5.3 0.383→0.420 with more time;
   react·sol stays flat ~0.47.
+
+## Round 2 — `blind-30` batch (`rubrics/batch_b30/`, `rubrics/graded_b30_*.json`)
+Same round-2 setup at a **30-minute** budget (verbatim data, xhigh, hardened
+blind prompt), 19 reports, r1/r2 across 10 model/harness pairs (fable absent;
+opus-5 one replicate; react·gemini-flash present). Recall only.
+- Leaderboard (mean of replicates): claude·opus-5 0.510, react·sol 0.500,
+  react·kimi-k3 0.449, react·gemini-flash 0.425, codex·sol 0.400,
+  react·glm-5.3 0.392, codex·terra 0.334, codex·luna 0.333, claude·sonnet-5 0.242,
+  claude·haiku-4.5 0.125.
+- Budget trend (blind 10→20→30): recall rises with time for most models;
+  opus-5 0.283→0.413→0.510 is the clearest climb, react·sol plateaus ~0.47–0.50.
