@@ -92,9 +92,13 @@ canary that now runs before every trial (aborts on failure):
 - the user's world-readable `/tmp` files locked down; Claude Code's per-user
   scratch `/tmp/claude-<uid>` removed after each run
 
-Remaining caveat: concurrent runs share one sandbox user, so a run could read a
-sibling's in-progress report. Run trials serially, or give each run its own
-user. Docker (below) removes this class of problem structurally.
+Concurrent runs now get their own Linux user (`sandbox/ensure_user.sh agentboxN`
+creates a pool; the launcher picks an idle one or honours `SANDBOX_USER`). All
+sandbox users share the `agentbox` group, which the egress lock keys on. Each
+work dir is owned by its user, mode 750 with the launcher's group; the shared
+root is 751 (traversable, not listable). Verified: a sandbox user cannot list
+the run root, open a sibling's work dir, or read a sibling's home. Five further
+runs (Sonnet 5, GPT-5.6 Terra, Fable 5.1 plus the Haiku/Luna pair) audited clean.
 
 ## 4a. Why the first version of the sandbox was not good enough
 
