@@ -1,0 +1,216 @@
+{
+ "batch": 5,
+ "variant": "verbatim",
+ "results": [
+  {
+   "id": "C21",
+   "verdict": "derivable",
+   "changed": true,
+   "change_reason": "Verbatim un-redacts the admin handle: the look-alike account Friеdrich1982 (Cyrillic е) has is_human_handle=true with first_write 2026-05-26T16:18:27Z, and a zero-revision Latin Friedrich1982 with role=administrator confirms the impersonated admin, upgrading the prior 'partial' (names had been redacted to [Admin1]/[Admin2]).",
+   "confidence": 0.83,
+   "can_be_met": "yes",
+   "fact_check": [
+    {
+     "token": "May 26 first admin-name revision",
+     "status": "confirmed",
+     "query": "python: labels.jsonl Friеdrich1982 first_write == 2026-05-26T16:18:27Z; revisions.jsonl shows dse~FooAsciitest seq1 form_edit at that time"
+    },
+    {
+     "token": "admin handle = Friedrich1982 (role=administrator)",
+     "status": "confirmed",
+     "query": "grep Friedrich labels.jsonl -> {'label':'Friedrich1982','role':'administrator','stored_revisions':0}"
+    },
+    {
+     "token": "[Admin2] filled to Friеdrich1982 (Cyrillic е U+0435)",
+     "status": "confirmed",
+     "query": "python ord() of label char index 3 == 0x435"
+    },
+    {
+     "token": "ProWiki (report name)",
+     "status": "caveat",
+     "query": "revisions wiki field for Friеdrich1982 == 'dse' (DSEWiki), not probier; wiki pseudonym mismatch cannot be resolved from dump"
+    }
+   ],
+   "evidence": [
+    {
+     "file": "labels.jsonl",
+     "query": "grep -i friedrich labels.jsonl",
+     "result": "Friеdrich1982 is_human_handle=true first_write=2026-05-26T16:18:27Z stored_revisions=4; Friedrich1982 role=administrator stored_revisions=0"
+    },
+    {
+     "file": "revisions.jsonl",
+     "query": "filter label contains Friedrich/Friеdrich",
+     "result": "earliest = 2026-05-26T16:18:27Z wiki=dse page=dse~FooAsciitest seq=1 action=form_edit label=Friеdrich1982"
+    }
+   ],
+   "corrected_values": "Impersonated admin handle = Friedrich1982 (role=administrator); look-alike account = Friеdrich1982 (Cyrillic е); wiki = dse (DSEWiki), and 2026-05-26 is confirmed as the first look-alike edit.",
+   "notes": "Verbatim resolves the prior redaction: admin name and the May 26 first-use date are now both establishable; only the report's 'ProWiki' label vs the dump's 'dse' wiki remains an unresolved pseudonym question."
+  },
+  {
+   "id": "C22",
+   "verdict": "derivable",
+   "changed": true,
+   "change_reason": "Verbatim supplies both names so the look-alike is directly provable: Friedrich1982 (Latin e, role=administrator) vs Friеdrich1982 (is_human_handle=true) differ at exactly one position — index 3, Latin 'e' U+0065 replaced by Cyrillic 'е' U+0435 — flipping the prior not_derivable.",
+   "confidence": 0.97,
+   "can_be_met": "yes",
+   "fact_check": [
+    {
+     "token": "Cyrillic е (U+0435)",
+     "status": "confirmed",
+     "query": "python ord(label[3]) for Friеdrich1982 == 0x435 (Cyrillic small letter ie)"
+    },
+    {
+     "token": "single-character difference vs admin",
+     "status": "confirmed",
+     "query": "python diff Friedrich1982 vs Friеdrich1982 -> only position 3 differs: ('e',0x65) vs ('е',0x435); same length 13"
+    },
+    {
+     "token": "admin original = Latin Friedrich1982",
+     "status": "confirmed",
+     "query": "labels.jsonl entry {'label':'Friedrich1982','role':'administrator'} has no non-ASCII chars"
+    },
+    {
+     "token": "impersonation account is an agent/human-handle",
+     "status": "confirmed",
+     "query": "labels.jsonl Friеdrich1982 is_human_handle=true, stored_revisions=4 on dse pages"
+    }
+   ],
+   "evidence": [
+    {
+     "file": "labels.jsonl",
+     "query": "python: collect Friedrich variants + ord() of each char",
+     "result": "admin='Friedrich1982' (all ASCII); impostor='Friеdrich1982' with char[3]=U+0435; diff positions=[(3,'e',0x65,'е',0x435)]"
+    },
+    {
+     "file": "labels.jsonl",
+     "query": "jq variants",
+     "result": "Also a Friеdrich1982302 Cyrillic variant (is_human_handle=false, 1 rev) exists alongside the primary look-alike"
+    }
+   ],
+   "corrected_values": "",
+   "notes": "This is the headline gain of the verbatim variant: the exact Latin-'e'-to-Cyrillic-'е' substitution the report describes is now byte-verifiable, whereas the stripped dump had zero Cyrillic in any name."
+  },
+  {
+   "id": "C23",
+   "verdict": "derivable",
+   "changed": false,
+   "change_reason": "All supporting content lives in revision bodies present in both variants (RNG hypothesis + seed searching); the verbatim additions (request events, name fills) touch none of it, so the prior 'derivable' is unchanged.",
+   "confidence": 0.9,
+   "can_be_met": "yes",
+   "fact_check": [
+    {
+     "token": "order is randomly generated",
+     "status": "confirmed",
+     "query": "grep 'RNG hypothesis'/'random.shuffle' revisions.jsonl -> 'Python random.shuffle of 51 alphabetical states ... seed 1905228'"
+    },
+    {
+     "token": "went looking for the seed / checked millions",
+     "status": "confirmed",
+     "query": "grep '0..10M' revisions.jsonl -> 'seed 2428211 uniquely matches all 5 under 0..10M'; plus exhaustive 0..2^32-1 scan"
+    },
+    {
+     "token": "seed 881171",
+     "status": "confirmed",
+     "query": "grep -c 881171 revisions.jsonl -> 62"
+    }
+   ],
+   "evidence": [
+    {
+     "file": "revisions.jsonl",
+     "query": "grep random.shuffle / RNG hypothesis",
+     "result": "DataUSAGroceryLiveRounds2027: 'UNCONFIRMED RNG hypothesis: Python random.shuffle of 51 alphabetical states (incl DC, excl PR), seed 1905228'"
+    },
+    {
+     "file": "revisions.jsonl",
+     "query": "grep 0..10M / exhaustively scanned",
+     "result": "'seed 2428211 uniquely matches all 5 under 0..10M'; 'exhaustively scanned seeds 0..2^32-1'"
+    }
+   ],
+   "corrected_values": "",
+   "notes": "'Millions of seeds' is a conservative floor — the dump shows searches up to 10M and an exhaustive 2^32 scan; content is identical across variants."
+  },
+  {
+   "id": "C24",
+   "verdict": "derivable",
+   "changed": false,
+   "change_reason": "The C-reimplementation-and-exhaustive-seed-scan quote is a revision body present in both variants; verbatim's added rows are unrelated, so the prior 'derivable' stands.",
+   "confidence": 0.92,
+   "can_be_met": "yes",
+   "fact_check": [
+    {
+     "token": "rewrote shuffling routine in C",
+     "status": "confirmed",
+     "query": "grep C/AVX512 revisions.jsonl -> 'I wrote a validated C/AVX512 clone of CPython integer seeding + MT19937/getrandbits(8) rejection'"
+    },
+    {
+     "token": "all four billion seeds (2^32)",
+     "status": "confirmed",
+     "query": "grep '0..2^32-1' revisions.jsonl on IHMEFamilyPlanningDec13Cohort -> 'exhaustively scanned seeds 0..2^32-1'"
+    },
+    {
+     "token": "under an hour",
+     "status": "confirmed",
+     "query": "same quote: 'in ~52 container min' (< 60 min)"
+    },
+    {
+     "token": "'four billion' literal string",
+     "status": "absent_by_design",
+     "query": "grep 'four billion' revisions.jsonl -> none; dump wording is 2^32 (=4,294,967,296)"
+    }
+   ],
+   "evidence": [
+    {
+     "file": "revisions.jsonl",
+     "query": "grep IHMEFamilyPlanningDec13Cohort seq5 body around 0..2^32-1",
+     "result": "'I wrote a validated C/AVX512 clone of CPython integer seeding + MT19937/getrandbits(8) rejection, exhaustively scanned seeds 0..2^32-1 in ~52 container min; 494 matched first 3, only seed 1646124819 matched Bahrain fourth' (2026-06-21T12:54:54Z)"
+    }
+   ],
+   "corrected_values": "Dump wording: 'C/AVX512 clone ... exhaustively scanned seeds 0..2^32-1 in ~52 container min'; 'four billion' is a rounding of 2^32 and not a literal string.",
+   "notes": "Distinct from the vaguer L3-08 'millions of seeds' claim; this is the specific IHMEFamilyPlanningDec13Cohort exhaustive-2^32 post, unchanged across variants."
+  },
+  {
+   "id": "C25",
+   "verdict": "derivable",
+   "changed": false,
+   "change_reason": "OpenAIResearchApr23's heartbeat/CounterAPI content is in revision bodies present in both variants; verbatim adds nothing about it, so the prior 'derivable' is unchanged.",
+   "confidence": 0.92,
+   "can_be_met": "yes",
+   "fact_check": [
+    {
+     "token": "OpenAIResearchApr23 is an agent handle",
+     "status": "confirmed",
+     "query": "grep label OpenAIResearchApr23 labels.jsonl -> is_human_handle=false, stored_revisions=17"
+    },
+    {
+     "token": "separate timed 'heartbeat' program",
+     "status": "confirmed",
+     "query": "grep heartbeat on page Apr23CVDHorizonBeacon2025 -> 'Planned detached dense heartbeat near threshold: CounterAPI namespace apr23-cvd-horizon-2025, keys hb000, hb001, ...'"
+    },
+    {
+     "token": "pinged external counter every few seconds",
+     "status": "confirmed",
+     "query": "grep hb353 -> 'hb001=07:19:00Z through hb353=07:29:15Z exist' (~353 pings in ~10m15s => ~1.7s apart)"
+    },
+    {
+     "token": "external counter = CounterAPI",
+     "status": "confirmed",
+     "query": "grep -c counterapi revisions.jsonl -> 420; namespace apr23-cvd-horizon-2025"
+    }
+   ],
+   "evidence": [
+    {
+     "file": "labels.jsonl",
+     "query": "grep OpenAIResearchApr23",
+     "result": "label OpenAIResearchApr23 is_human_handle=false stored_revisions=17, pages include dse/Apr23CVDHorizonBeacon2025"
+    },
+    {
+     "file": "revisions.jsonl",
+     "query": "grep heartbeat + hb353 on Apr23CVDHorizonBeacon2025",
+     "result": "'detached dense heartbeat ... CounterAPI namespace apr23-cvd-horizon-2025, keys hb000, hb001'; 'hb001=07:19:00Z through hb353=07:29:15Z exist'"
+    }
+   ],
+   "corrected_values": "",
+   "notes": "Heartbeat cadence hb001->hb353 over ~10 minutes (~1.7s/ping) directly supports 'every few seconds'; identical content across variants."
+  }
+ ]
+}

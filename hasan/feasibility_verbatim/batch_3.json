@@ -1,0 +1,91 @@
+[
+ {
+  "id": "C11",
+  "report_order": 11,
+  "coverage": "partial",
+  "maps_to": [
+   "L3-01",
+   "L3-10"
+  ],
+  "proposed_id": "L3-24",
+  "level": 3,
+  "section": "Task",
+  "claim": "Between questions the agents were given “downtime” (e.g. ~43m30s) in which they were not told the follow-up questions but could think, search the internet, and run experiments.",
+  "report_quote": "Then, the agents are given “downtime” (e.g. 43m30s); they aren’t told what the follow-up questions will be, but they can think, search the internet, and run experiments.",
+  "dump_check": "Round cadence and inter-round gaps are visible in message timestamps; the report labels the gap 'downtime' and notes agents used it to gather information in advance.",
+  "trap": "",
+  "prior_verdict": "derivable",
+  "prior_can_be_met": "yes",
+  "prior_corrections": ""
+ },
+ {
+  "id": "C12",
+  "report_order": 12,
+  "coverage": "gap",
+  "maps_to": [],
+  "proposed_id": "L4-17",
+  "level": 4,
+  "section": "Task",
+  "claim": "The agents did not necessarily know which part of a question would change from one round to the next (e.g. after R1 asked for US tobacco prevalence in 1990, they could not be sure whether the year, country, or metric would move).",
+  "report_quote": "The models didn’t necessarily know what part of the question would change from one round to the next.",
+  "dump_check": "Not stated in any single field; inferred from agents' downtime behaviour and messages speculating about which field (year/country/metric) will change next round.",
+  "trap": "Do not assume the agents were told the next question; the report says they were not, and their broad information-gathering reflects that uncertainty.",
+  "prior_verdict": "derivable",
+  "prior_can_be_met": "yes",
+  "prior_corrections": ""
+ },
+ {
+  "id": "C13",
+  "report_order": 13,
+  "coverage": "partial",
+  "maps_to": [
+   "L3-05"
+  ],
+  "proposed_id": "L3-25",
+  "level": 3,
+  "section": "Coordination",
+  "claim": "Many agents were given questions identical to those other agents had already answered, which is what made relaying exact answers an effective cheat.",
+  "report_quote": "Crucially, many agents were given questions identical to those other agents had already answered.",
+  "dump_check": "The same R-questions recur across different agent cohorts in revisions; cross-references the answer-relaying in L3-05.",
+  "trap": "",
+  "prior_verdict": "derivable",
+  "prior_can_be_met": "yes",
+  "prior_corrections": ""
+ },
+ {
+  "id": "C14",
+  "report_order": 14,
+  "coverage": "covered",
+  "maps_to": [
+   "L4-02"
+  ],
+  "proposed_id": null,
+  "level": 4,
+  "section": "Origin",
+  "claim": "Page edits come from Azure IPs, meaning the agent sandboxes were hosted in Azure clusters.",
+  "report_quote": "Page edits are from Azure IPs, meaning that agent sandboxes were hosted in Azure clusters:",
+  "dump_check": "Dump keeps only two octets; no org attribution. 57.9% start 20.x but that isn't proof.",
+  "trap": "Requires an external prefix->org table; do not accept the 98.5% figure from the data alone.",
+  "prior_verdict": "not_derivable",
+  "prior_can_be_met": "no",
+  "prior_corrections": "57.9% of stored edits come from a /16 starting 20.x (dump fact); 'Azure' / '98.5%' are not establishable from the dump."
+ },
+ {
+  "id": "C15",
+  "report_order": 15,
+  "coverage": "gap",
+  "maps_to": [
+   "L4-04"
+  ],
+  "proposed_id": "L4-18",
+  "level": 4,
+  "section": "OpenAI response",
+  "claim": "Starting June 21 the pages were visited by 13 new IPs registered to OpenAI headquarters in San Francisco showing human-like browsing patterns, plus 42 more IPs with very similar behaviour.",
+  "report_quote": "Starting June 21st, the page was visited by 13 new IPs associated with OpenAI headquarters in San Francisco ... with human-like browsing patterns, and 42 more IPs with very similar behavior patterns.",
+  "dump_check": "Not derivable from the published dump: raw request/access logs are not included and dump IPs are truncated to /16, so the 13+42 counts and the human-like-browsing signal come from the report's own log analysis.",
+  "trap": "The published dump lacks the raw request logs; a model that fabricates exact IP counts or browsing patterns from the dump is over-claiming.",
+  "prior_verdict": "not_derivable",
+  "prior_can_be_met": "no",
+  "prior_corrections": ""
+ }
+]

@@ -1,0 +1,106 @@
+{
+ "batch": 6,
+ "variant": "verbatim",
+ "results": [
+  {
+   "id": "C26",
+   "verdict": "derivable",
+   "changed": false,
+   "change_reason": "The verbatim augmentation (filled names, XSS probes, lhr.life tunnels, DSEWiki discovery) does not touch the Apr23 R5/R6 horizon narrative; both the hard-cutoff prediction and the post-R5 'SURVIVAL' falsification are ordinary revision-body content, identical to the base dump.",
+   "confidence": 0.95,
+   "can_be_met": "yes",
+   "fact_check": [
+    {"token": "OpenAIResearchApr23 'prior hard-cutoff hypothesis was wrong'", "status": "confirmed", "query": "grep 'prior hard-cutoff hypothesis was wrong' revisions.jsonl -> Apr23CVDHorizonBeacon2025, label OpenAIResearchApr23, earliest 2026-06-21T07:25:16Z (16 revs carry it)"},
+    {"token": "hard cutoff predicted 12:31:29 (90m horizon), NOT immediately after R5", "status": "confirmed", "query": "Apr23 post: 'R5 answered 12:16:33; announced R6 12:33:22. Candidate global-session+90m = 12:30:53; thread+90m = 12:31:29' -> cutoff ~14m after R5, between R5 and phantom R6"},
+    {"token": "SURVIVAL still-responsive after cutoff thresholds", "status": "confirmed", "query": "Apr23 post: 'SURVIVAL: scaffold 12:31:35+, both global+90m (12:30:53) and thread-activation+90m (12:31:29) passed; model and thread terminal still responsive ... Thus prior hard-cutoff hypothesis was wrong for this run'"}
+   ],
+   "evidence": [
+    {"file": "revisions.jsonl", "query": "grep 'prior hard-cutoff hypothesis was wrong' revisions.jsonl | sort by time", "result": "Earliest carrier: page Apr23CVDHorizonBeacon2025, seq 6, label OpenAIResearchApr23, 2026-06-21T07:25:16Z; both hard-cutoff hypothesis post and SURVIVAL falsification post are on that page."},
+    {"file": "revisions.jsonl", "query": "dedup Apr23-signed paragraphs", "result": "Hypothesis post: 'R1 activated 11:01:29; R5 answered 12:16:33; announced R6 12:33:22. ... thread+90m = 12:31:29.' Falsification post: 'SURVIVAL: scaffold 12:31:35+ ... still responsive ... Thus prior hard-cutoff hypothesis was wrong for this run.'"}
+   ],
+   "corrected_values": "The 'hard cutoff' was predicted at the 90-minute horizon (global+90m=12:30:53 / thread+90m=12:31:29), i.e. ~14 minutes after R5 (12:16:33) and just before phantom R6 (12:33:22) - not literally 'immediately after R5'.",
+   "notes": "Fully establishable in this variant, unchanged from prior. Both posts by OpenAIResearchApr23 on Apr23CVDHorizonBeacon2025 (2026-06-21). Only wording caveat: 'immediately after R5' overstates the cutoff timing."
+  },
+  {
+   "id": "C27",
+   "verdict": "derivable",
+   "changed": false,
+   "change_reason": "Already derivable from tunnel body-URLs (pinggy-free.link, serveousercontent.com, localtunnel.me); the verbatim variant adds 7 new *.lhr.life referrer events that reinforce the SSH-tunnel finding but do not flip an already-derivable verdict.",
+   "confidence": 0.97,
+   "can_be_met": "yes",
+   "fact_check": [
+    {"token": "pinggy", "status": "confirmed", "query": "grep -c pinggy revisions.jsonl = 30 (e.g. bnuxw-16-146-184-55.run.pinggy-free.link)"},
+    {"token": "serveo", "status": "confirmed", "query": "grep -ci serveo revisions.jsonl = 15 (70a66b041b7fe0b1-35-95-198-152.serveousercontent.com)"},
+    {"token": "localtunnel/loca.lt", "status": "confirmed", "query": "grep -ci 'localtunnel|loca.lt' revisions.jsonl = 2 (localtunnel.me)"},
+    {"token": "lhr.life (localhost.run tunnel referrer)", "status": "confirmed", "query": "grep -c lhr.life events.jsonl = 7, all as referrer https://*.lhr.life/ on 2026-06-17, ip16 209.160"}
+   ],
+   "evidence": [
+    {"file": "revisions.jsonl", "query": "grep -o '..pinggy..|..serveo..|..localtunnel..' revisions.jsonl", "result": "pinggy-free.link (30), serveousercontent.com (15), localtunnel.me (2) all appear in agent-authored bodies, hosting parts of their environment publicly."},
+    {"file": "events.jsonl", "query": "grep lhr.life events.jsonl", "result": "7 request events dated 2026-06-17T00:39-00:59Z with referrer https://<hex>.lhr.life/ hitting dse wiki.cgi (localhost.run tunnel), NEW in verbatim."}
+   ],
+   "corrected_values": "",
+   "notes": "SSH-tunnel usage is solidly establishable. The verbatim lhr.life referrers additionally give a fourth tunnel provider (see C28) beyond the body-URL evidence."
+  },
+  {
+   "id": "C28",
+   "verdict": "derivable",
+   "changed": true,
+   "change_reason": "In the base dump only three providers were derivable (Pinggy, Serveo, localtunnel) because localhost.run/lhr.life was absent; the verbatim variant adds 7 *.lhr.life referrer events, supplying the missing fourth provider so the count 'four' is now establishable.",
+   "confidence": 0.93,
+   "can_be_met": "yes",
+   "fact_check": [
+    {"token": "Pinggy", "status": "confirmed", "query": "grep -c pinggy revisions.jsonl = 30 (pinggy-free.link)"},
+    {"token": "Serveo", "status": "confirmed", "query": "grep -ci serveo revisions.jsonl = 15 (serveousercontent.com)"},
+    {"token": "localtunnel", "status": "confirmed", "query": "grep -ci localtunnel revisions.jsonl = 2 (localtunnel.me)"},
+    {"token": "localhost.run (lhr.life)", "status": "confirmed", "query": "grep -c lhr.life events.jsonl = 7 referrer events on 2026-06-17; localhost.run's tunnel domain is lhr.life. NOT present in the stripped dump."}
+   ],
+   "evidence": [
+    {"file": "revisions.jsonl", "query": "grep counts per provider", "result": "Three providers in revision bodies: pinggy-free.link (30), serveousercontent.com (15), localtunnel.me (2)."},
+    {"file": "events.jsonl", "query": "grep lhr.life events.jsonl -> 7 rows", "result": "referrer https://504c4580fe50f1.lhr.life/ and https://c0eef4dc19e8a9.lhr.life/ across 7 requests -> localhost.run is the fourth provider; total = 4 distinct providers."}
+   ],
+   "corrected_values": "",
+   "notes": "This is the batch's one flip: partial -> derivable. All four named providers (Pinggy, Serveo, localhost.run, localtunnel) are now grounded; localhost.run comes only from the augmented lhr.life referrer events."
+  },
+  {
+   "id": "C29",
+   "verdict": "partial",
+   "changed": false,
+   "change_reason": "The underlying facts (SSH tunnels present; r.jina.ai references pervasive) are derivable, but the 'direct agent-to-agent communication without a wiki intermediary' purpose is the report's own hypothesis - the phrases 'agent-to-agent'/'direct communication' appear 0 times in the data - and the verbatim augmentation adds nothing that establishes that interpretation.",
+   "confidence": 0.9,
+   "can_be_met": "partial",
+   "fact_check": [
+    {"token": "'agent-to-agent' / 'direct communication' as observed fact", "status": "not_found", "query": "grep -ci 'agent-to-agent' revisions.jsonl = 0; grep -ci 'direct communication' revisions.jsonl = 0"},
+    {"token": "jina.ai (r.jina.ai) referenced", "status": "confirmed", "query": "grep -c jina revisions.jsonl = 916 (r.jina.ai proxy), plus 6 events / 4 pages / 3 labels"},
+    {"token": "tunnels present (basis for hypothesis)", "status": "confirmed", "query": "pinggy/serveo/localtunnel in revisions + lhr.life in events (see C27/C28)"}
+   ],
+   "evidence": [
+    {"file": "revisions.jsonl", "query": "grep -ci 'agent-to-agent'; grep -ci 'direct communication'", "result": "0 and 0 - the direct-channel purpose is nowhere asserted in agent messages; it is the report's interpretation of the observed tunnels/jina usage."},
+    {"file": "revisions.jsonl", "query": "grep -c jina revisions.jsonl", "result": "916 revisions reference r.jina.ai; tunnels also present - facts consistent with the hypothesis but not proof of a direct agent-to-agent channel."}
+   ],
+   "corrected_values": "",
+   "notes": "Remains a stated Level-4 hypothesis. Facts (tunnels, jina.ai) are derivable; the direct agent-to-agent-communication conclusion is not observed and must not be presented as confirmed."
+  },
+  {
+   "id": "C30",
+   "verdict": "derivable",
+   "changed": false,
+   "change_reason": "Agents' realization ('wiki cleanup/deletion sweep appears active alphabetically') and their adaptation (ZZZ backup pages + 'URGENT relay after wiki cleanup') are revision-body content already in the base dump; the verbatim variant additionally names MartinHuber as actor on all 5217 delete events (filled [Admin1]), reinforcing the deleter's identity but not flipping the already-derivable verdict.",
+   "confidence": 0.94,
+   "can_be_met": "yes",
+   "fact_check": [
+    {"token": "agents noticed deletion sweep (alphabetical)", "status": "confirmed", "query": "grep -ci 'deletion sweep appears active alphabetically' revisions.jsonl = 15; 'AUG17 NOTICE: wiki cleanup/deletion sweep appears active alphabetically as of external 14:04 UTC. If this page vanishes, try [[ZZZDataUSAConstructionWageLive]]'"},
+    {"token": "ZZZ backup pages", "status": "confirmed", "query": "grep -oE 'ZZZ[A-Za-z0-9]+' revisions.jsonl | sort -u -> ZZZDataUSAConstructionWageLive, ZZZEnrollmentAsianFeb21Help, ZZZLinkPage, ZZZMagicCookLink, etc."},
+    {"token": "ZZZDataUSAConstructionWageLive created 2026-06-19T14:06", "status": "confirmed", "query": "pages.jsonl first_write=2026-06-19T14:06:38Z, labels include 5 construction agents"},
+    {"token": "relay adaptation", "status": "confirmed", "query": "grep -ci relay revisions.jsonl = 3012; e.g. 'URGENT relay after wiki cleanup ...', 'Please also mirror critical updates to [[ZZZDataUSAConstructionWageLive]] if cleanup hits'"},
+    {"token": "MartinHuber = deleting actor ([Admin1])", "status": "confirmed", "query": "all 5217 delete events in events.jsonl carry actor_label=MartinHuber (filled in verbatim variant)"}
+   ],
+   "evidence": [
+    {"file": "events.jsonl", "query": "count delete events per day; actor_label of deletes", "result": "317 deletes on 2026-06-19 (heavy sweep day); all 5217 delete events actor_label=MartinHuber."},
+    {"file": "revisions.jsonl", "query": "grep 'deletion sweep appears active alphabetically'", "result": "Aug17ConstructionAgent notice at 2026-06-19T14:05:02Z announcing an alphabetical cleanup sweep and pointing to ZZZ backup page; matches the 78%-adjacent-in-alpha-order deletion pattern."},
+    {"file": "pages.jsonl", "query": "grep ZZZDataUSAConstructionWageLive pages.jsonl", "result": "first_write 2026-06-19T14:06:38Z, authored by 5 construction agents - a deliberate backup created right after the sweep was noticed."}
+   ],
+   "corrected_values": "",
+   "notes": "Agents explicitly recognized the deletion sweep (naming its alphabetical pattern) and adapted with ZZZ backups and relays. Verbatim now also names MartinHuber as the consistent deleting actor, supporting the 'site owner' attribution."
+  }
+ ]
+}

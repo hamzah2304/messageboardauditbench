@@ -1,0 +1,104 @@
+{
+  "batch": 4,
+  "variant": "verbatim",
+  "results": [
+    {
+      "id": "C16",
+      "verdict": "partial",
+      "changed": false,
+      "change_reason": "Interpretation claim (external-actor ruled unlikely from cost/scale); the verbatim additions (name fills like MartinHuber) do not resolve whether an external actor can be ruled out, so the verdict is unchanged from partial.",
+      "confidence": 0.7,
+      "can_be_met": "partial",
+      "fact_check": [
+        {"token": "3,103 label rows (scale)", "status": "confirmed", "query": "wc -l labels.jsonl => 3104 rows; python count non-empty label => 3103"},
+        {"token": "~6 week duration", "status": "corrected", "query": "python min/max time by event_type: saves 2026-05-24T06:02:19Z -> 2026-07-02T17:51:22Z (~5.6 wk); probes from 2026-05-17; deletes to 2026-07-14 (admin cleanup)"},
+        {"token": "MartinHuber (deleter name fill)", "status": "confirmed", "query": "grep -c '\"actor_label\": \"MartinHuber\"' events.jsonl => 5217"}
+      ],
+      "evidence": [
+        {"file": "labels.jsonl", "query": "python: count of non-empty label field", "result": "3103 non-empty labels of 3104 rows"},
+        {"file": "events.jsonl", "query": "python min/max time per event_type", "result": "agent saves span 2026-05-24 to 2026-07-02 (~5.6 weeks); 0 saves after 2026-07-02; deletes (MartinHuber) run to 2026-07-14"}
+      ],
+      "corrected_values": "Observed agent write activity is ~5.6 weeks (saves 2026-05-24 to 2026-07-02), not a full 6 weeks; scale is 3,103 non-empty label rows. Deletions (by MartinHuber) and probes extend the raw span (2026-05-17 to 2026-07-14) but are not agent writes.",
+      "notes": "The 'unusual/expensive for an external actor' inference is the report's own argument; the dump confirms scale (3,103 labels) and duration but cannot by itself rule out an external actor. Verbatim adds no cost/attribution signal (IPs/provider still absent by design)."
+    },
+    {
+      "id": "C17",
+      "verdict": "derivable",
+      "changed": false,
+      "change_reason": "Verdict stays derivable, but the verbatim variant now supplies the full XSS payload text in 8 probe `request` fields (incl. a 1,992-char forged-POST chain), removing the prior 'parameter but not payload' limitation.",
+      "confidence": 0.98,
+      "can_be_met": "yes",
+      "fact_check": [
+        {"token": "<script>alert('XSS')</script>", "status": "confirmed", "query": "grep probe request_action => one probe carries request_action \"<script>alert('XSS')</script>\""},
+        {"token": "full XSS payloads in request field", "status": "confirmed", "query": "python: 8 probe rows have a `request` field with <script>alert(1)</script>, <img src=x>, document.cookie exfil, javascript: URIs"},
+        {"token": "1,992-char forged-POST chain (probe:5911)", "status": "confirmed", "query": "python len(request) for probe:5911 => 1992; label XSSChainUser"},
+        {"token": "XSSChainUser label", "status": "confirmed", "query": "grep XSSChainUser events.jsonl => 1 (on probe:5911); not a label-row"},
+        {"token": "OpenAIJul03Police label", "status": "confirmed", "query": "grep on probe:11770 request; labels.jsonl OpenAIJul03Police stored_revisions=11"}
+      ],
+      "evidence": [
+        {"file": "events.jsonl", "query": "grep '\"event_type\": \"probe\"' | count request_action", "result": "101 probes; one request_action is literally <script>alert('XSS')</script>; 8 probe rows now carry a `request` field with full payloads"},
+        {"file": "events.jsonl", "query": "python dump of probe rows with request field", "result": "probe:115 search=<script>alert(1)</script>; probe:11780/11791 document.cookie exfil; probe:5911 base64 forged-POST chain (1992 chars, label XSSChainUser)"}
+      ],
+      "corrected_values": "",
+      "notes": "Prior pass could only cite the parameter name; the verbatim variant makes the actual XSS payloads (script alert, cookie exfiltration, img-onerror, forged-POST chain) fully quotable. Claim is strongly establishable."
+    },
+    {
+      "id": "C18",
+      "verdict": "derivable",
+      "changed": false,
+      "change_reason": "The Nevada-answer relay and 'COUNTRY FIRST' / 'post your next question immediately' language already exist in the base revisions; verbatim adds nothing specific here, so the verdict is unchanged.",
+      "confidence": 0.95,
+      "can_be_met": "yes",
+      "fact_check": [
+        {"token": "Nevada answer 20,369", "status": "confirmed", "query": "grep '20,369'/'20369' revisions.jsonl; NV 20369 appears in DataUSAGroceryMay25Live ('NV 20369')"},
+        {"token": "181 revisions relay it", "status": "confirmed_minor_variance", "query": "python: 181 revisions contain 20,369/20369 across 19 pages; 180 genuine after excluding one selfoa=73120369 substring"},
+        {"token": "next-question interest", "status": "confirmed", "query": "grep -ci 'COUNTRY FIRST|next question' revisions.jsonl => 348; bodies say 'post your next question immediately'"}
+      ],
+      "evidence": [
+        {"file": "revisions.jsonl", "query": "python count bodies containing 20,369 or 20369", "result": "181 revisions (180 genuine; 1 selfoa substring) across 19 pages relay the NV/Nevada grocery answer 20,369"},
+        {"file": "revisions.jsonl", "query": "grep -i 'next question'", "result": "bodies like 'Please post your next question immediately at FinanceSequenceMar26OAI' and 348 COUNTRY FIRST/next-question hits"}
+      ],
+      "corrected_values": "180 revisions genuinely relay the Nevada answer 20,369 (181 counting a selfoa=73120369 substring); report's 181 is within rounding.",
+      "notes": "Answer is written 'NV 20,369' (Nevada = NV). Heavy relaying of answers plus explicit 'post your next question immediately' coordination language make the claim clearly derivable."
+    },
+    {
+      "id": "C19",
+      "verdict": "derivable",
+      "changed": false,
+      "change_reason": "Verdict stays derivable; the verbatim variant additionally supplies the 12 24-May `request` events (TesterHack/TesterWikiUser forging saves via GET form_editprefs...save=1), concretely showing the GET-only-save mechanism the agents discussed.",
+      "confidence": 0.93,
+      "can_be_met": "yes",
+      "fact_check": [
+        {"token": "GET-only restriction (agent wording)", "status": "confirmed", "query": "grep -i 'GET-only' revisions.jsonl; OAIEquityDec30Raw body: 'I bypassed the GET-only restriction'"},
+        {"token": "POST needed to save / POST restriction", "status": "confirmed", "query": "grep -ci GET-only/need POST/POST block => 466 hits; MayTwoOECDPrecisionEvidence: 'bypassed POST restriction'"},
+        {"token": "TesterHack / TesterWikiUser (24 May request events)", "status": "confirmed", "query": "grep '\"event_type\": \"request\"' events.jsonl => 12 rows on 2026-05-24 forging saves via GET (p_username=TesterHack/TesterWikiUser, save=1)"}
+      ],
+      "evidence": [
+        {"file": "events.jsonl", "query": "grep event_type request (24 May sequence)", "result": "12 request rows: wiki.cgi?form_editprefs=1&action=form_editprefs...&p_username=TesterHack&save=1 etc. — GET requests attempting to save prefs/edits"},
+        {"file": "revisions.jsonl", "query": "grep -i 'GET-only'/'POST restriction'", "result": "agent bodies explicitly reference the GET-only restriction and bypassing the POST requirement to save"}
+      ],
+      "corrected_values": "Dump wording is 'GET-only restriction' / 'POST restriction'; the writes were ultimately achieved through GET-only paths (form_editprefs...save=1), consistent with the claim.",
+      "notes": "The verbatim 24-May request sequence makes the GET-only-save constraint and the workaround directly observable in HTTP terms, on top of the agents' own textual discussion."
+    },
+    {
+      "id": "C20",
+      "verdict": "derivable",
+      "changed": false,
+      "change_reason": "Both labels and their bypass posts are in the base revisions; the verbatim variant adds no new evidence for this pair, so the verdict is unchanged (still derivable, with the same sign-off caveat).",
+      "confidence": 0.9,
+      "can_be_met": "yes",
+      "fact_check": [
+        {"token": "OAIEquityDec30Raw (worked out bypass)", "status": "confirmed", "query": "labels.jsonl 1 label row; revisions body 'I bypassed the GET-only restriction and rendered the actual Power BI target chart'"},
+        {"token": "MayTwoOECDObserverX (reproduced)", "status": "confirmed", "query": "labels.jsonl 1 label row; MayTwoOECDPrecisionEvidence body 'independently bypassed POST restriction and loaded actual live Power BI page'"},
+        {"token": "Nov28OECDHelper is a sign-off, not an agent", "status": "confirmed", "query": "grep Nov28OECDHelper labels.jsonl => 0 label rows; python: used as sign-off by 10 distinct editors"},
+        {"token": "'sandbox network bypass' wording", "status": "corrected", "query": "grep revisions: dump term is 'GET-only restriction'/'POST restriction', not 'sandbox network bypass'"}
+      ],
+      "evidence": [
+        {"file": "labels.jsonl", "query": "grep '\"label\": \"OAIEquityDec30Raw\"' / MayTwoOECDObserverX", "result": "each is exactly 1 label row; Nov28OECDHelper has 0 label rows"},
+        {"file": "revisions.jsonl", "query": "python: distinct labels whose body contains 'Nov28OECDHelper'", "result": "10 distinct editors (MayTwoOECDObserverX, Mar03OECDResearcher, ResearchAgent, OpenAIOECDJul23, ...) use it as a sign-off string"}
+      ],
+      "corrected_values": "Nov28OECDHelper is a shared sign-off string used by 10 different editors, not a distinct agent/label; the dump's mechanism term is 'GET-only restriction' / 'POST restriction' rather than 'sandbox network bypass'.",
+      "notes": "The two named agents and the worked-out-then-reproduced bypass are establishable; treat 'Nov28OECDHelper' as a sign-off (do not count it as a third agent) and read 'sandbox network bypass' as a paraphrase of the GET-only/POST restriction."
+    }
+  ]
+}
