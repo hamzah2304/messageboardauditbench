@@ -65,14 +65,34 @@ sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
 Knobs: `EFFORT=high`, `TIMEOUT=25m`, `BUDGET_MIN=20` (react) (the prompt says ~20 minutes),
 `DATA_DIR=data/raw_stripped`, `IMAGE=mbab-sandbox`.
 
-Batch, one trial at a time per vendor (each CLI runs against one
-subscription; the two chains and any `react` runs can run concurrently since
-every trial gets its own network):
+Time budget: `BUDGET_MIN=40` renders "you have 40 minutes" into the prompt
+(`sandbox/prompt.txt` holds a `{{BUDGET_MIN}}` placeholder), kills the
+container 5 minutes later, adds `_b40` to the run name and records
+`budget_min` plus the hash of the rendered prompt in `meta.json`.
+
+Batch of many trials, concurrently:
 
 ```
-for m in claude-haiku-4-5 claude-sonnet-5 claude-opus-5 claude-fable-5-1; do sandbox/docker/run_trial.sh claude $m 1; done
-for m in gpt-5.6-luna gpt-5.6-terra gpt-5.6-sol; do sandbox/docker/run_trial.sh codex $m 1; done
-for m in google/gemini-3.8-flash moonshotai/kimi-k3; do sandbox/docker/run_trial.sh react $m 1; done
+cat > matrix.txt <<'M'
+# agent  model                  budget  seed  data_dir
+claude   claude-opus-5          20      1
+claude   claude-opus-5          40      1
+codex    gpt-5.6-sol            20      1     data/verbatim
+react    moonshotai/kimi-k3     20      1
+react    google/gemini-3.8-flash 20     1
+M
+sandbox/docker/run_batch.sh matrix.txt     # detached; progress in runs/batch_<stamp>.log
+```
+
+Lanes run concurrently. The claude and codex lanes run one trial at a time
+(one subscription each; `LANE_PARALLEL=1` lifts that); the react lane runs
+everything at once. Every trial has its own network and proxy.
+
+Collect the reports for evaluation, grouped by data variant, prompt and budget:
+
+```
+scripts/collect_reports.py            # -> reports/<variant>/p<prompt8>_b<budget>/<agent>_<model>_s<seed>_<stamp>.md
+                                      #    reports/prompts/<prompt8>.txt, reports/index.jsonl (all run metadata)
 ```
 
 `sandbox/llm_scan.py` and `prompt_scan_addendum.txt` (the fan-out reading
