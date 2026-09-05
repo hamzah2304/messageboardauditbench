@@ -117,7 +117,8 @@ function persist(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
 function esc(s){return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 document.getElementById('sub').textContent=`${CL.length} claims. For each, does the best model snippet match the human snippet? Rate bad / neutral / good.`;
 function counts(){let b=0,n=0,g=0;for(const c of CL){const r=st(c.id).rating;if(r==='bad')b++;else if(r==='neutral')n++;else if(r==='good')g++;}
- c_bad.textContent=b;c_neu.textContent=n;c_good.textContent=g;c_pend.textContent=CL.length-b-n-g;}
+ document.getElementById('c-bad').textContent=b;document.getElementById('c-neu').textContent=n;
+ document.getElementById('c-good').textContent=g;document.getElementById('c-pend').textContent=CL.length-b-n-g;}
 function renderList(){const el=document.getElementById('list');el.innerHTML='';
  CL.forEach((c,i)=>{const r=st(c.id).rating;const d=document.createElement('div');d.className='li'+(i===cur?' active':'');
   d.innerHTML=`<span class="dot ${r==='bad'?'bad':r==='neutral'?'neu':r==='good'?'good':''}"></span><span class="id">${c.id}</span><span class="lbl">${esc(c.section)}</span>`;
@@ -138,10 +139,11 @@ function render(){counts();renderList();const c=CL[cur],s=st(c.id);
   `</div>`+
   `<textarea id="note" placeholder="note (optional)">${esc(s.note||'')}</textarea>`+
   `<div class="nav"><button id="prev">← Prev</button><button id="next">Next →</button></div>`;
+ const $=id=>document.getElementById(id);
  const set=v=>{s.rating=s.rating===v?null:v;persist();render();};
- rbad.onclick=()=>set('bad');rneu.onclick=()=>set('neutral');rgood.onclick=()=>set('good');
- note.oninput=e=>{s.note=e.target.value;persist();};
- prev.onclick=()=>{cur=Math.max(0,cur-1);render()};next.onclick=()=>{cur=Math.min(CL.length-1,cur+1);render()};
+ $('rbad').onclick=()=>set('bad');$('rneu').onclick=()=>set('neutral');$('rgood').onclick=()=>set('good');
+ $('note').oninput=e=>{s.note=e.target.value;persist();};
+ $('prev').onclick=()=>{cur=Math.max(0,cur-1);render()};$('next').onclick=()=>{cur=Math.min(CL.length-1,cur+1);render()};
 }
 document.addEventListener('keydown',e=>{if(e.target.tagName==='TEXTAREA')return;
  const s=st(CL[cur].id);
