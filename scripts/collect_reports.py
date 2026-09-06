@@ -52,7 +52,9 @@ def main() -> int:
         stamp = d.name.split("_", 1)[0]
         model = str(meta["model"]).replace("/", "_")
         replicate = meta.get("replicate", meta.get("seed", 0))
-        name = f"{meta['agent']}_{model}_r{replicate}_{stamp}{'_partial' if partial else ''}.md"
+        served = meta.get("model_served")  # Claude Code switched model after a safeguard refusal
+        tag = f"_served-{str(served).replace('/', '_')}" if served else ""
+        name = f"{meta['agent']}_{model}_r{replicate}_{stamp}{tag}{'_partial' if partial else ''}.md"
         config = meta.get("config", "legacy")
         dest = out / f"{config}_p{p8}" / name
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +70,7 @@ def main() -> int:
                      "replicate": replicate,
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
                                                   "wall_seconds", "cli_version", "prompt_sha256")},
+                     "model_served": served, "model_fallback": meta.get("model_fallback"),
                      "usage": meta.get("usage")})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit/usage.py)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))

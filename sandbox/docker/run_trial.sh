@@ -74,9 +74,9 @@ printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_sear
 # After every tool call, Claude Code and Codex feed the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
 # Both CLIs accept the same hook file shape; Codex additionally needs the codex_hooks feature and the hook-trust bypass flag.
 HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"}]}]}}'
-# Claude Code: switchModelsOnFlag=false stops the silent model swap after a safeguard refusal; in -p mode the
-# flagged turn ends the session as an error instead, which the refusal detector below turns into exit 5.
-printf '%s\n' "${HOOKS%\}}, \"switchModelsOnFlag\": false}" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
+# Claude Code may switch model after a safeguard refusal (fable-5.1 -> opus-5 -> opus-4.8). We let it: the
+# trial keeps running and the switch is recorded in meta.json (model_fallback) and in the report's filename.
+printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
 cleanup() {
@@ -154,13 +154,14 @@ python3 - "$RUN" "$RC" "$((END-START))" <<'PY'
 import json,sys,pathlib
 run,rc,secs=pathlib.Path(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
 m=json.loads((run/"meta.json").read_text()); m.update(exit_code=rc,wall_seconds=secs,report_exists=(run/"report.md").exists())
-# Claude Code can silently switch models after a refusal ({"type":"system","subtype":"model_refusal_fallback",...}).
-# Such a trial is not a datapoint for the requested model: record it and fail (exit 4) so collect_reports skips it.
+# Claude Code may switch models after a refusal ({"type":"system","subtype":"model_refusal_fallback",...}). The trial
+# stays valid but is labelled: meta.model_fallback and meta.model_served (the last model that answered) record it.
 fb=[json.loads(l) for l in (run/"transcript.jsonl").read_text().splitlines() if '"model_refusal_fallback"' in l]
 if fb:
-    m["model_fallback"]={"fallback_model":fb[0].get("fallback_model"),"trigger":fb[0].get("trigger"),"category":fb[0].get("api_refusal_category"),"events":len(fb)}
-    print(f"FAIL model fallback: {m['model']} -> {fb[0].get('fallback_model')} ({fb[0].get('api_refusal_category')})",file=sys.stderr)
-    if rc==0: rc=4; m["exit_code"]=rc
+    m["model_fallback"]={"fallback_model":fb[-1].get("fallback_model"),"trigger":fb[0].get("trigger"),"category":fb[0].get("api_refusal_category"),"events":len(fb),
+                         "chain":[m["model"]]+[e.get("fallback_model") for e in fb]}
+    m["model_served"]=fb[-1].get("fallback_model")
+    print(f"WARN model fallback: {' -> '.join(m['model_fallback']['chain'])} ({fb[0].get('api_refusal_category')})",file=sys.stderr)
 # ReAct: a provider refusal ends the turn with no tool call (OpenRouter native_finish_reason "refusal"); same treatment, exit 5.
 rf=[l for l in (run/"transcript.jsonl").read_text().splitlines() if '"native_finish_reason": "refusal"' in l or '"finish_reason": "content_filter"' in l or '"stop_reason":"refusal"' in l]
 if rf:
