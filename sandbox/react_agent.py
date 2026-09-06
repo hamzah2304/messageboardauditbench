@@ -87,6 +87,14 @@ def chat(base, key, body):
             return resp, attempt, int((time.time() - t) * 1000)
         except urllib.error.HTTPError as e:
             msg = e.read().decode(errors="replace")[:500]
+            # Gemini 3 rejects a conversation whose passed-back reasoning signatures it can no longer
+            # verify ("Corrupted thought signature", 400). Drop the reasoning from the history and retry once.
+            if e.code == 400 and "thought signature" in msg.lower() and attempt < 5:
+                for m in body.get("messages", []):
+                    if m.get("role") == "assistant": m.pop("reasoning_details", None); m.pop("reasoning", None)
+                req = urllib.request.Request(req.full_url, data=json.dumps(body).encode(), headers=req.headers)
+                emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": 400, "error": "thought signature rejected; retrying without reasoning history"})
+                continue
             if e.code in (408, 409, 429, 500, 502, 503, 504) and attempt < 5:
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": e.code, "error": msg[:200]})
                 time.sleep(2 ** attempt); continue

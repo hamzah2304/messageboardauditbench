@@ -74,7 +74,9 @@ printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_sear
 # After every tool call, Claude Code and Codex feed the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
 # Both CLIs accept the same hook file shape; Codex additionally needs the codex_hooks feature and the hook-trust bypass flag.
 HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"}]}]}}'
-printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
+# Claude Code: switchModelsOnFlag=false stops the silent model swap after a safeguard refusal; in -p mode the
+# flagged turn ends the session as an error instead, which the refusal detector below turns into exit 5.
+printf '%s\n' "${HOOKS%\}}, \"switchModelsOnFlag\": false}" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
 cleanup() {
@@ -160,7 +162,7 @@ if fb:
     print(f"FAIL model fallback: {m['model']} -> {fb[0].get('fallback_model')} ({fb[0].get('api_refusal_category')})",file=sys.stderr)
     if rc==0: rc=4; m["exit_code"]=rc
 # ReAct: a provider refusal ends the turn with no tool call (OpenRouter native_finish_reason "refusal"); same treatment, exit 5.
-rf=[l for l in (run/"transcript.jsonl").read_text().splitlines() if '"native_finish_reason": "refusal"' in l or '"finish_reason": "content_filter"' in l]
+rf=[l for l in (run/"transcript.jsonl").read_text().splitlines() if '"native_finish_reason": "refusal"' in l or '"finish_reason": "content_filter"' in l or '"stop_reason":"refusal"' in l]
 if rf:
     m["model_refusal"]={"events":len(rf)}
     print(f"FAIL model refusal: {m['model']} refused ({len(rf)} refusal responses)",file=sys.stderr)
