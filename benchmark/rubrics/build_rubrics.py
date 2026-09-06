@@ -9,9 +9,12 @@ model report against 5 items at a time (GRADER_PROMPT.md).
 """
 import json, textwrap
 from pathlib import Path
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
+                   GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 
-
-OUT = ROOT / "report/rubrics"
+OUT = RUBRICS
 feas = json.loads((FEASIBILITY / "feasibility.json").read_text())["claims"]
 # Per team review: every claim is graded for recall accuracy — the calibration
 # (partial/inference) claims are turned into accuracy ones too. No calibration mode.
@@ -163,10 +166,6 @@ for rub in combined:
 # there is no separate GRADER_PROMPT.md.
 import os as _os
 
-import sys as _sys, pathlib as _pl
-_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
-from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
-                   GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 _gp = OUT / "GRADER_PROMPT.md"
 if _gp.exists(): _os.remove(_gp)
 

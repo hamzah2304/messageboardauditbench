@@ -11,14 +11,14 @@ Env:    OPENAI_API_KEY (../../.env), MODEL (default gpt-5.6-sol), EFFORT (defaul
 import json, os, re, sys
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
+                   GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 from dotenv import load_dotenv
 load_dotenv(ENV_FILE)
 from openai import OpenAI
 
-import sys as _sys, pathlib as _pl
-_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
-from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
-                   GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 
 
 MODEL = os.getenv("MODEL", "gpt-5.6-sol")
