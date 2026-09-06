@@ -32,6 +32,8 @@ def finalize(run: pathlib.Path, force: bool = False) -> None:
         except Exception: continue
         if r.get("type") == "result": last = r; break
     rc = 1 if last.get("is_error") else 0
+    if m["agent"] == "codex":   # Codex has no result line; a run that never reached turn.completed was cut off
+        rc = 0 if any('"type":"turn.completed"' in l or '"type": "turn.completed"' in l for l in lines) else 1
     started = datetime.datetime.strptime(m["started"], "%Y%m%dT%H%M%SZ").replace(tzinfo=datetime.timezone.utc)
     secs = int(tr.stat().st_mtime - started.timestamp())
     m.update(exit_code=rc, wall_seconds=secs, report_exists=(run / "report.md").exists(), finalized_by="scripts/finalize_trial.py")

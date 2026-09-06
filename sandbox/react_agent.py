@@ -18,7 +18,7 @@ The final `result` event carries the totals.
 
   react_agent.py --model moonshotai/kimi-k3 --prompt-file /work/prompt.txt --effort medium --budget-min 20
 """
-import argparse, json, os, subprocess, sys, time, urllib.request, urllib.error
+import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error
 
 TOOLS = [
     {"type": "function", "function": {"name": "bash",
@@ -99,7 +99,7 @@ def chat(base, key, body):
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": e.code, "error": msg[:200]})
                 time.sleep(2 ** attempt); continue
             raise RuntimeError(f"HTTP {e.code}: {msg}")
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as e:  # incl. IncompleteRead, RemoteDisconnected
             if attempt < 5:
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": None, "error": str(e)[:200]})
                 time.sleep(2 ** attempt); continue
