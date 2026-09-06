@@ -13,12 +13,18 @@ Inspect agent: text, tool call, tool result, repeat.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.tool import ToolCall
 
 from messageboard_audit.usage import summarize

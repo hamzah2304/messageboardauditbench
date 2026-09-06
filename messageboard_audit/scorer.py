@@ -11,7 +11,6 @@ report was written, so those show up as columns without a judge call.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import yaml
@@ -49,20 +48,27 @@ async def _judge(model: Model, claim: str, report: str) -> tuple[bool, str]:
 
 
 @scorer(metrics=[mean(), stderr()])
-def rubric_scorer(judge: str = "anthropic/claude-sonnet-5") -> Scorer:
+def rubric_scorer(judge: str | Model = "anthropic/claude-sonnet-5") -> Scorer:
     rubric = _load_rubric()
-    model = get_model(judge)
 
     async def score(state: TaskState, target: Target) -> Score:
+        # Resolve the judge at scoring time. This keeps task discovery and
+        # construction independent of credentials and provider configuration.
+        model = get_model(judge, role="grader")
         report = state.output.completion if state.output else ""
         leaves, penalties = rubric["leaves"], rubric.get("penalties", [])
-        pos_total = sum(l["weight"] for l in leaves)
+        pos_total = sum(leaf["weight"] for leaf in leaves)
         got, verdicts = 0.0, {}
-        for l in leaves:
-            hit, reason = await _judge(model, l["claim"], report)
-            verdicts[l["id"]] = {"hit": hit, "weight": l["weight"], "derivable": l["derivable"], "reason": reason}
+        for leaf in leaves:
+            hit, reason = await _judge(model, leaf["claim"], report)
+            verdicts[leaf["id"]] = {
+                "hit": hit,
+                "weight": leaf["weight"],
+                "derivable": leaf["derivable"],
+                "reason": reason,
+            }
             if hit:
-                got += l["weight"]
+                got += leaf["weight"]
         penalty = 0.0
         for pnode in penalties:
             hit, reason = await _judge(model, pnode["claim"], report)
@@ -76,7 +82,7 @@ def rubric_scorer(judge: str = "anthropic/claude-sonnet-5") -> Scorer:
             value=value,
             answer=f"{got:.0f}/{pos_total} positive, -{penalty:.0f} penalty",
             explanation="hit: " + ", ".join(hits),
-            metadata={"verdicts": verdicts},
+            metadata={"judge": str(model), "verdicts": verdicts},
         )
 
     return score

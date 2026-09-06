@@ -1,14 +1,31 @@
 [project]
-name = "messageboard-auditbench"
+name = "messageboard-audit"
 version = "0.1.0"
 description = "Benchmark: can coding agents audit message-board logs of colluding AI agents?"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "inspect-ai>=0.3",
+    "inspect_ai>=0.3.263",
     "anthropic",
     "openai",
-    "pyyaml",
+    "pyyaml>=6.0",
     "markdown-it-py>=4.2.0",
+]
+
+[project.urls]
+"Source Code" = "https://github.com/hamzah2304/messageboardauditbench"
+"Issue Tracker" = "https://github.com/hamzah2304/messageboardauditbench/issues"
+
+# Register the package with Inspect so users can run
+# `inspect eval messageboard_audit/messageboard_audit` after installation.
+[project.entry-points.inspect_ai]
+messageboard_audit = "messageboard_audit"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.13",
 ]
 
 [build-system]
@@ -17,3 +34,15 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["messageboard_audit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+include = ["messageboard_audit/**/*.py", "tests/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]

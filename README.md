@@ -119,9 +119,10 @@ from a plain clone.
 
 ## Inspect integration
 
-The repo is packaged as an [Inspect](https://inspect.aisi.org.uk/) eval.
-`messageboard_audit/` is the task package, and `inspect-ai>=0.3` is a declared
-dependency in `pyproject.toml`, so `uv sync` installs it.
+The repo is packaged as an installable [Inspect](https://inspect.aisi.org.uk/)
+eval. `pyproject.toml` registers `messageboard_audit` as an Inspect plugin, and
+`messageboard_audit/__init__.py` exports the task functions. After `uv sync`,
+Inspect can discover the eval by package name; no task-file path is required.
 
 Inspect does not replace the sandbox — it wraps it. The solver shells out to the
 same `sandbox/docker/run_trial.sh` that a manual run uses, so the isolation
@@ -137,16 +138,18 @@ a viewer, and epoch handling.
 | `rubric.yaml` | the rubric that scorer grades against |
 
 ```bash
-uv sync                                    # installs inspect-ai and this package
+uv sync                                    # installs Inspect and this package
+scripts/build_data.sh                      # downloads and verifies the dataset
 export ANTHROPIC_API_KEY=...               # the judge needs a key even when the
                                            # agents run on a subscription CLI
 
 # run fresh trials; conditions come from configs/<config>.toml
-uv run inspect eval messageboard_audit/task.py@messageboard_audit \
-  -T agent=claude -T model=claude-opus-5 -T config=blind-20 --epochs 3
+uv run inspect eval messageboard_audit/messageboard_audit \
+  -T agent=claude -T model=claude-opus-5 -T config=blind-20 \
+  --epochs 3 --max-samples 1
 
 # or fold runs already on disk into one eval, without spending model time
-uv run inspect eval messageboard_audit/task.py@messageboard_audit_replay
+uv run inspect eval messageboard_audit/messageboard_audit_replay
 
 uv run inspect view                        # browse the .eval logs
 ```
@@ -175,6 +178,17 @@ So Inspect is the run-and-inspect harness here, not the source of the reported
 results. Treat `rubric_scorer` output as indicative until `rubric.yaml` is
 validated the way the 30 claims were; `docs/design-notes.md` sketches the
 claim-precision and citation-support scorers meant to close that gap.
+
+### Official Inspect Evals register
+
+This repository follows the upstream packaging conventions for an externally
+managed Inspect eval: PEP 517 packaging, an `inspect_ai` entry point, exported
+`@task` functions, versioned task metadata, declared asset provenance, and an
+end-to-end mock-model test. It is not yet listed in the official Inspect Evals
+register. Registration also requires an immutable dataset host, a public pinned
+code commit, an arXiv paper, and full logs from two models. See
+[`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md) for
+the exact handoff.
 
 ## Notes on reproducibility
 

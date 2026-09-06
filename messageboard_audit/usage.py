@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 KEYS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens")
 
@@ -182,7 +183,7 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
                 s["tool_calls"] += 1
             elif k == "reasoning":
                 s["thinking_blocks"] += 1
-                s["thinking_chars"] += len((ev["item"].get("text") or ""))
+                s["thinking_chars"] += len(ev["item"].get("text") or "")
         elif t == "turn.completed":
             turn_usage = ev.get("usage") or {}
             s["turns"] += 1
@@ -202,7 +203,12 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
     rollouts = _codex_rollouts(run_dir)
     if rollouts:
         last_total: dict | None = None
-        calls = 0; r_items = 0; r_summary_chars = 0; r_raw_chars = 0; encrypted = 0; peak = 0
+        calls = 0
+        r_items = 0
+        r_summary_chars = 0
+        r_raw_chars = 0
+        encrypted = 0
+        peak = 0
         for ro in rollouts:
             for ev in _lines(ro):
                 p = ev.get("payload") or {}
@@ -255,7 +261,8 @@ def summarize(run_dir: Path, agent: str | None = None) -> dict[str, Any]:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
-        print(__doc__); return 2
+        print(__doc__)
+        return 2
     run_dir = Path(argv[1])
     s = summarize(run_dir)
     (run_dir / "usage.json").write_text(json.dumps(s, indent=1) + "\n")
