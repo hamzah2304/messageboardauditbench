@@ -21,8 +21,14 @@ a source text and then *checking* that every span really is a substring of it:
 
 Spans shorter than 25 characters are dropped. A failed span is fed back once with the
 strings that were not found; whatever still will not validate is kept under
-"unverified" for inspection rather than silently discarded. Both output files are
-resumable -- an already-recorded claim or pair is skipped unless --force is passed.
+"unverified" for inspection rather than silently discarded.
+
+Both output files are resumable: --human skips a claim already recorded, and --reports
+skips a pair whose recorded judge_quote still matches the quote the judge currently
+gives. A regrade rewrites those quotes, so --reports also regenerates any entry whose
+quote has moved on and drops any entry whose pair no longer needs repairing at all --
+re-running it after a regrade costs only the pairs that actually changed. --force
+redoes everything.
 
     scripts/anchor_claims.py [--human] [--reports] [--force]      (neither = both)
 Env: OPENAI_API_KEY (.env), MODEL (default gpt-5.6-sol), EFFORT (default xhigh).
@@ -54,7 +60,6 @@ REPORTS_OUT = CLAIMS / "anchors_reports.json"
 REPORT_DIRS = ["round2_blind10", "round2_blind20", "round2_blind30",
                "round3_blind10", "round3_blind30", "round3_blind120"]
 MIN_SPAN = 25
-EXPECTED_PAIRS = 182
 
 SYS = ("You locate evidence in a document. You never paraphrase, never elide with "
        "ellipses, and never fix typography: every span you return is copied "
@@ -245,13 +250,23 @@ Return strict JSON: {{"spans": ["...", "..."], "note": "..."}}
 
 def run_reports(force):
     pairs = broken_pairs()
-    print(f"[reports] {len(pairs)} unfindable (report, claim) pairs "
-          f"(expected {EXPECTED_PAIRS})")
-    if len(pairs) != EXPECTED_PAIRS:
-        print(f"[reports] !! count differs from the expected {EXPECTED_PAIRS}")
-    out = {} if force or not REPORTS_OUT.exists() else json.loads(REPORTS_OUT.read_text())
-    todo = [p for p in pairs if f"{p['key']}/{p['cid']}" not in out]
-    print(f"[reports] {len(todo)} to do")
+    keyed = {f"{p['key']}/{p['cid']}": p for p in pairs}
+    print(f"[reports] {len(pairs)} unfindable (report, claim) pairs")
+    prev = {} if not REPORTS_OUT.exists() else json.loads(REPORTS_OUT.read_text())
+    # A regrade rewrites the judge's quotes, so a recorded repair is only reusable
+    # while it still answers the quote the judge currently gives; anything else is
+    # regenerated, and a pair that no longer needs repairing is dropped outright.
+    dead = [k for k in prev if k not in keyed]
+    out, todo = {}, []
+    for k, p in keyed.items():
+        e = prev.get(k)
+        if e and not force and (e.get("judge_quote") or "").strip() == p["quote"].strip():
+            out[k] = e
+        else:
+            todo.append(p)
+    stale = sum(1 for p in todo if f"{p['key']}/{p['cid']}" in prev)
+    print(f"[reports] reuse {len(out)}, regenerate {len(todo)} "
+          f"({stale} stale quote, {len(todo) - stale} missing), drop {len(dead)} dead")
     if todo:
         with ThreadPoolExecutor(max_workers=12) as ex:
             futs = {ex.submit(anchor, report_prompt(p), p["text"]): p for p in todo}
@@ -269,12 +284,13 @@ def run_reports(force):
                 done += 1
                 print(f"  [{done}/{len(todo)}] {k}: {len(good)} span(s), "
                       f"{attempts} attempt(s)")
-    order = [f"{p['key']}/{p['cid']}" for p in pairs]
-    out = {k: out[k] for k in order if k in out}
+    out = {k: out[k] for k in keyed if k in out}
     REPORTS_OUT.write_text(json.dumps(out, indent=1, ensure_ascii=False))
     fixed = sum(1 for v in out.values() if v["spans"])
+    spans = sum(len(v["spans"]) for v in out.values())
     print(f"[reports] {fixed} repaired, {len(out) - fixed} empty, "
-          f"{len(pairs) - len(out)} unrecorded -> {REPORTS_OUT}")
+          f"{len(pairs) - len(out)} unrecorded, {len(dead)} dropped, "
+          f"{spans} spans -> {REPORTS_OUT}")
 
 
 def main():
