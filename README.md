@@ -138,7 +138,7 @@ CLI, but imports that CLI's event stream after the run.
 | `native.py` | runs Claude Code/Codex through Inspect SWE, or Inspect's ReAct agent, and collects `report.md` |
 | `solver.py` | `subscription_agent` launches the subscription runner; `replay` imports a finished run |
 | `transcripts.py` | loss-aware conversion of subscription/historical CLI events into Inspect messages and tool calls |
-| `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`) and `process_metrics` (turns, tokens, wall time — no judge) |
+| `scorer.py` | report-quality, process, and report-length scorers |
 | `rubric.yaml` | the rubric that scorer grades against |
 
 ```bash
@@ -171,14 +171,24 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 
 uv run inspect view                        # browse the .eval logs
+
+# Export native reports for the existing report/grade tooling. This reads logs
+# through Inspect's Log API; it does not parse .eval files directly.
+uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
+
+# Run one explicit model/agent/condition cell. On macOS this prevents sleep.
+scripts/run_inspect_matrix.sh --agent claude --condition blind \
+  --model anthropic/claude-opus-4-1 --epochs 3
 ```
 
 `-T agent=claude` runs Claude Code, `-T agent=codex` runs Codex CLI, and
 `-T agent=react` runs Inspect's model-neutral ReAct agent. Claude Code is the
 default. With `backend=inspect`, all three use Inspect's `--model`, provider
-prompt cache, scoped limits, and live logging. The prompt tells every harness
-to call the sandbox's `time_left` helper periodically; its deadline is set from
-the same scoped limit. With `backend=subscription`, use
+prompt cache, scoped limits, and live logging. Every native harness receives a
+time note after each tool call; Claude Code and Codex receive it through their
+lifecycle hooks, while Inspect ReAct receives it in the wrapped tool result.
+The prompt also lets every harness call `time_left` on demand. Both mechanisms
+use the same scoped deadline. With `backend=subscription`, use
 `-T subscription_model=...`; this deliberately runs outside Inspect's model
 provider and then converts the recorded CLI events for the viewer.
 
@@ -186,11 +196,38 @@ The condition and time dimensions are independent: use
 `-T condition=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
 config names remain available to the direct sandbox scripts but are not part of
 the Inspect task interface. The default is 20 minutes for either condition.
+The limit is a cap, not a minimum: agents may stop early and short reports are
+not sent back for expansion.
 
 `--epochs N` runs N independent replicates; the replicate number identifies a run
 and does not seed sampling. Use `--max-samples 1` to serialize epochs against a
 subscription-backed CLI. `messageboard_audit_bench_replay` reads `runs/`, which is
 gitignored — it only has anything to import on a machine that has run trials.
+
+`export_inspect_reports.py` is the bridge from native `.eval` logs to the
+report-artifact layout used by downstream graders. It exports only native
+`backend=inspect` samples by default. Passing `--backend all` includes imported
+subscription samples. Reports are grouped by the actual scaffold, so native and
+subscription Claude Code (or Codex CLI) runs can be analyzed together; backend
+remains on every index row. The two ReAct implementations stay separate.
+`run_inspect_matrix.sh` makes its API retries, request/attempt timeouts,
+sample/sandbox/API concurrency, sample retries, and raw API/refusal logging
+explicit. It defaults to at most two sample reruns after an error and uses
+`caffeinate` on macOS; it intentionally does not impose a disk-space floor.
+
+The round-3 prompt targets 2,500–3,000 words. Short, nonempty reports are
+accepted; reports up to 3,100 words pass the separate length score. The agent
+does not see that tolerance. After-tool checks stay silent unless `report.md`
+is over 3,000 words. A Claude Code or Codex Stop hook, or the native wrapper's
+post-hoc guard, can request one shortening pass when at least a minute remains.
+Subscription hooks implement the same policy. Missing, empty, short, and early
+reports are never used to force additional work. Native log metadata records
+whether the PostToolUse and Stop hooks actually fired.
+
+Provider refusals are retried at most twice through the same model. A terminal
+native refusal is recorded from Inspect's `content_filter` stop reason in
+sample metadata; no model fallback occurs. The batch runner independently
+allows at most two whole-sample retries for actual sample errors.
 
 Provider prompt caching is explicitly enabled on the native backend with
 Inspect's `cache_prompt=True`; Inspect's `.eval` usage records separate cache
@@ -198,6 +235,9 @@ read and cache write tokens. Subscription/replay logs retain the CLI-reported
 cache counters. No converter can make an old external run into an Inspect SWE
 run—Inspect SWE is the live execution bridge—but the importer maps its complete
 trajectory into the same Inspect chat/tool representation used by the UI.
+Sample metadata records both `scaffold` and `backend`: Claude Code and Codex CLI
+can be grouped across API and subscription transports, while Inspect ReAct and
+the legacy subscription ReAct loop remain distinct scaffolds.
 
 ### Which scorer produced the headline numbers
 

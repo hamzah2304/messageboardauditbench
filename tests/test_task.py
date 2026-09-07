@@ -17,24 +17,31 @@ from messageboard_audit_bench.task import messageboard_audit_bench as build_task
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", condition="blind")
 
-    assert task.version == EVAL_VERSION == "1-B"
+    assert task.version == EVAL_VERSION == "3-B"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
         "agent": "codex",
+        "scaffold": "codex-cli",
         "backend": "inspect",
         "condition": "blind",
         "budget_min": 20,
         "data_variant": "verbatim",
         "effort": "xhigh",
+        "report_min_words": 2500,
+        "report_max_words": 3000,
+        "report_accept_min_words": 0,
+        "report_accept_max_words": 3100,
     }
 
 
 def test_prompt_uses_named_condition() -> None:
     prompt = _prompt_for("blind")
 
-    assert "Time budget: you have 20 minutes" in prompt
+    assert "Time budget: you have up to 20 minutes" in prompt
     assert "{{BUDGET_MIN}}" not in prompt
+    assert "between 2,500 and 3,000 words" in prompt
+    assert "3,100" not in prompt
 
 
 def test_command_time_limit_overrides_prompt_and_metadata() -> None:
@@ -44,7 +51,7 @@ def test_command_time_limit_overrides_prompt_and_metadata() -> None:
         time_limit_minutes=37,
     )
 
-    assert "Time budget: you have 37 minutes" in task.dataset[0].input
+    assert "Time budget: you have up to 37 minutes" in task.dataset[0].input
     assert task.dataset[0].metadata["budget_min"] == 37
     assert task.dataset[0].id.endswith(":37m")
     assert task.metadata["time_limit_minutes"] == 37
@@ -67,13 +74,13 @@ def test_command_time_limit_reaches_solver(monkeypatch) -> None:
     )
 
     assert captured["time_limit_minutes"] == 37
-    assert captured["timeout_minutes"] == 42
+    assert captured["timeout_minutes"] == 37
     assert captured["prompt"] == "blind"
     assert captured["data_variant"] == "verbatim"
     assert captured["effort"] == "xhigh"
 
 
-def test_default_time_limit_preserves_condition_timeout(monkeypatch) -> None:
+def test_default_time_limit_is_exact_for_subscription_agent(monkeypatch) -> None:
     captured = {}
 
     def capture_subscription_agent(**kwargs):
@@ -88,7 +95,7 @@ def test_default_time_limit_preserves_condition_timeout(monkeypatch) -> None:
     )
 
     assert captured["time_limit_minutes"] == 20
-    assert captured["timeout_minutes"] == 25
+    assert captured["timeout_minutes"] == 20
 
 
 @pytest.mark.parametrize("value", [0, -1, True])
@@ -154,6 +161,8 @@ def test_native_threads_condition_tools_to_agent_solver(monkeypatch) -> None:
     assert captured["agent"] == "claude"
     assert captured["time_limit_seconds"] == 20 * 60
     assert "WebSearch" in captured["claude_disallowed_tools"]
+    assert captured["report_min_words"] == 2500
+    assert captured["report_max_words"] == 3000
 
 
 @pytest.mark.parametrize("name", ["../blind", "blind_mode", "", "/tmp/condition"])

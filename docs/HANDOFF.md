@@ -185,7 +185,8 @@ Components:
   --skip-git-repo-check --ignore-rules --json -o final_message.md`, with a
   minimal config.toml (no MCP, web search off) and `< /dev/null` on stdin.
   Env `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_AUTOUPDATER=1`.
-- **Budget.** `timeout 25m` around the CLI; the prompt says ~20 minutes.
+- **Budget.** The CLI hard timeout and prompt both default to 20 minutes; the
+  Inspect command can override both with `-T time_limit_minutes=N`.
   Neither CLI has a turn cap in current versions.
 
 Canary, run before every trial in the same image and network, trial aborts if

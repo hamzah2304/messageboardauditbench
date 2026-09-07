@@ -13,7 +13,7 @@ that can be explored with `inspect view`.
 | `native.py` | runs Claude Code and Codex through Inspect SWE, or Inspect's built-in ReAct agent, then collects `report.md` |
 | `solver.py` | `subscription_agent` launches `sandbox/docker/run_trial.sh`; `replay` imports a finished run |
 | `transcripts.py` | loss-aware conversion of subscription and historical CLI events into Inspect messages + tool calls |
-| `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`, per-leaf verdicts in metadata) and `process_metrics` (turns, tokens, wall time, no judge) |
+| `scorer.py` | report-quality, process, and report-length scorers |
 | `rubric.yaml` | starter rubric: positive leaves + penalty leaves, each tagged derivable yes/partly/no. LLM-seeded, needs human validation |
 
 ## Setup
@@ -77,7 +77,9 @@ model bridge, so Inspect's generation config—not a subscription CLI setting—
 governs model calls. Providers may reject or map unsupported reasoning-effort
 levels; the requested level is recorded in task and sample metadata. The
 wrapper only retrieves the report after the agent finishes (or the scoped time
-limit fires).
+limit fires). Provider refusals receive two same-model retries. Terminal
+refusals are recorded from Inspect's normalized stop reason; no fallback model
+is substituted.
 
 `-T condition=blind|context` chooses the prompt and its fixed data/effort
 profile; condition names never encode time. `-T time_limit_minutes=N` controls
@@ -85,6 +87,14 @@ the stated budget and the scoped Inspect agent limit. An outer task guard gives
 native cleanup five additional minutes; it does not give the agent more time.
 The shared `time_left` sandbox command reports the same deadline. If omitted,
 the time limit defaults to 20 minutes for every condition.
+This limit is a cap, not a minimum; the task never resumes an agent merely for
+stopping early or writing a short report.
+Native Claude Code and Codex install lifecycle hooks without replacing Inspect
+SWE's API bridge configuration. They inject the remaining time after every tool
+call and report-length feedback only when the file is over the strict maximum.
+Inspect ReAct appends the same feedback directly to its tool results. The
+`post_tool_hook_fired` and `stop_hook_fired` metadata fields make this auditable
+in Inspect logs.
 `-T judge=anthropic/claude-sonnet-5` picks the judge;
 an Inspect `grader` model role takes precedence when one is supplied.
 
@@ -102,8 +112,9 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 The subscription backend uses the existing login and hardened proxy runner.
 Its model calls necessarily occur outside Inspect, so it cannot have live
 Inspect SWE model events. Afterward, a loss-aware importer maps CLI text,
-reasoning, tool calls/results, errors, fallbacks, and usage into Inspect's
-message schema. Conversion diagnostics appear in sample metadata. Run
+reasoning, tool calls/results, errors, and usage into Inspect's
+message schema. Conversion diagnostics appear in sample metadata. Refusals do
+not switch the configured model. Run
 `PYTHONPATH=. python scripts/check_transcript_conversion.py runs` to verify all
 completed local trajectories have valid, one-to-one tool call/result IDs.
 
@@ -113,9 +124,9 @@ completed local trajectories have valid, one-to-one tool call/result IDs.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 ```
 
-Folds every `runs/*_s*` directory (skipping `failed_*`) into one eval, scores
-each. Use this to bring past baseline runs into the viewer without spending
-model time.
+Folds matching `runs/` directories that contain transcripts (including
+interrupted runs, but skipping `failed_*`) into one eval and scores each. Use
+this to bring past trajectories into the viewer without spending model time.
 
 ## Inspect the logs (the recommended way)
 
@@ -140,6 +151,32 @@ Programmatic access:
 uv run python -c "from inspect_ai.log import list_eval_logs, read_eval_log; \
   lg=read_eval_log(list_eval_logs('logs')[-1].name); print(lg.results)"
 ```
+
+To export native reports for the repository's report/grade tooling, use the
+public Inspect Log API wrapper rather than reading `.eval` files directly:
+
+```
+uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
+```
+
+This defaults to native `backend=inspect` samples. `--backend all` also exports
+subscription imports. Reports are grouped by agent scaffold, while backend
+labels remain available in index rows.
+
+## Report length
+
+The round-3 conditions ask for 2,500–3,000 words and call 3,000 a strict upper
+limit. The separate `report_length` scorer accepts any nonempty report through
+3,100 words, so short reports pass and a small overrun is tolerated without
+revealing that tolerance to the agent. Missing, empty, and longer reports fail
+that score without changing the report-quality score.
+
+If a native agent stops with an over-3,000-word report and at least a minute
+remains, the wrapper resumes the same Claude Code, Codex CLI, or ReAct session
+once with a request to shorten it. Subscription hooks likewise ping only
+overlong reports and allow the next stop. No mechanism forces an early-stopping
+agent to keep investigating or expand a short report. `report_length` in the
+sandbox reports the current whitespace-based count on demand.
 
 ## Notes / next steps
 

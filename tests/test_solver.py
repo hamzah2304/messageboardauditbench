@@ -195,7 +195,7 @@ async def test_subscription_agent_folds_successful_trial(
         model="gpt-test",
         condition="blind",
         time_limit_minutes=37,
-        timeout_minutes=42,
+        timeout_minutes=37,
         prompt="blind",
         data_variant="verbatim",
         effort="xhigh",
@@ -211,7 +211,8 @@ async def test_subscription_agent_folds_successful_trial(
     assert captured["env"]["DATA_DIR"].endswith("/data/verbatim")
     assert captured["env"]["EFFORT"] == "xhigh"
     assert captured["env"]["BUDGET_MIN"] == "37"
-    assert captured["env"]["TIMEOUT"] == "42m"
+    assert captured["env"]["TIMEOUT"] == "37m"
+    assert captured["timeout"] == 42 * 60
 
 
 @pytest.mark.asyncio
@@ -226,7 +227,107 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
 
     monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
-    with pytest.raises(RuntimeError, match="exit code 2: docker unavailable"):
+    with pytest.raises(
+        RuntimeError,
+        match="before producing a run directory with exit code 2: docker unavailable",
+    ):
         await subscription_agent(agent="codex", model="gpt-test", condition="blind")(
             _state(), None
         )
+
+
+@pytest.mark.asyncio
+async def test_subscription_agent_folds_timed_out_trial(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = _run_dir(tmp_path / "timed-out")
+
+    def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=124,
+            stdout=f"run: {run_dir}\n",
+            stderr="time limit reached",
+        )
+
+    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
+
+    state = await subscription_agent(
+        agent="codex",
+        model="gpt-test",
+        condition="blind",
+        timeout_minutes=3,
+    )(_state(), None)
+
+    assert state.completed
+    assert state.metadata["runner_returncode"] == 124
+    assert state.metadata["trial_failed"] is True
+    assert "Investigation complete" in state.messages[-1].text
+
+
+@pytest.mark.asyncio
+async def test_subscription_agent_recovers_host_guard_timeout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = _run_dir(tmp_path / "host-timeout")
+    cleaned = []
+
+    def fake_run(command: list[str], **_kwargs):
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout=480,
+            output=f"run: {run_dir}\n".encode(),
+            stderr=b"stuck cleanup",
+        )
+
+    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "messageboard_audit_bench.solver._cleanup_interrupted_run",
+        lambda path: cleaned.append(path),
+    )
+
+    state = await subscription_agent(
+        agent="codex",
+        model="gpt-test",
+        condition="blind",
+        timeout_minutes=3,
+    )(_state(), None)
+
+    assert cleaned == [run_dir]
+    assert state.metadata["runner_returncode"] == 124
+    assert state.metadata["trial_failed"] is True
+    assert state.metadata["run_dir"] == str(run_dir)
+
+
+@pytest.mark.asyncio
+async def test_subscription_refusal_reruns_twice_with_same_model(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dirs = [_run_dir(tmp_path / f"refusal-{index}") for index in range(3)]
+    calls = 0
+
+    def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
+        nonlocal calls
+        run_dir = run_dirs[calls]
+        calls += 1
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=5,
+            stdout=f"run: {run_dir}\n",
+            stderr="model refusal",
+        )
+
+    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
+
+    state = await subscription_agent(
+        agent="claude",
+        model="same-model",
+        condition="blind",
+        timeout_minutes=3,
+    )(_state(), None)
+
+    assert calls == 3
+    assert state.metadata["refusal_rerun_limit"] == 2
+    assert state.metadata["refusal_reruns"] == 2
+    assert state.metadata["runner_returncode"] == 5
+    assert state.metadata["prior_run_dirs"] == [str(path) for path in run_dirs[:2]]

@@ -21,7 +21,12 @@ IMAGE="${IMAGE:-mbab-sandbox}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROOT/configs/$CONFIG.toml"
 [ -f "$CONFIG" ] || { echo "no config at $CONFIG" >&2; exit 1; }
-eval "$(python3 "$ROOT/scripts/read_config.py" "$CONFIG")"
+CONFIG_ASSIGNMENTS="$(python3 "$ROOT/scripts/read_config.py" "$CONFIG")"
+eval "$CONFIG_ASSIGNMENTS"
+REPORT_MIN_WORDS="${CFG_REPORT_MIN_WORDS:-0}"
+REPORT_MAX_WORDS="${CFG_REPORT_MAX_WORDS:-0}"
+REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
+REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$REPORT_MAX_WORDS}"
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
 . "$HERE/resolve_timeout.sh"
@@ -31,7 +36,9 @@ DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 
-docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
+# Always ask Docker to build: layer caching makes unchanged launches cheap and
+# ensures the recorded image contains this worktree's exact helper scripts.
+docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
@@ -43,6 +50,9 @@ mkdir -p "$RUN/work/data" "$SECRETS/claude" "$SECRETS/codex"
 cp "$DATA_DIR"/*.jsonl "$RUN/work/data/"
 # The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
 sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$PROMPT_FILE" > "$RUN/work/prompt.txt"
+python3 "$ROOT/messageboard_audit_bench/report_length.py" \
+  --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" \
+  --instruction >> "$RUN/work/prompt.txt"
 PROMPT="$(cat "$RUN/work/prompt.txt")"
 
 # Credentials: a throwaway copy, mounted as the container user's ~/.claude and ~/.codex.
@@ -73,16 +83,18 @@ elif [ "$AGENT" = codex ]; then echo "no Codex credentials: run \`codex login\` 
 # transcript carries them; keep session persistence on so the rollout (per-call token counts,
 # reasoning items) lands in $SECRETS/codex/sessions and can be copied to <run>/codex_sessions.
 printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
-# After every tool call, Claude Code and Codex feed the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
+# After every tool call, Claude Code and Codex feed the agent its remaining
+# time. Report-length hooks remain silent unless report.md is over the strict
+# maximum; the Stop hook requests at most one shortening pass.
 # Both CLIs accept the same hook file shape; Codex additionally needs the codex_hooks feature and the hook-trust bypass flag.
-HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"}]}]}}'
-# Claude Code may switch model after a safeguard refusal (fable-5.1 -> opus-5 -> opus-4.8). We let it: the
-# trial keeps running and the switch is recorded in meta.json (model_fallback) and in the report's filename.
+HOOKS='{"switchModelsOnFlag":false,"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"},{"type":"command","command":"python3 /sandbox/report_length.py --hook PostToolUse"}]}],"Stop":[{"hooks":[{"type":"command","command":"python3 /sandbox/report_length.py --hook Stop"}]}]}}'
+# A safeguard refusal never switches the configured model. The subscription
+# sample fails and the Inspect launcher may rerun it up to its explicit limit.
 printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
 cleanup() {
-  docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true; docker rm -f "$PROXY" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true
+  docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true; docker rm -f "mbab-agent-$RUN_ID" "$PROXY" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true
   # Codex's session rollout is the only place with per-API-call usage and the reasoning items. Keep it (no credentials in it).
   [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
   rm -rf "$SECRETS"; }
@@ -117,6 +129,8 @@ GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 
 cat > "$RUN/meta.json" <<JSON
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
+ "report_min_words":$REPORT_MIN_WORDS,"report_max_words":$REPORT_MAX_WORDS,
+ "report_accept_min_words":$REPORT_ACCEPT_MIN_WORDS,"report_accept_max_words":$REPORT_ACCEPT_MAX_WORDS,
  "prompt":"$PROMPT_NAME","condition":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
@@ -125,23 +139,23 @@ JSON
 echo "run: $RUN"
 START=$(date +%s); set +e
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
-TIME_ENV=(-e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN")
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN")
 case "$AGENT" in
   claude)
-    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
+    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
       --dangerously-skip-permissions --no-chrome --no-session-persistence --setting-sources user \
       ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
       --output-format stream-json --verbose \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   codex)
-    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
+    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
       --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
-      --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust --skip-git-repo-check --ignore-rules \
+      --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
       --json -o /work/final_message.md "$PROMPT" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   react)
-    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
+    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
       --model "$MODEL" --effort "$EFFORT" --prompt-file /work/prompt.txt --cwd /work --budget-min "$BUDGET_MIN" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   *) echo "unknown agent $AGENT" >&2; exit 2 ;;
@@ -151,28 +165,9 @@ for f in report.md final_message.md; do [ -f "$RUN/work/$f" ] && cp "$RUN/work/$
 # Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
 [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
-PYTHONPATH="$ROOT" python3 -m messageboard_audit_bench.usage "$RUN" --quiet || echo "usage summary failed" >&2
-python3 - "$RUN" "$RC" "$((END-START))" <<'PY'
-import json,sys,pathlib
-run,rc,secs=pathlib.Path(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
-m=json.loads((run/"meta.json").read_text()); m.update(exit_code=rc,wall_seconds=secs,report_exists=(run/"report.md").exists())
-# Claude Code may switch models after a refusal ({"type":"system","subtype":"model_refusal_fallback",...}). The trial
-# stays valid but is labelled: meta.model_fallback and meta.model_served (the last model that answered) record it.
-fb=[json.loads(l) for l in (run/"transcript.jsonl").read_text().splitlines() if '"model_refusal_fallback"' in l]
-if fb:
-    m["model_fallback"]={"fallback_model":fb[-1].get("fallback_model"),"trigger":fb[0].get("trigger"),"category":fb[0].get("api_refusal_category"),"events":len(fb),
-                         "chain":[m["model"]]+[e.get("fallback_model") for e in fb]}
-    m["model_served"]=fb[-1].get("fallback_model")
-    print(f"WARN model fallback: {' -> '.join(m['model_fallback']['chain'])} ({fb[0].get('api_refusal_category')})",file=sys.stderr)
-# ReAct: a provider refusal ends the turn with no tool call (OpenRouter native_finish_reason "refusal"); same treatment, exit 5.
-rf=[l for l in (run/"transcript.jsonl").read_text().splitlines() if '"native_finish_reason": "refusal"' in l or '"finish_reason": "content_filter"' in l or '"stop_reason":"refusal"' in l]
-if rf:
-    m["model_refusal"]={"events":len(rf)}
-    print(f"FAIL model refusal: {m['model']} refused ({len(rf)} refusal responses)",file=sys.stderr)
-    if rc==0: rc=5; m["exit_code"]=rc
-u=json.loads((run/"usage.json").read_text()) if (run/"usage.json").exists() else {}
-m["usage"]={k:u.get(k) for k in ("usage_schema","input_tokens","input_tokens_uncached","output_tokens","cache_read_tokens","cache_write_tokens","cache_read_fraction","reasoning_tokens",
-            "cost_usd","api_calls","tool_calls","api_retries","api_errors","peak_context_tokens","terminal_reason","is_error","usage_source")}
-(run/"meta.json").write_text(json.dumps(m,indent=1)); print(json.dumps(m,indent=1))
-PY
+PYTHONPATH="$ROOT" python3 "$ROOT/messageboard_audit_bench/usage.py" "$RUN" --quiet || echo "usage summary failed" >&2
+set +e
+python3 "$ROOT/scripts/postprocess_trial.py" "$RUN" "$RC" "$((END-START))"
+RC=$?
+set -e
 exit "$RC"

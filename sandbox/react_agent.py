@@ -19,6 +19,9 @@ The final `result` event carries the totals.
   react_agent.py --model moonshotai/kimi-k3 --prompt-file /work/prompt.txt --effort medium --budget-min 20
 """
 import argparse, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
+from pathlib import Path
+
+from report_length import env_limits, overlong_feedback_if_changed, stop_reason
 
 TOOLS = [
     {"type": "function", "function": {"name": "bash",
@@ -189,12 +192,21 @@ def main():
         if m.get("reasoning_details"): assistant["reasoning_details"] = m["reasoning_details"]
         elif m.get("reasoning"): assistant["reasoning"] = m["reasoning"]   # plaintext-only providers
         msgs.append(assistant)
-        if not calls: break
+        if not calls:
+            reason = stop_reason(Path(a.cwd) / "report.md", *env_limits())
+            if not reason:
+                break
+            msgs.append({"role": "user", "content": reason})
+            emit({"type": "user", "message": {"content": [{"type": "text", "text": reason}]}})
+            continue
         results = []
         for c in calls:
             args = c["_args"]
             out = ("[could not parse tool arguments as JSON]" if "_raw" in args else run_tool(c["function"]["name"], args, a.cwd))
             out += time_left_note()
+            note = overlong_feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
+            if note:
+                out += "\n\n[" + note + "]"
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})
             results.append({"type": "tool_result", "tool_use_id": c["id"], "content": out})
         emit({"type": "user", "message": {"content": results}})
