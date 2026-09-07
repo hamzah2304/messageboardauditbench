@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Summarize what a trial cost: tokens (incl. reasoning), cache hits, cost, API calls, retries, how it ended.
 
-    python3 -m messageboard_audit.usage runs/<run_dir>      # writes <run>/usage.json, prints it
+    python3 -m messageboard_audit_bench.usage runs/<run_dir>      # writes <run>/usage.json, prints it
 
 Stdlib only, so run_trial.sh can call it on any python3 and transcripts.py can import it.
 One dialect per agent:
@@ -24,7 +24,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-KEYS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens")
+KEYS = (
+    "input_tokens",
+    "input_tokens_uncached",
+    "output_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "reasoning_tokens",
+)
 
 
 def _lines(path: Path) -> Iterable[dict]:
@@ -44,7 +51,7 @@ def _lines(path: Path) -> Iterable[dict]:
 
 
 def _blank() -> dict[str, Any]:
-    return {**{k: 0 for k in KEYS}, "cost_usd": None, "api_calls": 0, "turns": 0, "tool_calls": 0,
+    return {**{k: 0 for k in KEYS}, "usage_schema": 2, "cost_usd": None, "api_calls": 0, "turns": 0, "tool_calls": 0,
             "thinking_blocks": 0, "thinking_chars": 0, "api_retries": 0, "api_errors": 0,
             "peak_context_tokens": 0, "stop_reason": None, "terminal_reason": None, "is_error": None,
             "duration_ms": None, "usage_source": None}
@@ -62,7 +69,7 @@ def agent_of(run_dir: Path) -> str:
 
 # ------------------------------------------------------------ Claude Code dialect (claude, react)
 
-def summarize_claude_stream(path: Path) -> dict[str, Any]:
+def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -> dict[str, Any]:
     s = _blank()
     per_msg: dict[str, dict] = {}
     seen_ids: set[str] = set()
@@ -111,14 +118,31 @@ def summarize_claude_stream(path: Path) -> dict[str, Any]:
             result = ev
     s["api_calls"] = len(per_msg) or s["turns"]
     for u in per_msg.values():
-        ctx = (u.get("input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0) + (u.get("cache_creation_input_tokens") or 0)
+        reported_input = u.get("input_tokens") or 0
+        ctx = (
+            reported_input
+            if input_includes_cache
+            else reported_input
+            + (u.get("cache_read_input_tokens") or 0)
+            + (u.get("cache_creation_input_tokens") or 0)
+        )
         s["peak_context_tokens"] = max(s["peak_context_tokens"], ctx)
 
     def take(u: dict) -> None:
-        s["input_tokens"] = u.get("input_tokens") or 0
+        reported_input = u.get("input_tokens") or 0
+        cache_read = u.get("cache_read_input_tokens") or 0
+        cache_write = u.get("cache_creation_input_tokens") or 0
+        if input_includes_cache:
+            s["input_tokens"] = reported_input
+            s["input_tokens_uncached"] = max(
+                reported_input - cache_read - cache_write, 0
+            )
+        else:
+            s["input_tokens_uncached"] = reported_input
+            s["input_tokens"] = reported_input + cache_read + cache_write
         s["output_tokens"] = u.get("output_tokens") or 0
-        s["cache_read_tokens"] = u.get("cache_read_input_tokens") or 0
-        s["cache_write_tokens"] = u.get("cache_creation_input_tokens") or 0
+        s["cache_read_tokens"] = cache_read
+        s["cache_write_tokens"] = cache_write
         s["reasoning_tokens"] = ((u.get("output_tokens_details") or {}).get("thinking_tokens")
                                  or u.get("reasoning_tokens") or 0)
 
@@ -194,10 +218,14 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
     s["turns"] = s["tool_calls"]  # codex's own "turn" is the whole exec; count tool round-trips like the others
 
     def take(u: dict) -> None:
-        s["input_tokens"] = u.get("input_tokens") or 0
+        total_input = u.get("input_tokens") or 0
+        cache_read = u.get("cached_input_tokens") or 0
+        cache_write = u.get("cache_write_input_tokens") or 0
+        s["input_tokens"] = total_input
+        s["input_tokens_uncached"] = max(total_input - cache_read - cache_write, 0)
         s["output_tokens"] = u.get("output_tokens") or 0
-        s["cache_read_tokens"] = u.get("cached_input_tokens") or 0
-        s["cache_write_tokens"] = u.get("cache_write_input_tokens") or 0
+        s["cache_read_tokens"] = cache_read
+        s["cache_write_tokens"] = cache_write
         s["reasoning_tokens"] = u.get("reasoning_output_tokens") or 0
 
     rollouts = _codex_rollouts(run_dir)
@@ -253,9 +281,18 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
 def summarize(run_dir: Path, agent: str | None = None) -> dict[str, Any]:
     run_dir = Path(run_dir)
     agent = agent or agent_of(run_dir)
-    s = summarize_codex(run_dir) if agent == "codex" else summarize_claude_stream(run_dir / "transcript.jsonl")
+    s = (
+        summarize_codex(run_dir)
+        if agent == "codex"
+        else summarize_claude_stream(
+            run_dir / "transcript.jsonl", input_includes_cache=agent == "react"
+        )
+    )
     s["agent"] = agent
-    s["total_tokens"] = s["input_tokens"] + s["output_tokens"] + s["cache_read_tokens"] + s["cache_write_tokens"]
+    s["total_tokens"] = s["input_tokens"] + s["output_tokens"]
+    s["cache_read_fraction"] = (
+        s["cache_read_tokens"] / s["input_tokens"] if s["input_tokens"] else 0.0
+    )
     return s
 
 
@@ -267,7 +304,7 @@ def main(argv: list[str]) -> int:
     s = summarize(run_dir)
     (run_dir / "usage.json").write_text(json.dumps(s, indent=1) + "\n")
     if "--quiet" not in argv:
-        print(json.dumps({k: s[k] for k in ("agent", "usage_source", *KEYS, "cost_usd", "api_calls", "tool_calls",
+        print(json.dumps({k: s[k] for k in ("usage_schema", "agent", "usage_source", *KEYS, "cost_usd", "api_calls", "tool_calls",
                                              "api_retries", "peak_context_tokens", "terminal_reason")}))
     return 0
 

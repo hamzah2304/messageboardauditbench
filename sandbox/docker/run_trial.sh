@@ -149,7 +149,7 @@ for f in report.md final_message.md; do [ -f "$RUN/work/$f" ] && cp "$RUN/work/$
 # Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
 [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
-PYTHONPATH="$ROOT" python3 -m messageboard_audit.usage "$RUN" --quiet || echo "usage summary failed" >&2
+PYTHONPATH="$ROOT" python3 -m messageboard_audit_bench.usage "$RUN" --quiet || echo "usage summary failed" >&2
 python3 - "$RUN" "$RC" "$((END-START))" <<'PY'
 import json,sys,pathlib
 run,rc,secs=pathlib.Path(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
@@ -169,7 +169,7 @@ if rf:
     print(f"FAIL model refusal: {m['model']} refused ({len(rf)} refusal responses)",file=sys.stderr)
     if rc==0: rc=5; m["exit_code"]=rc
 u=json.loads((run/"usage.json").read_text()) if (run/"usage.json").exists() else {}
-m["usage"]={k:u.get(k) for k in ("input_tokens","output_tokens","cache_read_tokens","cache_write_tokens","reasoning_tokens",
+m["usage"]={k:u.get(k) for k in ("usage_schema","input_tokens","input_tokens_uncached","output_tokens","cache_read_tokens","cache_write_tokens","cache_read_fraction","reasoning_tokens",
             "cost_usd","api_calls","tool_calls","api_retries","api_errors","peak_context_tokens","terminal_reason","is_error","usage_source")}
 (run/"meta.json").write_text(json.dumps(m,indent=1)); print(json.dumps(m,indent=1))
 PY

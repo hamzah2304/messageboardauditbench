@@ -115,10 +115,11 @@ Each run writes `runs/<timestamp>_<agent>_<model>_r<replicate>_<config>_<run-id>
 agent saw. Exit code 124 means the timeout fired.
 
 What each run logs about the model calls (`<run>/usage.json`, written by
-`messageboard_audit/usage.py`; the key figures are copied into `meta.json` under
+`messageboard_audit_bench/usage.py`; the key figures are copied into `meta.json` under
 `usage`, and Inspect reads the same numbers through `transcripts.py`):
 
-- tokens: input, output, cache read, cache write, **reasoning** (Claude Code's
+- tokens: total input, uncached input, output, cache read, cache write, cache-read
+  fraction, and **reasoning** (Claude Code's
   `output_tokens_details.thinking_tokens`; Codex's `reasoning_output_tokens`;
   OpenRouter's `completion_tokens_details.reasoning_tokens`), plus the peak
   context size seen by any single call;
@@ -127,6 +128,12 @@ What each run logs about the model calls (`<run>/usage.json`, written by
   Claude the last rate-limit window;
 - `usage_source` says where the totals came from: the CLI's final event, a sum
   of per-call usage (run killed before it finished), or the Codex rollout.
+
+New summaries carry `usage_schema: 2`: `input_tokens` is total input context,
+`input_tokens_uncached` is its uncached subset, and `total_tokens` is total input
+plus output. Older archived summaries have no schema marker and retain the
+original harness-native meaning of `input_tokens`; do not aggregate those rows
+with schema-2 rows without normalizing them first.
 
 Reasoning text is logged where the vendor exposes it. Claude Code emits
 `thinking` blocks (usually empty or a short summary for Claude 5 models) and

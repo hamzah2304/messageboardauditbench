@@ -15,8 +15,8 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
-from messageboard_audit.scorer import process_metrics, rubric_scorer
-from messageboard_audit.solver import _fold, cli_agent, replay
+from messageboard_audit_bench.scorer import process_metrics, rubric_scorer
+from messageboard_audit_bench.solver import _fold, cli_agent, replay
 
 
 def _run_dir(path: Path) -> Path:
@@ -82,8 +82,12 @@ def test_fold_imports_report_transcript_and_usage(tmp_path: Path) -> None:
     assert state.completed
     assert state.output.completion.startswith("# Report")
     assert state.output.usage is not None
-    assert state.output.usage.input_tokens == 12
+    assert state.output.usage.input_tokens == 9
+    assert state.output.usage.total_tokens == 16
     assert state.output.usage.input_tokens_cache_read == 3
+    assert state.metadata["input_tokens_uncached"] == 9
+    assert state.metadata["cache_read_fraction"] == 0.25
+    assert state.metadata["usage_schema"] == 2
     assert state.metadata["report_written"] is True
     assert state.metadata["wall_seconds"] == 7
 
@@ -182,9 +186,15 @@ async def test_cli_agent_folds_successful_trial(
             stderr="",
         )
 
-    monkeypatch.setattr("messageboard_audit.solver.subprocess.run", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
-    state = await cli_agent(agent="codex", model="gpt-test", config="blind-10")(
+    state = await cli_agent(
+        agent="codex",
+        model="gpt-test",
+        config="blind-10",
+        time_limit_minutes=37,
+        timeout_minutes=42,
+    )(
         _state(), None
     )
 
@@ -192,6 +202,8 @@ async def test_cli_agent_folds_successful_trial(
     assert state.metadata["run_dir"] == str(run_dir)
     assert captured["command"][-3:] == ["codex", "gpt-test", "1"]
     assert captured["env"]["CONFIG"] == "blind-10"
+    assert captured["env"]["BUDGET_MIN"] == "37"
+    assert captured["env"]["TIMEOUT"] == "42m"
 
 
 @pytest.mark.asyncio
@@ -204,7 +216,7 @@ async def test_cli_agent_surfaces_trial_failure(monkeypatch) -> None:
             stderr="docker unavailable",
         )
 
-    monkeypatch.setattr("messageboard_audit.solver.subprocess.run", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="exit code 2: docker unavailable"):
         await cli_agent(agent="codex", model="gpt-test", config="blind-10")(

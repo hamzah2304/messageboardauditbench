@@ -5,8 +5,9 @@ fresh checkout can install it with `uv sync` and run its registered task as:
 
 ```bash
 scripts/build_data.sh
-uv run inspect eval messageboard_audit/messageboard_audit \
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T agent=claude -T model=claude-opus-5 -T config=blind-20 \
+  -T time_limit_minutes=30 \
   --epochs 3 --max-samples 1
 uv run inspect view
 ```
@@ -42,7 +43,7 @@ these steps after review:
    with:
    - the versioned arXiv URL;
    - a source URL of the form
-     `https://github.com/hamzah2304/messageboardauditbench/blob/<commit>/messageboard_audit/task.py#L<task-line>`;
+     `https://github.com/hamzah2304/messageboardauditbench/blob/<commit>/messageboard_audit_bench/task.py#L<task-line>`;
    - any additional GitHub maintainers.
 6. Upload the two full logs when the generated register PR requests them.
 

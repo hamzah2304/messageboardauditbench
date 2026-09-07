@@ -65,13 +65,17 @@ def main() -> int:
         if prompt:
             (out / "prompts").mkdir(parents=True, exist_ok=True)
             (out / "prompts" / f"{p8}.txt").write_text(prompt)
+        usage = meta.get("usage")
+        if usage is not None:
+            usage = dict(usage)
+            usage.setdefault("usage_schema", 1)
         rows.append({"report": str(dest.relative_to(out)), "run_dir": d.name, "partial": partial, "config": config,
                      "prompt_name": meta.get("prompt", "legacy"), "prompt_id": p8, "budget_min": budget, "data_variant": variant,
                      "replicate": replicate,
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
                                                   "wall_seconds", "cli_version", "prompt_sha256")},
                      "model_served": served, "model_fallback": meta.get("model_fallback"),
-                     "usage": meta.get("usage")})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit/usage.py)
+                     "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit_bench/usage.py)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     by = {}

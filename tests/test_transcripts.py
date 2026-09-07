@@ -3,7 +3,7 @@ from pathlib import Path
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 
-from messageboard_audit.transcripts import parse_claude, parse_codex
+from messageboard_audit_bench.transcripts import parse_claude, parse_codex
 
 
 def _write_jsonl(path: Path, events: list[dict]) -> Path:

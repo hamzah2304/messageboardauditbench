@@ -9,7 +9,7 @@ that can be explored with `inspect view`.
 
 | file | role |
 |---|---|
-| `task.py` | two tasks: `messageboard_audit` (run fresh trials) and `messageboard_audit_replay` (import runs already on disk) |
+| `task.py` | two tasks: `messageboard_audit_bench` (run fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
 | `solver.py` | `cli_agent` launches `sandbox/docker/run_trial.sh`; `replay` imports a finished run. Both fold the CLI transcript + report into Inspect state |
 | `transcripts.py` | converts the Claude Code, Codex and ReAct event streams into Inspect messages + tool calls, so the viewer renders them natively |
 | `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`, per-leaf verdicts in metadata) and `process_metrics` (turns, tokens, wall time, no judge) |
@@ -25,6 +25,10 @@ scripts/build_data.sh             # downloads and verifies the data variants
 sandbox/docker/claude_login.sh    # once, for Claude Code trials
 ```
 
+The eval deliberately depends on the repository's Docker sandbox, configs, and
+locally built dataset. If the Python package was installed non-editably, run
+Inspect from the checkout root or set `MESSAGEBOARD_AUDIT_BENCH_ROOT` to it.
+
 The judge needs an API key even though the agents run on subscription:
 
 ```
@@ -34,25 +38,37 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 ## Run fresh trials
 
 ```
-uv run inspect eval messageboard_audit/messageboard_audit \
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T agent=claude -T model=claude-opus-5 -T config=blind-20 \
+  -T time_limit_minutes=30 \
   --epochs 3 --max-samples 1
-uv run inspect eval messageboard_audit/messageboard_audit \
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T agent=codex -T model=gpt-5.6-sol -T config=context-40 \
   --epochs 3 --max-samples 1
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T model=openai/gpt-5.6-sol -T config=blind-20 \
+  --epochs 3
 ```
 
 `--epochs N` runs N independent replicates. Replicate numbers identify runs;
 they do not seed model sampling. Use `--max-samples 1` to serialize epochs when
 running a subscription-backed CLI.
-Conditions (prompt, budget, timeout, data variant, effort) come from
-`configs/<config>.toml`. `-T judge=anthropic/claude-sonnet-5` picks the judge;
+The task supports all three existing harnesses: `claude` invokes Claude Code,
+`codex` invokes Codex CLI, and `react` invokes the model-neutral OpenRouter tool
+loop. The default is Claude Code, not ReAct. These are system-level conditions,
+so comparisons across harnesses are not bare-model comparisons.
+
+Conditions (prompt, default budget, data variant, effort) come from
+`configs/<config>.toml`. `-T time_limit_minutes=N` overrides the config budget,
+updates the time stated in the prompt, and sets the hard sandbox timeout to
+`N` plus the config's timeout grace (currently five minutes).
+`-T judge=anthropic/claude-sonnet-5` picks the judge;
 an Inspect `grader` model role takes precedence when one is supplied.
 
 ## Import runs already on disk
 
 ```
-uv run inspect eval messageboard_audit/messageboard_audit_replay
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 ```
 
 Folds every `runs/*_s*` directory (skipping `failed_*`) into one eval, scores
@@ -69,6 +85,13 @@ You get, per run: the full message timeline (agent text, each bash command and
 its output, the reasoning where available), the report as the sample output, the
 rubric score with per-leaf hit/miss in the score metadata, and the process
 metrics (turns, tokens, wall time). Select two runs to compare side by side.
+
+The process metrics distinguish total input, uncached input, cache reads, and
+the cache-read fraction. Claude Code and Codex CLI retain their native caching
+behavior. The ReAct loop keeps an append-only conversation with stable tools
+and instructions, uses OpenRouter's cache controls, and sends one stable
+`session_id` throughout the trial so routing stays on the same provider. A
+nonzero `cache_read_tokens` value confirms that a provider cache was hit.
 
 Programmatic access:
 
