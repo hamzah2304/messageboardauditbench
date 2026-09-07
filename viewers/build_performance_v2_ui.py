@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """Build viewers/performance_v2.html — round-4 performance on the v2 rubric.
 
-Seventy-nine reports graded by Fable 5.1 against 38 rubric points, scored under the
+Every round-4 report graded by Fable 5.1 against 38 rubric points, scored under the
 auditor's strict transform max(2s - 1, 0). The transform is the point of the page:
 it discards everything at or below the rubric midpoint, so three of the six anchors
 the judge can award collapse to zero, and a report that gestures at every point
 scores nothing while one that nails a few scores well.
 
-Four things this page shows that the round-3 page does not.
+The headline figure is capability against strict performance: each model's score at
+its maximal budget against the Epoch Capabilities Index. Two models cannot reach the
+two-hour budget and are marked as such, and the correlation is given twice — over the
+whole field and over the ten models that actually reached two hours — because the
+first number is mostly the two truncated budgets and the weakest model in the set.
+
+Four further things this page shows that the round-3 page does not.
 
   1. Budget is confounded with prompt. Each budget ran a different prompt, so any
      gap between budgets is prompt and budget together. Nothing draws a trend line
      across budgets.
-  2. Per-point difficulty over all 79 reports, ranked, and split by budget — "hard"
+  2. Per-point difficulty over every report, ranked, and split by budget — "hard"
      and "unreachable" are the same number when the budgets are pooled.
   3. Raw against strict per model, so the reader sees who loses most to the cut.
   4. Model names normalised, so a model is one entity and the harness stays separate.
@@ -28,23 +34,24 @@ from collections import defaultdict
 ROOT_DIR = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(ROOT_DIR / "scripts"))
-from paths import GRADED, GRADED_INPUTS, VIEWERS
+from paths import GRADED, GRADED_INPUTS, VIEWERS, BENCH
 from report_performance import strict, NAMES as REF_NAMES   # the reference transform
 
 OUT = VIEWERS / "performance_v2.html"
+ECI_FILE = BENCH / "eci_scores.json"           # Epoch Capabilities Index, looked up separately
 GDIR = GRADED / "judge_claude_fable_5_1" / "v2"
 INDEX_DIRS = ["round4_blind10", "round4_blind30", "round4_blind120"]
 BUDGETS = [10, 30, 120]
 
-# The reference map, plus the two strings it does not carry. `react` serves GPT-6
-# Astra under an `openai_`-prefixed id while `codex` serves it bare, which split one
-# model across two rows in the reference report; folding them here makes the model
-# one entity and leaves the harness to distinguish the rows.
+# `react` serves GPT-6 Astra under an `openai_`-prefixed id while `codex` serves it
+# bare, so without a fold the same model appears as two entities. The reference map
+# now carries the alias; setdefault keeps this working either way rather than
+# silently splitting the row again if it is ever dropped upstream.
 NAMES = dict(REF_NAMES)
-NAMES["openai_gpt_6_astra"] = "GPT-6 Astra"
+NAMES.setdefault("openai_gpt_6_astra", "GPT-6 Astra")
 
-# the `_p<id>` suffix marks a report run on a prompt other than its budget's default;
-# the reference regex does not carry it, so it is added here rather than upstream.
+# the `_p<id>` suffix marks a report run on a prompt other than its budget's default,
+# and `_served_` a run the harness completed under a different model.
 RX = re.compile(
     r"graded_(r4b(\d+))_(claude|codex|react)_(.+?)_rep(\d)"
     r"(?:_served_([a-z0-9_]+?))?(?:_p([0-9a-f]+))?\.json$")
@@ -124,6 +131,75 @@ def main():
             "alive_at": [b for b in BUDGETS if pb.get(b, 0) > 0],
         })
 
+    # ---- the headline: strict score at each model's maximal budget, against the ECI ----
+    # A run whose served model differs from the requested one is not that model's result,
+    # so it is excluded here rather than averaged in. Opus 5 loses every two-hour run this
+    # way and Haiku 4.5 has none, which is why both sit at a lower budget on the figure.
+    eci_raw = json.loads(ECI_FILE.read_text()) if ECI_FILE.exists() else \
+        {"models": [], "source_notes": "", "retrieved": ""}
+    eci = {}
+    for m in eci_raw.get("models", []):          # the file spells Claude models in full
+        eci[m["name"]] = m
+        eci.setdefault(re.sub(r"^Claude ", "", m["name"]), m)
+
+    per_model = defaultdict(lambda: defaultdict(list))
+    for r in nominal:
+        per_model[r["model"]][r["budget"]].append(r)
+    served_by = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        if r["served"]:
+            served_by[r["model"]][r["budget"]].append(r)
+
+    capability = []
+    for model, buds in per_model.items():
+        top = max(buds)
+        at = buds[top]
+        e = eci.get(model) or {}
+        ci = re.search(r"CI\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)", e.get("note") or "")
+        # why this model stops short of the deepest budget, stated from the files
+        why = []
+        for b in [x for x in BUDGETS if x > top]:
+            sv = served_by[model][b]
+            if sv:
+                names = sorted({x["served"] for x in sv})
+                why.append(f"all {len(sv)} run{'s' if len(sv) > 1 else ''} at {b} min were served by "
+                           f"{', '.join(names)} after a refusal, so they are not {model}'s results")
+            else:
+                why.append(f"no run at {b} min")
+        capability.append({
+            "model": model, "eci": e.get("eci"), "eci_model": e.get("eci_model"),
+            "exact": e.get("exact"), "note": e.get("note") or "",
+            "ci": [float(ci.group(1)), float(ci.group(2))] if ci else None,
+            "budget": top, "truncated": top != max(BUDGETS),
+            "why": "; ".join(why),
+            "harnesses": sorted({r["harness"] for r in at}),
+            "strict": st.mean(r["strict"] for r in at),
+            "raw": st.mean(r["raw"] for r in at),
+            "runs": sorted(r["strict"] for r in at),
+        })
+    capability.sort(key=lambda c: (c["eci"] is None, -(c["eci"] or 0)))
+
+    def pearson(pts):
+        if len(pts) < 3:
+            return None
+        xs, ys = [a for a, _ in pts], [b for _, b in pts]
+        mx, my = st.mean(xs), st.mean(ys)
+        den = (sum((a - mx) ** 2 for a in xs) * sum((b - my) ** 2 for b in ys)) ** 0.5
+        return sum((a - mx) * (b - my) for a, b in pts) / den if den else None
+
+    have = [c for c in capability if c["eci"] is not None]
+    full = [(c["eci"], c["strict"]) for c in have]
+    deep = [(c["eci"], c["strict"]) for c in have if not c["truncated"]]
+    nohaiku = [(c["eci"], c["strict"]) for c in have if c["model"] != "Haiku 4.5"]
+    correlations = {
+        "all": {"r": pearson(full), "n": len(full),
+                "what": "every model, each at its own maximal budget"},
+        "deep": {"r": pearson(deep), "n": len(deep),
+                 "what": "only the models that reached the two-hour budget"},
+        "no_haiku": {"r": pearson(nohaiku), "n": len(nohaiku),
+                     "what": "every model except Haiku 4.5, the weakest in the set"},
+    }
+
     # prompt per budget, read from the run index rather than assumed
     prompts = defaultdict(lambda: defaultdict(int))
     for r in rows:
@@ -146,6 +222,8 @@ def main():
                        for b in BUDGETS},
         "switched": [{"pair": r["pair"], "served": r["served"], "budget": r["budget"],
                       "raw": r["raw"], "strict": r["strict"]} for r in rows if r["served"]],
+        "capability": capability, "correlations": correlations,
+        "eci_notes": eci_raw.get("source_notes", ""), "eci_retrieved": eci_raw.get("retrieved", ""),
     }
     OUT.write_text(TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     dead = [p["id"] for p in points if p["dead"]]
@@ -156,6 +234,13 @@ def main():
     print(f"  points dead everywhere: {', '.join(dead) or 'none'}")
     print(f"  points dead at 10 min but alive at 120: "
           f"{', '.join(p['id'] for p in points if 10 in p['dead_at'] and 120 in p['alive_at'])}")
+    for k in ("all", "deep", "no_haiku"):
+        c = correlations[k]
+        print(f"  ECI correlation, {c['what']} (n={c['n']}): "
+              + (f"r = {c['r']:+.3f}" if c["r"] is not None else "not computable"))
+    for c in capability:
+        if c["truncated"]:
+            print(f"  {c['model']} sits at {c['budget']} min: {c['why']}")
 
 
 TEMPLATE = r'''<!doctype html>
@@ -212,6 +297,10 @@ summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:600}
 #tip{position:fixed;pointer-events:none;background:#2B2622;color:#F6F1EA;padding:6px 9px;border-radius:6px;
   font-size:12px;line-height:1.4;opacity:0;transition:opacity .08s;z-index:9;white-space:nowrap}
 .hit{fill:transparent;cursor:pointer}
+.trunc{fill:var(--warn-ink);font-size:10.5px;font-weight:600}
+.rbox{fill:var(--surface);stroke:var(--line);stroke-width:1}
+.rlab{fill:var(--ink);font-size:12px;font-variant-numeric:tabular-nums}
+.rwhat{fill:var(--ink2);font-size:10.5px}
 </style></head><body>
 <main>
   <h1>Strict performance, v2 rubric</h1>
@@ -224,6 +313,11 @@ summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:600}
     at everything scores nothing and only substantive coverage counts. Raw is kept alongside
     throughout, never as the headline.</p>
   <div class="anchors" id="anchors"></div>
+
+  <h2>Capability against strict performance</h2>
+  <p class="note" id="eci-note"></p>
+  <div class="card" id="eci"></div>
+  <p class="note" id="eci-src"></p>
 
   <h2>Ranked at the two-hour budget</h2>
   <p class="note" id="rank-note"></p>
@@ -251,6 +345,7 @@ summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:600}
   <details>
     <summary>The numbers</summary>
     <div class="card" id="table"></div>
+    <div class="card" id="vtable"></div>
     <div class="card" id="ptable"></div>
   </details>
 </main>
@@ -308,6 +403,125 @@ function hover(node, html) {
   node.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
 }
 
+/* ---------- headline: ECI against strict score at each model's maximal budget ---------- */
+(function () {
+  const box = document.getElementById('eci'), note = document.getElementById('eci-note');
+  const have = D.capability.filter(c => c.eci != null);
+  const noEci = D.capability.filter(c => c.eci == null);
+  if (have.length < 2) {
+    note.textContent = 'Nothing to plot: fewer than two models carry an index score.';
+    box.replaceChildren(); return;
+  }
+  const trunc = have.filter(c => c.truncated);
+  const fb = have.filter(c => c.exact === false);
+  const R = D.correlations, pc = k => (R[k].r == null ? 'n/a' : (R[k].r >= 0 ? '+' : '') + R[k].r.toFixed(2));
+  note.innerHTML =
+    'Each model at <b>its own maximal budget</b>, harnesses merged, against the Epoch Capabilities '
+    + 'Index' + (D.eci_retrieved ? ' retrieved ' + D.eci_retrieved : '') + '. Small dots are replicates; '
+    + 'the grey hairline is the 95% interval on the index, which for most of the field overlaps most '
+    + 'of the rest, so the horizontal ordering carries less than a bare dot would suggest. '
+    + 'Over the whole field the correlation is <b>' + pc('all') + '</b>, but that is largely the two '
+    + 'truncated budgets and the weakest model. Among the <b>' + R.deep.n + '</b> models that reached '
+    + 'two hours it is <b>' + pc('deep') + '</b>: within the frontier the index barely predicts '
+    + 'performance here. No trend line is drawn, because any line through these points would show the '
+    + 'first number rather than the second.'
+    + (trunc.length ? ' <b>' + trunc.length + '</b> model' + (trunc.length > 1 ? 's are' : ' is')
+      + ' below two hours, ringed in amber with the budget on the label; those scores are not ceilings.' : '')
+    + (fb.length ? ' <b>' + fb.length + '</b> use' + (fb.length > 1 ? '' : 's')
+      + ' a previous generation’s index score, marked ○ on the label.' : '')
+    + (noEci.length ? ' <b>' + noEci.length + '</b> excluded for having no index score: '
+      + noEci.map(c => c.model).join(', ') + '.' : '');
+
+  const xs = have.flatMap(c => c.ci ? [c.ci[0], c.ci[1], c.eci] : [c.eci]);
+  const lo = Math.min(...xs), hi = Math.max(...xs), pad = Math.max(1.5, (hi - lo) * 0.06);
+  const X0 = lo - pad, X1 = hi + pad;
+  const ys = have.flatMap(c => [c.strict, ...c.runs]);
+  const Y1 = Math.min(1, Math.ceil((Math.max(...ys) + 0.06) * 10) / 10);
+  /* labels sit in a column at the right with leaders back to each point: the eight
+     frontier models fall inside 25 index points and 0.2 of score, so labels placed at
+     the markers would sit on top of one another. */
+  const W = 940, H = 460, L = 54, RR = 168, T = 18, B = 44, IW = W - L - RR, IH = H - T - B;
+  const x = v => L + (v - X0) / (X1 - X0) * IW;
+  const y = v => T + IH - v / Y1 * IH;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, width: '100%', height: H, role: 'img',
+    'aria-label': 'Strict score at each model’s maximal budget against the Epoch Capabilities Index'});
+  for (let t = 0; t <= Y1 + 1e-9; t += 0.1) {
+    svg.append(s('line', {x1: L, x2: W - RR, y1: y(t), y2: y(t), class: 'tick'}));
+    const lb = s('text', {x: L - 8, y: y(t) + 4, 'text-anchor': 'end', class: 'axis'});
+    lb.textContent = t.toFixed(1); svg.append(lb);
+  }
+  for (let v = Math.ceil(X0 / 5) * 5; v <= X1; v += 5) {
+    svg.append(s('line', {x1: x(v), x2: x(v), y1: T, y2: T + IH, class: 'tick'}));
+    const lb = s('text', {x: x(v), y: H - 22, 'text-anchor': 'middle', class: 'axis'});
+    lb.textContent = v; svg.append(lb);
+  }
+  const ax = s('text', {x: L + IW / 2, y: H - 5, 'text-anchor': 'middle', class: 'axis'});
+  ax.textContent = 'Epoch Capabilities Index'; svg.append(ax);
+  const ay = s('text', {x: 14, y: T + IH / 2, class: 'axis',
+                        transform: `rotate(-90 14 ${T + IH / 2})`, 'text-anchor': 'middle'});
+  ay.textContent = 'strict score at maximal budget'; svg.append(ay);
+  svg.append(s('line', {x1: L, x2: W - RR, y1: y(0), y2: y(0), class: 'axline'}));
+
+  /* spread the label column vertically so no two collide, then lead back to the marker */
+  const GAP = 15, LX = W - RR + 22;
+  const slots = have.map(c => ({c, py: y(c.strict)})).sort((a, b) => a.py - b.py);
+  let prev = -1e9;
+  slots.forEach(o => { o.ly = Math.max(o.py, prev + GAP); prev = o.ly; });
+  const over = slots[slots.length - 1].ly - (T + IH - 4);
+  if (over > 0) slots.forEach(o => { o.ly -= over; });
+  const under = (T + 8) - slots[0].ly;
+  if (under > 0) slots.forEach(o => { o.ly += under; });
+
+  slots.slice().sort((a, b) => a.c.eci - b.c.eci).forEach(o => {
+    const c = o.c, px = x(c.eci), py = o.py;
+    const col = c.truncated ? 'var(--warn-ink)' : 'var(--accent)';
+    if (c.ci) svg.append(s('line', {x1: x(c.ci[0]), x2: x(c.ci[1]), y1: py, y2: py,
+                                    stroke: 'var(--grey)', 'stroke-width': 1}));
+    c.runs.forEach(v => svg.append(s('circle', {cx: px, cy: y(v), r: 2.6, fill: 'var(--grey)'})));
+    svg.append(s('polyline', {points: `${px + 8},${py} ${LX - 24},${o.ly - 3.5} ${LX - 5},${o.ly - 3.5}`,
+                              fill: 'none', stroke: 'var(--line)', 'stroke-width': 1}));
+    if (c.truncated) {
+      svg.append(s('circle', {cx: px, cy: py, r: 7.5, fill: 'none',
+                              stroke: col, 'stroke-width': 1.5, 'stroke-dasharray': '3 2'}));
+      svg.append(s('circle', {cx: px, cy: py, r: 4, fill: 'var(--surface)',
+                              stroke: col, 'stroke-width': 2}));
+    } else {
+      svg.append(s('circle', {cx: px, cy: py, r: 5.5, fill: col,
+                              stroke: 'var(--surface)', 'stroke-width': 2}));
+    }
+    const lb = s('text', {x: LX, y: o.ly, class: c.truncated ? 'trunc' : 'small'});
+    lb.textContent = c.model + (c.exact === false ? ' ○' : '')
+      + (c.truncated ? '  ' + c.budget + ' min only' : '');
+    svg.append(lb);
+    const hit = s('rect', {x: px - 16, y: T, width: 32, height: IH, class: 'hit'});
+    hover(hit, `<b>${c.model}</b> · index ${c.eci}`
+      + (c.exact === false ? `<br><i>score is ${c.eci_model}, a previous generation</i>` : '')
+      + (c.ci ? `<br>95% interval ${c.ci[0]}–${c.ci[1]}` : '')
+      + `<br>strict ${fmt(c.strict)} · raw ${fmt(c.raw)} at ${c.budget} min`
+      + `<br>${c.runs.length} run${c.runs.length > 1 ? 's' : ''} under ${c.harnesses.join(' + ')}: `
+      + c.runs.map(fmt).join(' · ')
+      + (c.truncated ? `<br><i>not at 120 min — ${c.why}</i>` : ''));
+    svg.append(hit);
+    hover(lb, `<b>${c.model}</b> · strict ${fmt(c.strict)} at ${c.budget} min`
+      + (c.truncated ? `<br><i>${c.why}</i>` : ''));
+  });
+
+  /* the two correlations, side by side, so neither can be quoted without the other */
+  const keys = ['all', 'deep', 'no_haiku'], bw = 200, bh = 46, bx = L + 12, by0 = T + 8;
+  keys.forEach((k, i) => {
+    const bx0 = bx, byy = by0 + i * (bh + 5);
+    svg.append(s('rect', {x: bx0, y: byy, width: bw, height: bh, rx: 5, ry: 5, class: 'rbox'}));
+    const v = s('text', {x: bx0 + 10, y: byy + 20, class: 'rlab'});
+    v.textContent = 'r = ' + pc(k) + '   (n = ' + R[k].n + ')';
+    svg.append(v);
+    const w = s('text', {x: bx0 + 10, y: byy + 35, class: 'rwhat'});
+    w.textContent = R[k].what; svg.append(w);
+  });
+  box.replaceChildren(svg);
+  const src = document.getElementById('eci-src');
+  if (D.eci_notes) src.textContent = D.eci_notes;
+})();
+
 /* ---------- the prompt/budget confound ---------- */
 (function () {
   const parts = BUD.map(b => {
@@ -333,8 +547,14 @@ function hover(node, html) {
     `Strict score at the two-hour budget, where all ${D.prompts['120'] ? Object.values(D.prompts['120']).reduce((a, b) => a + b, 0) : ''} `
     + `reports share one prompt, so this is the one chart where the comparison is clean. Each `
     + `replicate is a dot; the bar is their mean. Axis stops at ${X1.toFixed(1)}, not 1.0.`
-    + (missing.length ? ` <b>${missing.length}</b> pair${missing.length > 1 ? 's have' : ' has'} no `
-      + `two-hour run and ${missing.length > 1 ? 'are' : 'is'} left out: ` + missing.join(', ') + '.' : '');
+    + (missing.length ? ' ' + missing.map(m => {
+        const sw = D.switched.filter(s => s.pair === m && s.budget === 120);
+        return sw.length
+          ? `<b>${m}</b> is absent because all ${sw.length} of its two-hour runs were served by `
+            + `${[...new Set(sw.map(s => s.served))].join(', ')} after a refusal, so none of them are `
+            + `its own result`
+          : `<b>${m}</b> has no two-hour run at all`;
+      }).join('; ') + '.' : '');
   const L = 176, R = 62, T = 22, rowH = 30, H = T + rows.length * rowH + 26, W = 940, IW = W - L - R;
   const x = v => L + v / X1 * IW;
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, width: '100%', height: H,
@@ -576,6 +796,36 @@ function hover(node, html) {
   document.getElementById('ptable').replaceChildren(
     el('h3', null, 'Rubric points'), u,
     el('div', 'note', '× marks a point no report scores above the 0.5 cut on, at any budget.'));
+
+  const v = document.createElement('table');
+  const vh = v.insertRow();
+  ['model', 'index', 'budget', 'strict', 'raw', 'runs', 'harnesses'].forEach(h => {
+    const th = document.createElement('th'); th.textContent = h; vh.append(th);
+  });
+  for (const c of D.capability) {
+    const r = v.insertRow();
+    const c0 = r.insertCell();
+    c0.textContent = c.model + (c.exact === false ? ' ○' : '');
+    r.insertCell().textContent = c.eci == null ? '—' : c.eci.toFixed(2);
+    const cb = r.insertCell();
+    cb.textContent = c.budget + ' min';
+    if (c.truncated) { cb.style.color = 'var(--warn-ink)'; cb.style.fontWeight = '600'; }
+    r.insertCell().textContent = fmt(c.strict);
+    r.insertCell().textContent = fmt(c.raw);
+    r.insertCell().textContent = c.runs.length;
+    const ch = r.insertCell(); ch.textContent = c.harnesses.join(' + ');
+    ch.style.textAlign = 'left'; ch.style.fontVariantNumeric = 'normal';
+  }
+  const tr = D.capability.filter(c => c.truncated);
+  document.getElementById('vtable').replaceChildren(
+    el('h3', null, 'Capability against strict performance'), v,
+    el('div', 'note', 'Strict and raw are means over that model’s runs at the budget shown, '
+      + 'harnesses merged, excluding any run the harness completed under a different model. '
+      + '○ marks an index score taken from a previous generation. '
+      + tr.map(c => `${c.model} stops at ${c.budget} min: ${c.why}.`).join(' ')
+      + ' Correlations: '
+      + ['all', 'deep', 'no_haiku'].map(k => `r = ${D.correlations[k].r.toFixed(2)} over `
+          + `${D.correlations[k].n}, ${D.correlations[k].what}`).join('; ') + '.'));
 })();
 </script></body></html>'''
 
