@@ -15,6 +15,8 @@ import sys as _sys, pathlib as _pl
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
 from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
+sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2] / "scripts"))
+from extract_tldr import extract as extract_tldr
 from dotenv import load_dotenv
 load_dotenv(ENV_FILE)
 from openai import OpenAI
@@ -25,10 +27,12 @@ from openai import OpenAI
 # well on contradiction precisely because it says little, and averaging the two would
 # hide that.
 _R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv else "recall")
-MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall"}[_R]
+MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall", "tldr": "tldr"}[_R]
 # sheet-file prefix, how many sheets, and the score range each rubric is scored on
-SHEET, N_SHEETS = {"recall": ("rubric", 6), "contradiction": ("contra", 6), "v2": ("v2", 8)}[MODE]
-LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0), "v2": (0.0, 1.0)}[MODE]
+SHEET, N_SHEETS = {"recall": ("rubric", 6), "contradiction": ("contra", 6),
+                   "v2": ("v2", 8), "tldr": ("tldr", 1)}[MODE]
+LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0),
+          "v2": (0.0, 1.0), "tldr": (0.0, 1.0)}[MODE]
 
 DEFAULT_MODEL = "gpt-5.6-sol"
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
@@ -62,12 +66,13 @@ REPORTS = {
     "haiku": ("Claude Haiku 4.5", "haiku_audit.md"),
     "luna":  ("GPT-5.6 Luna",     "luna_audit.md"),
 }
-_SET = {"recall": "rubric", "contradiction": "rubric", "v2": "v2"}[MODE]
+_SET = {"recall": "rubric", "contradiction": "rubric", "v2": "v2", "tldr": "tldr"}[MODE]
 RUBRIC_SETS = [json.loads((RUBRICS / f"{_SET}_{i}.json").read_text()) for i in range(1, N_SHEETS + 1)]
 # Each rubric_N.md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
 # {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal).
-_PFX = "V" if MODE == "v2" else "R"
-RUBRIC_MD = {f"{_PFX}{i}": (RUBRICS / f"{SHEET}_{i}.md").read_text() for i in range(1, N_SHEETS + 1)}
+_PFX = {"v2": "V", "tldr": "TLDR"}.get(MODE, "R")
+RUBRIC_MD = {(_PFX if MODE == "tldr" else f"{_PFX}{i}"): (RUBRICS / f"{SHEET}_{i}.md").read_text()
+             for i in range(1, N_SHEETS + 1)}
 HUMAN_REPORT = (HUMAN_REPORT).read_text()
 SYS = "You are a careful grader. Follow the grading sheet exactly and output strict JSON only."
 
@@ -128,6 +133,8 @@ def claude(system, prefix, suffix, max_tok=32000):
 
 
 def grade_one(report_md, rub):
+    if MODE == "tldr":     # the summary alone is what this rubric judges
+        report_md, _how = extract_tldr(report_md)
     tmpl = RUBRIC_MD[rub["rubric_id"]].replace("{{HUMAN_REPORT}}", HUMAN_REPORT)
     if IS_ANTHROPIC:
         pre, _, post = tmpl.partition("{{MODEL_REPORT}}")
