@@ -88,3 +88,12 @@ def test_time_limit_selector_returns_only_requested_budget() -> None:
     assert sum(job.epochs for job in jobs) == 39
     assert {job.budget_minutes for job in jobs} == {10}
     assert all("exploratory" not in job.system_id for job in jobs)
+
+
+def test_concurrency_overrides_are_explicit() -> None:
+    manifest = load_manifest()
+    job = expand_jobs(manifest)[0]
+    cmd = command(manifest, job, max_samples=3, max_sandboxes=3)
+
+    assert cmd[cmd.index("--max-samples") + 1] == "3"
+    assert cmd[cmd.index("--max-sandboxes") + 1] == "3"

@@ -90,7 +90,12 @@ def expand_jobs(manifest: dict[str, Any]) -> list[Job]:
     return jobs
 
 
-def command(manifest: dict[str, Any], job: Job) -> list[str]:
+def command(
+    manifest: dict[str, Any],
+    job: Job,
+    max_samples: int | None = None,
+    max_sandboxes: int | None = None,
+) -> list[str]:
     logs = Path(manifest["logs_dir"]) / job.system_id / f"{job.budget_minutes}m"
     cmd = [
         str(RUNNER),
@@ -107,9 +112,9 @@ def command(manifest: dict[str, Any], job: Job) -> list[str]:
         "--epochs",
         str(job.epochs),
         "--max-samples",
-        str(manifest["max_samples"]),
+        str(max_samples if max_samples is not None else manifest["max_samples"]),
         "--max-sandboxes",
-        str(manifest["max_sandboxes"]),
+        str(max_sandboxes if max_sandboxes is not None else manifest["max_sandboxes"]),
         "--max-connections",
         str(job.max_connections),
         "--max-retries",
@@ -228,6 +233,16 @@ def main() -> int:
     parser.add_argument(
         "--execute", action="store_true", help="actually run selected jobs sequentially"
     )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        help="override Inspect sample concurrency for selected jobs",
+    )
+    parser.add_argument(
+        "--max-sandboxes",
+        type=int,
+        help="override Inspect sandbox concurrency for selected jobs",
+    )
     args = parser.parse_args()
 
     try:
@@ -241,9 +256,20 @@ def main() -> int:
     except (OSError, KeyError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         parser.error(str(exc))
 
+    for name, value in (
+        ("max_samples", args.max_samples),
+        ("max_sandboxes", args.max_sandboxes),
+    ):
+        if value is not None and value <= 0:
+            parser.error(f"--{name.replace('_', '-')} must be positive")
+
     print(f"{manifest['name']}: {summary(jobs)}")
     for job in jobs:
-        print(shlex.join(command(manifest, job)))
+        print(
+            shlex.join(
+                command(manifest, job, args.max_samples, args.max_sandboxes)
+            )
+        )
 
     if args.check or args.execute:
         problems = readiness(jobs)
@@ -259,7 +285,11 @@ def main() -> int:
 
     for index, job in enumerate(jobs, start=1):
         print(f"[{index}/{len(jobs)}] launching {job.system_id} {job.budget_minutes}m")
-        result = subprocess.run(command(manifest, job), cwd=ROOT, env=execution_env())
+        result = subprocess.run(
+            command(manifest, job, args.max_samples, args.max_sandboxes),
+            cwd=ROOT,
+            env=execution_env(),
+        )
         if result.returncode:
             print(
                 f"STOPPED: {job.system_id} {job.budget_minutes}m exited "
