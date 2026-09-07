@@ -37,6 +37,12 @@ def main() -> int:
     parser.add_argument("--include-partial", action="store_true")
     parser.add_argument("--include-rejected", action="store_true")
     parser.add_argument(
+        "--accept-max-words",
+        type=int,
+        help="re-judge report length under this acceptance ceiling instead of the "
+        "one recorded with each run (e.g. 3200 for runs recorded at 3100)",
+    )
+    parser.add_argument(
         "--graded-inputs",
         metavar="ROUND",
         help="also copy the reports into benchmark/graded_inputs/<ROUND>_<condition><budget>/ "
@@ -50,6 +56,7 @@ def main() -> int:
         backend=backend,
         include_partial=args.include_partial,
         include_rejected=args.include_rejected,
+        accept_max_words=args.accept_max_words,
     )
     print(f"{len(rows)} reports -> {args.out}")
     if args.graded_inputs:

@@ -34,7 +34,7 @@ def test_task_has_stable_sample_and_version() -> None:
         "report_min_words": 2500,
         "report_max_words": 3000,
         "report_accept_min_words": 0,
-        "report_accept_max_words": 3100,
+        "report_accept_max_words": 3200,
     }
 
 

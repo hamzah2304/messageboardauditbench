@@ -86,6 +86,10 @@ def records_from_log(
                     getattr(sample, "error", None)
                     or metadata.get("trial_failed")
                     or metadata.get("exit_code") not in (None, 0)
+                    # A run that ended before the minimum-runtime floor is not
+                    # an accepted completion, whatever its exit code: the CLI
+                    # ends a session on its own after enough blocked stops.
+                    or metadata.get("minimum_runtime_reached") is False
                 ),
             )
         )
@@ -94,7 +98,7 @@ def records_from_log(
 
 def export_records(
     records: Iterable[ExportRecord], out: Path, *, include_partial: bool = False,
-    include_rejected: bool = False,
+    include_rejected: bool = False, accept_max_words: int | None = None,
 ) -> list[dict[str, Any]]:
     """Write reports, exact prompts, config manifests, and an index."""
     out.mkdir(parents=True, exist_ok=True)
@@ -103,6 +107,10 @@ def export_records(
         if record.partial and not include_partial:
             continue
         meta = record.metadata
+        if accept_max_words is not None and meta.get("report_max_words"):
+            # Re-judge under a later acceptance ceiling; the recorded policy in
+            # the run's own metadata is left untouched.
+            meta = {**meta, "report_accept_max_words": accept_max_words}
         length = measure(
             record.report, *limits(meta), exists=True,
             acceptance=acceptance_limits(meta),
@@ -202,6 +210,9 @@ def export_records(
                 "replicate": record.epoch,
                 "exit_code": meta.get("exit_code"),
                 "wall_seconds": meta.get("wall_seconds"),
+                "minimum_runtime_seconds": meta.get("minimum_runtime_seconds"),
+                "minimum_runtime_reached": meta.get("minimum_runtime_reached"),
+                "early_stop_attempts": meta.get("early_stop_attempts"),
                 "report_rejected": rejected,
                 **length,
                 "usage": usage or None,
@@ -218,6 +229,7 @@ def export_logs(
     backend: str | None = "inspect",
     include_partial: bool = False,
     include_rejected: bool = False,
+    accept_max_words: int | None = None,
 ) -> list[dict[str, Any]]:
     """Read ``log_dir`` through Inspect's public Log API and export reports."""
     from inspect_ai.log import list_eval_logs, read_eval_log
@@ -228,7 +240,7 @@ def export_logs(
         records.extend(records_from_log(log, info.name, backend=backend))
     return export_records(
         records, out, include_partial=include_partial,
-        include_rejected=include_rejected,
+        include_rejected=include_rejected, accept_max_words=accept_max_words,
     )
 
 

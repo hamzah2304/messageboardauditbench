@@ -1,0 +1,129 @@
+<title>Round 4 Sleep Audit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{color-scheme:light;
+ --bg:#f7f8f7;--surface:#ffffff;--ink:#151716;--ink-2:#5a625e;--ink-3:#8b938f;--rule:#dfe3e1;--rule-2:#eef1ef;
+ --b10:#2a78d6;--b30:#eb6834;--b120:#1baf7a;--warn-bg:#fff4e8;--warn-ink:#8a4a12;--focus:#2a78d6;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+ --bg:#141615;--surface:#1c1f1e;--ink:#f2f4f3;--ink-2:#b9c1bd;--ink-3:#7f8884;--rule:#2e3331;--rule-2:#242827;
+ --b10:#3987e5;--b30:#d95926;--b120:#199e70;--warn-bg:#2b2116;--warn-ink:#f0b57a;--focus:#3987e5;}}
+:root[data-theme="dark"]{color-scheme:dark;
+ --bg:#141615;--surface:#1c1f1e;--ink:#f2f4f3;--ink-2:#b9c1bd;--ink-3:#7f8884;--rule:#2e3331;--rule-2:#242827;
+ --b10:#3987e5;--b30:#d95926;--b120:#199e70;--warn-bg:#2b2116;--warn-ink:#f0b57a;--focus:#3987e5;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+main{max-width:1080px;margin:0 auto;padding:40px 24px 64px;display:grid;gap:32px}
+header{display:grid;gap:10px;max-width:68ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+h1{font-size:28px;line-height:1.2;margin:0;font-weight:600;text-wrap:balance}
+.lede{color:var(--ink-2);margin:0}
+.lede strong{color:var(--ink);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px;display:grid;gap:4px}
+.tile .k{font-size:12px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+.tile .v{font-size:26px;font-weight:500;line-height:1.1}
+.tile .v small{font-size:14px;color:var(--ink-2);font-weight:400;margin-left:6px}
+.tile .d{font-size:13px;color:var(--ink-2)}
+section{display:grid;gap:12px}
+h2{font-size:16px;margin:0;font-weight:600}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:14px;height:10px;border-radius:2px;display:inline-block}
+.chart-wrap{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:12px 8px 8px;overflow-x:auto;position:relative}
+svg{display:block;font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+svg text{fill:var(--ink-2);font-size:12px}
+svg .lbl{fill:var(--ink);font-size:12.5px}
+svg .scaf{fill:var(--ink-3);font-size:10.5px;letter-spacing:.04em}
+svg .grid{stroke:var(--rule-2);stroke-width:1}
+svg .axis{stroke:var(--rule);stroke-width:1}
+svg .val{fill:var(--ink-2);font-size:11px}
+svg .miss{fill:var(--ink-3);font-size:11px}
+svg .hit{fill:transparent;cursor:default}
+svg .hit:focus{outline:none}
+svg .hit:focus + .bar,svg .hit:hover + .bar{stroke:var(--focus);stroke-width:1.5}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.4;padding:8px 10px;border-radius:4px;max-width:260px;opacity:0;transition:opacity .08s;z-index:2;white-space:nowrap}
+.tip[hidden]{display:none}
+.note{background:var(--warn-bg);color:var(--warn-ink);border-radius:6px;padding:10px 14px;font-size:13.5px;max-width:78ch}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--rule-2);white-space:nowrap}
+th{font-weight:500;color:var(--ink-2);font-size:12px;letter-spacing:.04em;text-transform:uppercase;background:var(--bg)}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+tr:last-child td{border-bottom:0}
+td.zero{color:var(--ink-3)}
+td.hi{font-weight:600}
+.tbl-wrap{overflow-x:auto}
+.method{font-size:13px;color:var(--ink-2);max-width:78ch;display:grid;gap:6px}
+.method code{font-family:"IBM Plex Mono",monospace;font-size:12.5px;background:var(--rule-2);padding:1px 5px;border-radius:3px;color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.tip{transition:none}}
+</style>
+<main>
+<header>
+ <div class="eyebrow">messageboard-audit-bench · round 4 · blind / verbatim</div>
+ <h1>How much of its time budget does each model spend asleep?</h1>
+ <p class="lede">Sum of every <span class="mono">sleep N</span> the agent ran in a bash tool call, averaged over the finished epochs of each model × time-limit cell. <strong>Most models never sleep.</strong> The exceptions are concentrated in the 2-hour ReAct runs, where a model that finishes early waits out the 75% minimum-runtime floor instead of investigating further.</p>
+</header>
+<div class="tiles" id="tiles"></div>
+<section>
+ <h2>Average sleep per finished epoch, by model and time limit</h2>
+ <div class="legend" id="legend"></div>
+ <div class="chart-wrap"><div id="chart"></div><div class="tip" id="tip" hidden></div></div>
+ <p class="note" id="note"></p>
+</section>
+<section>
+ <h2>All cells</h2>
+ <div class="tbl-wrap"><table id="tbl"></table></div>
+</section>
+<section class="method">
+ <div><strong>Method.</strong> One row per finished, non-failed sample in <code>logs/round4</code> (Inspect <code>.eval</code> logs, all backends: Claude Code and Codex CLI subscription runs plus native ReAct). Sleep is detected by regex on the <code>command</code> argument of bash tool calls, so a <code>sleep</code> inside a heredoc or a Python <code>time.sleep()</code> is not counted. Percent of budget = average sleep ÷ (time limit × 60). Cells with fewer than 3 epochs are labelled with their <em>n</em>.</div>
+ <div>Generated 2026-09-07 from 99 samples. Claude Code 120m cells were still running and are absent.</div>
+</section>
+</main>
+<script>
+const DATA = [{"scaffold": "ReAct", "agent": "react", "model": "glm-5.3", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 3, "avg": 581.7, "max": 1200.0, "pct": 8.08, "calls": 4.3}}}, {"scaffold": "ReAct", "agent": "react", "model": "kimi-k3", "cells": {"10": {"n": 5, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 2, "avg": 150.0, "max": 300.0, "pct": 2.08, "calls": 1.0}}}, {"scaffold": "Codex CLI", "agent": "codex", "model": "gpt-5.6-luna", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 3, "avg": 50.3, "max": 151.0, "pct": 0.7, "calls": 2.0}}}, {"scaffold": "ReAct", "agent": "react", "model": "muse-spark-1.3", "cells": {"10": {"n": 3, "avg": 38.3, "max": 70.0, "pct": 6.39, "calls": 2.3}, "30": {"n": 3, "avg": 13.3, "max": 32.0, "pct": 0.74, "calls": 1.7}, "120": {"n": 3, "avg": 28.0, "max": 45.0, "pct": 0.39, "calls": 2.0}}}, {"scaffold": "Claude Code", "agent": "claude", "model": "haiku-4.5", "cells": {"10": {"n": 3, "avg": 24.0, "max": 62.0, "pct": 4.0, "calls": 1.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "ReAct", "agent": "react", "model": "gemini-3.8-flash", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 20.0, "max": 60.0, "pct": 1.11, "calls": 0.7}, "120": {"n": 3, "avg": 10.0, "max": 30.0, "pct": 0.14, "calls": 0.3}}}, {"scaffold": "Claude Code", "agent": "claude", "model": "opus-4.8", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "Claude Code", "agent": "claude", "model": "opus-5", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "Claude Code", "agent": "claude", "model": "sonnet-5", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 2, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "Codex CLI", "agent": "codex", "model": "gpt-5.6-sol", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "Codex CLI", "agent": "codex", "model": "gpt-5.6-terra", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "Codex CLI", "agent": "codex", "model": "gpt-6-astra", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "ReAct", "agent": "react", "model": "gpt-5.6-sol (react)", "cells": {"10": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "30": {"n": 3, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}, "120": {"n": 2, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}, {"scaffold": "ReAct", "agent": "react", "model": "gpt-6-astra (react)", "cells": {"120": {"n": 1, "avg": 0.0, "max": 0.0, "pct": 0.0, "calls": 0.0}}}];
+const BUDGETS=["10","30","120"], COL={"10":"var(--b10)","30":"var(--b30)","120":"var(--b120)"};
+const fmt=s=>s>=60?`${Math.floor(s/60)}m ${Math.round(s%60)}s`:`${Math.round(s)}s`;
+// legend
+document.getElementById('legend').innerHTML=BUDGETS.map(b=>`<span><i class="sw" style="background:${COL[b]}"></i>${b}-minute limit</span>`).join('')+`<span style="color:var(--ink-3)">— no finished epochs</span>`;
+// tiles: the three worst cells
+const worst=[];DATA.forEach(d=>Object.entries(d.cells).forEach(([b,c])=>worst.push({...c,b,model:d.model,scaffold:d.scaffold})));
+worst.sort((a,b)=>b.avg-a.avg);
+document.getElementById('tiles').innerHTML=worst.slice(0,3).map(w=>`<div class="tile"><div class="k">${w.model} · ${w.b}m</div><div class="v mono">${fmt(w.avg)}<small>${w.pct}% of budget</small></div><div class="d">avg over ${w.n} epoch${w.n>1?'s':''}, max ${fmt(w.max)} in one run · ${w.scaffold}</div></div>`).join('');
+// chart
+const W=1040, L=232, R=70, rowH=54, barH=12, gap=2, T=28;
+const H=T+DATA.length*rowH+24;
+const maxv=Math.max(...worst.map(w=>w.avg))*1.08;
+const x=v=>L+(v/maxv)*(W-L-R);
+let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Average sleep seconds per model and time limit">`;
+const ticks=[0,120,240,360,480,600].filter(t=>t<=maxv);
+ticks.forEach(t=>{s+=`<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="${T-6}" y2="${H-20}"/><text x="${x(t)}" y="${H-6}" text-anchor="middle">${t===0?'0':fmt(t)}</text>`;});
+s+=`<line class="axis" x1="${L}" x2="${L}" y1="${T-6}" y2="${H-20}"/>`;
+DATA.forEach((d,i)=>{
+ const y0=T+i*rowH;
+ s+=`<text class="lbl" x="${L-12}" y="${y0+18}" text-anchor="end">${d.model}</text><text class="scaf" x="${L-12}" y="${y0+33}" text-anchor="end">${d.scaffold.toUpperCase()}</text>`;
+ BUDGETS.forEach((b,j)=>{
+  const y=y0+6+j*(barH+gap); const c=d.cells[b];
+  if(!c){s+=`<text class="miss" x="${L+6}" y="${y+barH-2}">— ${b}m</text>`;return;}
+  const w=Math.max(x(c.avg)-L, c.avg>0?3:0);
+  const tipTxt=`${d.model} · ${b}m limit\navg ${fmt(c.avg)} (${c.pct}% of budget)\nmax ${fmt(c.max)} · ${c.calls} sleep calls/epoch · n=${c.n}`;
+  s+=`<rect class="hit" x="${L}" y="${y-2}" width="${Math.max(w,24)+40}" height="${barH+4}" tabindex="0" data-tip="${tipTxt.replace(/"/g,'&quot;')}"/>`;
+  s+=`<rect class="bar" x="${L}" y="${y}" width="${w}" height="${barH}" fill="${COL[b]}" rx="${w>6?3:0}" ry="${w>6?3:0}"/>`;
+  if(c.avg>0)s+=`<text class="val" x="${x(c.avg)+6}" y="${y+barH-2}">${fmt(c.avg)}${c.n<3?` <tspan class="miss">n=${c.n}</tspan>`:''}</text>`;
+  else if(c.n<3)s+=`<text class="miss" x="${L+6}" y="${y+barH-2}">0 · n=${c.n}</text>`;
+ });
+});
+s+=`</svg>`;
+document.getElementById('chart').innerHTML=s;
+const tip=document.getElementById('tip'), wrap=document.querySelector('.chart-wrap');
+function show(e){const t=e.target.dataset.tip;if(!t)return;tip.textContent='';t.split('\n').forEach((l,i)=>{if(i)tip.appendChild(document.createElement('br'));tip.appendChild(document.createTextNode(l));});tip.hidden=false;tip.style.opacity=1;move(e);}
+function move(e){const r=wrap.getBoundingClientRect();const px=(e.clientX||r.left+40)-r.left+14, py=(e.clientY||r.top+40)-r.top+14;tip.style.left=Math.min(px,r.width-270)+'px';tip.style.top=py+'px';}
+function hide(){tip.style.opacity=0;tip.hidden=true;}
+document.querySelectorAll('.hit').forEach(h=>{h.addEventListener('mouseenter',show);h.addEventListener('mousemove',move);h.addEventListener('mouseleave',hide);h.addEventListener('focus',show);h.addEventListener('blur',hide);});
+// note
+const nz=worst.filter(w=>w.avg>0).length;
+document.getElementById('note').textContent=`${worst.length-nz} of ${worst.length} cells have zero sleep. Only ${nz} cells sleep at all, and one — glm-5.3 at 120 minutes — accounts for more sleep than every other cell combined (three runs: 485 s, 0 s, 1200 s).`;
+// table
+let t=`<thead><tr><th>Model</th><th>Scaffold</th>`+BUDGETS.map(b=>`<th>${b}m avg</th><th>${b}m max</th><th>${b}m % budget</th><th>n</th>`).join('')+`</tr></thead><tbody>`;
+DATA.forEach(d=>{t+=`<tr><td class="mono">${d.model}</td><td>${d.scaffold}</td>`;BUDGETS.forEach(b=>{const c=d.cells[b];if(!c){t+=`<td class="zero">—</td><td class="zero">—</td><td class="zero">—</td><td class="zero">—</td>`;return;}const z=c.avg===0?' class="zero mono"':(c.avg>=100?' class="hi mono"':' class="mono"');t+=`<td${z}>${fmt(c.avg)}</td><td${z}>${fmt(c.max)}</td><td${z}>${c.pct}%</td><td class="mono${c.n<3?'':' zero'}">${c.n}</td>`;});t+=`</tr>`;});
+document.getElementById('tbl').innerHTML=t+`</tbody>`;
+</script>
