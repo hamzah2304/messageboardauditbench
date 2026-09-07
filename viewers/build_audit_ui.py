@@ -19,16 +19,28 @@ same for the judge quotes that are not verbatim in their model report. Where no 
 exists the quote is matched exactly or with whitespace/punctuation normalised, and if
 that fails the claim is reported as having no anchor rather than highlighted approximately.
 """
-import ast, importlib.util, json, re, shutil, sys, pathlib
+import ast, importlib.util, json, os, re, shutil, sys, pathlib
 from urllib.parse import quote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from paths import ROOT, RUBRICS, GRADED, GRADED_INPUTS, VIEWERS, CORPUS
 
-OUT = VIEWERS / "audit.html"
-DATA_DIR = VIEWERS / "data" / "audit"          # one <key>.json per report, fetched on demand
+# Which rubric and whose grades this build audits. The v1 page (default) audits the
+# 30-point rubric graded by Sol; RUBRIC=v2 with JUDGE=<model> audits the 38-point one.
+_RUB = os.getenv("RUBRIC", "v1")
+_JUDGE = os.getenv("JUDGE", "")
+IS_V2 = _RUB == "v2"
+OUT = VIEWERS / ("audit_v2.html" if IS_V2 else "audit.html")
+DATA_DIR = VIEWERS / "data" / ("audit_v2" if IS_V2 else "audit")   # per-report payloads; the two
+# rubrics share report keys but not scores, so they must not share a payload directory
 HUMAN_HTML = DATA_DIR / "_human.html"          # the published report, styled, for the iframe
-AUDIT_PATH = ROOT / "benchmark" / "audit" / "judge_audit.json"
+AUDIT_PATH = ROOT / "benchmark" / "audit" / (
+    f"judge_audit_v2_{re.sub(r'[^0-9a-zA-Z]+','_',_JUDGE).strip('_')}.json" if IS_V2
+    else "judge_audit.json")
+# where the grades for this build live
+GRADE_DIR = (GRADED / f"judge_{re.sub(r'[^0-9a-zA-Z]+','_',_JUDGE).strip('_')}" / "v2") if IS_V2 else GRADED
+N_SHEETS = 8 if IS_V2 else 6
+SHEET_JSON = "v2" if IS_V2 else "rubric"
 ANCHORS_HUMAN = ROOT / "benchmark" / "claims" / "anchors_human.json"
 ANCHORS_REPORTS = ROOT / "benchmark" / "claims" / "anchors_reports.json"
 BUILD_RUBRICS = ROOT / "benchmark" / "rubrics" / "build_rubrics.py"
@@ -230,8 +242,8 @@ def write_human_html():
 
 def load_claims(anchors, article_text):
     claims, missing = [], []
-    for i in range(1, 7):
-        rub = json.loads((RUBRICS / f"rubric_{i}.json").read_text())
+    for i in range(1, N_SHEETS + 1):
+        rub = json.loads((RUBRICS / f"{SHEET_JSON}_{i}.json").read_text())
         for c in rub["claims"]:
             gt = c.get("ground_truth") or {}
             quote = c.get("report_quote", "") or ""
@@ -277,7 +289,7 @@ def load_reports(claim_ids, ranchors):
         rows = [json.loads(l) for l in idx.read_text().splitlines() if l.strip()]
         for p in sorted(d.glob("*.md")):
             key = sanitize(p.stem)
-            gpath = GRADED / f"graded_{key}.json"
+            gpath = GRADE_DIR / f"graded_{key}.json"
             if not gpath.exists():
                 warn.append(f"no grade for {p.name}"); continue
             g = json.loads(gpath.read_text())
