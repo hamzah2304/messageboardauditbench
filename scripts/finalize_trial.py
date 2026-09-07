@@ -23,7 +23,7 @@ def finalize(run: pathlib.Path, force: bool = False) -> None:
     if not tr.exists(): print(f"{run.name}: no transcript, skipped"); return
     for f in ("report.md", "final_message.md"):
         if (run / "work" / f).exists() and not (run / f).exists(): shutil.copyfile(run / "work" / f, run / f)
-    subprocess.run([sys.executable, "-m", "messageboard_audit_bench.usage", str(run), "--quiet"],
+    subprocess.run([sys.executable, str(ROOT / "messageboard_audit_bench/usage.py"), str(run), "--quiet"],
                    env={**os.environ, "PYTHONPATH": str(ROOT)}, check=False)
     lines = tr.read_text().splitlines()
     last = {}

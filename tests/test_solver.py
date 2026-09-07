@@ -88,7 +88,7 @@ def test_fold_imports_report_transcript_and_usage(tmp_path: Path) -> None:
     assert state.output.usage.input_tokens_cache_read == 3
     assert state.metadata["input_tokens_uncached"] == 9
     assert state.metadata["cache_read_fraction"] == 0.25
-    assert state.metadata["usage_schema"] == 2
+    assert state.metadata["usage_schema"] == 3
     assert state.metadata["condition"] == "blind"
     assert state.metadata["report_written"] is True
     assert state.metadata["wall_seconds"] == 7
@@ -190,7 +190,7 @@ async def test_subscription_agent_folds_successful_trial(
 
     monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
-    state = await subscription_agent(
+    state = await subscription_agent(allow_networked_subscription=True,
         agent="codex",
         model="gpt-test",
         condition="blind",
@@ -227,6 +227,6 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
     monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="exit code 2: docker unavailable"):
-        await subscription_agent(agent="codex", model="gpt-test", condition="blind")(
+        await subscription_agent(allow_networked_subscription=True, agent="codex", model="gpt-test", condition="blind")(
             _state(), None
         )

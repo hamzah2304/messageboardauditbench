@@ -48,3 +48,30 @@ def test_subscription_kill_keeps_a_grace_period_after_the_budget() -> None:
     src = (ROOT / "messageboard_audit_bench" / "task.py").read_text()
     assert "timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES" in src
     assert "timeout_minutes=timeout_minutes" in src
+
+
+def test_subscription_proxy_is_scoped_to_the_selected_agent() -> None:
+    assert '--agent "$AGENT"' in RUN_TRIAL
+    assert "ALLOW_NETWORKED_SUBSCRIPTION" in RUN_TRIAL
+
+
+def test_subscription_never_mounts_two_cli_credential_directories() -> None:
+    # The canary deliberately has no credentials; a real agent gets only the
+    # one directory selected by AGENT_SECRET_MOUNTS.
+    assert 'CANARY_ARGS=("${DOCKER_BASE[@]}" "$IMAGE")' in RUN_TRIAL
+    assert 'AGENT_SECRET_MOUNTS=(-v "$SECRETS/claude:/home/agent/.claude")' in RUN_TRIAL
+    assert 'AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")' in RUN_TRIAL
+    assert '-v "$SECRETS/claude:/home/agent/.claude" -v "$SECRETS/codex:/home/agent/.codex"' not in RUN_TRIAL
+
+
+def test_codex_capacity_retries_preserve_attempts_and_one_deadline() -> None:
+    assert 'HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"' in RUN_TRIAL
+    assert '"${remaining}s" codex exec' in RUN_TRIAL
+    assert '"$RUN/transcript.attempt$attempt.jsonl"' in RUN_TRIAL
+    assert '"$RUN/stderr.attempt$attempt.log"' in RUN_TRIAL
+    assert 'sleep_seconds=$((remaining < 30 ? remaining : 30))' in RUN_TRIAL
+
+
+def test_postprocessing_returns_the_exit_code_written_to_metadata() -> None:
+    assert '(run/".final_exit_code").write_text(str(rc))' in RUN_TRIAL
+    assert 'RC="$(< "$RUN/.final_exit_code")"' in RUN_TRIAL

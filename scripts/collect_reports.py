@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gather every run's report into one folder, keyed by data variant, prompt and time budget.
 
-    scripts/collect_reports.py [--out reports] [--runs runs] [--include-partial]
+    scripts/collect_reports.py [--out reports] [--runs runs] [--include-partial] [--include-rejected]
 
 Layout:
     reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
@@ -13,18 +13,34 @@ condition name lands in a new folder instead of mixing with older runs. The
 variant and effort are also part of the folder key.
 
 Runs without a successful exit code are skipped unless --include-partial, in
-which case their draft report from work/ is copied and flagged partial.
+which case their draft report from work/ is copied and flagged partial. Reports
+outside their saved acceptance bounds are skipped unless --include-rejected.
 """
 from __future__ import annotations
-import argparse, hashlib, json, shutil, sys
+
+import argparse
+import hashlib
+import json
+import shutil
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from messageboard_audit_bench.report_length import (  # noqa: E402
+    acceptance_limits,
+    limits,
+    measure,
+)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(ROOT / "reports")); ap.add_argument("--runs", default=str(ROOT / "runs"))
+    ap.add_argument("--out", default=str(ROOT / "reports"))
+    ap.add_argument("--runs", default=str(ROOT / "runs"))
     ap.add_argument("--include-partial", action="store_true")
+    ap.add_argument("--include-rejected", action="store_true")
     a = ap.parse_args()
     out, runs = Path(a.out), Path(a.runs)
     rows = []
@@ -40,8 +56,16 @@ def main() -> int:
         if not report.exists():
             report = d / "work" / "report.md"
         if not report.exists():
-            report = d / "final_message.md"
-        if not report.exists():
+            continue
+        report_text = report.read_text(errors="replace")
+        length = measure(
+            report_text,
+            *limits(meta),
+            exists=True,
+            acceptance=acceptance_limits(meta),
+        )
+        rejected = length["report_length_compliant"] is False
+        if rejected and not a.include_rejected:
             continue
         prompt_p = d / "work" / "prompt.txt"
         if not prompt_p.exists():
@@ -87,6 +111,8 @@ def main() -> int:
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
                                                   "wall_seconds", "cli_version", "prompt_sha256")},
                      "model_served": served, "model_fallback": meta.get("model_fallback"),
+                     "report_rejected": rejected,
+                     **length,
                      "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit_bench/usage.py)
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))

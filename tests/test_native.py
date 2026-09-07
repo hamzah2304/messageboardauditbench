@@ -39,7 +39,7 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
         captured["agent_kwargs"] = kwargs
         return selected
 
-    async def fake_prepare(deadline_epoch, budget_minutes):
+    async def fake_prepare(deadline_epoch, budget_minutes, *_args):
         captured.update(deadline_epoch=deadline_epoch, budget_minutes=budget_minutes)
 
     monkeypatch.setattr(native, "inspect_agent", fake_agent)
@@ -59,7 +59,7 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
         },
     )
 
-    async def fake_run(agent, messages, limits):
+    async def fake_run(agent, messages, limits, **_kwargs):
         captured.update(agent=agent, messages=messages, limits=limits)
         return agent_state, None
 
@@ -71,7 +71,7 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
 
     state = await native.inspect_native_agent("codex", 90)(_state(), None)
 
-    assert captured["agent"] is selected
+    assert captured["agent"].__wrapped__ is selected
     assert captured["budget_minutes"] == 2
     assert captured["agent_kwargs"]["env"]["MBAB_BUDGET_MIN"] == "2"
     assert int(captured["agent_kwargs"]["env"]["MBAB_DEADLINE_EPOCH"]) == captured["deadline_epoch"]
@@ -128,7 +128,7 @@ def test_native_solver_writes_a_standard_eval_log(tmp_path, monkeypatch) -> None
 
     monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
 
-    async def fake_run(_agent, messages, limits):
+    async def fake_run(_agent, messages, limits, **_kwargs):
         return AgentState(
             messages=[*messages, ChatMessageAssistant(content="finished")]
         ), None
@@ -214,3 +214,89 @@ def test_inspect_agent_rejects_unknown_adapter() -> None:
             "unknown",
             claude_disallowed_tools=[],
         )
+
+
+@pytest.mark.asyncio
+async def test_feedback_counts_only_changed_report(monkeypatch):
+    from inspect_ai.model import GenerateConfig
+
+    report = [""]
+
+    async def read():
+        return report[0], None
+
+    monkeypatch.setattr(native, "_read_report", read)
+    callback = native._feedback_filter({"MBAB_REPORT_MIN_WORDS": "2", "MBAB_REPORT_MAX_WORDS": "3", "MBAB_DEADLINE_EPOCH": "9999999999"})
+
+    async def note():
+        result = await callback(None, [], [], "auto", GenerateConfig())
+        return result.input[-1].text
+
+    assert "Report length" not in await note()
+    report[0] = "one two three four"
+    assert "Remove at least 1 words" in await note()
+    assert "Report length" not in await note()
+    report[0] = "one two"
+    assert "Report length: 2 words" in await note()
+    assert "seconds remaining" in await note()
+
+
+@pytest.mark.asyncio
+async def test_native_automatically_shortens_before_original_deadline(monkeypatch):
+    reports = ["word " * 3101]
+    calls = []
+
+    async def prepare(*args):
+        return {"ok": True}
+
+    async def read():
+        return reports[0], None
+
+    async def fake_run(agent, messages, limits, **kwargs):
+        calls.append(messages)
+        if len(calls) == 2:
+            reports[0] = "word " * 2999
+        return AgentState(messages=[*messages, ChatMessageAssistant(content="done")]), None
+
+    monkeypatch.setattr(native, "_prepare_budget", prepare)
+    monkeypatch.setattr(native, "_read_report", read)
+    monkeypatch.setattr(native, "inspect_agent", lambda *a, **kw: object())
+    monkeypatch.setattr(native, "run", fake_run)
+    state = _state()
+    state.metadata.update(report_min_words=2500, report_max_words=3000, report_accept_min_words=0, report_accept_max_words=3100)
+    result = await native.inspect_native_agent("codex", 60, report_min_words=2500, report_max_words=3000)(state, None)
+    assert len(calls) == 2
+    assert "3101 words" in calls[1][-1].text
+    assert "original deadline" in calls[1][-1].text
+    assert result.metadata["report_words"] == 2999
+    assert result.metadata["report_length_compliant"] is True
+    assert result.metadata["report_length_revision_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_native_retains_partial_report_and_messages_on_adapter_error(monkeypatch):
+    async def prepare(*args):
+        return {"ok": True}
+
+    async def failing_agent(state):
+        state.messages.append(ChatMessageAssistant(content="partial investigation"))
+        raise RuntimeError("adapter failed")
+
+    async def read():
+        return "partial evidence", None
+
+    monkeypatch.setattr(native, "_prepare_budget", prepare)
+    monkeypatch.setattr(native, "_read_report", read)
+    monkeypatch.setattr(native, "inspect_agent", lambda *a, **kw: failing_agent)
+    state = _state()
+    with pytest.raises(RuntimeError, match="adapter failed"):
+        await native.inspect_native_agent("codex", 60)(state, None)
+    assert state.messages[-1].text == "partial investigation"
+    assert state.output.completion == "partial evidence"
+    assert state.metadata["agent_error"] == "RuntimeError: adapter failed"
+
+
+def test_reasoning_count_unknown_is_distinct_from_reported_zero():
+    assert native._usage_metadata([ModelUsage(reasoning_tokens=0)])["reasoning_tokens"] == 0
+    assert native._usage_metadata([ModelUsage()])["reasoning_tokens"] is None
+    assert native._usage_metadata([ModelUsage(reasoning_tokens=10), ModelUsage()])["reasoning_tokens"] is None

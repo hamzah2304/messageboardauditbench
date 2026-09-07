@@ -17,7 +17,7 @@ from messageboard_audit_bench.task import messageboard_audit_bench as build_task
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", condition="blind")
 
-    assert task.version == EVAL_VERSION == "1-B"
+    assert task.version == EVAL_VERSION == "2-B"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
@@ -27,6 +27,11 @@ def test_task_has_stable_sample_and_version() -> None:
         "budget_min": 20,
         "data_variant": "verbatim",
         "effort": "xhigh",
+        "isolation": "network_none",
+        "report_min_words": 2500,
+        "report_max_words": 3000,
+        "report_accept_min_words": 0,
+        "report_accept_max_words": 3100,
     }
 
 
@@ -61,6 +66,7 @@ def test_command_time_limit_reaches_solver(monkeypatch) -> None:
     task_module.messageboard_audit_bench(
         agent="codex",
         backend="subscription",
+        allow_networked_subscription=True,
         subscription_model="gpt-test",
         condition="blind",
         time_limit_minutes=37,
@@ -68,7 +74,7 @@ def test_command_time_limit_reaches_solver(monkeypatch) -> None:
 
     assert captured["time_limit_minutes"] == 37
     assert captured["timeout_minutes"] == 42
-    assert captured["prompt"] == "blind"
+    assert captured["prompt"] == "blind-v2"
     assert captured["data_variant"] == "verbatim"
     assert captured["effort"] == "xhigh"
 
@@ -83,6 +89,7 @@ def test_default_time_limit_preserves_condition_timeout(monkeypatch) -> None:
     monkeypatch.setattr(task_module, "subscription_agent", capture_subscription_agent)
     task_module.messageboard_audit_bench(
         backend="subscription",
+        allow_networked_subscription=True,
         subscription_model="claude-test",
         condition="blind",
     )
@@ -120,6 +127,7 @@ def test_subscription_requires_explicit_cli_model() -> None:
 def test_subscription_does_not_require_an_unrelated_inspect_model() -> None:
     task = build_task(
         backend="subscription",
+        allow_networked_subscription=True,
         subscription_model="claude-opus-5",
     )
 
@@ -171,7 +179,7 @@ def test_condition_error_lists_time_neutral_names() -> None:
 def test_all_public_conditions_build(condition: str) -> None:
     cfg = _load_condition(condition)
 
-    assert cfg["prompt"] == condition
+    assert cfg["prompt"] == ("blind-v2" if condition == "blind" else condition)
     assert (repo_root() / "sandbox" / "prompts" / f"{condition}.txt").is_file()
     assert cfg["data_variant"] in {"raw_stripped", "verbatim"}
     assert build_task(condition=condition).dataset[0].id.endswith(

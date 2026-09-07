@@ -20,6 +20,9 @@ The final `result` event carries the totals.
 """
 import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
 
+from pathlib import Path
+from report_length import env_limits, feedback_if_changed, stop_reason
+
 TOOLS = [
     {"type": "function", "function": {"name": "bash",
         "description": "Run a shell command in the working directory (bash, Python 3, jq, ripgrep, sqlite3 available). Output is truncated to 20000 characters.",
@@ -113,7 +116,7 @@ def usage_of(resp):
     out = {"input_tokens": u.get("prompt_tokens", 0) or 0, "output_tokens": u.get("completion_tokens", 0) or 0,
            "cache_read_input_tokens": pd.get("cached_tokens", 0) or 0,
            "cache_creation_input_tokens": pd.get("cache_write_tokens", 0) or 0,
-           "reasoning_tokens": cd.get("reasoning_tokens", 0) or 0, "cost": u.get("cost")}
+           "reasoning_tokens": cd.get("reasoning_tokens"), "cost": u.get("cost")}
     if u.get("cost_details"): out["cost_details"] = u["cost_details"]
     return out
 
@@ -161,7 +164,11 @@ def main():
             emit({"type": "error", "error": str(e)}); stop = "api_error"; break
         turns += 1; retries += n_retry; latencies.append(latency_ms)
         tu = usage_of(resp)
-        for k in usage: usage[k] += tu.get(k) or 0
+        for k in usage:
+            if k == "reasoning_tokens" and (usage[k] is None or tu.get(k) is None):
+                usage[k] = None
+            else:
+                usage[k] += tu.get(k) or 0
         cost += tu.get("cost") or 0
         choice = resp["choices"][0]; m = choice["message"]
         mid = resp.get("id") or f"msg_{turns}"
@@ -189,12 +196,19 @@ def main():
         if m.get("reasoning_details"): assistant["reasoning_details"] = m["reasoning_details"]
         elif m.get("reasoning"): assistant["reasoning"] = m["reasoning"]   # plaintext-only providers
         msgs.append(assistant)
-        if not calls: break
+        if not calls:
+            reason = stop_reason(Path(a.cwd) / "report.md", *env_limits())
+            if not reason: break
+            msgs.append({"role": "user", "content": reason})
+            emit({"type": "user", "message": {"content": [{"type": "text", "text": reason}]}})
+            continue
         results = []
         for c in calls:
             args = c["_args"]
             out = ("[could not parse tool arguments as JSON]" if "_raw" in args else run_tool(c["function"]["name"], args, a.cwd))
             out += time_left_note()
+            note = feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
+            if note: out += "\n\n[" + note + "]"
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})
             results.append({"type": "tool_result", "tool_use_id": c["id"], "content": out})
         emit({"type": "user", "message": {"content": results}})

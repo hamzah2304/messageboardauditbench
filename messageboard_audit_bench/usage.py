@@ -51,7 +51,7 @@ def _lines(path: Path) -> Iterable[dict]:
 
 
 def _blank() -> dict[str, Any]:
-    return {**{k: 0 for k in KEYS}, "usage_schema": 2, "cost_usd": None, "api_calls": 0, "turns": 0, "tool_calls": 0,
+    return {**{k: 0 for k in KEYS}, "reasoning_tokens": None, "reasoning_tokens_source": "unavailable", "usage_schema": 3, "cost_usd": None, "api_calls": 0, "turns": 0, "tool_calls": 0,
             "thinking_blocks": 0, "thinking_chars": 0, "api_retries": 0, "api_errors": 0,
             "peak_context_tokens": 0, "stop_reason": None, "terminal_reason": None, "is_error": None,
             "duration_ms": None, "usage_source": None}
@@ -128,7 +128,7 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
         )
         s["peak_context_tokens"] = max(s["peak_context_tokens"], ctx)
 
-    def take(u: dict) -> None:
+    def take(u: dict, *, reasoning_source: str | None = None) -> None:
         reported_input = u.get("input_tokens") or 0
         cache_read = u.get("cache_read_input_tokens") or 0
         cache_write = u.get("cache_creation_input_tokens") or 0
@@ -143,23 +143,47 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
         s["output_tokens"] = u.get("output_tokens") or 0
         s["cache_read_tokens"] = cache_read
         s["cache_write_tokens"] = cache_write
-        s["reasoning_tokens"] = ((u.get("output_tokens_details") or {}).get("thinking_tokens")
-                                 or u.get("reasoning_tokens") or 0)
+        reasoning = (u.get("output_tokens_details") or {}).get(
+            "thinking_tokens", u.get("reasoning_tokens")
+        )
+        s["reasoning_tokens"] = reasoning
+        s["reasoning_tokens_source"] = (
+            reasoning_source
+            or ("reported" if reasoning is not None else "unavailable")
+        )
 
     if result and result.get("usage"):
         take(result["usage"])
         s["usage_source"] = "result"
     else:
         agg: dict[str, int] = {}
+        reasoning_values: list[int] = []
+        reasoning_missing = False
         for u in per_msg.values():
-            for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "reasoning_tokens"):
+            for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
                 agg[k] = agg.get(k, 0) + (u.get(k) or 0)
-            agg["reasoning_tokens"] = agg.get("reasoning_tokens", 0) + ((u.get("output_tokens_details") or {}).get("thinking_tokens") or 0)
-        take(agg)
+            details = u.get("output_tokens_details") or {}
+            if details.get("thinking_tokens") is not None:
+                reasoning_values.append(details["thinking_tokens"] or 0)
+            elif u.get("reasoning_tokens") is not None:
+                reasoning_values.append(u["reasoning_tokens"] or 0)
+            else:
+                reasoning_missing = True
+        if reasoning_values and not reasoning_missing:
+            agg["reasoning_tokens"] = sum(reasoning_values)
+            take(agg)
+        else:
+            take(
+                agg,
+                reasoning_source=(
+                    "unavailable_or_partial" if reasoning_values else "unavailable"
+                ),
+            )
         s["usage_source"] = "per_message_sum" if per_msg else "none"
-        if not s["reasoning_tokens"] and est_thinking:
-            s["reasoning_tokens"] = est_thinking
-            s["reasoning_tokens_estimated"] = True
+    if s["reasoning_tokens"] is None and est_thinking:
+        s["reasoning_tokens"] = est_thinking
+        s["reasoning_tokens_estimated"] = True
+        s["reasoning_tokens_source"] = "cli_estimate"
     if result:
         s["cost_usd"] = result.get("total_cost_usd")
         s["duration_ms"] = result.get("duration_ms")
@@ -198,6 +222,13 @@ def _codex_rollouts(run_dir: Path) -> list[Path]:
 
 def summarize_codex(run_dir: Path) -> dict[str, Any]:
     s = _blank()
+    retry_transcripts = sorted(run_dir.glob("transcript.attempt*.jsonl"))
+    # Capacity retries are preserved separately by the runner. Their usage is
+    # not safely additive: a retry can have no completed turn and the rollout
+    # session may span attempts. Record their existence instead of inventing a
+    # token total.
+    s["retry_attempt_transcripts"] = len(retry_transcripts)
+    s["attempts_recorded"] = 1 + len(retry_transcripts)
     turn_usage: dict | None = None
     for ev in _lines(run_dir / "transcript.jsonl"):
         t = ev.get("type")
@@ -217,7 +248,7 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
                 s["api_retries"] += 1
     s["turns"] = s["tool_calls"]  # codex's own "turn" is the whole exec; count tool round-trips like the others
 
-    def take(u: dict) -> None:
+    def take(u: dict, *, reasoning_source: str | None = None) -> None:
         total_input = u.get("input_tokens") or 0
         cache_read = u.get("cached_input_tokens") or 0
         cache_write = u.get("cache_write_input_tokens") or 0
@@ -226,11 +257,16 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         s["output_tokens"] = u.get("output_tokens") or 0
         s["cache_read_tokens"] = cache_read
         s["cache_write_tokens"] = cache_write
-        s["reasoning_tokens"] = u.get("reasoning_output_tokens") or 0
+        s["reasoning_tokens"] = u.get("reasoning_output_tokens")
+        s["reasoning_tokens_source"] = (
+            reasoning_source
+            or ("reported" if s["reasoning_tokens"] is not None else "unavailable")
+        )
 
     rollouts = _codex_rollouts(run_dir)
     if rollouts:
-        last_total: dict | None = None
+        totals_by_session: dict[str, dict] = {}
+        seen_last: set[tuple[str, str]] = set()
         calls = 0
         r_items = 0
         r_summary_chars = 0
@@ -238,15 +274,28 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         encrypted = 0
         peak = 0
         for ro in rollouts:
+            session_id = str(ro)
             for ev in _lines(ro):
                 p = ev.get("payload") or {}
+                if ev.get("type") == "session_meta":
+                    session_id = str(p.get("session_id") or p.get("id") or session_id)
                 if ev.get("type") == "event_msg" and p.get("type") == "token_count":
                     info = p.get("info") or {}
                     if info.get("total_token_usage"):
-                        last_total = info["total_token_usage"]
+                        total = info["total_token_usage"]
+                        # Each token_count is a cumulative snapshot. A copied
+                        # rollout can repeat it, while later snapshots for the
+                        # same session must replace earlier ones. Pick the
+                        # largest cumulative total independent of file order.
+                        current = totals_by_session.get(session_id)
+                        if current is None or _usage_size(total) > _usage_size(current):
+                            totals_by_session[session_id] = total
                     last = info.get("last_token_usage") or {}
                     if last:
-                        calls += 1
+                        identity = (session_id, json.dumps(last, sort_keys=True))
+                        if identity not in seen_last:
+                            seen_last.add(identity)
+                            calls += 1
                         peak = max(peak, last.get("input_tokens") or 0)
                 elif ev.get("type") == "response_item" and p.get("type") == "reasoning":
                     r_items += 1
@@ -263,8 +312,24 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         s["reasoning_summary_chars"] = r_summary_chars
         s["reasoning_raw_chars"] = r_raw_chars
         s["reasoning_items_encrypted"] = encrypted
-        if last_total:
-            take(last_total)
+        if totals_by_session:
+            combined = {key: sum(u.get(key, 0) or 0 for u in totals_by_session.values())
+                        for key in {k for u in totals_by_session.values() for k in u}}
+            has_reasoning = [
+                u.get("reasoning_output_tokens") is not None
+                for u in totals_by_session.values()
+            ]
+            if not all(has_reasoning):
+                combined["reasoning_output_tokens"] = None
+            take(
+                combined,
+                reasoning_source=(
+                    "reported" if all(has_reasoning)
+                    else "unavailable_or_partial" if any(has_reasoning)
+                    else "unavailable"
+                ),
+            )
+            s["sessions"] = len(totals_by_session)
             s["usage_source"] = "codex_rollout"
     if s["usage_source"] is None and turn_usage is not None:
         take(turn_usage)
@@ -274,6 +339,20 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
     s["terminal_reason"] = "turn_completed" if turn_usage is not None else "no_turn_completed"
     s["is_error"] = turn_usage is None
     return s
+
+
+def _usage_size(usage: dict[str, Any]) -> int:
+    """A monotonic ordering for cumulative Codex token snapshots."""
+    return sum(
+        int(usage.get(key) or 0)
+        for key in (
+            "input_tokens",
+            "cached_input_tokens",
+            "cache_write_input_tokens",
+            "output_tokens",
+            "reasoning_output_tokens",
+        )
+    )
 
 
 # --------------------------------------------------------------------------------------- entry

@@ -9,6 +9,7 @@ bring past baseline runs into Inspect without re-running the models.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 from pathlib import Path
@@ -16,6 +17,8 @@ from pathlib import Path
 from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
+from messageboard_audit_bench.audit import trajectory_metrics
+from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
 from messageboard_audit_bench.runtime import repo_root
 from messageboard_audit_bench.transcripts import Parsed, parse
 
@@ -26,8 +29,6 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 
     report_path = run_dir / "report.md"
     report = report_path.read_text(errors="replace") if report_path.exists() else ""
-    if not report and agent == "codex" and (run_dir / "final_message.md").exists():
-        report = (run_dir / "final_message.md").read_text(errors="replace")
 
     usage = ModelUsage(
         # Inspect defines input_tokens as the uncached/full-rate subset; its
@@ -38,7 +39,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         total_tokens=parsed.input_tokens + parsed.output_tokens,
         input_tokens_cache_read=parsed.cache_read_tokens or None,
         input_tokens_cache_write=parsed.cache_write_tokens or None,
-        reasoning_tokens=parsed.reasoning_tokens or None,
+        reasoning_tokens=parsed.reasoning_tokens,
         total_cost=parsed.cost_usd,
     )
     state.output = ModelOutput.from_content(model=agent, content=report or "(no report written)")
@@ -78,6 +79,9 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         transcript_diagnostics=parsed.extra.get("transcript_diagnostics"),
         **{f"cli_{k}": v for k, v in parsed.extra.items() if isinstance(v, (str, int, float))},
     )
+    state.metadata.update(measure(report, *limits(meta), exists=report_path.exists(), acceptance=acceptance_limits(meta)))
+    state.metadata.update(trajectory_metrics(parsed.messages))
+    state.metadata["trial_failed"] = meta.get("exit_code") not in (None, 0)
     state.completed = True
     return state
 
@@ -87,6 +91,7 @@ def subscription_agent(
     agent: str,
     model: str,
     condition: str = "blind",
+    allow_networked_subscription: bool = False,
     time_limit_minutes: int | None = None,
     timeout_minutes: int | None = None,
     prompt: str | None = None,
@@ -104,7 +109,9 @@ def subscription_agent(
             model,
             str(replicate),
         ]
-        env = {"CONFIG": condition}
+        if not allow_networked_subscription:
+            raise ValueError("set allow_networked_subscription=true to explicitly accept weaker subscription isolation")
+        env = {"CONFIG": condition, "ALLOW_NETWORKED_SUBSCRIPTION": "1"}
         if prompt is not None:
             env["PROMPT"] = prompt
         if data_variant is not None:
@@ -115,8 +122,8 @@ def subscription_agent(
             env["BUDGET_MIN"] = str(time_limit_minutes)
         if timeout_minutes is not None:
             env["TIMEOUT"] = f"{timeout_minutes}m"
-        proc = subprocess.run(
-            cmd, cwd=repo, env={**_os_environ(), **env},
+        proc = await asyncio.to_thread(
+            subprocess.run, cmd, cwd=repo, env={**_os_environ(), **env},
             capture_output=True, text=True,
         )
         # run_trial.sh prints the run dir on its first "run: <path>" line
@@ -124,7 +131,10 @@ def subscription_agent(
         for line in proc.stdout.splitlines():
             if line.startswith("run: "):
                 run_dir = Path(line[5:].strip())
+        if proc.returncode != 0 and run_dir is not None and (run_dir / "transcript.jsonl").exists():
+            _fold(state, run_dir, agent)
         if proc.returncode != 0:
+            state.metadata["launch_exit_code"] = proc.returncode
             detail = (proc.stderr or proc.stdout)[-2000:]
             raise RuntimeError(f"trial failed with exit code {proc.returncode}: {detail}")
         if run_dir is None:

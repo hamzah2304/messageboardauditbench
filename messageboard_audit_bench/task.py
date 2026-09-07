@@ -32,11 +32,20 @@ from inspect_ai.util import (
 )
 
 from messageboard_audit_bench.native import inspect_native_agent
+from messageboard_audit_bench.report_length import (
+    acceptance_limits,
+    limits,
+    render_prompt,
+)
 from messageboard_audit_bench.runtime import repo_root
-from messageboard_audit_bench.scorer import process_metrics, rubric_scorer
+from messageboard_audit_bench.scorer import (
+    process_metrics,
+    report_length,
+    rubric_scorer,
+)
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "1-B"
+EVAL_VERSION = "2-B"
 _CONDITION_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CONDITIONS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
@@ -63,7 +72,9 @@ def _load_condition(condition: str) -> dict:
 
     import tomllib
 
-    return tomllib.loads(path.read_text())
+    cfg = tomllib.loads(path.read_text())
+    acceptance_limits(cfg)
+    return cfg
 
 
 def _time_limit(time_limit_minutes: int | None) -> int:
@@ -82,7 +93,7 @@ def _prompt_for(condition: str, time_limit_minutes: int | None = None) -> str:
     text = (
         repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt"
     ).read_text()
-    return text.replace("{{BUDGET_MIN}}", str(_time_limit(time_limit_minutes)))
+    return render_prompt(text, _time_limit(time_limit_minutes), *limits(cfg))
 
 
 def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
@@ -101,6 +112,8 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                     command="tail -f /dev/null",
                     init=True,
                     network_mode="none",
+                    cap_drop=["ALL"],
+                    security_opt=["no-new-privileges:true"],
                     working_dir="/work",
                     volumes=[f"{data_dir}:/work/data:ro"],
                 )
@@ -115,6 +128,7 @@ def messageboard_audit_bench(
     backend: str = "inspect",
     subscription_model: str | None = None,
     condition: str = "blind",
+    allow_networked_subscription: bool = False,
     time_limit_minutes: int | None = None,
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
@@ -151,6 +165,8 @@ def messageboard_audit_bench(
         raise ValueError(
             "backend='subscription' requires -T subscription_model=<cli-model>"
         )
+    if backend == "subscription" and not allow_networked_subscription:
+        raise ValueError("subscription mode shares model-network access with the shell; use backend=inspect for network isolation or explicitly set allow_networked_subscription=true")
     budget_min = _time_limit(time_limit_minutes)
     timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
     sample_metadata = {
@@ -160,6 +176,11 @@ def messageboard_audit_bench(
         "budget_min": budget_min,
         "data_variant": cfg["data_variant"],
         "effort": cfg["effort"],
+        "isolation": "network_none" if backend == "inspect" else "provider_network_shared",
+        "report_min_words": limits(cfg)[0],
+        "report_max_words": limits(cfg)[1],
+        "report_accept_min_words": acceptance_limits(cfg)[0],
+        "report_accept_max_words": acceptance_limits(cfg)[1],
     }
     if subscription_model is not None:
         sample_metadata["subscription_model"] = subscription_model
@@ -172,6 +193,8 @@ def messageboard_audit_bench(
         selected_solver = inspect_native_agent(
             agent=agent,
             time_limit_seconds=budget_min * 60,
+            report_min_words=limits(cfg)[0],
+            report_max_words=limits(cfg)[1],
             claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
         )
         selected_sandbox = _inspect_sandbox(cfg["data_variant"])
@@ -184,6 +207,7 @@ def messageboard_audit_bench(
         selected_solver = subscription_agent(
             agent=agent,
             model=subscription_model,
+            allow_networked_subscription=allow_networked_subscription,
             condition=condition,
             time_limit_minutes=budget_min,
             timeout_minutes=timeout_minutes,
@@ -196,7 +220,7 @@ def messageboard_audit_bench(
     return Task(
         dataset=[sample],
         solver=selected_solver,
-        scorer=[rubric_scorer(judge=judge), process_metrics()],
+        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
         config=generate_config,
         # Subscription calls occur outside Inspect's model provider. Supplying
         # the no-cost mock model keeps Inspect from requiring an unrelated
@@ -222,15 +246,16 @@ def messageboard_audit_bench(
 @task
 def messageboard_audit_bench_replay(
     runs_glob: str = "*",
+    include_failed: bool = True,
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
     """Import completed local runs into Inspect without rerunning agents."""
     samples = []
     for d in sorted((repo_root() / "runs").glob(runs_glob)):
-        if not (d / "transcript.jsonl").exists() or d.name.startswith("failed"):
+        if not (d / "transcript.jsonl").exists():
             continue
         meta_path = d / "meta.json"
-        if not meta_path.exists() or json.loads(meta_path.read_text()).get("exit_code") != 0:
+        if not meta_path.exists() or (not include_failed and json.loads(meta_path.read_text()).get("exit_code") != 0):
             continue
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(
@@ -247,7 +272,7 @@ def messageboard_audit_bench_replay(
     return Task(
         dataset=samples,
         solver=replay(),
-        scorer=[rubric_scorer(judge=judge), process_metrics()],
+        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
         version=EVAL_VERSION,
         metadata={"benchmark": "MessageBoardAuditBench", "mode": "replay"},
     )

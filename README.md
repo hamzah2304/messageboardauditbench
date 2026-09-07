@@ -162,7 +162,7 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 
 # Subscription-authenticated CLI (no agent API key/model is consumed by Inspect).
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T backend=subscription -T agent=claude \
+  -T backend=subscription -T allow_networked_subscription=true -T agent=claude \
   -T subscription_model=claude-opus-5 \
   -T condition=blind -T time_limit_minutes=30 \
   -T judge=anthropic/claude-sonnet-4-5 --max-samples 1
@@ -198,6 +198,36 @@ read and cache write tokens. Subscription/replay logs retain the CLI-reported
 cache counters. No converter can make an old external run into an Inspect SWE
 run—Inspect SWE is the live execution bridge—but the importer maps its complete
 trajectory into the same Inspect chat/tool representation used by the UI.
+
+The active blind prompt is `sandbox/prompts/blind-v2.txt`, taken from the saved
+Google Doc source recorded beside it. Conditions configure a target of
+2,500–3,000 words, a strict prompted maximum of 3,000, and a final acceptance
+maximum of **3,100**. Nonempty shorter reports are accepted. All Markdown counts
+as words split on whitespace. Native adapters supply remaining time on each
+model request or tool result and a word count when report content changes.
+If an agent finishes over 3,000 words, the native solver asks it to shorten the
+saved file, up to three times within the original deadline. Subscription hooks
+provide equivalent edit feedback and stop-time correction until the deadline.
+The host measures the saved report independently; `report_length` records
+acceptance, and report collection excludes rejected reports unless explicitly
+requested. A chat answer does not substitute for `report.md`.
+
+Native containers use `network_mode: none`, with no real provider credentials
+inside. A preflight records full JSONL readability, hashes, read-only data mount,
+visible work files, and network interfaces. Inspect's model bridge disables
+hosted browsing. Subscription execution needs shell-accessible vendor networking
+and credentials, so it requires explicit `allow_networked_subscription=true`
+(or `ALLOW_NETWORKED_SUBSCRIPTION=1` for the direct runner) and cannot carry the
+same isolation claim. See [the isolation audit](docs/isolation-audit.md).
+
+Usage schema 3 distinguishes a reported zero reasoning-token count from an
+unavailable or partial count. Raw CLI logs remain necessary for historical
+runs; conversion cannot reconstruct data the CLI never emitted. Tool types,
+failures, refusal signals, potential parallel batches, and visible time
+reminders can be summarized with `scripts/audit_runs.py --runs runs --out audit.json`.
+See [trajectory findings](docs/trajectory-audit.md) and the
+[corpus discovery audit](docs/corpus-audit.md). Synthetic administrator names
+and the Cyrillic `е` are intentional corpus clues and remain unchanged.
 
 ### Which scorer produced the headline numbers
 

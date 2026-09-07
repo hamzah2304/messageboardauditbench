@@ -4,7 +4,7 @@ from pathlib import Path
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ChatMessageUser
 
-from messageboard_audit_bench.transcripts import parse_claude, parse_codex
+from messageboard_audit_bench.transcripts import parse, parse_claude, parse_codex
 
 
 def _write_jsonl(path: Path, events: list[dict]) -> Path:
@@ -252,3 +252,23 @@ def test_parse_codex_closes_incomplete_tools(tmp_path: Path) -> None:
         if isinstance(message, ChatMessageTool)
     )
     _assert_tool_pairs(parsed)
+
+
+def test_codex_rollout_hook_feedback_is_visible_to_inspect(tmp_path: Path) -> None:
+    run_dir = tmp_path / "codex"
+    run_dir.mkdir()
+    transcript = run_dir / "transcript.jsonl"
+    transcript.write_text("")
+    rollout = run_dir / "codex_sessions" / "rollout-test.jsonl"
+    rollout.parent.mkdir()
+    rollout.write_text(json.dumps({
+        "type": "event_msg",
+        "payload": {"type": "hook_output", "hookSpecificOutput": {
+            "additionalContext": "[Time budget: about 9 minutes left.]",
+        }},
+    }) + "\n")
+
+    parsed = parse("codex", transcript)
+
+    assert parsed.extra["codex_hook_feedback_count"] == 1
+    assert any("9 minutes left" in message.text for message in parsed.messages)

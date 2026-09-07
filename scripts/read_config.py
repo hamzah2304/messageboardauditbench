@@ -7,7 +7,7 @@
 The configs are flat TOML: strings, integers, and arrays of strings. Parsed here
 without tomllib so the launcher works on any python3.
 """
-import json, re, sys
+import json, re, sys, shlex
 from pathlib import Path
 
 def load(path: str) -> dict:
@@ -33,10 +33,13 @@ def load(path: str) -> dict:
 
 if __name__ == "__main__":
     cfg = load(sys.argv[1])
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "messageboard_audit_bench"))
+    from report_length import acceptance_limits
+    acceptance_limits(cfg)
     if "--json" in sys.argv:
         print(json.dumps(cfg))
     else:
         for k, v in cfg.items():
             if isinstance(v, list):
                 v = " ".join(v)
-            print(f"CFG_{k.upper()}={json.dumps(str(v))}")
+            print(f"CFG_{k.upper()}={shlex.quote(str(v))}")

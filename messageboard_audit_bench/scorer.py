@@ -110,3 +110,33 @@ def process_metrics() -> Scorer:
         )
 
     return score
+
+
+@scorer(metrics=[mean()])
+def report_length() -> Scorer:
+    """Separate format compliance from report quality; legacy runs are exempt."""
+    async def score(state: TaskState, target: Target) -> Score:
+        from messageboard_audit_bench.report_length import (
+            acceptance_limits,
+            limits,
+            measure,
+        )
+
+        low, high = limits(state.metadata)
+        result = measure(
+            state.output.completion if state.output else "", low, high,
+            exists=bool(state.metadata.get("report_written")),
+            acceptance=acceptance_limits(state.metadata),
+        )
+        # _fold checks the actual report file, including Codex fallback cases.
+        if "report_length_compliant" in state.metadata:
+            result.update({key: state.metadata[key] for key in result if key in state.metadata})
+        valid = result["report_length_compliant"]
+        return Score(
+            value=0.0 if valid is False else 1.0,
+            answer="disabled" if valid is None else "accepted" if valid else "outside acceptance limits or missing",
+            explanation=f"{result['report_words']} words; acceptance bounds {result['report_accept_min_words']}–{result['report_accept_max_words']} inclusive; report must be nonempty." if high else "No length requirement recorded for this run.",
+            metadata=result,
+        )
+
+    return score
