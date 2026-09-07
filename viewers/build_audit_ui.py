@@ -428,6 +428,10 @@ main.claimview{grid-template-rows:auto 1fr}main.notesview{grid-template-rows:1fr
 .vb.on.ok{background:var(--ok-bg);color:var(--ok);border-color:#9AD6BC}.vb.on.warn{background:var(--warn-bg);color:var(--warn);border-color:#E5CB7A}.vb.on.dang{background:var(--dang-bg);color:var(--dang);border-color:#F0A6A6}.vb.on.grey{background:var(--grey-bg);color:var(--grey);border-color:#C9C6BC}
 .vb.on.plain{background:var(--soft);color:var(--accent2);border-color:var(--accent)}
 .vb .k{font-size:10px;color:var(--mut);font-weight:400;margin-right:4px}
+/* a verdict saved before its button was retired: readable, clearable, not settable */
+.vkept{display:inline-flex;align-items:center;gap:5px;padding:3px 6px 3px 10px;border:1px dashed var(--border);border-radius:7px;font-size:12px;font-weight:600;color:var(--mut)}
+.vkept .x{border:0;background:transparent;color:var(--mut);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px}
+.vkept .x:hover{color:var(--accent)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0;font-size:12px;color:var(--ink2)}
 .row .vb{padding:2px 9px}
 textarea{width:100%;min-height:48px;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-family:inherit;font-size:12.5px;resize:vertical;background:#fff}
@@ -494,10 +498,12 @@ textarea:focus{outline:2px solid var(--soft);border-color:var(--accent)}
 .doc strong{font-weight:700}.doc em{font-style:italic}
 .doc code{font-family:var(--essay-mono);font-size:.86em;background:var(--essay-dull-bg);padding:0 .3em;border-radius:2px}
 .doc a{color:inherit;text-decoration:underline}
-.ln.p{position:relative;border-left:3px solid transparent;margin-left:-12px;padding-left:9px;cursor:pointer}
-.ln.p:hover{background:var(--row)}
-.ln.p .g{position:absolute;left:-22px;top:5px;font-family:var(--sans-ui);width:14px;height:14px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--mut);font-size:10px;line-height:12px;text-align:center;opacity:0;font-style:normal}
+/* the paragraph body is not a click target any more: no pointer, no row highlight. Only the
+   marks open a card; the gutter pencil is the way to note an unmatched paragraph. */
+.ln.p{position:relative;border-left:3px solid transparent;margin-left:-12px;padding-left:9px}
+.ln.p .g{position:absolute;left:-22px;top:5px;font-family:var(--sans-ui);width:14px;height:14px;padding:0;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--mut);font-size:10px;line-height:12px;text-align:center;opacity:0;font-style:normal;cursor:pointer}
 .ln.p:hover .g,.ln.p.has .g{opacity:1}.ln.p.has .g{color:var(--accent);border-color:var(--accent)}
+.ln.p .g:hover{opacity:1;background:var(--soft);color:var(--accent);border-color:var(--accent)}
 .ln.p.a-true{border-left-color:#34A87A}.ln.p.a-false{border-left-color:#D9534F}.ln.p.a-irr{border-left-color:#C9C6BC;color:var(--mut)}.ln.p.a-note{border-left-color:var(--accent)}
 .strip{margin:6px 0 12px -12px;padding:8px 10px;background:var(--row);border:1px solid var(--border);border-radius:8px;font-family:var(--sans-ui);font-size:12px;line-height:1.45;color:var(--ink);white-space:normal;cursor:default;max-width:none}
 .strip .row{margin:2px 0}.strip textarea{min-height:34px;margin-top:4px}
@@ -510,7 +516,8 @@ textarea:focus{outline:2px solid var(--soft);border-color:var(--accent)}
 #claimcard .hdr .x{margin-left:auto;cursor:pointer;font-weight:700;color:var(--ink2);border:1px solid var(--border);border-radius:6px;padding:0 6px;background:var(--card)}
 #mnotes{padding:8px 12px;border-bottom:1px solid var(--border);background:var(--soft);max-height:34vh;overflow:auto}
 #mnotes label,.ncard label{font-size:11px;color:var(--accent2);display:block;margin:6px 0 2px;font-weight:600}
-mark{background:transparent;border-radius:3px;padding:0 1px;cursor:pointer;color:inherit}
+mark{background:transparent;border-radius:3px;padding:0 1px;cursor:pointer;color:inherit;box-shadow:0 1px 0 rgba(193,95,60,.28)}
+mark:hover{box-shadow:0 1px 0 var(--accent),0 0 0 2px var(--soft)}
 mark.s1{background:#D1FAE5}mark.s05{background:#FEF3C7}mark.s0{background:#FEE2E2}
 mark.sel{outline:2px solid var(--accent);background:#FBE3D6}
 .hint{font-size:10.5px;color:var(--mut);padding:0 8px 6px}
@@ -549,7 +556,7 @@ kbd{background:var(--soft);border:1px solid var(--border);border-radius:4px;padd
     <div class="filt" id="f-agent"><span class="lab">harness</span></div>
     <div class="filt" id="f-status"><span class="lab">show</span></div>
     <div id="list"></div>
-    <div class="hint"><b>Reports: best judge score first.</b> <kbd>j</kbd>/<kbd>k</kbd> claim &middot; <kbd>n</kbd>/<kbd>p</kbd> report &middot; <kbd>1</kbd>&ndash;<kbd>4</kbd> verdict &middot; <kbd>c</kbd> comment &middot; <kbd>e</kbd> report notes &middot; <kbd>[</kbd> hide this list &middot; <kbd>Esc</kbd> leave box &middot; click a highlight to score it, any paragraph to note it</div>
+    <div class="hint"><b>Reports: best judge score first.</b> <kbd>j</kbd>/<kbd>k</kbd> claim &middot; <kbd>n</kbd>/<kbd>p</kbd> report &middot; <kbd>1</kbd>&ndash;<kbd>4</kbd> verdict &middot; <kbd>c</kbd> comment &middot; <kbd>e</kbd> report notes &middot; <kbd>[</kbd> hide this list &middot; <kbd>Esc</kbd> leave box &middot; click a highlight to score it, the &#9998; in the margin to note a paragraph</div>
   </aside>
   <main id="main">
     <div id="rail"></div>
@@ -557,7 +564,7 @@ kbd{background:var(--soft);border:1px solid var(--border);border-radius:4px;padd
     <div id="panes">
       <div class="pane" id="mpane">
         <h3>Model report <span id="mr-title"></span><button class="vb grey" id="mnotes-btn">notes</button></h3>
-        <div class="remind">For each paragraph: is it relevant? &middot; if it matches nothing in the human report, is it true or false? &middot; if it matches, do I agree with the judge's rating? &mdash; hypotheses and biases go in the report notes.</div>
+        <div class="remind">For each paragraph: if it matches nothing in the human report, is it true or false? &middot; if it matches, do I agree with the judge's rating? &mdash; hypotheses and biases go in the report notes.</div>
         <div id="mnotes" hidden></div>
         <div class="doc" id="mdoc"></div>
         <div id="claimcard" hidden></div>
@@ -610,8 +617,11 @@ function details(rk) {
 }
 document.getElementById('built').textContent = REPORTS.length + ' reports · ' + CLAIMS.length + ' claims · judge ' + (REPORTS[0] && REPORTS[0].grader) + ' · built ' + D.built;
 
+/* "Correct (TP)" is gone from the buttons: agreeing with the judge is already said by the
+   score matching. Entries saved as tp before that change still load, display and count —
+   CAT keeps the label, and auditControls shows an existing tp as a static, clearable tag. */
 const VERDICTS = {
-  pos: [{v:'tp', l:'Correct (TP)', c:'ok'}, {v:'adjust', l:'Right find, wrong score', c:'warn'}, {v:'fp', l:'Not supported (FP)', c:'dang'}, {v:'todo', l:'Needs investigation', c:'grey'}],
+  pos: [{v:'adjust', l:'Right find, wrong score', c:'warn'}, {v:'fp', l:'Not supported (FP)', c:'dang'}, {v:'todo', l:'Needs investigation', c:'grey'}],
   neg: [{v:'tn_easy', l:'Contradicted by report (TN easy)', c:'ok'}, {v:'tn_hard', l:'Absent, checked (TN hard)', c:'ok'}, {v:'fn', l:'Actually present (FN)', c:'dang'}, {v:'todo', l:'Needs investigation', c:'grey'}],
 };
 const CAT = {tp:['TP','ok'], adjust:['TP·adj','warn'], fp:['FP','dang'], tn_easy:['TN easy','ok'], tn_hard:['TN hard','ok'], fn:['FN','dang'], todo:['Flagged','grey']};
@@ -729,6 +739,13 @@ async function load() {
 function scoreClass(s) { return s == null ? 's0' : s >= 0.75 ? 's1' : s > 0 ? 's05' : 's0'; }
 function isPos(s) { return s != null && s > 0; }
 function category(rk, cid) { const e = entry(rk, cid); return e && e.verdict ? e.verdict : null; }
+/* A claim counts as audited once it carries a score or a verdict. Agreeing with the judge
+   is expressed by the score alone now that the "Correct" button is gone, so keying the
+   counters off the verdict would leave every agreement looking unreviewed. */
+function audited(rk, cid) {
+  const e = entry(rk, cid);
+  return !!e && (e.corrected != null || (e.verdict && e.verdict !== 'todo'));
+}
 function filteredReports() {
   const q = filters.q.toLowerCase();
   return REPORTS.filter(r => (!filters.round.size || filters.round.has(r.round)) && (!filters.budget.size || filters.budget.has(String(r.budget)))
@@ -742,7 +759,7 @@ function statusOk(rk, cid) {
   const e = entry(rk, cid), s = RBY[rk].scores[cid].score;
   for (const f of filters.status) {
     if (f === 'pos' && isPos(s)) return true; if (f === 'neg' && !isPos(s)) return true;
-    if (f === 'unreviewed' && !(e && e.verdict)) return true; if (f === 'reviewed' && e && e.verdict && e.verdict !== 'todo') return true;
+    if (f === 'unreviewed' && !audited(rk, cid)) return true; if (f === 'reviewed' && audited(rk, cid)) return true;
     if (f === 'flagged' && e && (e.verdict === 'todo' || e.rubric_issue)) return true;
     if (f === 'disagree' && disagreement(rk, cid)) return true;
   }
@@ -758,7 +775,9 @@ function chipBtn(parent, on, label, fn, cls) { const b = el('button', 'vb ' + (c
 function renderStats() {
   const reps = filteredReports(); const counts = {}; let pos = 0, reviewed = 0, total = 0, paras = 0, noted = 0, dis = 0;
   for (const r of reps) { paras += paraCount(r.key); if (hasNotes(r.key)) noted++;
-    for (const cid of CIDS) { total++; if (isPos(r.scores[cid].score)) pos++; if (disagreement(r.key, cid)) dis++; const v = category(r.key, cid); if (v) { counts[v] = (counts[v] || 0) + 1; if (v !== 'todo') reviewed++; } } }
+    for (const cid of CIDS) { total++; if (isPos(r.scores[cid].score)) pos++; if (disagreement(r.key, cid)) dis++;
+      if (audited(r.key, cid)) reviewed++;
+      const v = category(r.key, cid); if (v) counts[v] = (counts[v] || 0) + 1; } }
   const box = document.getElementById('stats'); box.replaceChildren();
   box.appendChild(el('span', 'badge grey', reps.length + ' reports'));
   box.appendChild(el('span', 'badge grey', pos + ' judge-positive · ' + (total - pos) + ' negative'));
@@ -839,7 +858,7 @@ function renderFilters() {
 function reportItem(r) {
   const it = el('div', 'item' + (r.key === selReport ? ' sel' : '')); it.dataset.key = r.key;
   const nm = el('div', 'nm'); nm.appendChild(el('span', '', r.title + ' · rep' + r.rep)); nm.appendChild(el('span', 'sc ' + scoreClass(r.accuracy), r.accuracy == null ? '–' : r.accuracy.toFixed(2))); it.appendChild(nm);
-  const done = CIDS.filter(c => { const v = category(r.key, c); return v && v !== 'todo'; }).length;
+  const done = CIDS.filter(c => audited(r.key, c)).length;
   const flagged = CIDS.filter(c => { const e = entry(r.key, c); return e && (e.verdict === 'todo' || e.rubric_issue); }).length;
   const pc = paraCount(r.key);
   const dis = CIDS.filter(c => disagreement(r.key, c)).length;
@@ -862,7 +881,7 @@ function renderList() {
     for (const c of CLAIMS) {
       if (q && !(c.id + ' ' + c.section + ' ' + c.claim).toLowerCase().includes(q)) continue;
       let pos = 0, done = 0, flagged = 0;
-      for (const r of reps) { if (isPos(r.scores[c.id].score)) pos++; const e = entry(r.key, c.id); if (e && e.verdict && e.verdict !== 'todo') done++; if (e && (e.verdict === 'todo' || e.rubric_issue)) flagged++; }
+      for (const r of reps) { if (isPos(r.scores[c.id].score)) pos++; const e = entry(r.key, c.id); if (audited(r.key, c.id)) done++; if (e && (e.verdict === 'todo' || e.rubric_issue)) flagged++; }
       const it = el('div', 'item' + (c.id === selClaimView ? ' sel' : ''));
       const nm = el('div', 'nm'); nm.appendChild(el('span', '', c.id + ' · ' + c.section)); it.appendChild(nm);
       it.appendChild(el('div', '', c.claim.length > 110 ? c.claim.slice(0, 110) + '…' : c.claim));
@@ -879,10 +898,19 @@ function auditControls(rk, cid, opts) {
   const r = RBY[rk], s = r.scores[cid], e = entry(rk, cid) || {}; const pos = isPos(s.score);
   const box = el('div');
   const verd = el('div', 'verd');
-  VERDICTS[pos ? 'pos' : 'neg'].forEach((o, i) => {
+  const vopts = VERDICTS[pos ? 'pos' : 'neg'];
+  vopts.forEach((o, i) => {
     const b = el('button', 'vb ' + o.c + (e.verdict === o.v ? ' on' : '')); const k = el('span', 'k', String(i + 1)); b.appendChild(k); b.appendChild(document.createTextNode(o.l));
     b.onclick = ev => { ev.stopPropagation(); setEntry(rk, cid, {verdict: e.verdict === o.v ? null : o.v}); refresh(rk, cid); }; verd.appendChild(b);
   });
+  /* a verdict that is on the entry but no longer offered (a tp saved earlier): shown as it
+     is, with an ✕ to clear it, so old judgements stay readable without being re-settable. */
+  if (e.verdict && !vopts.some(o => o.v === e.verdict)) {
+    const tag = el('span', 'vkept'); tag.appendChild(document.createTextNode(CAT[e.verdict] ? CAT[e.verdict][0] : e.verdict));
+    const x = el('button', 'x', '✕'); x.title = 'clear this verdict';
+    x.onclick = ev => { ev.stopPropagation(); setEntry(rk, cid, {verdict: null}); refresh(rk, cid); };
+    tag.appendChild(x); verd.appendChild(tag);
+  }
   box.appendChild(verd);
   const row = el('div', 'row'); row.appendChild(el('span', '', 'Your score:'));
   const num = el('input'); num.className = 'scnum'; num.type = 'text'; num.inputMode = 'decimal';
@@ -906,7 +934,7 @@ function auditControls(rk, cid, opts) {
   ta.placeholder = 'Comment — why, what the report actually says, what the rubric should say…'; ta.value = e.comment || '';
   ta.oninput = () => setEntry(rk, cid, {comment: ta.value}); box.appendChild(ta);
   const foot = el('div', 'cat'); const v = e.verdict ? CAT[e.verdict] : null;
-  foot.textContent = (v ? 'Category: ' + v[0] : 'Not audited yet') + (e.updated_at ? ' · ' + new Date(e.updated_at).toLocaleString() : '');
+  foot.textContent = (v ? 'Category: ' + v[0] : (e.corrected != null ? 'Scored' : 'Not audited yet')) + (e.updated_at ? ' · ' + new Date(e.updated_at).toLocaleString() : '');
   if (opts && opts.jump) { foot.appendChild(document.createTextNode('  ')); const a = el('a', 'link', 'open in report view →'); a.onclick = () => switchView('report', () => { selReport = rk; selClaim = cid; openParas.clear(); cardForced = false; }); foot.appendChild(a); }
   box.appendChild(foot);
   return box;
@@ -970,7 +998,8 @@ function claimHead(cid, withQuote) {
   box.appendChild(id);
   box.appendChild(el('div', 'cl-text', c.claim));
   if (withQuote && c.report_quote) box.appendChild(el('div', 'hq', '“' + c.report_quote + '”'));
-  for (const [lab, txt] of [['Trap: ', c.trap], ['Corrections: ', c.gt_corrections], ['Feasibility notes: ', c.gt_notes]]) if (txt) { const g = el('div', 'gt'); g.appendChild(el('b', '', lab)); g.appendChild(document.createTextNode(txt)); box.appendChild(g); }
+  /* the feasibility notes, corrections and trap are deliberately not shown: the panel asks
+     for a score and a comment, and nothing else competes for the eye. */
   return box;
 }
 function judgeBox(rk, cid) {
@@ -1143,24 +1172,22 @@ function decorateLine(div, rk, li) {
   if (!a) return; div.classList.add('has');
   if (a.truth === 'false' || a.rating === 'high') div.classList.add('a-false'); else if (a.relevant === 'no') div.classList.add('a-irr'); else if (a.truth === 'true' || a.relevant === 'yes' || a.rating) div.classList.add('a-true'); else div.classList.add('a-note');
 }
-/* the three standing questions for a paragraph */
+/* the standing question for a paragraph: unmatched, is it true; matched, is the rating right.
+   The relevance row and the paragraph note box were removed — the per-claim comment is where
+   prose goes. Existing relevant/note values still load and still colour the line. */
 function paraQuestions(rk, li, cids) {
   const a = para(rk, li) || {}; const box = el('div', 'qs');
-  const r1 = el('div', 'row'); r1.appendChild(el('span', 'lab', 'Relevant?'));
-  for (const v of ['yes', 'no']) chipBtn(r1, a.relevant === v, v, () => { setPara(rk, li, {relevant: a.relevant === v ? null : v}); updateParaLine(rk, li); });
+  const r1 = el('div', 'row');
   if (!cids.length) {
-    r1.appendChild(el('span', 'lab', '· No human match — true?'));
+    r1.appendChild(el('span', 'lab', 'No human match — true?'));
     for (const [v, l] of [['true', 'true'], ['false', 'false'], ['unsure', 'unsure']]) chipBtn(r1, a.truth === v, l, () => { setPara(rk, li, {truth: a.truth === v ? null : v}); updateParaLine(rk, li); }, v === 'true' ? 'ok' : v === 'false' ? 'dang' : 'grey');
   } else {
-    r1.appendChild(el('span', 'lab', '· Matched ' + cids.map(c => c + ' (' + fmtScore(RBY[rk].scores[c].score) + ')').join(', ') + ' — the rating is'));
+    r1.appendChild(el('span', 'lab', 'Matched ' + cids.map(c => c + ' (' + fmtScore(RBY[rk].scores[c].score) + ')').join(', ') + ' — the rating is'));
     for (const [v, l] of [['agree', 'right'], ['high', 'too high'], ['low', 'too low']]) chipBtn(r1, a.rating === v, l, () => { setPara(rk, li, {rating: a.rating === v ? null : v}); updateParaLine(rk, li); }, v === 'agree' ? 'ok' : 'warn');
     r1.appendChild(el('span', 'lab', '· also true?'));
     for (const [v, l] of [['true', 'true'], ['false', 'false']]) chipBtn(r1, a.truth === v, l, () => { setPara(rk, li, {truth: a.truth === v ? null : v}); updateParaLine(rk, li); }, v === 'true' ? 'ok' : 'dang');
   }
   box.appendChild(r1);
-  const ta = el('textarea'); ta.className = 'pnote'; ta.placeholder = 'Note — hypothesis about what is actually true, or a bias the model is running into…'; ta.value = a.note || '';
-  ta.oninput = () => { setPara(rk, li, {note: ta.value}); const div = document.querySelector('#mdoc .ln[data-li="' + li + '"]'); if (div) decorateLine(div, rk, li); };
-  box.appendChild(ta);
   return box;
 }
 /* One card under the line: the claim controls for every judge match on it, then the paragraph questions. */
@@ -1261,8 +1288,11 @@ function renderDoc(target, text, ranges, rk) {
     }
     if (line.trim()) {
       div.classList.add('p'); div.dataset.li = li; div.dataset.cids = [...new Set(hits.map(h => h.cid))].join(',');
-      const g = el('span', 'g', '✎'); g.title = 'note this paragraph'; div.prepend(g);
-      div.onclick = () => togglePara(rk, li);
+      /* only the highlighted spans open a claim's card. The gutter pencil is the way in for
+         a paragraph the judge did not match, so the body of the report is not a minefield. */
+      const g = el('button', 'g', '✎'); g.title = 'note this paragraph';
+      g.onclick = ev => { ev.stopPropagation(); togglePara(rk, li); };
+      div.prepend(g);
       decorateLine(div, rk, li);
       frag.appendChild(div);
       if (openParas.has(li)) frag.appendChild(lineCard(rk, li, div.dataset.cids.split(',').filter(Boolean)));
@@ -1389,7 +1419,7 @@ document.addEventListener('keydown', ev => {
     const ri = reps.findIndex(r => r.key === selReport);
     if (ev.key === 'n' && ri < reps.length - 1) { selReport = reps[ri + 1].key; openParas.clear(); cardForced = false; renderMain(); renderList(); return; }
     if (ev.key === 'p' && ri > 0) { selReport = reps[ri - 1].key; openParas.clear(); cardForced = false; renderMain(); renderList(); return; }
-    if (/^[1-4]$/.test(ev.key)) { const pos = isPos(RBY[selReport].scores[selClaim].score); const o = VERDICTS[pos ? 'pos' : 'neg'][+ev.key - 1]; const e = entry(selReport, selClaim) || {}; setEntry(selReport, selClaim, {verdict: e.verdict === o.v ? null : o.v}); refresh(selReport, selClaim); return; }
+    if (/^[1-4]$/.test(ev.key)) { const pos = isPos(RBY[selReport].scores[selClaim].score); const o = VERDICTS[pos ? 'pos' : 'neg'][+ev.key - 1]; if (!o) return; const e = entry(selReport, selClaim) || {}; setEntry(selReport, selClaim, {verdict: e.verdict === o.v ? null : o.v}); refresh(selReport, selClaim); return; }
     if (ev.key === 'c') {
       jumpToClaim();
       const ta = document.querySelector('#mdoc textarea.cmt[data-cid="' + selClaim + '"]') || document.querySelector('#claimcard textarea.cmt');
