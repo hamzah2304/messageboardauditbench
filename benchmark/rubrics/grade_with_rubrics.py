@@ -24,9 +24,11 @@ from openai import OpenAI
 # wrong (-1..0). They are graded separately and never blended — a thin report scores
 # well on contradiction precisely because it says little, and averaging the two would
 # hide that.
-MODE = "contradiction" if ("--contra" in sys.argv or os.getenv("RUBRIC") == "contra") else "recall"
-SHEET = {"recall": "rubric", "contradiction": "contra"}[MODE]
-LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0)}[MODE]
+_R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv else "recall")
+MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall"}[_R]
+# sheet-file prefix, how many sheets, and the score range each rubric is scored on
+SHEET, N_SHEETS = {"recall": ("rubric", 6), "contradiction": ("contra", 6), "v2": ("v2", 8)}[MODE]
+LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0), "v2": (0.0, 1.0)}[MODE]
 
 DEFAULT_MODEL = "gpt-5.6-sol"
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
@@ -59,10 +61,12 @@ REPORTS = {
     "haiku": ("Claude Haiku 4.5", "haiku_audit.md"),
     "luna":  ("GPT-5.6 Luna",     "luna_audit.md"),
 }
-RUBRIC_SETS = [json.loads((RUBRICS / f"rubric_{i}.json").read_text()) for i in range(1, 7)]
+_SET = {"recall": "rubric", "contradiction": "rubric", "v2": "v2"}[MODE]
+RUBRIC_SETS = [json.loads((RUBRICS / f"{_SET}_{i}.json").read_text()) for i in range(1, N_SHEETS + 1)]
 # Each rubric_N.md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
 # {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal).
-RUBRIC_MD = {f"R{i}": (RUBRICS / f"{SHEET}_{i}.md").read_text() for i in range(1, 7)}
+_PFX = "V" if MODE == "v2" else "R"
+RUBRIC_MD = {f"{_PFX}{i}": (RUBRICS / f"{SHEET}_{i}.md").read_text() for i in range(1, N_SHEETS + 1)}
 HUMAN_REPORT = (HUMAN_REPORT).read_text()
 SYS = "You are a careful grader. Follow the grading sheet exactly and output strict JSON only."
 
@@ -152,7 +156,8 @@ def aggregate(key, title, per_claim, per_rubric):
         out["n_contradicted"] = len(hit)
         out["worst"] = round(min([i["score"] for i in per_claim.values()] or [0]), 1)
     else:
-        mode = {c["id"]: c["grading_mode"] for r in RUBRIC_SETS for c in r["claims"]}
+        mode = {c["id"]: c.get("grading_mode", "recall_accuracy")
+                for r in RUBRIC_SETS for c in r["claims"]}
         def mean(ids):
             xs = [per_claim[i]["score"] for i in ids if i in per_claim]
             return round(sum(xs) / len(xs), 3) if xs else 0.0
@@ -179,7 +184,7 @@ def resolve_reports(args):
     return [(k, ROOT / REPORTS[k][1], REPORTS[k][0]) for k in keys]
 
 def main():
-    args = [a for a in sys.argv[1:] if a not in ("--force", "--contra")]
+    args = [a for a in sys.argv[1:] if a not in ("--force", "--contra", "--v2")]
     reports = resolve_reports(args)
     if "--force" not in sys.argv[1:]:  # skip reports already graded (fill gaps only)
         reports = [r for r in reports if not (OUT_DIR / f"graded_{r[0]}.json").exists()]
