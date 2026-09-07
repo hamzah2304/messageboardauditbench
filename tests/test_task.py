@@ -17,7 +17,7 @@ from messageboard_audit_bench.task import messageboard_audit_bench as build_task
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", config="blind")
 
-    assert task.version == EVAL_VERSION == "4-B"
+    assert task.version == EVAL_VERSION == "5-B"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
@@ -26,6 +26,8 @@ def test_task_has_stable_sample_and_version() -> None:
         "backend": "inspect",
         "config": "blind",
         "budget_min": 20,
+        "min_runtime_fraction": 0.75,
+        "minimum_runtime_seconds": 900,
         "data_variant": "verbatim",
         "effort": "xhigh",
         "report_min_words": 2500,
@@ -39,6 +41,10 @@ def test_prompt_uses_named_config() -> None:
     prompt = _prompt_for("blind")
 
     assert "Time budget: you have up to 20 minutes" in prompt
+    assert (
+        "at least 75% of the 20-minute time budget has elapsed (about 15 minutes)"
+        in prompt
+    )
     assert "{{BUDGET_MIN}}" not in prompt
     assert "between 2,500 and 3,000 words" in prompt
     assert "3,100" not in prompt
@@ -56,6 +62,32 @@ def test_command_time_limit_overrides_prompt_and_metadata() -> None:
     assert task.dataset[0].id.endswith(":37m")
     assert task.metadata["time_limit_minutes"] == 37
     assert task.metadata["hard_time_limit_minutes"] == 42
+    assert task.metadata["min_runtime_fraction"] == 0.75
+    assert task.metadata["minimum_runtime_seconds"] == int(37 * 60 * 0.75)
+
+
+def test_minimum_runtime_policy_is_configurable_in_prompt_and_metadata() -> None:
+    task = build_task(
+        agent="react",
+        config="blind",
+        time_limit_minutes=37,
+        min_runtime_fraction=0.6,
+    )
+
+    assert (
+        "at least 60% of the 37-minute time budget has elapsed (about 22.2 minutes)"
+        in (task.dataset[0].input)
+    )
+    assert task.dataset[0].metadata["min_runtime_fraction"] == 0.6
+    assert task.dataset[0].metadata["minimum_runtime_seconds"] == 1332
+    assert task.metadata["minimum_runtime_seconds"] == 1332
+
+
+def test_zero_minimum_runtime_explicitly_disables_policy() -> None:
+    task = build_task(min_runtime_fraction=0)
+
+    assert "Minimum working period: disabled for this run." in task.dataset[0].input
+    assert task.metadata["minimum_runtime_seconds"] == 0
 
 
 def test_command_time_limit_reaches_solver(monkeypatch) -> None:
@@ -79,6 +111,7 @@ def test_command_time_limit_reaches_solver(monkeypatch) -> None:
     assert captured["prompt"] == "blind"
     assert captured["data_variant"] == "verbatim"
     assert captured["effort"] == "xhigh"
+    assert captured["min_runtime_fraction"] == 0.75
 
 
 def test_subscription_time_limit_has_shutdown_and_host_grace(monkeypatch) -> None:
@@ -105,6 +138,12 @@ def test_subscription_time_limit_has_shutdown_and_host_grace(monkeypatch) -> Non
 def test_time_limit_must_be_positive_integer(value) -> None:
     with pytest.raises(ValueError, match="positive integer"):
         build_task(time_limit_minutes=value)
+
+
+@pytest.mark.parametrize("value", [-0.01, 1, float("inf"), True, "0.75"])
+def test_min_runtime_fraction_requires_finite_proportion_below_one(value) -> None:
+    with pytest.raises(ValueError, match="finite number in \\[0, 1\\)"):
+        build_task(min_runtime_fraction=value)
 
 
 def test_agent_must_be_supported() -> None:
@@ -166,6 +205,7 @@ def test_native_threads_config_tools_to_agent_solver(monkeypatch) -> None:
     assert "WebSearch" in captured["claude_disallowed_tools"]
     assert captured["report_min_words"] == 2500
     assert captured["report_max_words"] == 3000
+    assert captured["min_runtime_fraction"] == 0.75
 
 
 @pytest.mark.parametrize("name", ["../blind", "blind_mode", "", "/tmp/config"])

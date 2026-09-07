@@ -199,6 +199,7 @@ async def test_subscription_agent_folds_successful_trial(
         prompt="blind",
         data_variant="verbatim",
         effort="xhigh",
+        min_runtime_fraction=0.6,
     )(_state(), None)
 
     assert state.completed
@@ -210,6 +211,7 @@ async def test_subscription_agent_folds_successful_trial(
     assert captured["env"]["EFFORT"] == "xhigh"
     assert captured["env"]["BUDGET_MIN"] == "37"
     assert captured["env"]["TIMEOUT"] == "37m"
+    assert captured["env"]["MBAB_MIN_RUNTIME_FRACTION"] == "0.6"
     assert captured["timeout"] == 42 * 60
 
 

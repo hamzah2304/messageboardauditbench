@@ -43,6 +43,7 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 ```
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T agent=claude -T config=blind -T time_limit_minutes=30 \
+  -T min_runtime_fraction=0.75 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
@@ -88,11 +89,15 @@ the stated budget and the scoped Inspect agent limit. An outer task guard gives
 native cleanup five additional minutes; it does not give the agent more time.
 The shared `time_left` sandbox command reports the same deadline. If omitted,
 the time limit defaults to 20 minutes for every config.
-This limit is a cap, not a minimum; the task never resumes an agent merely for
-stopping early or writing a short report. Subscription agents are told exactly
-N minutes; their container gets five additional minutes to stop and finish
-writing, and the host guard allows another five minutes for recovery and
-transcript folding.
+`-T min_runtime_fraction=F` controls the shared minimum-runtime policy,
+independently of config and budget. It defaults to `0.75`: normal completion
+before 75% of the budget resumes the same session. The prompt states the exact
+fraction and earliest finish time, and asks the agent to use resumed time to
+verify evidence and improve `report.md`, not idle. Set `F=0` only for an
+ablation. Refusals, failures, and hard limits are not resumed. Subscription
+agents are told exactly N minutes; their container gets five additional minutes
+to stop and finish writing, and the host guard allows another five minutes for
+recovery and transcript folding.
 Native Claude Code and Codex install lifecycle hooks without replacing Inspect
 SWE's API bridge configuration. They inject the remaining time after every tool
 call and report-length feedback only when the file is over the strict maximum.

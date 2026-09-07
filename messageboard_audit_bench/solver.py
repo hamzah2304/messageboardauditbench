@@ -124,6 +124,10 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         config=meta.get("config", meta.get("condition", meta.get("prompt"))),
         prompt=meta.get("prompt"),
         budget_min=meta.get("budget_min"),
+        min_runtime_fraction=meta.get("min_runtime_fraction"),
+        minimum_runtime_seconds=meta.get("minimum_runtime_seconds"),
+        minimum_runtime_reached=meta.get("minimum_runtime_reached"),
+        early_stop_attempts=meta.get("early_stop_attempts", 0),
         data_variant=meta.get("data_variant"),
         effort=meta.get("effort"),
         exit_code=meta.get("exit_code"),
@@ -163,6 +167,7 @@ def subscription_agent(
     prompt: str | None = None,
     data_variant: str | None = None,
     effort: str | None = None,
+    min_runtime_fraction: float = 0.75,
 ) -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
@@ -186,6 +191,10 @@ def subscription_agent(
             env["BUDGET_MIN"] = str(time_limit_minutes)
         if timeout_minutes is not None:
             env["TIMEOUT"] = f"{timeout_minutes}m"
+        # The runner derives its absolute earliest-finish timestamp from its
+        # actual container start, alongside its deadline. Computing one here
+        # would incorrectly charge image build/canary time to the agent.
+        env["MBAB_MIN_RUNTIME_FRACTION"] = str(min_runtime_fraction)
         run_dirs: list[Path] = []
         proc = None
         run_dir = None

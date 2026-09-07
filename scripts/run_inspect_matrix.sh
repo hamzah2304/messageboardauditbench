@@ -19,6 +19,7 @@ Backend/model:
 
 Run shape:
   --time-limit-minutes N        agent budget (default: 20)
+  --min-runtime-fraction F      minimum fraction before completion (default: 0.75; 0 disables)
   --epochs N                    independent replicates (default: 1)
   --judge MODEL                 grader model (default: anthropic/claude-sonnet-5)
   --logs DIR                    Inspect log directory (default: logs)
@@ -47,6 +48,7 @@ config=""
 model=""
 subscription_model=""
 time_limit_minutes=20
+min_runtime_fraction=0.75
 epochs=1
 judge="anthropic/claude-sonnet-5"
 logs=logs
@@ -65,7 +67,7 @@ extra=()
 while (($#)); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
-    --backend|--agent|--config|--model|--subscription-model|--time-limit-minutes|--epochs|--judge|--logs|--max-samples|--max-sandboxes|--max-connections|--max-retries|--request-timeout|--attempt-timeout|--retry-on-error)
+    --backend|--agent|--config|--model|--subscription-model|--time-limit-minutes|--min-runtime-fraction|--epochs|--judge|--logs|--max-samples|--max-sandboxes|--max-connections|--max-retries|--request-timeout|--attempt-timeout|--retry-on-error)
       (($# >= 2)) || { echo "missing value for $1" >&2; exit 2; }
       key=${1#--}; key=${key//-/_}; printf -v "$key" '%s' "$2"; shift 2 ;;
     --no-log-model-api) log_model_api=0; shift ;;
@@ -88,7 +90,7 @@ fi
 
 cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench
   -T "backend=$backend" -T "agent=$agent" -T "config=$config"
-  -T "time_limit_minutes=$time_limit_minutes" -T "judge=$judge"
+  -T "time_limit_minutes=$time_limit_minutes" -T "min_runtime_fraction=$min_runtime_fraction" -T "judge=$judge"
   --epochs "$epochs" --max-samples "$max_samples" --max-sandboxes "$max_sandboxes"
   --max-connections "$max_connections" --max-retries "$max_retries"
   --timeout "$request_timeout" --attempt-timeout "$attempt_timeout"

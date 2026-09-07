@@ -81,7 +81,9 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
     monkeypatch.setattr(native, "run", fake_run)
     monkeypatch.setattr(native, "_read_report", fake_report)
 
-    state = await native.inspect_native_agent("codex", 90)(_state(), None)
+    state = await native.inspect_native_agent("codex", 90, min_runtime_fraction=0)(
+        _state(), None
+    )
 
     assert captured["agent"] is selected
     assert captured["budget_minutes"] == 2
@@ -167,7 +169,7 @@ def test_native_solver_writes_a_standard_eval_log(tmp_path, monkeypatch) -> None
     )
     task = Task(
         dataset=[Sample(input="Investigate", id="native-smoke")],
-        solver=native.inspect_native_agent("codex", 60),
+        solver=native.inspect_native_agent("codex", 60, min_runtime_fraction=0),
         scorer=process_metrics(),
     )
 
@@ -216,7 +218,9 @@ async def test_native_solver_never_grades_chat_when_report_is_missing(
     monkeypatch.setattr(native, "run", fake_run)
     monkeypatch.setattr(native, "_read_report", fake_report)
 
-    state = await native.inspect_native_agent("claude", 60)(_state(), None)
+    state = await native.inspect_native_agent("claude", 60, min_runtime_fraction=0)(
+        _state(), None
+    )
 
     assert state.output.completion == "(no report written)"
     assert state.metadata["report_written"] is False
@@ -264,6 +268,106 @@ async def test_native_solver_marks_terminal_refusal_after_bounded_retries(
 
 
 @pytest.mark.asyncio
+async def test_native_solver_resumes_same_agent_until_minimum_runtime(
+    monkeypatch,
+) -> None:
+    selected = object()
+    first = AgentState(
+        messages=[*_state().messages, ChatMessageAssistant(content="initial done")]
+    )
+    first.output = ModelOutput.from_content(
+        model="mockllm/model", content="initial done"
+    )
+    continued = AgentState(
+        messages=[*first.messages, ChatMessageAssistant(content="now done")]
+    )
+    continued.output = ModelOutput.from_content(
+        model="mockllm/model", content="now done"
+    )
+    calls = []
+    # started, first completion/continuation construction, then completion
+    # after the continuation has used enough of the 100-second budget.
+    clock = iter([0.0, 10.0, 10.0, 80.0, 80.0, 80.0])
+
+    monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: selected)
+    monkeypatch.setattr(
+        native,
+        "time",
+        SimpleNamespace(time=lambda: 1_000.0, monotonic=lambda: next(clock)),
+    )
+
+    async def fake_prepare(*_args):
+        return None
+
+    async def fake_run(agent, messages, limits):
+        calls.append((agent, messages, limits))
+        return (first, None) if len(calls) == 1 else (continued, None)
+
+    async def fake_report():
+        return "report", None
+
+    monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
+    monkeypatch.setattr(native, "run", fake_run)
+    monkeypatch.setattr(native, "_read_report", fake_report)
+
+    state = await native.inspect_native_agent("codex", 100)(_state(), None)
+
+    assert len(calls) == 2
+    assert calls[0][0] is calls[1][0] is selected
+    assert isinstance(calls[1][1][-1], native.ChatMessageUser)
+    continuation = calls[1][1][-1].content
+    assert "worked for about 10 seconds" in continuation
+    assert "earliest acceptable finish is 75 seconds" in continuation
+    assert "about 90 seconds remaining" in continuation
+    assert "Do not idle" in continuation
+    assert state.metadata["early_stop_attempts"] == 1
+    assert state.metadata["minimum_runtime_seconds"] == 75
+    assert state.metadata["minimum_runtime_reached"] is True
+
+
+@pytest.mark.asyncio
+async def test_native_solver_fails_instead_of_accepting_rapid_early_stops(
+    monkeypatch,
+) -> None:
+    agent_state = AgentState(
+        messages=[*_state().messages, ChatMessageAssistant(content="done")]
+    )
+    agent_state.output = ModelOutput.from_content(model="mockllm/model", content="done")
+    calls = 0
+
+    monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        native,
+        "time",
+        SimpleNamespace(time=lambda: 1_000.0, monotonic=lambda: 0.0),
+    )
+
+    async def fake_prepare(*_args):
+        return None
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return agent_state, None
+
+    monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
+    monkeypatch.setattr(native, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="minimum-runtime policy violation"):
+        await native.inspect_native_agent("react", 100)(_state(), None)
+
+    assert calls == native.MAX_EARLY_STOP_CONTINUATIONS + 1
+
+
+@pytest.mark.parametrize("fraction", [-0.1, 1, 1.1])
+def test_native_solver_rejects_invalid_minimum_runtime_fraction(
+    fraction: float,
+) -> None:
+    with pytest.raises(ValueError, match="min_runtime_fraction"):
+        native.inspect_native_agent("claude", 60, min_runtime_fraction=fraction)
+
+
+@pytest.mark.asyncio
 async def test_native_solver_pings_one_overlong_report_and_resumes_same_agent(
     monkeypatch,
 ) -> None:
@@ -302,6 +406,7 @@ async def test_native_solver_pings_one_overlong_report_and_resumes_same_agent(
         120,
         report_min_words=2,
         report_max_words=3,
+        min_runtime_fraction=0,
     )(_state(), None)
 
     assert len(calls) == 2
@@ -345,6 +450,7 @@ async def test_native_solver_does_not_continue_missing_short_or_valid_reports(
         60,
         report_min_words=2,
         report_max_words=3,
+        min_runtime_fraction=0,
     )(_state(), None)
 
     assert calls == 1
@@ -384,6 +490,7 @@ async def test_native_solver_does_not_ping_after_time_limit(monkeypatch) -> None
         60,
         report_min_words=2,
         report_max_words=3,
+        min_runtime_fraction=0,
     )(_state(), None)
 
     assert calls == 1
@@ -450,7 +557,7 @@ async def test_native_preflight_installs_claude_and_codex_hooks(monkeypatch) -> 
     ]
     assert any("/sandbox/time_left.sh" in command for command in commands)
     assert any("--hook PostToolUse" in command for command in commands)
-    assert any("--hook Stop" in command for command in commands)
+    assert any("runtime_policy.py --hook Stop" in command for command in commands)
 
 
 @pytest.mark.parametrize("agent_name", ["claude", "codex", "react"])

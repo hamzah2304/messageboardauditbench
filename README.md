@@ -150,6 +150,7 @@ export OPENAI_API_KEY=...                  # native Codex when using OpenAI
 # Native Claude Code. The agent model is Inspect's normal --model option.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T agent=claude -T config=blind -T time_limit_minutes=30 \
+  -T min_runtime_fraction=0.75 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
@@ -192,15 +193,19 @@ use the same scoped deadline. With `backend=subscription`, use
 `-T subscription_model=...`; this deliberately runs outside Inspect's model
 provider and then converts the recorded CLI events for the viewer.
 
-The config and time dimensions are independent: use
-`-T config=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
-config names remain available to the direct sandbox scripts but are not part of
-the Inspect task interface. The default is 20 minutes for either config.
-The limit is a cap, not a minimum: agents may stop early and short reports are
-not sent back for expansion. Subscription agents are told exactly N minutes;
-their container gets a five-minute shutdown/write grace, followed by a separate
-five-minute host recovery guard so transcript folding is not cut off. A Codex
-capacity failure before its first completed turn is relaunched at most twice.
+The config, time, and minimum-runtime dimensions are independent: use
+`-T config=blind|context`, `-T time_limit_minutes=N`, and optionally
+`-T min_runtime_fraction=F`. The fraction defaults to `0.75`: a normal finish
+before 75% of the configured budget resumes the same investigation, with a
+prompt asking the agent to verify evidence and improve `report.md` rather than
+idle. The exact fraction and earliest permitted finish are stated in the
+prompt. Set the fraction to `0` only for an ablation. Terminal refusals,
+failures, and hard limits are not resumed. Time-bearing legacy config names
+remain available to direct sandbox scripts but are not part of the Inspect
+interface. Subscription agents are told exactly N minutes; their container gets
+a five-minute shutdown/write grace, followed by a separate five-minute host
+recovery guard so transcript folding is not cut off. A Codex capacity failure
+before its first completed turn is relaunched at most twice.
 
 `--epochs N` is Inspect's standard option for N independent replicates; the
 replicate number identifies a run and does not seed sampling. Use
@@ -224,9 +229,10 @@ accepted; reports up to 3,100 words pass the separate length score. The agent
 does not see that tolerance. After-tool checks stay silent unless `report.md`
 is over 3,000 words. A Claude Code or Codex Stop hook, or the native wrapper's
 post-hoc guard, can request one shortening pass when at least a minute remains.
-Subscription hooks implement the same policy. Missing, empty, short, and early
-reports are never used to force additional work. Native log metadata records
-whether the PostToolUse and Stop hooks actually fired.
+Subscription hooks implement the same policy. Missing, empty, and short reports
+are never used to force additional work; normal early completion is resumed only
+until the configured minimum runtime. Native log metadata records the configured
+fraction, minimum seconds, and whether the PostToolUse and Stop hooks fired.
 
 Provider refusals are retried at most twice through the same model. A terminal
 native refusal is recorded from Inspect's `content_filter` stop reason in

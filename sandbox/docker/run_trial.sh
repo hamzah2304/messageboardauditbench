@@ -27,6 +27,8 @@ REPORT_MIN_WORDS="${CFG_REPORT_MIN_WORDS:-0}"
 REPORT_MAX_WORDS="${CFG_REPORT_MAX_WORDS:-0}"
 REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
 REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$REPORT_MAX_WORDS}"
+MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
+MIN_RUNTIME_FRACTION="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
 . "$HERE/resolve_timeout.sh"
@@ -51,9 +53,13 @@ mkdir -p "$RUN/work" "$SECRETS/claude" "$SECRETS/codex"
 # consumed tens of megabytes per sample.
 # The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
 sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$PROMPT_FILE" > "$RUN/work/prompt.txt"
+python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction \
+  --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$RUN/work/prompt.txt"
 python3 "$ROOT/messageboard_audit_bench/report_length.py" \
   --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" \
   --instruction >> "$RUN/work/prompt.txt"
+MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" \
+  --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 PROMPT="$(cat "$RUN/work/prompt.txt")"
 
 # Credentials: a throwaway copy, mounted as the container user's ~/.claude and ~/.codex.
@@ -88,10 +94,11 @@ elif [ "$AGENT" = codex ]; then echo "no Codex credentials: run \`codex login\` 
 # reasoning items) lands in $SECRETS/codex/sessions and can be copied to <run>/codex_sessions.
 printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
 # After every tool call, Claude Code and Codex feed the agent its remaining
-# time. Report-length hooks remain silent unless report.md is over the strict
-# maximum; the Stop hook requests at most one shortening pass.
+# time. A shared Stop hook requests the existing one-shot report shortening
+# pass and blocks ordinary early completion until the configured minimum share
+# of the budget has elapsed.
 # Both CLIs accept the same hook file shape; Codex additionally needs the codex_hooks feature and the hook-trust bypass flag.
-HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"},{"type":"command","command":"python3 /sandbox/report_length.py --hook PostToolUse"}]}],"Stop":[{"hooks":[{"type":"command","command":"python3 /sandbox/report_length.py --hook Stop"}]}]}}'
+HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"},{"type":"command","command":"python3 /sandbox/report_length.py --hook PostToolUse"}]}],"Stop":[{"hooks":[{"type":"command","command":"python3 /sandbox/runtime_policy.py --hook Stop"}]}]}}'
 printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
@@ -134,6 +141,7 @@ cat > "$RUN/meta.json" <<JSON
  "report_min_words":$REPORT_MIN_WORDS,"report_max_words":$REPORT_MAX_WORDS,
  "report_accept_min_words":$REPORT_ACCEPT_MIN_WORDS,"report_accept_max_words":$REPORT_ACCEPT_MAX_WORDS,
  "prompt":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
+ "min_runtime_fraction":$MIN_RUNTIME_FRACTION,"minimum_runtime_seconds":$MINIMUM_RUNTIME_SECONDS,
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
 JSON
@@ -141,7 +149,8 @@ JSON
 echo "run: $RUN"
 START=$(date +%s); set +e
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
-TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN")
+EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH")
 case "$AGENT" in
   claude)
     docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
@@ -178,6 +187,14 @@ case "$AGENT" in
 esac
 set -e; END=$(date +%s)
 for f in report.md final_message.md; do [ -f "$RUN/work/$f" ] && cp "$RUN/work/$f" "$RUN/$f"; done
+[ -f "$RUN/work/.mbab-runtime-policy.json" ] && cp "$RUN/work/.mbab-runtime-policy.json" "$RUN/runtime_policy.json"
+EARLY_STOP_ATTEMPTS=0
+[ -f "$RUN/runtime_policy.json" ] && EARLY_STOP_ATTEMPTS="$(jq -r '.early_finish_blocks // 0' "$RUN/runtime_policy.json" 2>/dev/null || echo 0)"
+META_TMP="$RUN/meta.runtime-policy.json"
+jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
+   --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
+   '. + {early_stop_attempts: $early_stop_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
+   "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 # Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
 [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.

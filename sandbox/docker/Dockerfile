@@ -18,7 +18,7 @@ COPY sandbox/codex_with_hooks.sh /usr/local/bin/codex
 COPY sandbox/proxy.py sandbox/react_agent.py sandbox/time_left.sh /sandbox/
 # `time_left` on the agent's PATH: the same remaining-time note the hooks inject, on demand.
 RUN chmod 755 /usr/local/bin/codex /sandbox/time_left.sh && printf '#!/bin/sh\nexec /sandbox/time_left.sh --plain\n' > /usr/local/bin/time_left && chmod 755 /usr/local/bin/time_left
-COPY messageboard_audit_bench/report_length.py /sandbox/report_length.py
+COPY messageboard_audit_bench/report_length.py messageboard_audit_bench/runtime_policy.py /sandbox/
 RUN printf '#!/bin/sh\nexec python3 /sandbox/report_length.py "$@"\n' > /usr/local/bin/report_length && chmod 755 /usr/local/bin/report_length
 # Non-root: claude refuses --dangerously-skip-permissions as root.
 RUN useradd -m -u 1000 agent && mkdir -p /work && chown agent /work

@@ -31,6 +31,7 @@ from inspect_ai.util import (
     SandboxEnvironmentSpec,
 )
 
+from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
@@ -45,7 +46,7 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "4-B"
+EVAL_VERSION = "5-B"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CONFIGS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
@@ -85,12 +86,50 @@ def _time_limit(time_limit_minutes: int | None) -> int:
     return value
 
 
-def _prompt_for(config_name: str, time_limit_minutes: int | None = None) -> str:
+def _min_runtime_fraction(min_runtime_fraction: float | None) -> float:
+    """Validate the proportion of an agent budget that must be used.
+
+    Zero is intentionally allowed as an explicit opt-out for ablations and
+    backwards-compatible comparisons. A value of one would leave no time for a
+    normal completion, so it is rejected.
+    """
+    value = (
+        runtime_policy.DEFAULT_MIN_RUNTIME_FRACTION
+        if min_runtime_fraction is None
+        else min_runtime_fraction
+    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("min_runtime_fraction must be a finite number in [0, 1)")
+    try:
+        result = runtime_policy.fraction(value)
+    except ValueError as exc:
+        raise ValueError(
+            "min_runtime_fraction must be a finite number in [0, 1)"
+        ) from exc
+    if result >= 1:
+        raise ValueError("min_runtime_fraction must be a finite number in [0, 1)")
+    return result
+
+
+def _minimum_runtime_instruction(budget_seconds: int, fraction: float) -> str:
+    """The shared, parameterized prompt contract for early completion."""
+    return runtime_policy.instruction(fraction, budget_seconds / 60)
+
+
+def _prompt_for(
+    config_name: str,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float | None = None,
+) -> str:
     cfg = _load_config(config_name)
+    budget_minutes = _time_limit(time_limit_minutes)
+    fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
-    return text.replace(
-        "{{BUDGET_MIN}}", str(_time_limit(time_limit_minutes))
-    ) + instruction(*limits(cfg))
+    return (
+        text.replace("{{BUDGET_MIN}}", str(budget_minutes))
+        + _minimum_runtime_instruction(budget_minutes * 60, fraction)
+        + instruction(*limits(cfg))
+    )
 
 
 def _scaffold(agent: str, backend: str) -> str:
@@ -133,6 +172,7 @@ def messageboard_audit_bench(
     subscription_model: str | None = None,
     config: str = "blind",
     time_limit_minutes: int | None = None,
+    min_runtime_fraction: float = 0.75,
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
     """Run one sandboxed message-board audit.
@@ -147,6 +187,9 @@ def messageboard_audit_bench(
         time_limit_minutes: Trial budget in minutes. Overrides the named
             config's 20-minute default. Native runs have a separate
             five-minute outer guard for cleanup and log recovery.
+        min_runtime_fraction: Fraction of the agent budget that must elapse
+            before normal completion is accepted. Defaults to ``0.75``; set
+            ``0`` to disable this continuation policy for an ablation.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
     """
@@ -170,6 +213,10 @@ def messageboard_audit_bench(
             "backend='subscription' requires -T subscription_model=<cli-model>"
         )
     budget_min = _time_limit(time_limit_minutes)
+    runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
+    minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
+        budget_min * 60, runtime_fraction
+    )
     cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
     sample_metadata = {
         "agent": agent,
@@ -177,6 +224,8 @@ def messageboard_audit_bench(
         "backend": backend,
         "config": config,
         "budget_min": budget_min,
+        "min_runtime_fraction": runtime_fraction,
+        "minimum_runtime_seconds": minimum_runtime_seconds,
         "data_variant": cfg["data_variant"],
         "effort": cfg["effort"],
         "report_min_words": limits(cfg)[0],
@@ -187,7 +236,7 @@ def messageboard_audit_bench(
     if subscription_model is not None:
         sample_metadata["subscription_model"] = subscription_model
     sample = Sample(
-        input=_prompt_for(config, budget_min),
+        input=_prompt_for(config, budget_min, runtime_fraction),
         id=f"{agent}:{backend}:{config}:{budget_min}m",
         metadata=sample_metadata,
     )
@@ -198,6 +247,7 @@ def messageboard_audit_bench(
             claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
             report_min_words=limits(cfg)[0],
             report_max_words=limits(cfg)[1],
+            min_runtime_fraction=runtime_fraction,
         )
         selected_sandbox = _inspect_sandbox(cfg["data_variant"])
         generate_config = GenerateConfig(
@@ -215,6 +265,7 @@ def messageboard_audit_bench(
             prompt=cfg["prompt"],
             data_variant=cfg["data_variant"],
             effort=cfg["effort"],
+            min_runtime_fraction=runtime_fraction,
         )
         selected_sandbox = None
         generate_config = GenerateConfig()
@@ -239,6 +290,8 @@ def messageboard_audit_bench(
             "scaffold": _scaffold(agent, backend),
             "config": config,
             "time_limit_minutes": budget_min,
+            "min_runtime_fraction": runtime_fraction,
+            "minimum_runtime_seconds": minimum_runtime_seconds,
             "hard_time_limit_minutes": cleanup_timeout_minutes,
             "host_cleanup_guard_minutes": (
                 cleanup_timeout_minutes + TIMEOUT_GRACE_MINUTES

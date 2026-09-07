@@ -10,6 +10,7 @@ the agent stops, including when the scoped Inspect time limit fires.
 from __future__ import annotations
 
 import json
+import math
 import time
 from collections.abc import Sequence
 from functools import wraps
@@ -30,11 +31,18 @@ from inspect_swe import claude_code, codex_cli
 from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
 
 REPORT_PATH = "/work/report.md"
+RUNTIME_POLICY_STATE_PATH = "/work/.mbab-runtime-policy.json"
 # A refusal is retried through the same provider/model only. Keeping this
 # finite makes the treatment reproducible and prevents a refused prompt from
 # consuming the full trial budget in the bridge retry loop.
 REFUSAL_RETRY_LIMIT = 2
 MIN_REVISION_SECONDS = 60
+# A normal agent completion is not accepted before the configured fraction of
+# its budget has elapsed. This bound makes a malfunctioning bridge that returns
+# immediately fail the sample instead of spending an unbounded number of paid
+# turns. Eight continuation turns is deliberately generous for a real agent
+# that has genuinely completed a discrete subtask too early.
+MAX_EARLY_STOP_CONTINUATIONS = 8
 CLAUDE_CONFIG_DIR = "/work/.mbab-claude"
 CODEX_HOME = "/work/.codex"
 
@@ -68,7 +76,7 @@ def _hook_config() -> dict:
                             "type": "command",
                             "command": (
                                 "sh -c 'touch /tmp/mbab-stop-hook-fired; "
-                                "exec python3 /sandbox/report_length.py --hook Stop'"
+                                "exec python3 /sandbox/runtime_policy.py --hook Stop'"
                             ),
                         }
                     ]
@@ -90,6 +98,14 @@ def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
         budget = env["MBAB_BUDGET_MIN"]
         left = max(0, deadline - int(time.time()))
         note = f"Time budget: about {(left + 30) // 60} of {budget} minutes left."
+        earliest = int(env.get("MBAB_EARLIEST_FINISH_EPOCH", "0"))
+        now = int(time.time())
+        if earliest > now:
+            minimum_left = max(1, math.ceil((earliest - now) / 60))
+            note += (
+                " Minimum-runtime policy: continue meaningful work for about "
+                f"{minimum_left} more minute(s); do not idle or sleep."
+            )
         report, _ = await _read_report()
         overlong = _overlong_revision(
             report, int(env.get("MBAB_REPORT_MAX_WORDS", "0"))
@@ -162,6 +178,16 @@ async def _marker_exists(path: str) -> bool:
         return (await sandbox().exec(["test", "-e", path])).success
     except Exception:
         return False
+
+
+async def _early_stop_hook_attempts() -> int:
+    try:
+        data = json.loads(await sandbox().read_file(RUNTIME_POLICY_STATE_PATH))
+        return max(0, int(data.get("early_finish_blocks", 0)))
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return 0
+    except Exception:
+        return 0
 
 
 async def _prepare_budget(
@@ -259,6 +285,21 @@ def _terminal_refusal(agent_state: AgentState) -> bool:
     )
 
 
+def _minimum_runtime_continuation(
+    *, elapsed_seconds: float, minimum_runtime_seconds: int, remaining_seconds: int
+) -> str:
+    """Return the visible continuation request for a normal early completion."""
+    return (
+        "The evaluation enforces a minimum investigation time before it will "
+        "accept completion. You have worked for about "
+        f"{math.floor(elapsed_seconds)} seconds; the earliest acceptable finish "
+        f"is {minimum_runtime_seconds} seconds, with about {remaining_seconds} "
+        "seconds remaining in the total budget. Continue meaningful investigation "
+        "now: verify evidence, look for counterevidence, and improve report.md. "
+        "Do not idle or merely restate your conclusion."
+    )
+
+
 def _overlong_revision(report: str, maximum: int) -> str | None:
     """Return the single native correction prompt, only above the hard target."""
     count = len(report.split())
@@ -281,6 +322,12 @@ def _record_native_metrics(
     terminal_refusal: bool,
     agent_stop_reason: str | None,
     report_length_ping_count: int,
+    min_runtime_fraction: float,
+    early_stop_attempts: int,
+    early_stop_hook_attempts: int,
+    early_stop_resume_attempts: int,
+    minimum_runtime_seconds: int,
+    minimum_runtime_reached: bool,
     post_tool_hook_fired: bool,
     stop_hook_fired: bool,
 ) -> None:
@@ -303,6 +350,12 @@ def _record_native_metrics(
         refusal_retry_limit=REFUSAL_RETRY_LIMIT,
         refusal_policy="same_model_only",
         report_length_ping_count=report_length_ping_count,
+        min_runtime_fraction=min_runtime_fraction,
+        early_stop_attempts=early_stop_attempts,
+        early_stop_hook_attempts=early_stop_hook_attempts,
+        early_stop_resume_attempts=early_stop_resume_attempts,
+        minimum_runtime_seconds=minimum_runtime_seconds,
+        minimum_runtime_reached=minimum_runtime_reached,
         post_tool_hook_fired=post_tool_hook_fired,
         stop_hook_fired=stop_hook_fired,
     )
@@ -323,6 +376,7 @@ def inspect_native_agent(
     claude_disallowed_tools: Sequence[str] = (),
     report_min_words: int = 0,
     report_max_words: int = 0,
+    min_runtime_fraction: float = 0.75,
 ) -> Solver:
     """Run an agent through Inspect and collect its on-disk report.
 
@@ -331,10 +385,15 @@ def inspect_native_agent(
     update throughout the investigation. Unexpected agent or sandbox failures
     still fail the sample normally.
     """
+    if not 0 <= min_runtime_fraction < 1:
+        raise ValueError("min_runtime_fraction must be between 0 (inclusive) and 1")
+    minimum_runtime_seconds = math.ceil(time_limit_seconds * min_runtime_fraction)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         started = time.monotonic()
-        deadline_epoch = int(time.time()) + time_limit_seconds
+        started_epoch = int(time.time())
+        deadline_epoch = started_epoch + time_limit_seconds
+        earliest_finish_epoch = started_epoch + minimum_runtime_seconds
         budget_minutes = max(1, round(time_limit_seconds / 60))
         await _prepare_budget(
             deadline_epoch,
@@ -347,7 +406,9 @@ def inspect_native_agent(
             claude_disallowed_tools=claude_disallowed_tools,
             env={
                 "MBAB_DEADLINE_EPOCH": str(deadline_epoch),
+                "MBAB_EARLIEST_FINISH_EPOCH": str(earliest_finish_epoch),
                 "MBAB_BUDGET_MIN": str(budget_minutes),
+                "MBAB_MIN_RUNTIME_FRACTION": str(min_runtime_fraction),
                 "MBAB_REPORT_MIN_WORDS": str(report_min_words),
                 "MBAB_REPORT_MAX_WORDS": str(report_max_words),
             },
@@ -359,6 +420,48 @@ def inspect_native_agent(
         )
         agent_state, limit_error = result
         terminal_refusal = _terminal_refusal(agent_state)
+        early_stop_resume_attempts = 0
+
+        # Reuse the same Inspect agent object and its complete conversation,
+        # which keeps the agent session and its cached prompt prefix intact.
+        # Refusals and scoped limits are terminal outcomes, not invitations to
+        # keep spending the budget.
+        while (
+            limit_error is None
+            and not terminal_refusal
+            and time.monotonic() - started < minimum_runtime_seconds
+        ):
+            if early_stop_resume_attempts >= MAX_EARLY_STOP_CONTINUATIONS:
+                _copy_agent_state(state, agent_state)
+                raise RuntimeError(
+                    "minimum-runtime policy violation: agent completed normally "
+                    f"{MAX_EARLY_STOP_CONTINUATIONS} times before the required "
+                    f"{minimum_runtime_seconds}-second investigation period"
+                )
+            elapsed = time.monotonic() - started
+            remaining = max(0, math.ceil(time_limit_seconds - elapsed))
+            if remaining == 0:
+                break
+            early_stop_resume_attempts += 1
+            continuation_messages = [
+                *agent_state.messages,
+                ChatMessageUser(
+                    content=_minimum_runtime_continuation(
+                        elapsed_seconds=elapsed,
+                        minimum_runtime_seconds=minimum_runtime_seconds,
+                        remaining_seconds=remaining,
+                    )
+                ),
+            ]
+            agent_state, limit_error = await run(
+                selected,
+                continuation_messages,
+                limits=[time_limit(remaining)],
+            )
+            terminal_refusal = _terminal_refusal(agent_state)
+
+        elapsed = time.monotonic() - started
+        minimum_runtime_reached = elapsed >= minimum_runtime_seconds
         report, report_read_error = await _read_report()
         report_length_ping_count = 0
 
@@ -366,7 +469,7 @@ def inspect_native_agent(
         # early or write a short report. A single continuation is reserved for
         # correcting a report above the prompt's strict upper limit.
         revision = _overlong_revision(report, report_max_words)
-        remaining = max(0, deadline_epoch - int(time.time()))
+        remaining = max(0, math.ceil(time_limit_seconds - elapsed))
         if (
             revision
             and remaining >= MIN_REVISION_SECONDS
@@ -391,6 +494,8 @@ def inspect_native_agent(
         agent_stop_reason = (
             agent_state.output.stop_reason if agent_state.output else None
         )
+        early_stop_hook_attempts = await _early_stop_hook_attempts()
+        early_stop_attempts = early_stop_hook_attempts + early_stop_resume_attempts
         post_tool_hook_fired = await _marker_exists("/tmp/mbab-post-tool-hook-fired")
         stop_hook_fired = await _marker_exists("/tmp/mbab-stop-hook-fired")
         _copy_agent_state(state, agent_state)
@@ -411,6 +516,12 @@ def inspect_native_agent(
             terminal_refusal=terminal_refusal,
             agent_stop_reason=agent_stop_reason,
             report_length_ping_count=report_length_ping_count,
+            min_runtime_fraction=min_runtime_fraction,
+            early_stop_attempts=early_stop_attempts,
+            early_stop_hook_attempts=early_stop_hook_attempts,
+            early_stop_resume_attempts=early_stop_resume_attempts,
+            minimum_runtime_seconds=minimum_runtime_seconds,
+            minimum_runtime_reached=minimum_runtime_reached,
             post_tool_hook_fired=post_tool_hook_fired,
             stop_hook_fired=stop_hook_fired,
         )
