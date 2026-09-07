@@ -130,7 +130,12 @@ def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
         deadline = int(env["MBAB_DEADLINE_EPOCH"])
         budget = env["MBAB_BUDGET_MIN"]
         left = max(0, deadline - int(time.time()))
-        note = f"Time budget: about {(left + 30) // 60} of {budget} minutes left."
+        note = (
+            f"Time budget: about {(left + 30) // 60} of {budget} minutes left. "
+            "Keep report.md in place: edit it, never delete, move, or "
+            "truncate it. If report.md is missing at the deadline the "
+            "trial scores zero."
+        )
         earliest = int(env.get("MBAB_EARLIEST_FINISH_EPOCH", "0"))
         now = int(time.time())
         if earliest > now:
@@ -352,7 +357,10 @@ def _minimum_runtime_continuation(
         f"is {minimum_runtime_seconds} seconds, with about {remaining_seconds} "
         "seconds remaining in the total budget. Continue meaningful investigation "
         "now: verify evidence, look for counterevidence, and improve report.md. "
-        "Do not idle or merely restate your conclusion."
+        "Do not idle or merely restate your conclusion. "
+        "Keep report.md in place: edit it, never delete, move, or "
+        "truncate it. If report.md is missing at the deadline the "
+        "trial scores zero."
     )
 
 
@@ -364,7 +372,8 @@ def _overlong_revision(report: str, maximum: int) -> str | None:
     return (
         f"report.md is {count:,} words, above the strict {maximum:,}-word limit. "
         f"Shorten it by at least {count - maximum:,} words now, preserving the "
-        "strongest evidence and citations, then finish."
+        "strongest evidence and citations, then finish. Edit it in place; do "
+        "not delete it and start over."
     )
 
 
