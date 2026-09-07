@@ -63,7 +63,7 @@ are in `benchmark/graded/`.
 ```
 benchmark/      ground truth: human_report.txt (answer key), claims, feasibility,
                 rubrics, graded results, and the exact reports each grade came from
-messageboard_audit/
+messageboard_audit_bench/
                 the Inspect task package — wraps the sandbox as an inspect eval
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
 scripts/        data build/fetch, grading, report collection
@@ -114,14 +114,15 @@ from a plain clone.
 - [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
   design rationale and operational notes.
 - [`sandbox/README.md`](sandbox/README.md) — how isolation actually works.
-- [`messageboard_audit/README.md`](messageboard_audit/README.md) — the Inspect task
+- [`messageboard_audit_bench/README.md`](messageboard_audit_bench/README.md) — the Inspect task
   package in full.
 
 ## Inspect integration
 
-The repo is packaged as an [Inspect](https://inspect.aisi.org.uk/) eval.
-`messageboard_audit/` is the task package, and `inspect-ai>=0.3` is a declared
-dependency in `pyproject.toml`, so `uv sync` installs it.
+The repo is packaged as an installable [Inspect](https://inspect.aisi.org.uk/)
+eval. `pyproject.toml` registers `messageboard_audit_bench` as an Inspect plugin,
+and `messageboard_audit_bench/__init__.py` exports the task functions. After `uv sync`,
+Inspect can discover the eval by package name; no task-file path is required.
 
 Inspect does not replace the sandbox — it wraps it. The solver shells out to the
 same `sandbox/docker/run_trial.sh` that a manual run uses, so the isolation
@@ -130,30 +131,44 @@ a viewer, and epoch handling.
 
 | file | role |
 |---|---|
-| `task.py` | two tasks: `messageboard_audit` (fresh trials) and `messageboard_audit_replay` (import runs already on disk) |
+| `task.py` | two tasks: `messageboard_audit_bench` (fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
 | `solver.py` | `cli_agent` launches the sandbox runner; `replay` imports a finished run |
 | `transcripts.py` | converts Claude Code / Codex / ReAct event streams into Inspect messages and tool calls, so the viewer renders them natively |
 | `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`) and `process_metrics` (turns, tokens, wall time — no judge) |
 | `rubric.yaml` | the rubric that scorer grades against |
 
 ```bash
-uv sync                                    # installs inspect-ai and this package
+uv sync                                    # installs Inspect and this package
+scripts/build_data.sh                      # downloads and verifies the dataset
 export ANTHROPIC_API_KEY=...               # the judge needs a key even when the
                                            # agents run on a subscription CLI
 
-# run fresh trials; conditions come from configs/<config>.toml
-uv run inspect eval messageboard_audit/task.py@messageboard_audit \
-  -T agent=claude -T model=claude-opus-5 -T config=blind-20 --epochs 3
+# run fresh trials; prompt condition and time are independent
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=claude -T model=claude-opus-5 -T condition=blind \
+  -T time_limit_minutes=30 \
+  --epochs 3 --max-samples 1
 
 # or fold runs already on disk into one eval, without spending model time
-uv run inspect eval messageboard_audit/task.py@messageboard_audit_replay
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 
 uv run inspect view                        # browse the .eval logs
 ```
 
+`-T agent=claude` runs Claude Code, `-T agent=codex` runs Codex CLI, and
+`-T agent=react` runs the model-neutral OpenRouter tool loop. Claude Code is the
+default; ReAct is optional. Each harness uses the same prompt, data, time budget,
+Docker isolation, transcript conversion, and scorers. See the package README for
+complete commands for all three.
+
+The condition and time dimensions are independent: use
+`-T condition=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
+config names remain available to the direct sandbox scripts but are not part of
+the Inspect task interface. The default is 20 minutes for either condition.
+
 `--epochs N` runs N independent replicates; the replicate number identifies a run
 and does not seed sampling. Use `--max-samples 1` to serialize epochs against a
-subscription-backed CLI. `messageboard_audit_replay` reads `runs/`, which is
+subscription-backed CLI. `messageboard_audit_bench_replay` reads `runs/`, which is
 gitignored — it only has anything to import on a machine that has run trials.
 
 ### Which scorer produced the headline numbers
@@ -165,7 +180,7 @@ Two grading paths exist, and they are not the same rubric:
   `grade_with_rubrics.py` with a GPT-5.6 Sol judge. Each claim was first checked
   against the data by the feasibility pass, so non-derivable claims are excluded.
   This is the benchmark's scoring.
-- **`messageboard_audit/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
+- **`messageboard_audit_bench/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
   LLM-seeded starter rubric: 12 weighted positive leaves (tagged derivable
   yes/partly) plus 3 penalty leaves for specific over-claims, such as asserting
   this is the same swarm that attacked Hugging Face. It has not been
@@ -175,6 +190,17 @@ So Inspect is the run-and-inspect harness here, not the source of the reported
 results. Treat `rubric_scorer` output as indicative until `rubric.yaml` is
 validated the way the 30 claims were; `docs/design-notes.md` sketches the
 claim-precision and citation-support scorers meant to close that gap.
+
+### Official Inspect Evals register
+
+This repository follows the upstream packaging conventions for an externally
+managed Inspect eval: PEP 517 packaging, an `inspect_ai` entry point, exported
+`@task` functions, versioned task metadata, declared asset provenance, and an
+end-to-end mock-model test. It is not yet listed in the official Inspect Evals
+register. Registration also requires an immutable dataset host, a public pinned
+code commit, an arXiv paper, and full logs from two models. See
+[`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md) for
+the exact handoff.
 
 ## Notes on reproducibility
 

@@ -2,14 +2,13 @@
 # Nothing from the repo is copied in except proxy.py and react_agent.py.
 FROM python:3.12-slim
 ARG CODEX_VERSION=rust-v0.153.4
-ARG CLAUDE_VERSION=latest
+ARG CLAUDE_VERSION=2.1.263
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl jq ripgrep sqlite3 && rm -rf /var/lib/apt/lists/*
 RUN set -eux; arch="$(uname -m)"; \
     case "$arch" in aarch64) ca=arm64 ;; x86_64) ca=x64 ;; *) exit 1 ;; esac; \
     base=https://downloads.claude.ai/claude-code-releases; \
-    v="$CLAUDE_VERSION"; [ "$v" = latest ] && v="$(curl -fsSL $base/latest)"; \
-    curl -fsSL -o /usr/local/bin/claude "$base/$v/linux-$ca/claude"; chmod 755 /usr/local/bin/claude; \
+    curl -fsSL -o /usr/local/bin/claude "$base/$CLAUDE_VERSION/linux-$ca/claude"; chmod 755 /usr/local/bin/claude; \
     for b in codex codex-code-mode-host; do \
       curl -fsSL "https://github.com/openai/codex/releases/download/$CODEX_VERSION/$b-$arch-unknown-linux-musl.tar.gz" \
         | tar xz -C /usr/local/bin; mv "/usr/local/bin/$b-$arch-unknown-linux-musl" "/usr/local/bin/$b"; \

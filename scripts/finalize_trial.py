@@ -4,7 +4,7 @@
     scripts/finalize_trial.py <run_dir> [<run_dir> ...]
 
 Reproduces the tail of sandbox/docker/run_trial.sh from what is on disk: copies work/report.md
-(and final_message.md) to the run root, summarizes usage (messageboard_audit.usage), and writes
+(and final_message.md) to the run root, summarizes usage (messageboard_audit_bench.usage), and writes
 exit_code / wall_seconds / model_fallback / model_served / model_refusal / usage into meta.json.
 The container's exit code is gone, so it is inferred: 1 if the transcript's result says
 is_error, 5 on a refusal that ended the run, else 0. wall_seconds is transcript mtime - start.
@@ -23,7 +23,7 @@ def finalize(run: pathlib.Path, force: bool = False) -> None:
     if not tr.exists(): print(f"{run.name}: no transcript, skipped"); return
     for f in ("report.md", "final_message.md"):
         if (run / "work" / f).exists() and not (run / f).exists(): shutil.copyfile(run / "work" / f, run / f)
-    subprocess.run([sys.executable, "-m", "messageboard_audit.usage", str(run), "--quiet"],
+    subprocess.run([sys.executable, "-m", "messageboard_audit_bench.usage", str(run), "--quiet"],
                    env={**os.environ, "PYTHONPATH": str(ROOT)}, check=False)
     lines = tr.read_text().splitlines()
     last = {}
@@ -48,7 +48,7 @@ def finalize(run: pathlib.Path, force: bool = False) -> None:
         m["model_refusal"] = {"events": len(rf)}
         if rc == 0: rc = 5; m["exit_code"] = rc
     u = json.loads((run / "usage.json").read_text()) if (run / "usage.json").exists() else {}
-    m["usage"] = {k: u.get(k) for k in ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens",
+    m["usage"] = {k: u.get(k) for k in ("usage_schema", "input_tokens", "input_tokens_uncached", "output_tokens", "cache_read_tokens", "cache_write_tokens", "cache_read_fraction", "reasoning_tokens",
                   "cost_usd", "api_calls", "tool_calls", "api_retries", "api_errors", "peak_context_tokens", "terminal_reason", "is_error", "usage_source")}
     meta_p.write_text(json.dumps(m, indent=1))
     print(f"{run.name}: exit {rc}, wall {secs}s, report={m['report_exists']}, served={m.get('model_served', m['model'])}")

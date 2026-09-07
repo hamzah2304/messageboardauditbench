@@ -11,15 +11,14 @@ report was written, so those show up as columns without a judge call.
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
+from importlib.resources import files
 
 import yaml
 from inspect_ai.model import Model, get_model
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
-RUBRIC = Path(__file__).resolve().parent / "rubric.yaml"
+RUBRIC = files("messageboard_audit_bench").joinpath("rubric.yaml")
 
 JUDGE_PROMPT = """You are grading an incident report written by an AI agent that investigated wiki edit logs.
 
@@ -49,20 +48,27 @@ async def _judge(model: Model, claim: str, report: str) -> tuple[bool, str]:
 
 
 @scorer(metrics=[mean(), stderr()])
-def rubric_scorer(judge: str = "anthropic/claude-sonnet-5") -> Scorer:
+def rubric_scorer(judge: str | Model = "anthropic/claude-sonnet-5") -> Scorer:
     rubric = _load_rubric()
-    model = get_model(judge)
 
     async def score(state: TaskState, target: Target) -> Score:
+        # Resolve the judge at scoring time. This keeps task discovery and
+        # construction independent of credentials and provider configuration.
+        model = get_model(judge, role="grader")
         report = state.output.completion if state.output else ""
         leaves, penalties = rubric["leaves"], rubric.get("penalties", [])
-        pos_total = sum(l["weight"] for l in leaves)
+        pos_total = sum(leaf["weight"] for leaf in leaves)
         got, verdicts = 0.0, {}
-        for l in leaves:
-            hit, reason = await _judge(model, l["claim"], report)
-            verdicts[l["id"]] = {"hit": hit, "weight": l["weight"], "derivable": l["derivable"], "reason": reason}
+        for leaf in leaves:
+            hit, reason = await _judge(model, leaf["claim"], report)
+            verdicts[leaf["id"]] = {
+                "hit": hit,
+                "weight": leaf["weight"],
+                "derivable": leaf["derivable"],
+                "reason": reason,
+            }
             if hit:
-                got += l["weight"]
+                got += leaf["weight"]
         penalty = 0.0
         for pnode in penalties:
             hit, reason = await _judge(model, pnode["claim"], report)
@@ -76,7 +82,7 @@ def rubric_scorer(judge: str = "anthropic/claude-sonnet-5") -> Scorer:
             value=value,
             answer=f"{got:.0f}/{pos_total} positive, -{penalty:.0f} penalty",
             explanation="hit: " + ", ".join(hits),
-            metadata={"verdicts": verdicts},
+            metadata={"judge": str(model), "verdicts": verdicts},
         )
 
     return score
@@ -90,12 +96,13 @@ def process_metrics() -> Scorer:
             value=1.0 if m.get("report_written") else 0.0,
             answer="report written" if m.get("report_written") else "no report",
             metadata={
+                "usage_schema": m.get("usage_schema"),
                 "turns": m.get("turns"),
                 "tool_calls": m.get("tool_calls"),
-                # Claude Code serves most context from cache; report both so the
-                # input figure is not misread as the whole context it processed.
-                "input_tokens_uncached": m.get("input_tokens"),
+                "input_tokens": m.get("input_tokens"),
+                "input_tokens_uncached": m.get("input_tokens_uncached"),
                 "cache_read_tokens": m.get("cache_read_tokens"),
+                "cache_read_fraction": m.get("cache_read_fraction"),
                 "output_tokens": m.get("output_tokens"),
                 "wall_seconds": m.get("wall_seconds"),
                 "report_chars": m.get("report_chars"),

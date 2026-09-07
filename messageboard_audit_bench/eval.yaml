@@ -1,0 +1,23 @@
+title: "MessageBoardAuditBench: Investigating AI coordination logs"
+description: |
+  Tests whether a coding agent can investigate a large, unfamiliar dump of
+  message-board logs and recover the main findings of a human incident audit.
+group: Coding
+contributors:
+  - hamzah2304
+  - oscar-gilg
+  - hasanbaig8
+version: "1-A"
+tags: [Agent]
+tasks:
+  - name: messageboard_audit_bench
+    dataset_samples: 1
+metadata:
+  sandbox: [solver]
+  requires_internet: true
+external_assets:
+  - type: direct_url
+    source: "https://collusion.wiki/explorer/download/full-wiki-logs.zip"
+    fetch_method: other
+    state: floating
+    comment: "The URL is mutable. scripts/fetch_data.sh rejects any archive other than SHA-256 eb68aa12d26bf189d8bfc4ce47f4d8af66ae5ba7ebbadd429738297a3cbb25ae, and scripts/build_data.sh verifies every derived dataset file. Mirror this archive at an immutable URL before register submission."

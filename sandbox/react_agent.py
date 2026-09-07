@@ -18,7 +18,7 @@ The final `result` event carries the totals.
 
   react_agent.py --model moonshotai/kimi-k3 --prompt-file /work/prompt.txt --effort medium --budget-min 20
 """
-import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error
+import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
 
 TOOLS = [
     {"type": "function", "function": {"name": "bash",
@@ -71,7 +71,7 @@ def chat(base, key, body):
     """POST /chat/completions with retries. Returns (response_json, retries, latency_ms of the successful attempt)."""
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
-                 "HTTP-Referer": "https://github.com/hamzah2304/messageboardauditbench", "X-Title": "messageboardauditbench"})
+                 "HTTP-Referer": "https://github.com/hamzah2304/messageboardauditbench", "X-Title": "messageboard_audit_bench"})
     for attempt in range(6):
         t = time.time()
         try:
@@ -143,13 +143,14 @@ def main():
     msgs = [{"role": "system", "content": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]},
             {"role": "user", "content": prompt}]
     t0 = time.time(); turns = 0; stop = "end_turn"; cost = 0.0; retries = 0; latencies = []; providers = {}
+    session_id = f"messageboard_audit_bench-{uuid.uuid4()}"
     usage = {k: 0 for k in USAGE_KEYS}
     emit({"type": "system", "subtype": "init", "cwd": a.cwd, "model": a.model, "effort": a.effort, "budget_min": a.budget_min,
           "tools": [t["function"]["name"] for t in TOOLS], "scaffold": "react_agent.py", "base_url": a.base_url})
     while turns < a.max_turns:
         elapsed = (time.time() - t0) / 60
         if elapsed > a.budget_min: stop = "budget"; break
-        body = {"model": a.model, "messages": msgs, "tools": TOOLS,
+        body = {"model": a.model, "messages": msgs, "tools": TOOLS, "session_id": session_id,
                 "cache_control": {"type": "ephemeral"}, "usage": {"include": True}}
         if a.effort: body["reasoning"] = {"effort": a.effort}
         try:

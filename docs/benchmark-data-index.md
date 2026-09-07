@@ -3,6 +3,11 @@
 Every path below is repo-relative. Build/grading scripts resolve inputs through
 `paths.py` at the repo root.
 
+Historical graded-input indexes retain the original time-bearing report-folder
+prefixes such as `blind-30_p...`. Newly collected reports use the normalized
+`<condition>_<data-variant>_<effort>_p<prompt-hash>` layout; the index remains
+the authoritative mapping from a grade to its report artifact.
+
 ## Ground truth (`benchmark/`)
 - `human_report.txt` — the human incident report. The answer key everything is graded
   against, and the source `scripts/fill_verbatim.py` reads to build the verbatim variant.

@@ -13,21 +13,28 @@ Inspect agent: text, tool call, tool result, repeat.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.tool import ToolCall
 
-from messageboard_audit.usage import summarize
+from messageboard_audit_bench.usage import summarize
 
 
 @dataclass
 class Parsed:
     messages: list[ChatMessage] = field(default_factory=list)
     input_tokens: int = 0
+    input_tokens_uncached: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
@@ -193,17 +200,19 @@ def parse_codex(path: Path) -> Parsed:
 
 
 def parse(agent: str, path: Path) -> Parsed:
-    """Messages from the dialect parser; token/cost figures from messageboard_audit.usage, which is
+    """Messages from the dialect parser; token/cost figures from messageboard_audit_bench.usage, which is
     also what run_trial.sh writes to <run>/usage.json, so Inspect and meta.json always agree."""
     # react_agent.py deliberately writes the Claude Code dialect.
     p = parse_codex(path) if agent == "codex" else parse_claude(path)
     u = summarize(path.parent, agent)
-    p.input_tokens, p.output_tokens = u["input_tokens"], u["output_tokens"]
+    p.input_tokens = u["input_tokens"]
+    p.input_tokens_uncached = u["input_tokens_uncached"]
+    p.output_tokens = u["output_tokens"]
     p.cache_read_tokens, p.cache_write_tokens = u["cache_read_tokens"], u["cache_write_tokens"]
     p.reasoning_tokens = u["reasoning_tokens"]
     p.cost_usd = u.get("cost_usd", p.cost_usd)
     p.duration_ms = u.get("duration_ms") or p.duration_ms
-    for k in ("usage_source", "api_calls", "api_retries", "api_errors", "peak_context_tokens", "stop_reason",
+    for k in ("usage_schema", "usage_source", "api_calls", "api_retries", "api_errors", "peak_context_tokens", "cache_read_fraction", "stop_reason",
               "terminal_reason", "is_error", "duration_api_ms", "ttft_ms", "thinking_blocks", "thinking_chars",
               "reasoning_tokens_estimated", "reasoning_items", "reasoning_summary_chars", "latency_ms_mean", "permission_denials"):
         if u.get(k) is not None:

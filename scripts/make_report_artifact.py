@@ -15,7 +15,7 @@ from pathlib import Path
 from markdown_it import MarkdownIt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from messageboard_audit.transcripts import parse  # noqa: E402
+from messageboard_audit_bench.transcripts import parse  # noqa: E402
 
 TEMPLATE = r"""<title>{title}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">

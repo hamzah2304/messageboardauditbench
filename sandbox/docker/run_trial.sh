@@ -24,7 +24,9 @@ CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROO
 eval "$(python3 "$ROOT/scripts/read_config.py" "$CONFIG")"
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
-BUDGET_MIN="${BUDGET_MIN:-$CFG_BUDGET_MIN}"; TIMEOUT="${TIMEOUT:-${CFG_TIMEOUT_MIN}m}"; EFFORT="${EFFORT:-$CFG_EFFORT}"
+. "$HERE/resolve_timeout.sh"
+resolve_trial_time
+EFFORT="${EFFORT:-$CFG_EFFORT}"
 DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
@@ -115,7 +117,7 @@ GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 
 cat > "$RUN/meta.json" <<JSON
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
- "prompt":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
+ "prompt":"$PROMPT_NAME","condition":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
 JSON
@@ -149,7 +151,7 @@ for f in report.md final_message.md; do [ -f "$RUN/work/$f" ] && cp "$RUN/work/$
 # Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
 [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
-PYTHONPATH="$ROOT" python3 -m messageboard_audit.usage "$RUN" --quiet || echo "usage summary failed" >&2
+PYTHONPATH="$ROOT" python3 -m messageboard_audit_bench.usage "$RUN" --quiet || echo "usage summary failed" >&2
 python3 - "$RUN" "$RC" "$((END-START))" <<'PY'
 import json,sys,pathlib
 run,rc,secs=pathlib.Path(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
@@ -169,7 +171,7 @@ if rf:
     print(f"FAIL model refusal: {m['model']} refused ({len(rf)} refusal responses)",file=sys.stderr)
     if rc==0: rc=5; m["exit_code"]=rc
 u=json.loads((run/"usage.json").read_text()) if (run/"usage.json").exists() else {}
-m["usage"]={k:u.get(k) for k in ("input_tokens","output_tokens","cache_read_tokens","cache_write_tokens","reasoning_tokens",
+m["usage"]={k:u.get(k) for k in ("usage_schema","input_tokens","input_tokens_uncached","output_tokens","cache_read_tokens","cache_write_tokens","cache_read_fraction","reasoning_tokens",
             "cost_usd","api_calls","tool_calls","api_retries","api_errors","peak_context_tokens","terminal_reason","is_error","usage_source")}
 (run/"meta.json").write_text(json.dumps(m,indent=1)); print(json.dumps(m,indent=1))
 PY

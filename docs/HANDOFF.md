@@ -66,7 +66,7 @@ Decisions already made (2026-09-04):
 | `sandbox/` | historical entry: the lightweight sandbox (Linux user + iptables) was deleted on `oscar/docker-sandbox`; `sandbox/docker/` replaces it |
 | `sandbox/prompt.txt` | the blind prompt used for the baselines |
 | `sandbox/watch.py` | live tail of a run's transcript (Claude Code and Codex formats) |
-| `messageboard_audit/` | Inspect package: task, solver (live + replay), transcript converters, rubric scorer, starter rubric |
+| `messageboard_audit_bench/` | Inspect package: task, solver (live + replay), transcript converters, rubric scorer, starter rubric |
 | `baselines/` | the two completed baseline runs: prompt, report, full CLI transcript, metadata, proxy log |
 
 Not on the branch (gitignored, regenerate locally): `data/raw*`, `runs/`, `logs/`, `.venv/`.
@@ -134,7 +134,7 @@ iptables rejecting all its egress except loopback, and a CONNECT proxy on
 loopback that only forwards to vendor API hosts. Network isolation held. But:
 
 1. **The agent could read the answer key.** `agentbox` has read access to the
-   whole checkout: `docs/design-notes.md`, `messageboard_audit/rubric.yaml`,
+   whole checkout: `docs/design-notes.md`, `messageboard_audit_bench/rubric.yaml`,
    previous runs' `report.md`, Inspect logs, and, on this repo, the Discord
    export archives of the human investigation. Nothing stopped an agent from
    `ls ..`. The baselines happen to be clean; the next one might not be.
@@ -230,7 +230,7 @@ unchanged apart from the path.)
 
 ## 6. Plugging back into Inspect
 
-`messageboard_audit/solver.py::cli_agent` only needs a run directory containing
+`messageboard_audit_bench/solver.py::cli_agent` only needs a run directory containing
 `transcript.jsonl` and `report.md` (and optionally `meta.json`). Replace the
 call to `sandbox/run_trial.sh` with the Docker launcher and nothing else
 changes: the transcript converters, the replay task and the scorers all work

@@ -16,9 +16,8 @@ from pathlib import Path
 from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
-from messageboard_audit.transcripts import Parsed, parse
-
-REPO = Path(__file__).resolve().parent.parent
+from messageboard_audit_bench.runtime import repo_root
+from messageboard_audit_bench.transcripts import Parsed, parse
 
 
 def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
@@ -31,7 +30,10 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         report = (run_dir / "final_message.md").read_text(errors="replace")
 
     usage = ModelUsage(
-        input_tokens=parsed.input_tokens,
+        # Inspect defines input_tokens as the uncached/full-rate subset; its
+        # cache fields are disjoint. Benchmark metadata below also retains the
+        # cache-inclusive total for straightforward cache-rate analysis.
+        input_tokens=parsed.input_tokens_uncached,
         output_tokens=parsed.output_tokens,
         total_tokens=parsed.input_tokens + parsed.output_tokens,
         input_tokens_cache_read=parsed.cache_read_tokens or None,
@@ -53,13 +55,17 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         turns=parsed.turns,
         tool_calls=parsed.tool_calls,
         input_tokens=parsed.input_tokens,
+        input_tokens_uncached=parsed.input_tokens_uncached,
         output_tokens=parsed.output_tokens,
         cache_read_tokens=parsed.cache_read_tokens,
         cache_write_tokens=parsed.cache_write_tokens,
+        cache_read_fraction=parsed.extra.get("cache_read_fraction"),
+        usage_schema=parsed.extra.get("usage_schema"),
         reasoning_tokens=parsed.reasoning_tokens,
         cost_usd=parsed.cost_usd,
         wall_seconds=meta.get("wall_seconds"),
         config=meta.get("config"),
+        condition=meta.get("condition", meta.get("prompt", meta.get("config"))),
         prompt=meta.get("prompt"),
         budget_min=meta.get("budget_min"),
         data_variant=meta.get("data_variant"),
@@ -76,15 +82,40 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 
 
 @solver
-def cli_agent(agent: str, model: str, config: str = "default") -> Solver:
+def cli_agent(
+    agent: str,
+    model: str,
+    condition: str = "blind",
+    time_limit_minutes: int | None = None,
+    timeout_minutes: int | None = None,
+    prompt: str | None = None,
+    data_variant: str | None = None,
+    effort: str | None = None,
+) -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        repo = repo_root()
         replicate = state.epoch
-        cmd = [str(REPO / "sandbox" / "docker" / "run_trial.sh"), agent, model, str(replicate)]
-        env = {"CONFIG": config}
+        cmd = [
+            str(repo / "sandbox" / "docker" / "run_trial.sh"),
+            agent,
+            model,
+            str(replicate),
+        ]
+        env = {"CONFIG": condition}
+        if prompt is not None:
+            env["PROMPT"] = prompt
+        if data_variant is not None:
+            env["DATA_DIR"] = str(repo / "data" / data_variant)
+        if effort is not None:
+            env["EFFORT"] = effort
+        if time_limit_minutes is not None:
+            env["BUDGET_MIN"] = str(time_limit_minutes)
+        if timeout_minutes is not None:
+            env["TIMEOUT"] = f"{timeout_minutes}m"
         proc = subprocess.run(
-            cmd, cwd=REPO, env={**_os_environ(), **env},
+            cmd, cwd=repo, env={**_os_environ(), **env},
             capture_output=True, text=True,
         )
         # run_trial.sh prints the run dir on its first "run: <path>" line
