@@ -58,6 +58,47 @@ Read the top row with some caution: opus-5 at 30 min is a single replicate, as i
 claude·fable at 10 and 20 min. Dashes are missing runs, not zeros. Per-claim scores
 are in `benchmark/graded/`.
 
+### Round 3 — three replicates, two more models, a 2-hour budget
+
+Same blind prompt and verbatim data, at 10, 30 and 120 minutes. The 10- and
+30-minute prompts are byte-identical to round 2's, so those columns are
+comparable; blind-120 differs only in the budget it states. 76 reports.
+
+| harness · model | 10 min | 30 min | 120 min |
+|---|---|---|---|
+| codex · sol | 0.367* | 0.600* | **0.667** |
+| react · sol | 0.463* | 0.600* | 0.655 |
+| codex · astra | 0.450 | 0.540 | 0.611 |
+| react · muse-spark | 0.411 | 0.478 | 0.541 |
+| react · gemini-flash | 0.283* | 0.483* | 0.528 |
+| claude · opus-5 | 0.417* | 0.509 | — |
+| codex · luna | 0.283* | 0.367* | 0.481 |
+| react · glm-5.3 | 0.300* | 0.467* | — |
+| claude · opus-4.8 | 0.250 | 0.334 | 0.447 |
+| claude · sonnet-5 | 0.133* | 0.333* | 0.439 |
+| react · kimi-k3 | 0.300* | 0.417* | — |
+| claude · fable | 0.377* | — | — |
+| codex · terra | 0.267* | 0.333* | 0.374 |
+| claude · haiku-4.5 | 0.117* | 0.083* | 0.211 |
+
+`*` marks a cell resting on one replicate; dashes are missing runs, not zeros.
+
+Nothing plateaus at two hours. Every model that has a 120-minute cell scores
+highest there, and the mean across harness/model pairs rises 0.316 → 0.426 →
+0.495 across the three budgets. The best configuration now recovers two thirds
+of the derivable claims, up from about half at 30 minutes in round 2 — so the
+round-2 reading that react·sol plateaus was a budget artefact, not a ceiling.
+
+Eight runs are excluded from the table because Claude Code switched model after
+a safeguard refusal; they are graded and committed under their served name, and
+`model_served` in `reports/round3/index.jsonl` records each switch.
+
+| nominal → served | 10 min | 30 min | 120 min |
+|---|---|---|---|
+| claude · fable → opus-5 | 0.450* | 0.547* | — |
+| claude · opus-5 → opus-4.8 | — | 0.483* | 0.462 |
+| claude · fable → opus-4.8 | — | 0.467 | — |
+
 ## Layout
 
 ```
@@ -92,7 +133,7 @@ scripts/build_data.sh --verify # check an existing build
 CONFIG=configs/blind-20.toml sandbox/docker/run_trial.sh claude claude-opus-5 1
 
 # grade a report set against the 30-claim rubrics
-python benchmark/rubrics/grade_with_rubrics.py --dir round2_blind30
+python benchmark/rubrics/grade_with_rubrics.py --dir round3_blind120
 
 # rebuild the browsable viewers
 cd viewers && for f in build_*.py; do python "$f"; done

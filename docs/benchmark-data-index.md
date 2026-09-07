@@ -42,6 +42,8 @@ Which claims the data can actually support.
   enumerated contradictions.
 - `graded_r2_*.json` / `graded_b20_*.json` / `graded_b30_*.json` — round 2 at the
   10-, 20- and 30-minute budgets, per replicate.
+- `graded_r3b10_*.json` / `graded_r3b30_*.json` / `graded_r3b120_*.json` — round 3 at the
+  10-, 30- and 120-minute budgets, per replicate.
 
 ## Graded inputs (`benchmark/graded_inputs/`)
 The exact report each grade file corresponds to, keyed to match. These are
@@ -50,6 +52,10 @@ input without reconstructing the mapping.
 - `blind_context/` — the blind-20 + context-20 batch (`--batch`).
 - `round2_blind10/`, `round2_blind20/`, `round2_blind30/` — the round-2 reports at each
   budget (`--dir round2_blind10`, etc.); each `_index.jsonl` carries run metadata.
+- `round3_blind10/`, `round3_blind30/`, `round3_blind120/` — the round-3 reports, staged by
+  `scripts/stage_graded_inputs.py`. Filenames carry harness, model, replicate and, where
+  Claude Code switched model after a refusal, `served-<model>`; `_index.jsonl` adds
+  `graded_input` naming the staged file each run maps to.
 - `seed_baselines/` — the s1/s3 seed baselines (`--baselines`).
 
 ## Viewers (`viewers/`)
@@ -94,3 +100,45 @@ highest score in the table.
 Recall rises with budget for most models. Opus 5 is the clearest climb
 (0.283 → 0.413 → 0.510) and the only model above 0.5; react·sol plateaus at ~0.47–0.50,
 so the ranking at one budget does not carry to another.
+
+**Round 3 — blind-10 / blind-30 / blind-120.** 76 reports. Same blind prompt and verbatim
+data as round 2; the 10- and 30-minute prompts are byte-identical to round 2's, so those
+columns compare directly. Three replicates for most pairs, two new models (gpt-6-astra,
+meta/muse-spark-1.3) and claude-opus-4-8, and a 2-hour budget. Recall only, no precision.
+
+| harness · model | 10 min | 30 min | 120 min |
+|---|---|---|---|
+| codex · sol | 0.367* | 0.600* | 0.667 |
+| react · sol | 0.463* | 0.600* | 0.655 |
+| codex · astra | 0.450 | 0.540 | 0.611 |
+| react · muse-spark | 0.411 | 0.478 | 0.541 |
+| react · gemini-flash | 0.283* | 0.483* | 0.528 |
+| claude · opus-5 | 0.417* | 0.509 | — |
+| codex · luna | 0.283* | 0.367* | 0.481 |
+| react · glm-5.3 | 0.300* | 0.467* | — |
+| claude · opus-4.8 | 0.250 | 0.334 | 0.447 |
+| claude · sonnet-5 | 0.133* | 0.333* | 0.439 |
+| react · kimi-k3 | 0.300* | 0.417* | — |
+| claude · fable | 0.377* | — | — |
+| codex · terra | 0.267* | 0.333* | 0.374 |
+| claude · haiku-4.5 | 0.117* | 0.083* | 0.211 |
+
+`*` = one replicate; 20 of the 37 filled cells are single-replicate. Dashes are missing
+runs. Eight refusal-fallback runs sit outside the table under their served model:
+fable→opus-5 (0.450 at 10 min, 0.547 at 30), opus-5→opus-4.8 (0.483 at 30, 0.462 at 120),
+fable→opus-4.8 (0.467 at 30).
+
+Every model with a 120-minute cell peaks there, and the mean across pairs rises
+0.316 → 0.426 → 0.495. The round-2 conclusion that react·sol plateaus around 0.50 does not
+survive a longer budget.
+
+## Auditing the judge (`benchmark/audit/`)
+
+`viewers/build_audit_ui.py` builds `viewers/audit.html`: model report beside human report,
+every judge quote highlighted and anchored to the passage of the human report the rubric
+cites. Per claim it records a verdict (true positive, right find with wrong score, false
+positive, true negative easy/hard, false negative, needs investigation), a corrected score,
+a rubric flag and a comment. Per paragraph it records relevance, truth where the paragraph
+matches no claim, agreement with the judge's rating where it does, and a note. Per report it
+holds hypotheses and biases. It autosaves to `benchmark/audit/judge_audit.json` through the
+html-viewer's `POST /save`.
