@@ -94,7 +94,7 @@ def records_from_log(
 
 def export_records(
     records: Iterable[ExportRecord], out: Path, *, include_partial: bool = False,
-    include_rejected: bool = False,
+    include_rejected: bool = False, accept_max_words: int | None = None,
 ) -> list[dict[str, Any]]:
     """Write reports, exact prompts, config manifests, and an index."""
     out.mkdir(parents=True, exist_ok=True)
@@ -103,6 +103,10 @@ def export_records(
         if record.partial and not include_partial:
             continue
         meta = record.metadata
+        if accept_max_words is not None and meta.get("report_max_words"):
+            # Re-judge under a later acceptance ceiling; the recorded policy in
+            # the run's own metadata is left untouched.
+            meta = {**meta, "report_accept_max_words": accept_max_words}
         length = measure(
             record.report, *limits(meta), exists=True,
             acceptance=acceptance_limits(meta),
@@ -218,6 +222,7 @@ def export_logs(
     backend: str | None = "inspect",
     include_partial: bool = False,
     include_rejected: bool = False,
+    accept_max_words: int | None = None,
 ) -> list[dict[str, Any]]:
     """Read ``log_dir`` through Inspect's public Log API and export reports."""
     from inspect_ai.log import list_eval_logs, read_eval_log
@@ -228,7 +233,7 @@ def export_logs(
         records.extend(records_from_log(log, info.name, backend=backend))
     return export_records(
         records, out, include_partial=include_partial,
-        include_rejected=include_rejected,
+        include_rejected=include_rejected, accept_max_words=accept_max_words,
     )
 
 
