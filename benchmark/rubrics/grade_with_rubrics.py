@@ -20,10 +20,28 @@ load_dotenv(ENV_FILE)
 from openai import OpenAI
 
 
-
-MODEL = os.getenv("MODEL", "gpt-5.6-sol")
+DEFAULT_MODEL = "gpt-5.6-sol"
+MODEL = os.getenv("MODEL", DEFAULT_MODEL)
 EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
-client = OpenAI()
+IS_ANTHROPIC = MODEL.startswith("claude")
+
+
+def _san(s):
+    return re.sub(r"[^0-9a-zA-Z]+", "_", s).strip("_")
+
+
+# The default judge keeps writing to benchmark/graded/ (where every committed grade
+# lives); any other judge gets its own namespace so the two never collide.
+OUT_DIR = GRADED if MODEL == DEFAULT_MODEL else GRADED / f"judge_{_san(MODEL)}"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+if IS_ANTHROPIC:
+    import anthropic
+    _WS = os.getenv("ANTHROPIC_WORKSPACE_ID")
+    client = anthropic.Anthropic(max_retries=8, timeout=1800.0,
+                                 default_headers={"anthropic-workspace-id": _WS} if _WS else None)
+else:
+    client = OpenAI()
 
 REPORTS = {
     "gpt":   ("GPT-5.6 Sol",      "gpt_5_6_sol_audit.md"),
@@ -53,11 +71,61 @@ def sol(system, user, max_tok=16000):
             raise
     raise RuntimeError(f"all efforts failed: {last}")
 
+JSON_ONLY = ("\n\nIMPORTANT: return ONLY the JSON object itself — no prose before or "
+             "after it, and no markdown code fences.")
+
+
+def _extract_json(raw):
+    """Anthropic gives no response_format guarantee; strip fences/prose around the object."""
+    if not raw:
+        return None
+    s = raw.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*\s*", "", s)
+        s = re.sub(r"```\s*$", "", s).strip()
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+    i, j = s.find("{"), s.rfind("}")
+    if i != -1 and j > i:
+        try:
+            return json.loads(s[i:j + 1])
+        except Exception:
+            return None
+    return None
+
+
+def claude(system, prefix, suffix, max_tok=32000):
+    """Anthropic judge. `prefix` (sheet + answer key) is identical for every report on
+    a rubric, so it carries the cache breakpoint; the report goes in `suffix`."""
+    eff = EFFORTS[0] if EFFORTS[0] in ("low", "medium", "high", "xhigh", "max") else "xhigh"
+    with client.messages.stream(
+            model=MODEL, max_tokens=max_tok,
+            system=[{"type": "text", "text": system}],
+            thinking={"type": "adaptive"},
+            output_config={"effort": eff},
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": suffix}]}]) as st:
+        msg = st.get_final_message()
+    return "".join(b.text for b in msg.content if b.type == "text"), eff
+
+
 def grade_one(report_md, rub):
-    user = (RUBRIC_MD[rub["rubric_id"]].replace("{{HUMAN_REPORT}}", HUMAN_REPORT)
-                                       .replace("{{MODEL_REPORT}}", report_md))
-    raw, eff = sol(SYS, user)
-    data = json.loads(raw)
+    tmpl = RUBRIC_MD[rub["rubric_id"]].replace("{{HUMAN_REPORT}}", HUMAN_REPORT)
+    if IS_ANTHROPIC:
+        pre, _, post = tmpl.partition("{{MODEL_REPORT}}")
+        raw, eff = claude(SYS, pre, report_md + post)
+        data = _extract_json(raw)
+        if data is None:  # one retry, telling it to drop the wrapper
+            raw, eff = claude(SYS, pre, report_md + post + JSON_ONLY)
+            data = _extract_json(raw)
+        if data is None:
+            raise ValueError(f"unparseable JSON from {MODEL}: {raw[:200]!r}")
+    else:
+        raw, eff = sol(SYS, tmpl.replace("{{MODEL_REPORT}}", report_md))
+        data = json.loads(raw)
     items = {x["id"]: x for x in data.get("items", []) if isinstance(x, dict) and "id" in x}
     for x in items.values():
         try: x["score"] = round(max(0.0, min(1.0, float(x.get("score", 0)))), 1)
@@ -75,12 +143,8 @@ def aggregate(key, title, per_claim, per_rubric):
     out = {"report": key, "title": title, "grader": MODEL,
            "accuracy": round(total / mx, 3) if mx else 0, "total": total, "max": mx,
            "by_mode": by_mode, "per_rubric": per_rubric, "scores": per_claim}
-    (GRADED / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
+    (OUT_DIR / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     return out
-
-def _san(s):
-    import re as _re
-    return _re.sub(r"[^0-9a-zA-Z]+", "_", s).strip("_")
 
 def resolve_reports(args):
     # --dir <path>: grade every *.md in <path> (key = sanitized stem);
@@ -102,35 +166,38 @@ def main():
     args = [a for a in sys.argv[1:] if a != "--force"]
     reports = resolve_reports(args)
     if "--force" not in sys.argv[1:]:  # skip reports already graded (fill gaps only)
-        reports = [r for r in reports if not (GRADED / f"graded_{r[0]}.json").exists()]
+        reports = [r for r in reports if not (OUT_DIR / f"graded_{r[0]}.json").exists()]
     if not reports:
         print("nothing to do (all graded; pass --force to regrade)"); return
     tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRIC_SETS]
     print(f"model={MODEL}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
-          f"(bounded pool of 12)...")
+          f"(bounded pool of 12) -> {OUT_DIR}", flush=True)
     acc = {key: {"title": title, "path": path, "per_claim": {}, "per_rubric": {}}
            for (key, path, title) in reports}
     def run(t):
         key, path, title, rub = t
         rid, items, eff = grade_one(path.read_text(), rub)
         return key, rid, items, eff
+    done = 0
     with ThreadPoolExecutor(max_workers=12) as ex:
         futs = {ex.submit(run, t): t for t in tasks}
         for f in as_completed(futs):
             key, path, title, rub = futs[f]
+            done += 1
             try:
                 key, rid, items, eff = f.result()
                 a = acc[key]; a["per_claim"].update(items)
                 a["per_rubric"][rid] = {"score": round(sum(i["score"] for i in items.values()), 2),
                                         "max": len(items), "effort": eff}
+                print(f"  .. {done}/{len(tasks)} {key}/{rid} ok ({len(items)} claims)", flush=True)
             except Exception as e:
-                print(f"[{key}/{rub['rubric_id']}] FAILED: {e!r}")
+                print(f"[{key}/{rub['rubric_id']}] FAILED: {e!r}", flush=True)
     rows = []
     for key, a in acc.items():
         out = aggregate(key, a["title"], a["per_claim"], a["per_rubric"])
         rows.append((out["accuracy"], key, out["total"], out["max"], out["by_mode"]))
     for accv, key, total, mx, by_mode in sorted(rows, reverse=True):
-        print(f"[{key}] accuracy={accv}  ({total}/{mx})  by_mode={by_mode}  -> graded_{key}.json")
+        print(f"[{key}] accuracy={accv}  ({total}/{mx})  by_mode={by_mode}  -> graded_{key}.json", flush=True)
 
 if __name__ == "__main__":
     main()
