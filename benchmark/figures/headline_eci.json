@@ -1,0 +1,564 @@
+{
+ "figure": "strict score at each model's maximal time budget vs Epoch Capabilities Index",
+ "generated": "2026-09-07",
+ "source_grades": "benchmark/graded/judge_claude_fable_5_1/v2/graded_r4b*.json",
+ "judge": "claude-fable-5-1",
+ "rubric": "v2, 38 points",
+ "transform": "strict = mean over points of max(2*score - 1, 0); see scripts/report_performance.py",
+ "eci_source": "benchmark/eci_scores.json (Epoch's own eci_scores.csv, retrieved 2026-09-07)",
+ "correlations": {
+  "all_models": 0.709,
+  "reached_120_only": 0.251,
+  "excluding_haiku": 0.319
+ },
+ "caveats": [
+  "Two models are not at 120 minutes: Haiku 4.5 has no 120-min run; Opus 5's three 120-min runs were all served by Opus 4.8 after a safeguard refusal and are excluded as not being its results.",
+  "The all-models correlation is largely Haiku, 13 index points below the field, plus those two truncated budgets. Within the frontier cluster the index barely predicts performance.",
+  "Gemini 3.8 Flash and Muse Spark 1.3 use a previous generation's ECI (3.7 Flash, 1.2); eci_exact is false for those.",
+  "Round 4 ran a different prompt at each budget, so budgets are not a clean sweep; this figure uses each model's own maximum and does not compare across them."
+ ],
+ "models": [
+  {
+   "model": "GPT-6 Astra",
+   "eci": 169.23,
+   "eci_exact": true,
+   "eci_ci": [
+    164.85,
+    174.02
+   ],
+   "eci_model": "GPT-6 Astra",
+   "max_budget_min": 120,
+   "strict_mean": 0.3066,
+   "n_replicates": 4,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_codex_gpt_6_astra_rep3",
+     "harness": "codex",
+     "rep": 3,
+     "strict": 0.2737,
+     "raw": 0.476,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_openai_gpt_6_astra_rep1",
+     "harness": "react",
+     "rep": 1,
+     "strict": 0.2684,
+     "raw": 0.466,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_6_astra_rep2",
+     "harness": "codex",
+     "rep": 2,
+     "strict": 0.3474,
+     "raw": 0.539,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_6_astra_rep1",
+     "harness": "codex",
+     "rep": 1,
+     "strict": 0.3368,
+     "raw": 0.532,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.2807,
+    "30": 0.3298,
+    "120": 0.3066
+   }
+  },
+  {
+   "model": "Opus 5",
+   "eci": 162.33,
+   "eci_exact": true,
+   "eci_ci": [
+    159.75,
+    165.78
+   ],
+   "eci_model": "Claude Opus 5",
+   "max_budget_min": 30,
+   "strict_mean": 0.3737,
+   "n_replicates": 1,
+   "reached_120": false,
+   "excluded_note": "all 120-min runs were served by another model after a refusal",
+   "replicates": [
+    {
+     "report": "r4b30_claude_claude_opus_5_rep3",
+     "harness": "claude",
+     "rep": 3,
+     "strict": 0.3737,
+     "raw": 0.505,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.2877,
+    "30": 0.3737
+   }
+  },
+  {
+   "model": "GPT-5.6 Sol",
+   "eci": 162.03,
+   "eci_exact": true,
+   "eci_ci": [
+    159.66,
+    165.0
+   ],
+   "eci_model": "GPT-5.6 Sol",
+   "max_budget_min": 120,
+   "strict_mean": 0.3716,
+   "n_replicates": 5,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_codex_gpt_5_6_sol_rep3",
+     "harness": "codex",
+     "rep": 3,
+     "strict": 0.4,
+     "raw": 0.587,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_5_6_sol_rep1",
+     "harness": "codex",
+     "rep": 1,
+     "strict": 0.3842,
+     "raw": 0.571,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_5_6_sol_rep2",
+     "harness": "codex",
+     "rep": 2,
+     "strict": 0.4,
+     "raw": 0.516,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_openai_gpt_5_6_sol_rep1",
+     "harness": "react",
+     "rep": 1,
+     "strict": 0.3947,
+     "raw": 0.582,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_openai_gpt_5_6_sol_rep2",
+     "harness": "react",
+     "rep": 2,
+     "strict": 0.2789,
+     "raw": 0.474,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.2097,
+    "30": 0.286,
+    "120": 0.3716
+   }
+  },
+  {
+   "model": "GPT-5.6 Terra",
+   "eci": 159.18,
+   "eci_exact": true,
+   "eci_ci": [
+    156.6,
+    161.61
+   ],
+   "eci_model": "GPT-5.6 Terra",
+   "max_budget_min": 120,
+   "strict_mean": 0.2526,
+   "n_replicates": 3,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_codex_gpt_5_6_terra_rep2",
+     "harness": "codex",
+     "rep": 2,
+     "strict": 0.2789,
+     "raw": 0.445,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_5_6_terra_rep1",
+     "harness": "codex",
+     "rep": 1,
+     "strict": 0.2421,
+     "raw": 0.429,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_5_6_terra_rep3",
+     "harness": "codex",
+     "rep": 3,
+     "strict": 0.2368,
+     "raw": 0.366,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.207,
+    "30": 0.1754,
+    "120": 0.2526
+   }
+  },
+  {
+   "model": "Opus 4.8",
+   "eci": 158.24,
+   "eci_exact": true,
+   "eci_ci": [
+    156.14,
+    160.53
+   ],
+   "eci_model": "Claude Opus 4.8",
+   "max_budget_min": 120,
+   "strict_mean": 0.3562,
+   "n_replicates": 3,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_claude_claude_opus_4_8_rep3",
+     "harness": "claude",
+     "rep": 3,
+     "strict": 0.2737,
+     "raw": 0.397,
+     "served": null
+    },
+    {
+     "report": "r4b120_claude_claude_opus_4_8_rep1",
+     "harness": "claude",
+     "rep": 1,
+     "strict": 0.4474,
+     "raw": 0.6,
+     "served": null
+    },
+    {
+     "report": "r4b120_claude_claude_opus_4_8_rep2",
+     "harness": "claude",
+     "rep": 2,
+     "strict": 0.3474,
+     "raw": 0.482,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.1404,
+    "30": 0.2562,
+    "120": 0.3562
+   }
+  },
+  {
+   "model": "Kimi K3",
+   "eci": 157.62,
+   "eci_exact": true,
+   "eci_ci": [
+    155.06,
+    160.13
+   ],
+   "eci_model": "Kimi K3",
+   "max_budget_min": 120,
+   "strict_mean": 0.2369,
+   "n_replicates": 2,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_react_moonshotai_kimi_k3_rep3",
+     "harness": "react",
+     "rep": 3,
+     "strict": 0.1,
+     "raw": 0.274,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_moonshotai_kimi_k3_rep2",
+     "harness": "react",
+     "rep": 2,
+     "strict": 0.3737,
+     "raw": 0.484,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.1175,
+    "30": 0.2263,
+    "120": 0.2369
+   }
+  },
+  {
+   "model": "Gemini 3.8 Flash",
+   "eci": 157.32,
+   "eci_exact": false,
+   "eci_ci": [
+    155.47,
+    160.04
+   ],
+   "eci_model": "Gemini 3.7 Flash",
+   "max_budget_min": 120,
+   "strict_mean": 0.3631,
+   "n_replicates": 3,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_react_google_gemini_3_8_flash_rep3",
+     "harness": "react",
+     "rep": 3,
+     "strict": 0.3947,
+     "raw": 0.518,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_google_gemini_3_8_flash_rep1",
+     "harness": "react",
+     "rep": 1,
+     "strict": 0.3421,
+     "raw": 0.5,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_google_gemini_3_8_flash_rep2",
+     "harness": "react",
+     "rep": 2,
+     "strict": 0.3526,
+     "raw": 0.513,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.2456,
+    "30": 0.2983,
+    "120": 0.3631
+   }
+  },
+  {
+   "model": "GPT-5.6 Luna",
+   "eci": 156.33,
+   "eci_exact": true,
+   "eci_ci": [
+    153.96,
+    158.68
+   ],
+   "eci_model": "GPT-5.6 Luna",
+   "max_budget_min": 120,
+   "strict_mean": 0.1632,
+   "n_replicates": 3,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_codex_gpt_5_6_luna_rep1",
+     "harness": "codex",
+     "rep": 1,
+     "strict": 0.1474,
+     "raw": 0.353,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_5_6_luna_rep3",
+     "harness": "codex",
+     "rep": 3,
+     "strict": 0.1474,
+     "raw": 0.313,
+     "served": null
+    },
+    {
+     "report": "r4b120_codex_gpt_5_6_luna_rep2",
+     "harness": "codex",
+     "rep": 2,
+     "strict": 0.1947,
+     "raw": 0.353,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.0421,
+    "30": 0.1193,
+    "120": 0.1632
+   }
+  },
+  {
+   "model": "Sonnet 5",
+   "eci": 156.16,
+   "eci_exact": true,
+   "eci_ci": [
+    153.77,
+    158.36
+   ],
+   "eci_model": "Claude Sonnet 5",
+   "max_budget_min": 120,
+   "strict_mean": 0.2948,
+   "n_replicates": 2,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_claude_claude_sonnet_5_rep2",
+     "harness": "claude",
+     "rep": 2,
+     "strict": 0.2842,
+     "raw": 0.489,
+     "served": null
+    },
+    {
+     "report": "r4b120_claude_claude_sonnet_5_rep3",
+     "harness": "claude",
+     "rep": 3,
+     "strict": 0.3053,
+     "raw": 0.476,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.0702,
+    "30": 0.193,
+    "120": 0.2948
+   }
+  },
+  {
+   "model": "Muse Spark 1.3",
+   "eci": 155.51,
+   "eci_exact": false,
+   "eci_ci": [
+    153.82,
+    158.41
+   ],
+   "eci_model": "Muse Spark 1.2",
+   "max_budget_min": 120,
+   "strict_mean": 0.2298,
+   "n_replicates": 3,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_react_meta_muse_spark_1_3_rep2",
+     "harness": "react",
+     "rep": 2,
+     "strict": 0.2947,
+     "raw": 0.413,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_meta_muse_spark_1_3_rep3",
+     "harness": "react",
+     "rep": 3,
+     "strict": 0.1579,
+     "raw": 0.303,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_meta_muse_spark_1_3_rep1",
+     "harness": "react",
+     "rep": 1,
+     "strict": 0.2368,
+     "raw": 0.379,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.2053,
+    "30": 0.2562,
+    "120": 0.2298
+   }
+  },
+  {
+   "model": "GLM 5.3",
+   "eci": 155.3,
+   "eci_exact": true,
+   "eci_ci": [
+    153.14,
+    157.68
+   ],
+   "eci_model": "GLM-5.3",
+   "max_budget_min": 120,
+   "strict_mean": 0.3421,
+   "n_replicates": 3,
+   "reached_120": true,
+   "excluded_note": "",
+   "replicates": [
+    {
+     "report": "r4b120_react_z_ai_glm_5_3_rep3",
+     "harness": "react",
+     "rep": 3,
+     "strict": 0.3263,
+     "raw": 0.466,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_z_ai_glm_5_3_rep2",
+     "harness": "react",
+     "rep": 2,
+     "strict": 0.3316,
+     "raw": 0.547,
+     "served": null
+    },
+    {
+     "report": "r4b120_react_z_ai_glm_5_3_rep1",
+     "harness": "react",
+     "rep": 1,
+     "strict": 0.3684,
+     "raw": 0.558,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.214,
+    "30": 0.2947,
+    "120": 0.3421
+   }
+  },
+  {
+   "model": "Haiku 4.5",
+   "eci": 142.41,
+   "eci_exact": true,
+   "eci_ci": [
+    139.61,
+    144.02
+   ],
+   "eci_model": "Claude Haiku 4.5",
+   "max_budget_min": 30,
+   "strict_mean": 0.0421,
+   "n_replicates": 3,
+   "reached_120": false,
+   "excluded_note": "no 120-min run",
+   "replicates": [
+    {
+     "report": "r4b30_claude_claude_haiku_4_5_rep3",
+     "harness": "claude",
+     "rep": 3,
+     "strict": 0.0474,
+     "raw": 0.126,
+     "served": null
+    },
+    {
+     "report": "r4b30_claude_claude_haiku_4_5_rep2",
+     "harness": "claude",
+     "rep": 2,
+     "strict": 0.0421,
+     "raw": 0.097,
+     "served": null
+    },
+    {
+     "report": "r4b30_claude_claude_haiku_4_5_rep1",
+     "harness": "claude",
+     "rep": 1,
+     "strict": 0.0368,
+     "raw": 0.087,
+     "served": null
+    }
+   ],
+   "all_budgets": {
+    "10": 0.0228,
+    "30": 0.0421
+   }
+  }
+ ]
+}
