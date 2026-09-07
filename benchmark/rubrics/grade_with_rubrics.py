@@ -20,6 +20,14 @@ load_dotenv(ENV_FILE)
 from openai import OpenAI
 
 
+# Two rubrics over the same 30 points: what the report found (0..1) and what it got
+# wrong (-1..0). They are graded separately and never blended — a thin report scores
+# well on contradiction precisely because it says little, and averaging the two would
+# hide that.
+MODE = "contradiction" if ("--contra" in sys.argv or os.getenv("RUBRIC") == "contra") else "recall"
+SHEET = {"recall": "rubric", "contradiction": "contra"}[MODE]
+LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0)}[MODE]
+
 DEFAULT_MODEL = "gpt-5.6-sol"
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
 EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
@@ -33,6 +41,8 @@ def _san(s):
 # The default judge keeps writing to benchmark/graded/ (where every committed grade
 # lives); any other judge gets its own namespace so the two never collide.
 OUT_DIR = GRADED if MODEL == DEFAULT_MODEL else GRADED / f"judge_{_san(MODEL)}"
+if MODE != "recall":
+    OUT_DIR = OUT_DIR / MODE
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 if IS_ANTHROPIC:
@@ -52,7 +62,7 @@ REPORTS = {
 RUBRIC_SETS = [json.loads((RUBRICS / f"rubric_{i}.json").read_text()) for i in range(1, 7)]
 # Each rubric_N.md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
 # {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal).
-RUBRIC_MD = {f"R{i}": (RUBRICS / f"rubric_{i}.md").read_text() for i in range(1, 7)}
+RUBRIC_MD = {f"R{i}": (RUBRICS / f"{SHEET}_{i}.md").read_text() for i in range(1, 7)}
 HUMAN_REPORT = (HUMAN_REPORT).read_text()
 SYS = "You are a careful grader. Follow the grading sheet exactly and output strict JSON only."
 
@@ -128,21 +138,27 @@ def grade_one(report_md, rub):
         data = json.loads(raw)
     items = {x["id"]: x for x in data.get("items", []) if isinstance(x, dict) and "id" in x}
     for x in items.values():
-        try: x["score"] = round(max(0.0, min(1.0, float(x.get("score", 0)))), 1)
+        try: x["score"] = round(max(LO, min(HI, float(x.get("score", 0)))), 1)
         except Exception: x["score"] = 0.0
     return rub["rubric_id"], items, eff
 
 def aggregate(key, title, per_claim, per_rubric):
     total = round(sum(i["score"] for i in per_claim.values()), 2); mx = len(per_claim)
-    mode = {c["id"]: c["grading_mode"] for r in RUBRIC_SETS for c in r["claims"]}
-    def mean(ids):
-        xs = [per_claim[i]["score"] for i in ids if i in per_claim]
-        return round(sum(xs) / len(xs), 3) if xs else 0.0
-    by_mode = {m: mean([cid for cid in per_claim if mode.get(cid) == m])
-               for m in ("recall_accuracy", "recall_calibrated")}
-    out = {"report": key, "title": title, "grader": MODEL,
-           "accuracy": round(total / mx, 3) if mx else 0, "total": total, "max": mx,
-           "by_mode": by_mode, "per_rubric": per_rubric, "scores": per_claim}
+    out = {"report": key, "title": title, "grader": MODEL, "rubric": MODE,
+           "total": total, "max": mx, "per_rubric": per_rubric, "scores": per_claim}
+    if MODE == "contradiction":
+        hit = [i for i in per_claim.values() if i["score"] < 0]
+        out["contradiction"] = round(total / mx, 3) if mx else 0
+        out["n_contradicted"] = len(hit)
+        out["worst"] = round(min([i["score"] for i in per_claim.values()] or [0]), 1)
+    else:
+        mode = {c["id"]: c["grading_mode"] for r in RUBRIC_SETS for c in r["claims"]}
+        def mean(ids):
+            xs = [per_claim[i]["score"] for i in ids if i in per_claim]
+            return round(sum(xs) / len(xs), 3) if xs else 0.0
+        out["accuracy"] = round(total / mx, 3) if mx else 0
+        out["by_mode"] = {m: mean([cid for cid in per_claim if mode.get(cid) == m])
+                          for m in ("recall_accuracy", "recall_calibrated")}
     (OUT_DIR / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     return out
 
@@ -163,14 +179,14 @@ def resolve_reports(args):
     return [(k, ROOT / REPORTS[k][1], REPORTS[k][0]) for k in keys]
 
 def main():
-    args = [a for a in sys.argv[1:] if a != "--force"]
+    args = [a for a in sys.argv[1:] if a not in ("--force", "--contra")]
     reports = resolve_reports(args)
     if "--force" not in sys.argv[1:]:  # skip reports already graded (fill gaps only)
         reports = [r for r in reports if not (OUT_DIR / f"graded_{r[0]}.json").exists()]
     if not reports:
         print("nothing to do (all graded; pass --force to regrade)"); return
     tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRIC_SETS]
-    print(f"model={MODEL}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
+    print(f"model={MODEL}  rubric={MODE}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
           f"(bounded pool of 12) -> {OUT_DIR}", flush=True)
     acc = {key: {"title": title, "path": path, "per_claim": {}, "per_rubric": {}}
            for (key, path, title) in reports}
@@ -195,9 +211,14 @@ def main():
     rows = []
     for key, a in acc.items():
         out = aggregate(key, a["title"], a["per_claim"], a["per_rubric"])
-        rows.append((out["accuracy"], key, out["total"], out["max"], out["by_mode"]))
-    for accv, key, total, mx, by_mode in sorted(rows, reverse=True):
-        print(f"[{key}] accuracy={accv}  ({total}/{mx})  by_mode={by_mode}  -> graded_{key}.json", flush=True)
+        rows.append((out.get("accuracy", out.get("contradiction")), key,
+                     out["total"], out["max"], out.get("by_mode"), out.get("n_contradicted")))
+    for v, key, total, mx, by_mode, nc in sorted(rows, reverse=True):
+        if MODE == "contradiction":
+            print(f"[{key}] contradiction={v}  total {total} over {mx} points, {nc} contradicted"
+                  f"  -> graded_{key}.json", flush=True)
+        else:
+            print(f"[{key}] accuracy={v}  ({total}/{mx})  by_mode={by_mode}  -> graded_{key}.json", flush=True)
 
 if __name__ == "__main__":
     main()
