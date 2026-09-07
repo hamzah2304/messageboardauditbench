@@ -58,7 +58,8 @@ client = OpenAI()
 HUMAN_OUT = CLAIMS / "anchors_human.json"
 REPORTS_OUT = CLAIMS / "anchors_reports.json"
 REPORT_DIRS = ["round2_blind10", "round2_blind20", "round2_blind30",
-               "round3_blind10", "round3_blind30", "round3_blind120"]
+               "round3_blind10", "round3_blind30", "round3_blind120",
+               "round4_blind10"]
 MIN_SPAN = 25
 
 SYS = ("You locate evidence in a document. You never paraphrase, never elide with "
