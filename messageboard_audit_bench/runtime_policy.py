@@ -63,7 +63,10 @@ def instruction(min_runtime_fraction: float, budget_minutes: float) -> str:
         f"at least {_percent(min_runtime_fraction)} of the {budget_minutes:g}-minute time "
         f"budget has elapsed (about {minimum:g} minutes). If you try to finish earlier, "
         "you will be returned to the investigation. Use that time for meaningful "
-        "verification, evidence gathering, and improving report.md; do not idle or sleep.\n"
+        "verification, evidence gathering, and improving report.md; do not idle or sleep. "
+        "Keep report.md in place: edit it, never delete, move, or "
+        "truncate it. If report.md is missing at the deadline the "
+        "trial scores zero.\n"
     )
 
 
@@ -146,7 +149,9 @@ def early_stop_reason(
         f"{_percent(share)} of its time budget has elapsed (about {remaining} more minute"
         f"{'s' if remaining != 1 else ''} to that threshold). Continue the investigation "
         "with meaningful verification, evidence gathering, or improvements to report.md. "
-        "Do not idle or sleep. This is early-completion reminder "
+        "Do not idle or sleep. Keep report.md in place: edit it, never "
+        "delete, move, or truncate it. If report.md is missing at the "
+        "deadline the trial scores zero. This is early-completion reminder "
         f"#{count}."
     )
 
