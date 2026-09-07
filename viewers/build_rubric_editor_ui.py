@@ -13,10 +13,18 @@ share scoring 1.0, and the discrimination — the correlation between that point
 and the report's mean over the other 29 points. Those numbers are the case for editing
 or dropping a point, so they live next to the edit boxes.
 
+A sheet can also be rewritten as a whole document in the preview tab. That text then
+overrides the assembled one for that sheet and the field-level edits stop reaching it,
+which the page states on the sheet and shows as a line diff against the generated
+version. Because the scale table is printed on all six sheets, a scale edit made inside
+one sheet is detected and offered for push-back to the shared scale rather than silently
+diverging.
+
 Edits are stored as overrides against the generated original in
 benchmark/rubric_review/rubric_edits.json (autosaved through the html-viewer's
-POST /save endpoint, localStorage mirror when the server is unreachable). An unedited
-field is never written, so every field reverts individually.
+POST /save endpoint, localStorage mirror when the server is unreachable) under the keys
+scale/paras/points/flags/comments/sheets. An unedited field is never written, so every
+field reverts individually.
 
 The scale/paragraph/point constants below mirror build_rubrics.py. The build asserts
 that the assembled markdown for all six sheets is byte-identical to the committed
@@ -278,6 +286,19 @@ main#pmain{overflow:auto;min-height:0;padding:0}
 .ptitle b{font-size:17px;color:var(--accent)}
 .gone{color:var(--mut);font-size:12px;font-style:italic}
 pre.sheet{font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;background:var(--row);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin:0}
+.pv{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:16px;align-items:start}
+textarea.doc{font-family:var(--mono);font-size:12px;line-height:1.55;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;min-height:420px;tab-size:2}
+textarea.doc.ov{border-color:var(--accent);border-left-width:3px}
+.side{position:sticky;top:0}
+.side .card{padding:13px 15px;margin-bottom:12px}
+.diff{font-family:var(--mono);font-size:11.5px;line-height:1.5;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:62vh;background:var(--card)}
+.diff div{padding:1px 9px;white-space:pre-wrap;word-break:break-word}
+.diff div.add{background:var(--ok-bg);color:var(--ok)}
+.diff div.del{background:var(--dang-bg);color:var(--dang);text-decoration:line-through;text-decoration-color:rgba(153,27,27,.35)}
+.diff div.ctx{color:var(--ink2)}
+.diff div.skip{color:var(--mut);font-style:italic;background:var(--row);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.warnbox{border:1px solid var(--warn);background:var(--warn-bg);border-radius:8px;padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:var(--warn)}
+.warnbox b{display:block;margin-bottom:3px}
 .flagbox{border:1px solid var(--border);border-radius:8px;padding:10px 13px;margin-top:16px;background:var(--row)}
 .flagbox.on{border-color:var(--dang);background:var(--dang-bg)}
 .flagbox .hd{display:flex;gap:8px;align-items:center;font-weight:700;font-size:12.5px}
@@ -309,7 +330,7 @@ pre.sheet{font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pr
 const D = JSON.parse(document.getElementById('data').textContent);
 const O = D.original, S = D.stats, EDITS_PATH = D.edits_path, LS_KEY = 'rubric_edits:' + EDITS_PATH;
 const PTS = O.points, PIDS = PTS.map(p => p.id), P0 = Object.fromEntries(PTS.map(p => [p.id, p]));
-const MAPS = ['scale', 'paras', 'points', 'flags', 'comments'];
+const MAPS = ['scale', 'paras', 'points', 'flags', 'comments', 'sheets'];
 const FIELDS = ['point', 'report_quote', 'supports', 'not_scored'];
 const FLAB = {point: 'Point', report_quote: 'In the human report', supports: 'What the data supports', not_scored: 'Not scored'};
 
@@ -400,6 +421,68 @@ function sheetMd(rid, omitFlagged) {
   return head.join('\n') + '\n' + body + '\n' + tail.join('\n') + '\n';
 }
 
+/* ---------- direct sheet overrides ----------
+   Two sources of truth. Until a sheet is edited as a document it is assembled live from
+   the fields; the moment it carries an override that text IS the sheet and the field
+   edits stop reaching it. Typing the generated text back drops the override. */
+function sheetOverride(rid) { const e = state.sheets[rid]; return e && e.text !== undefined ? e.text : null; }
+function sheetText(rid) { const o = sheetOverride(rid); return o === null ? sheetMd(rid, omitFlagged) : o; }
+function setSheet(rid, text) {
+  if (text === sheetMd(rid, omitFlagged)) { delete state.sheets[rid]; scheduleSave(); }
+  else setIn('sheets', rid, {text: text});
+}
+function clearSheet(rid) { delete state.sheets[rid]; scheduleSave(); }
+
+/* line diff (LCS) between the generated sheet and the edited one */
+function lineDiff(a, b) {
+  const A = a.split('\n'), B = b.split('\n'), n = A.length, m = B.length;
+  const dp = []; for (let i = 0; i <= n; i++) dp.push(new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { out.push({t: ' ', s: A[i]}); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({t: '-', s: A[i]}); i++; }
+    else { out.push({t: '+', s: B[j]}); j++; }
+  }
+  while (i < n) out.push({t: '-', s: A[i++]});
+  while (j < m) out.push({t: '+', s: B[j++]});
+  return out;
+}
+function diffHTML(gen, cur) {
+  const d = lineDiff(gen, cur), CTX = 2;
+  const keep = d.map((x, i) => x.t !== ' ' || d.slice(Math.max(0, i - CTX), i + CTX + 1).some(y => y.t !== ' '));
+  if (!d.some(x => x.t !== ' ')) return '<div class="diff"><div class="ctx">no differences — identical to the generated sheet</div></div>';
+  let h = '<div class="diff">', run = 0;
+  d.forEach((x, i) => {
+    if (!keep[i]) { run++; return; }
+    if (run) { h += '<div class="skip">… ' + run + ' unchanged line' + (run === 1 ? '' : 's') + '</div>'; run = 0; }
+    const cls = x.t === '+' ? 'add' : x.t === '-' ? 'del' : 'ctx';
+    h += '<div class="' + cls + '">' + esc(x.t + ' ' + x.s) + '</div>';
+  });
+  if (run) h += '<div class="skip">… ' + run + ' unchanged line' + (run === 1 ? '' : 's') + '</div>';
+  return h + '</div>';
+}
+function diffCounts(gen, cur) {
+  const d = lineDiff(gen, cur);
+  return {add: d.filter(x => x.t === '+').length, del: d.filter(x => x.t === '-').length};
+}
+/* the scale table lives in every sheet; a direct edit to it only changes that one copy */
+function scaleFromText(t) {
+  const lines = t.split('\n'), hi = lines.indexOf(D.scale_header);
+  if (hi < 0 || !/^\|\s*-+:?\s*\|\s*-+:?\s*\|$/.test(lines[hi + 1] || '')) return null;
+  const out = [];
+  for (let i = hi + 2; i < lines.length; i++) {
+    const m = /^\|\s*([^|]*?)\s*\|\s*(.*?)\s*\|$/.exec(lines[i]);
+    if (!m) break;
+    out.push({score: m[1], text: m[2]});
+  }
+  return out.length ? out : null;
+}
+function sameScale(a, b) {
+  return !!a && !!b && JSON.stringify(a.map(x => [x.score, x.text])) === JSON.stringify(b.map(x => [x.score, x.text]));
+}
+
 /* ---------- export ---------- */
 function exportJSON() {
   const CO = {}, SUP = {}, NS = {}, RQ = {}, FL = {};
@@ -420,10 +503,12 @@ function exportJSON() {
     SCALE: curScale().map(b => [b.score, b.text]),
     CLAIM_OVERRIDE: CO, SUPPORTS: SUP, NOT_SCORED: NS, REPORT_QUOTE_OVERRIDE: RQ,
     flagged_for_removal: FL, comments: comments,
+    sheet_overrides: Object.fromEntries(O.sheets.map(s => [s.rubric_id, sheetOverride(s.rubric_id)])
+                                               .filter(e => e[1] !== null)),
     points: PIDS.map(id => Object.assign(resolved(id), {flagged: isFlagged(id), stats: S[id]})),
   }, null, 1);
 }
-function exportMD() { return O.sheets.map(s => sheetMd(s.rubric_id, true)).join('\n\n\n'); }
+function exportMD() { return O.sheets.map(s => sheetText(s.rubric_id)).join('\n\n\n'); }
 function toast(msg) {
   let t = document.getElementById('toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast';
@@ -677,22 +762,76 @@ function wirePoint(id) {
   wireComments();
 }
 
-/* ---------- preview ---------- */
+/* ---------- preview: the sheet as an editable document ---------- */
 function renderPreview() {
-  const omitted = O.sheets.flatMap(s => s.ids).filter(isFlagged);
-  let h = '<div class="wrap"><div class="card"><h2>The sheet the judge receives</h2>' +
-    '<p class="why">Assembled from the current edits, exactly as <code>build_rubrics.py</code> writes ' +
-    '<code>rubric_N.md</code>. With no edits this is byte-identical to the file on disk.</p>' +
+  const rid = sheetSel, omitted = O.sheets.flatMap(x => x.ids).filter(isFlagged);
+  const ov = sheetOverride(rid);
+  let h = '<div class="wrap"><div class="card"><h2>The sheet the judge receives — editable</h2>' +
+    '<p class="why">The whole assembled sheet, as <code>build_rubrics.py</code> writes ' +
+    '<code>rubric_N.md</code>. Edit it here as a document, in prose. With no edits anywhere it is ' +
+    'byte-identical to the file on disk.</p>' +
     '<div class="chips" style="margin-bottom:10px">' +
-    O.sheets.map(s => '<button data-sheet="' + s.rubric_id + '" class="' + (sheetSel === s.rubric_id ? 'on' : '') + '">' +
-      s.rubric_id + ' · ' + s.ids[0] + '–' + s.ids[s.ids.length - 1] + '</button>').join('') +
+    O.sheets.map(x => '<button data-sheet="' + x.rubric_id + '" class="' + (sheetSel === x.rubric_id ? 'on' : '') + '">' +
+      x.rubric_id + ' · ' + x.ids[0] + '–' + x.ids[x.ids.length - 1] +
+      (sheetOverride(x.rubric_id) !== null ? ' ✎' : '') + '</button>').join('') +
     '</div><label class="hint"><input type="checkbox" id="omit"' + (omitFlagged ? ' checked' : '') + '> ' +
     'leave out points flagged for removal' + (omitted.length ? ' (' + omitted.length + ' flagged: ' + omitted.join(', ') + ')' : '') +
-    '</label></div>' +
-    '<pre class="sheet">' + esc(sheetMd(sheetSel, omitFlagged)) + '</pre></div>';
+    (ov !== null ? ' — does not affect ' + rid + ' while it is edited directly' : '') + '</label></div>' +
+    '<div class="pv"><div><textarea class="doc' + (ov !== null ? ' ov' : '') + '" id="doc" spellcheck="false"></textarea></div>' +
+    '<div class="side" id="side"></div></div></div>';
   bodyEl.innerHTML = h;
+  const doc = bodyEl.querySelector('#doc');
+  doc.value = sheetText(rid);
+  fit(doc);
+  doc.addEventListener('input', () => { fit(doc); setSheet(rid, doc.value); renderSide(); });
   bodyEl.querySelectorAll('[data-sheet]').forEach(b => b.onclick = () => { sheetSel = b.dataset.sheet; renderPreview(); });
   bodyEl.querySelector('#omit').onchange = e => { omitFlagged = e.target.checked; renderPreview(); };
+  renderSide();
+}
+/* the panel beside the document: which source of truth is live, the diff, the scale warning */
+function renderSide() {
+  const rid = sheetSel, ov = sheetOverride(rid), gen = sheetMd(rid, omitFlagged), side = bodyEl.querySelector('#side');
+  let h = '';
+  if (ov === null) {
+    h += '<div class="card"><h2>Tracking the fields</h2><p class="why" style="margin:0">' +
+      'This sheet is assembled live from the shared scale, the two paragraphs and the points. ' +
+      'Anything you change in the other two tabs shows up here. Type in the document to take it over.</p></div>';
+  } else {
+    const c = diffCounts(gen, ov);
+    h += '<div class="card" style="border-color:var(--accent)"><h2>Edited directly</h2>' +
+      '<p class="why">' + rid + ' is now this text. <b>Edits made in the Points tab and the ' +
+      'Shared tab will no longer appear in it.</b> The other five sheets still track the fields.</p>' +
+      '<div><span class="badge ok">+' + c.add + '</span> <span class="badge dang">-' + c.del + '</span> ' +
+      '<span class="hint">lines against the generated sheet</span></div>' +
+      '<p style="margin:10px 0 0"><button class="mini dang" id="sheet-revert">revert ' + rid + ' to generated</button></p></div>';
+    const inSheet = scaleFromText(ov), shared = curScale();
+    if (!inSheet) {
+      h += '<div class="warnbox"><b>No scale table found in this sheet.</b>' +
+        'The judge reads the scale from this table. Either it was deleted or its header line no longer ' +
+        'reads exactly <code>' + esc(D.scale_header) + '</code>.</div>';
+    } else if (!sameScale(inSheet, shared)) {
+      h += '<div class="warnbox"><b>The scale table here no longer matches the shared one.</b>' +
+        'The scale is printed on all six sheets. This edit changed only ' + rid + '; the other five still ' +
+        'carry the shared table (' + shared.length + ' band' + (shared.length === 1 ? '' : 's') + ', this one has ' +
+        inSheet.length + '). <button class="mini" id="push-scale" style="margin-top:7px">push this table to the ' +
+        'shared scale — updates the other five</button></div>';
+    }
+    h += '<div class="card" style="padding:0;overflow:hidden">' +
+      '<div style="padding:10px 14px 6px"><h2 style="margin:0">Diff against generated</h2>' +
+      '<p class="why" style="margin:2px 0 0">Red is the generated line, green is yours.</p></div>' +
+      diffHTML(gen, ov) + '</div>';
+  }
+  side.innerHTML = h;
+  const rv = side.querySelector('#sheet-revert');
+  if (rv) rv.onclick = () => { clearSheet(rid); renderPreview(); };
+  const ps = side.querySelector('#push-scale');
+  if (ps) ps.onclick = () => {
+    const bands = scaleFromText(sheetOverride(rid));
+    if (!bands) return;
+    setScale(bands);
+    toast('Shared scale updated to ' + bands.length + ' bands — the other five sheets follow');
+    renderSide();
+  };
 }
 
 /* ---------- shell ---------- */
