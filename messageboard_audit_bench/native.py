@@ -13,6 +13,7 @@ import json
 import math
 import time
 from collections.abc import Sequence
+from copy import deepcopy
 from functools import wraps
 
 from inspect_ai.agent import Agent, AgentState, react, run
@@ -112,6 +113,15 @@ def _hook_config() -> dict:
 def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
     """Append the same time/overlength context after native ReAct tools."""
     definition = ToolDef(base)
+    parameters = deepcopy(definition.parameters)
+    # OpenAI-compatible strict tool validation requires every declared object
+    # property to appear in ``required``. Inspect's text_editor models its
+    # command-specific arguments as nullable, but normally requires only the
+    # two arguments common to every command. OpenRouter can route OpenAI models
+    # to Azure, which rejects that otherwise-valid schema before the first turn.
+    # Requiring the already-nullable fields preserves their optional semantics.
+    if parameters.properties:
+        parameters.required = list(parameters.properties)
 
     @wraps(base)
     async def execute(*args, **kwargs):
@@ -141,7 +151,7 @@ def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
         execute,
         name=definition.name,
         description=definition.description,
-        parameters=definition.parameters,
+        parameters=parameters,
         parallel=definition.parallel,
         viewer=definition.viewer,
         max_output=definition.max_output,

@@ -531,6 +531,21 @@ def test_native_agents_use_the_shared_bounded_refusal_policy(
         assert captured["config_overrides"] == {"features.hooks": "true"}
     else:
         assert len(captured["tools"]) == 2
+        for tool in captured["tools"]:
+            parameters = native.ToolDef(tool).parameters
+            assert set(parameters.required or []) == set(parameters.properties or {})
+
+
+def test_react_text_editor_optional_parameters_remain_nullable() -> None:
+    editor = native._with_react_feedback(
+        native.text_editor(), {"MBAB_BUDGET_MIN": "1"}
+    )
+    parameters = native.ToolDef(editor).parameters
+
+    assert set(parameters.required or []) == set(parameters.properties or {})
+    for name in set(parameters.properties or {}) - {"command", "path"}:
+        schema = parameters.properties[name]
+        assert any(option.type == "null" for option in schema.anyOf or [])
 
 
 @pytest.mark.asyncio
