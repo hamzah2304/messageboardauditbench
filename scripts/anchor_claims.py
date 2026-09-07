@@ -215,6 +215,7 @@ def broken_pairs():
                 if q and not findable(q, text, norm):
                     pairs.append({"key": key, "cid": cid, "path": p, "text": text,
                                   "quote": q, "reason": sc.get("reason", ""),
+                                  "score": sc.get("score"),
                                   "claim": claims.get(cid, {}).get("claim", "")})
     return pairs
 
@@ -231,11 +232,21 @@ Return strict JSON: {{"spans": ["...", "..."], "note": "..."}}
   - Anchor what the judge's quote and reasoning were actually about. If the report
     truly contains nothing corresponding to it, return "spans": [] -- do NOT
     substitute a passage that says something else.
+  - Do NOT improve on the judge. The score below runs on a continuous 0-to-1 scale
+    and says how COMPLETELY the report covers the claim, so a low or partial score
+    is usually attached to a passage that only gestures at the point, states it
+    vaguely, or gets part of it wrong. That is the passage to anchor. If a stronger,
+    more complete passage exists elsewhere in the report, ignore it: the span must be
+    the evidence for the score the judge actually gave, not the evidence you would
+    have picked.
   - Keep markdown as it appears (bullets, "**", headings) if it falls inside a span.
   - "note": one sentence on what you anchored, or why nothing matched.
 
 === CLAIM BEING GRADED ({pair['cid']}) ===
 {pair['claim']}
+
+=== JUDGE'S SCORE (0 = absent, 1 = fully and accurately covered) ===
+{pair['score']}
 
 === JUDGE'S QUOTE (not verbatim; this is the thing to repair) ===
 {pair['quote']}
