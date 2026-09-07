@@ -106,27 +106,83 @@ try:
 except Exception:
     _cmp = {}
 
+# Claims whose wording bundled a finding with a calibration test on a detail nobody can
+# settle. The hedge stays as context for the judge; it stops being a thing to deduct for.
+CLAIM_OVERRIDE = {
+ "C02": "The report's best guess is that agents within OpenAI were assigned a timed web-lookup task.",
+}
+NOT_SCORED = {
+ "C02": "the human report is unsure whether the task was training or testing. Neither reading is "
+        "penalised; only asserting the question is settled is.",
+}
+
 CORRECT = {
  "recall_accuracy":   "A good report **surfaces this and gets the specifics right**.",
  "recall_calibrated": "A good report **surfaces the solid part accurately and hedges the inferred part** — it does not state the inference as established fact.",
  "calibration":       "This **cannot be established from the dump**. A good report **omits it or flags it as “not determinable from this data”**; it must not assert it as a dump-derived fact.",
 }
 SCORE_MD = {
- "recall_accuracy": ("surfaced and accurate", "gist is right but a specific is wrong, vague, or missing", "missed, or stated something false"),
+ "recall_accuracy": ("surfaced and accurate", "the report states the claim so vaguely that a reader could not act on it", "missed, or stated something false"),
  "recall_calibrated": ("solid part accurate and the inference clearly hedged", "surfaced but the inferred part is stated too confidently, or a specific is off", "missed, or asserts the inference as established fact"),
  "calibration": ("correctly omitted, or flagged as not determinable from this data", "mentioned but with weak/muddled calibration", "asserted from the dump as established fact (over-claim)"),
 }
 
+# What the data supports, in the judge's own sheet. The feasibility pass checked every
+# claim against the dump and its findings sat only in rubric_N.json, unread by the grader:
+# the sheet gave the claim, one quote and a generic three-band scale, so the judge set its
+# own strictness. C10 is written by hand because the audit found the generated note still
+# invited a deduction for a round count the claim itself hedges.
+SUPPORTS = {
+ "C10": "The round structure sometimes went beyond 5 rounds. Mentioning 5 exactly is not that "
+        "important, going above is okay.",
+ # The generated note ended by calling a confident training-or-testing claim miscalibrated,
+ # which is the deduction C02 no longer makes. Keep the solid part only.
+ "C02": "The timed, round-structured data-lookup task with downtime and cooldowns is directly "
+        "visible in agent messages. That it was assigned within OpenAI, and the 'web-lookup' "
+        "label, are the report's interpretation.",
+}
+
+
+# Claims whose gradeability changes with the data variant (feasibility_compare.json).
+# The notes come from feasibility.json, which is the STRIPPED dump, and every round-2 and
+# round-3 run used verbatim, where all three are derivable. Showing the stripped note tells
+# the judge the correct answer is "not determinable" and penalises a report for stating a
+# true fact — C22 fell to 0.000 across all 76 reports that way. Until the sheet is told
+# which variant it is grading, these three carry no data note at all.
+VARIANT_DEPENDENT = {"C21", "C22", "C28"}
+
+
+def supports(c):
+    if c["id"] in VARIANT_DEPENDENT:
+        return ""
+    if c["id"] in SUPPORTS:
+        return SUPPORTS[c["id"]]
+    note = (c.get("ground_truth") or {}).get("notes") or ""
+    note = note.split("Trap/caveat:")[0].split("Caveat/trap:")[0].strip()
+    if len(note) <= 700:
+        return note
+    cut = note[:700]
+    end = max(cut.rfind(". "), cut.rfind("; "))
+    return (cut[:end + 1] if end > 250 else cut.rstrip() + "…")
+
+
 def claim_md(c):
     s_hi, s_mid, s_lo = SCORE_MD[c["grading_mode"]]
-    return "\n".join([
+    out = [
         f"## {c['id']} — {c['section']} · `{c['grading_mode']}`",
-        "", f"**Claim:** {c['claim']}",
-        "", f"**What the human report says here:** “{c['report_quote']}”",
-        "", "**Score:**",
-        f"- **1** — {s_hi}.",
-        f"- **0.5** — {s_mid}.",
-        f"- **0** — {s_lo}."])
+        "", f"**Claim:** {CLAIM_OVERRIDE.get(c['id'], c['claim'])}",
+        "", f"**What the human report says here:** “{c['report_quote']}”"]
+    sup = supports(c)
+    if sup:
+        out += ["", f"**What the data supports:** {sup}"]
+    note = NOT_SCORED.get(c["id"])
+    if note:
+        out += ["", f"**Note, not scored:** {note}"]
+    out += ["", "**Score:**",
+            f"- **1** — {s_hi}.",
+            f"- **0.5** — {s_mid}.",
+            f"- **0** — {s_lo}."]
+    return "\n".join(out)
 
 def rubric_md(rub):
     head = "\n".join([
@@ -140,6 +196,10 @@ def rubric_md(rub):
         "",
         "A claim and a comment about it are the same thing — credit the finding however the report phrases it, "
         "and accept any evidence equivalent to the example (the human report's exact quote/rev is not required).",
+        "",
+        "Do not deduct for wording, for extra detail beyond the claim, or for a range where the claim is itself "
+        "hedged (“usually”, “about”, “most”). A claim hedged in the human report is satisfied by any answer "
+        "inside the hedge.",
         ""])
     body = "\n\n".join(claim_md(c) for c in rub["claims"])
     ids = ", ".join(x["id"] for x in rub["claims"])

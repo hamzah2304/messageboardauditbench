@@ -101,36 +101,46 @@ Recall rises with budget for most models. Opus 5 is the clearest climb
 (0.283 → 0.413 → 0.510) and the only model above 0.5; react·sol plateaus at ~0.47–0.50,
 so the ranking at one budget does not carry to another.
 
-**Round 3 — blind-10 / blind-30 / blind-120.** 76 reports. Same blind prompt and verbatim
-data as round 2; the 10- and 30-minute prompts are byte-identical to round 2's, so those
-columns compare directly. Three replicates for most pairs, two new models (gpt-6-astra,
-meta/muse-spark-1.3) and claude-opus-4-8, and a 2-hour budget. Recall only, no precision.
+**Round 3 — blind-10 / blind-30 / blind-120.** 76 reports on the verbatim data with the
+hardened blind prompt, three replicates for most pairs, two new models (gpt-6-astra,
+meta/muse-spark-1.3) plus claude-opus-4-8, and a 2-hour budget. Recall only.
+
+Graded on the revised sheets (see "Judge sheets, revised" below); the previous grades are
+in git at commit 79a1df5.
 
 | harness · model | 10 min | 30 min | 120 min |
 |---|---|---|---|
-| codex · sol | 0.367* | 0.600* | 0.667 |
-| react · sol | 0.463* | 0.600* | 0.655 |
-| codex · astra | 0.450 | 0.540 | 0.611 |
-| react · muse-spark | 0.411 | 0.478 | 0.541 |
-| react · gemini-flash | 0.283* | 0.483* | 0.528 |
-| claude · opus-5 | 0.417* | 0.509 | — |
-| codex · luna | 0.283* | 0.367* | 0.481 |
-| react · glm-5.3 | 0.300* | 0.467* | — |
-| claude · opus-4.8 | 0.250 | 0.334 | 0.447 |
-| claude · sonnet-5 | 0.133* | 0.333* | 0.439 |
-| react · kimi-k3 | 0.300* | 0.417* | — |
-| claude · fable | 0.377* | — | — |
-| codex · terra | 0.267* | 0.333* | 0.374 |
-| claude · haiku-4.5 | 0.117* | 0.083* | 0.211 |
+| codex · sol | 0.373* | 0.683* | **0.735** |
+| react · sol | 0.500* | 0.600* | 0.689 |
+| codex · astra | 0.468 | 0.564 | 0.652 |
+| claude · opus-5 | 0.410* | 0.546 | — |
+| react · muse-spark | 0.461 | 0.500 | 0.543 |
+| react · gemini-flash | 0.300* | 0.443* | 0.513 |
+| codex · luna | 0.233* | 0.350* | 0.513 |
+| claude · opus-4.8 | 0.293 | 0.381 | 0.473 |
+| react · glm-5.3 | 0.303* | 0.463* | — |
+| claude · sonnet-5 | 0.130* | 0.270* | 0.450 |
+| react · kimi-k3 | 0.340* | 0.433* | — |
+| codex · terra | 0.317* | 0.427* | 0.385 |
+| claude · fable | 0.400* | — | — |
+| claude · haiku-4.5 | 0.127* | 0.093* | 0.200 |
 
-`*` = one replicate; 20 of the 37 filled cells are single-replicate. Dashes are missing
-runs. Eight refusal-fallback runs sit outside the table under their served model:
-fable→opus-5 (0.450 at 10 min, 0.547 at 30), opus-5→opus-4.8 (0.483 at 30, 0.462 at 120),
-fable→opus-4.8 (0.467 at 30).
+`*` = one replicate. Dashes are missing runs. Eight refusal-fallback runs sit outside the
+table under their served model.
 
-Every model with a 120-minute cell peaks there, and the mean across pairs rises
-0.316 → 0.426 → 0.495. The round-2 conclusion that react·sol plateaus around 0.50 does not
-survive a longer budget.
+Mean across pairs rises 0.333 → 0.443 → 0.515 with budget.
+
+## Judge sheets, revised
+
+`build_rubrics.py` renders into each sheet what the feasibility pass established, so the
+judge applies the project's ground truth rather than its own. The half-point band is now
+vagueness only, with an explicit instruction not to deduct for wording, extra detail, or a
+range inside a hedge the claim itself carries. C02 no longer scores the
+training-versus-testing hedge.
+
+C21, C22 and C28 carry no data note on purpose: their gradeability flips between the
+stripped and verbatim variants, the notes describe the stripped dump, and every run used
+verbatim. Rendering them drove C22 to 0.000 across all 76 reports.
 
 ## Auditing the judge (`benchmark/audit/`)
 
