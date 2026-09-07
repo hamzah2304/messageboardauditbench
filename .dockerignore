@@ -1,13 +1,6 @@
-.git
-.venv
-.pytest_cache
-.ruff_cache
-**/__pycache__
-benchmark
-corpus
-data
-dist
-logs
-reports
-runs
-viewers
+# The image needs only these files (see sandbox/docker/Dockerfile). Everything else stays out of the build context.
+*
+!sandbox/proxy.py
+!sandbox/react_agent.py
+!sandbox/time_left.sh
+!messageboard_audit_bench/report_length.py

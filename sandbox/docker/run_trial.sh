@@ -39,8 +39,8 @@ VARIANT="$(basename "$DATA_DIR")"
 RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN_ID:0:12}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
 NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"
-mkdir -p "$RUN/work/data" "$SECRETS/claude" "$SECRETS/codex"
-cp "$DATA_DIR"/*.jsonl "$RUN/work/data/"
+mkdir -p "$RUN/work" "$SECRETS/claude" "$SECRETS/codex"
+# data/<variant> is bind-mounted read-only straight into /work/data: no per-run copy (42 MB each; this filled the disk once).
 # The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
 sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$PROMPT_FILE" > "$RUN/work/prompt.txt"
 PROMPT="$(cat "$RUN/work/prompt.txt")"
@@ -95,7 +95,7 @@ docker network connect "$NET" "$PROXY"
 # Everything the agent container gets. Note NO_PROXY is empty and DNS points nowhere.
 DOCKER_ARGS=(--rm --network "$NET" --dns 0.0.0.0 --cap-drop ALL --security-opt no-new-privileges ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} ${REACT_ENV[@]+"${REACT_ENV[@]}"}
   -e HTTPS_PROXY="http://$PROXY:3128" -e HTTP_PROXY="http://$PROXY:3128" -e NO_PROXY=
-  -v "$RUN/work:/work" -v "$RUN/work/data:/work/data:ro"
+  -v "$RUN/work:/work" -v "$DATA_DIR:/work/data:ro"
   -v "$SECRETS/claude:/home/agent/.claude" -v "$SECRETS/codex:/home/agent/.codex"
   -w /work "$IMAGE")
 
@@ -111,7 +111,7 @@ docker run -e VENDOR_HOST="$VENDOR_HOST" "${DOCKER_ARGS[@]}" bash -c '
   echo "--- files visible under /work:"; find /work -type f | sort
   echo "--- bind mounts:"; awk "\$2 ~ /^\/(work|home)/ {print \$2, \$4}" /proc/mounts
   exit $fail' > "$RUN/canary.log" 2>&1 || { cat "$RUN/canary.log"; echo "canary failed; trial aborted" >&2; exit 3; }
-EXPECT="$( (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#') | sort)"
+EXPECT="$( { (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#'); (cd "$DATA_DIR" && find . -type f | sed 's#^\./#/work/data/#'); } | sort)"
 GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
 
