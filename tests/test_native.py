@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
+
 import pytest
 from inspect_ai import Task, eval
 from inspect_ai.agent import AgentState
@@ -264,7 +267,7 @@ async def test_native_automatically_shortens_before_original_deadline(monkeypatc
     monkeypatch.setattr(native, "run", fake_run)
     state = _state()
     state.metadata.update(report_min_words=2500, report_max_words=3000, report_accept_min_words=0, report_accept_max_words=3100)
-    result = await native.inspect_native_agent("codex", 60, report_min_words=2500, report_max_words=3000)(state, None)
+    result = await native.inspect_native_agent("codex", 120, report_min_words=2500, report_max_words=3000)(state, None)
     assert len(calls) == 2
     assert "3101 words" in calls[1][-1].text
     assert "original deadline" in calls[1][-1].text
@@ -280,6 +283,7 @@ async def test_native_retains_partial_report_and_messages_on_adapter_error(monke
 
     async def failing_agent(state):
         state.messages.append(ChatMessageAssistant(content="partial investigation"))
+        state.output = ModelOutput()
         raise RuntimeError("adapter failed")
 
     async def read():
@@ -300,3 +304,236 @@ def test_reasoning_count_unknown_is_distinct_from_reported_zero():
     assert native._usage_metadata([ModelUsage(reasoning_tokens=0)])["reasoning_tokens"] == 0
     assert native._usage_metadata([ModelUsage()])["reasoning_tokens"] is None
     assert native._usage_metadata([ModelUsage(reasoning_tokens=10), ModelUsage()])["reasoning_tokens"] is None
+
+
+@pytest.mark.asyncio
+async def test_native_solver_marks_terminal_refusal_after_bounded_retries(
+    monkeypatch,
+) -> None:
+    agent_state = AgentState(
+        messages=[
+            *_state().messages,
+            ChatMessageAssistant(content="I cannot help with that."),
+        ]
+    )
+    agent_state.output = ModelOutput.from_content(
+        model="anthropic/test-model",
+        content="I cannot help with that.",
+        stop_reason="content_filter",
+    )
+
+    monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: object())
+
+    async def fake_prepare(*_args):
+        return None
+
+    async def fake_run(*_args, **_kwargs):
+        return agent_state, None
+
+    async def fake_report():
+        return "", "FileNotFoundError: /work/report.md"
+
+    monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
+    monkeypatch.setattr(native, "run", fake_run)
+    monkeypatch.setattr(native, "_read_report", fake_report)
+
+    state = await native.inspect_native_agent("claude", 60)(_state(), None)
+
+    assert state.output.completion == "(no report written)"
+    assert state.metadata["terminal_refusal"] is True
+    assert state.metadata["refusal_stop_reason"] == "content_filter"
+    assert state.metadata["refusal_retry_limit"] == 2
+    assert state.metadata["refusal_policy"] == "same_model_only"
+
+
+@pytest.mark.asyncio
+async def test_native_solver_pings_one_overlong_report_and_resumes_same_agent(
+    monkeypatch,
+) -> None:
+    selected = object()
+    first = AgentState(
+        messages=[*_state().messages, ChatMessageAssistant(content="done")]
+    )
+    first.output = ModelOutput.from_content(model="mockllm/model", content="done")
+    corrected = AgentState(
+        messages=[*first.messages, ChatMessageAssistant(content="shortened")]
+    )
+    corrected.output = ModelOutput.from_content(
+        model="mockllm/model", content="shortened"
+    )
+    reports = iter([("one two three four", None), ("one two", None)])
+    calls = []
+
+    monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: selected)
+
+    async def fake_prepare(*_args):
+        return None
+
+    async def fake_run(agent, messages, limits, **_kwargs):
+        calls.append((agent, messages, limits))
+        return (first, None) if len(calls) == 1 else (corrected, None)
+
+    async def fake_report():
+        return next(reports, ("one two", None))
+
+    monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
+    monkeypatch.setattr(native, "run", fake_run)
+    monkeypatch.setattr(native, "_read_report", fake_report)
+
+    state = await native.inspect_native_agent(
+        "codex",
+        120,
+        report_min_words=2,
+        report_max_words=3,
+    )(_state(), None)
+
+    assert len(calls) == 2
+    assert calls[0][0] is calls[1][0]
+    assert calls[0][0].__wrapped__ is selected
+    assert isinstance(calls[1][1][-1], native.ChatMessageUser)
+    assert "at most 3 words" in calls[1][1][-1].content
+    assert state.output.completion == "one two"
+    assert state.metadata["report_length_ping_count"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("report", ["", "one", "one two three"])
+async def test_native_solver_does_not_continue_missing_short_or_valid_reports(
+    monkeypatch, report: str
+) -> None:
+    agent_state = AgentState(
+        messages=[*_state().messages, ChatMessageAssistant(content="done")]
+    )
+    agent_state.output = ModelOutput.from_content(model="mockllm/model", content="done")
+    calls = 0
+
+    monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: object())
+
+    async def fake_prepare(*_args):
+        return None
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return agent_state, None
+
+    async def fake_report():
+        return report, None if report else "FileNotFoundError: /work/report.md"
+
+    monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
+    monkeypatch.setattr(native, "run", fake_run)
+    monkeypatch.setattr(native, "_read_report", fake_report)
+
+    state = await native.inspect_native_agent(
+        "claude",
+        60,
+        report_min_words=2,
+        report_max_words=3,
+    )(_state(), None)
+
+    assert calls == 1
+    assert state.metadata["report_length_ping_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_native_solver_does_not_ping_after_time_limit(monkeypatch) -> None:
+    agent_state = AgentState(
+        messages=[*_state().messages, ChatMessageAssistant(content="partial")]
+    )
+    agent_state.output = ModelOutput.from_content(
+        model="mockllm/model", content="partial"
+    )
+    limit = LimitExceededError(type="time", value=60, limit=60)
+    calls = 0
+
+    monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: object())
+
+    async def fake_prepare(*_args):
+        return None
+
+    async def fake_run(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return agent_state, limit
+
+    async def fake_report():
+        return "one two three four", None
+
+    monkeypatch.setattr(native, "_prepare_budget", fake_prepare)
+    monkeypatch.setattr(native, "run", fake_run)
+    monkeypatch.setattr(native, "_read_report", fake_report)
+
+    state = await native.inspect_native_agent(
+        "react",
+        60,
+        report_min_words=2,
+        report_max_words=3,
+    )(_state(), None)
+
+    assert calls == 1
+    assert state.metadata["report_length_ping_count"] == 0
+
+
+@pytest.mark.parametrize("agent_name", ["claude", "codex", "react"])
+def test_native_agents_use_the_shared_bounded_refusal_policy(
+    monkeypatch, agent_name: str
+) -> None:
+    captured = {}
+
+    def fake_adapter(*_args, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    if agent_name == "claude":
+        monkeypatch.setattr(native, "claude_code", fake_adapter)
+    elif agent_name == "codex":
+        monkeypatch.setattr(native, "codex_cli", fake_adapter)
+    else:
+        monkeypatch.setattr(native, "react", fake_adapter)
+
+    native.inspect_agent(
+        agent_name,
+        claude_disallowed_tools=["WebSearch"],
+        env={"MBAB_BUDGET_MIN": "1"},
+    )
+
+    assert captured["retry_refusals"] == native.REFUSAL_RETRY_LIMIT == 2
+    if agent_name == "claude":
+        assert captured["env"]["CLAUDE_CONFIG_DIR"] == native.CLAUDE_CONFIG_DIR
+    elif agent_name == "codex":
+        assert captured["config_overrides"]["features.hooks"] == "true"
+        assert captured["config_overrides"]["features.multi_agent"] == "false"
+    else:
+        assert len(captured["tools"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_native_preflight_installs_claude_and_codex_hooks(monkeypatch) -> None:
+    writes = {}
+
+    class FakeSandbox:
+        async def exec(self, _cmd):
+            return SimpleNamespace(success=True, stdout='{"ok": true}', stderr="")
+
+        async def write_file(self, path, content):
+            writes[path] = content
+
+    monkeypatch.setattr(native, "sandbox", lambda: FakeSandbox())
+
+    await native._prepare_budget(1234, 20, 2500, 3000)
+
+    claude = json.loads(writes[f"{native.CLAUDE_CONFIG_DIR}/settings.json"])
+    codex = json.loads(writes[f"{native.CODEX_HOME}/hooks.json"])
+    assert claude["apiKeyHelper"] == "echo $ANTHROPIC_AUTH_TOKEN"
+    assert "switchModelsOnFlag" not in claude
+    assert all(claude["hooks"][event] == value for event, value in codex["hooks"].items())
+    assert "PostToolUseFailure" in claude["hooks"]
+    commands = [
+        hook["command"]
+        for group in codex["hooks"].values()
+        for entry in group
+        for hook in entry["hooks"]
+    ]
+    assert any("/sandbox/time_left.sh" in command for command in commands)
+    assert any("--hook PostToolUse" in command for command in commands)
+    assert any("--hook Stop" in command for command in commands)

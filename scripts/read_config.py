@@ -7,23 +7,30 @@
 The configs are flat TOML: strings, integers, and arrays of strings. Parsed here
 without tomllib so the launcher works on any python3.
 """
-import json, re, sys, shlex
+
+import json
+import re
+import shlex
+import sys
 from pathlib import Path
+
 
 def load(path: str) -> dict:
     cfg = {}
     for line in Path(path).read_text().splitlines():
-        line = line.split("#", 1)[0].strip() if not line.strip().startswith('"') else line
-        m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$', line)
+        line = (
+            line.split("#", 1)[0].strip() if not line.strip().startswith('"') else line
+        )
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$", line)
         if not m:
             continue
         k, v = m.group(1), m.group(2)
-        v = re.sub(r'\s+#.*$', '', v).strip()
+        v = re.sub(r"\s+#.*$", "", v).strip()
         if v.startswith("["):
             cfg[k] = re.findall(r'"([^"]*)"', v)
         elif v.startswith('"'):
             cfg[k] = v.strip('"')
-        elif re.fullmatch(r'-?\d+', v):
+        elif re.fullmatch(r"-?\d+", v):
             cfg[k] = int(v)
         elif v in ("true", "false"):
             cfg[k] = v == "true"
@@ -31,10 +38,15 @@ def load(path: str) -> dict:
             cfg[k] = v
     return cfg
 
+
 if __name__ == "__main__":
     cfg = load(sys.argv[1])
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "messageboard_audit_bench"))
+    sys.path.insert(
+        0,
+        str(Path(__file__).resolve().parents[1] / "messageboard_audit_bench"),
+    )
     from report_length import acceptance_limits
+
     acceptance_limits(cfg)
     if "--json" in sys.argv:
         print(json.dumps(cfg))

@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from functools import wraps
 
 from inspect_ai.agent import Agent, AgentState, react, run
+from inspect_ai.log import transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
@@ -28,9 +29,56 @@ from inspect_ai.util import LimitExceededError, sandbox, time_limit
 from inspect_swe import claude_code, codex_cli
 
 from messageboard_audit_bench.audit import trajectory_metrics
+from messageboard_audit_bench.native_telemetry import event_coverage, hook_coverage
 from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
 
 REPORT_PATH = "/work/report.md"
+REFUSAL_RETRY_LIMIT = 2
+MIN_REVISION_SECONDS = 60
+CLAUDE_CONFIG_DIR = "/work/.mbab-claude"
+CODEX_HOME = "/work/.codex"
+
+
+def _hook_config() -> dict:
+    config = {
+        "hooks": {
+            "PostToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "sh -c 'touch /tmp/mbab-post-tool-hook-fired; "
+                                "exec /sandbox/time_left.sh'"
+                            ),
+                        },
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 /sandbox/report_length.py --hook PostToolUse"
+                            ),
+                        },
+                    ]
+                }
+            ],
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "sh -c 'touch /tmp/mbab-stop-hook-fired; "
+                                "exec python3 /sandbox/report_length.py --hook Stop'"
+                            ),
+                        }
+                    ]
+                }
+            ],
+        }
+    }
+    config["hooks"]["PreToolUse"] = [{"hooks": [{"type": "command", "command": "python3 /sandbox/tool_telemetry.py --event PreToolUse"}]}]
+    config["hooks"]["PostToolUse"][0]["hooks"].insert(0, {"type": "command", "command": "python3 /sandbox/tool_telemetry.py --event PostToolUse"})
+    return config
 
 
 def _feedback_filter(env):
@@ -63,6 +111,7 @@ def _react_feedback(tool, env, report_state):
     @wraps(tool)
     async def execute(*args, **kwargs):
         result = await tool(*args, **kwargs)
+        await sandbox().exec(["touch", "/tmp/mbab-post-tool-hook-fired"])
         report, _ = await _read_report()
         left = max(0, int(env.get("MBAB_DEADLINE_EPOCH", time.time())) - int(time.time()))
         note = f"Time budget: {left} seconds remaining."
@@ -76,7 +125,8 @@ def _react_feedback(tool, env, report_state):
         return f"{result}\n\n[{note}]"
 
     return ToolDef(execute, name=definition.name, description=definition.description,
-                   parameters=definition.parameters, parallel=definition.parallel).as_tool()
+                   parameters=definition.parameters, parallel=definition.parallel,
+                   viewer=definition.viewer, max_output=definition.max_output, options=definition.options).as_tool()
 
 
 def inspect_agent(
@@ -94,7 +144,7 @@ def inspect_agent(
             filter=_feedback_filter(env),
             retry_refusals=2,
             retry_uncaught_errors=2,
-            env=env,
+            env={**env, "CLAUDE_CONFIG_DIR": CLAUDE_CONFIG_DIR},
             version="sandbox",
         )
     if agent == "codex":
@@ -106,7 +156,7 @@ def inspect_agent(
             filter=_feedback_filter(env),
             retry_refusals=2,
             goals=False,
-            config_overrides={"features.multi_agent": "false", "model_reasoning_summary": '"detailed"'},
+            config_overrides={"features.hooks": "true", "features.multi_agent": "false", "model_reasoning_summary": '"detailed"'},
         )
     if agent == "react":
         report_state = [None]
@@ -128,6 +178,13 @@ async def _read_report() -> tuple[str, str | None]:
         return "", f"{type(ex).__name__}: {ex}"[:500]
 
 
+async def _marker_exists(path: str) -> bool:
+    try:
+        return (await sandbox().exec(["test", "-e", path])).success
+    except Exception:
+        return False
+
+
 async def _prepare_budget(deadline_epoch: int, budget_minutes: int,
                           report_min_words: int = 0, report_max_words: int = 0) -> dict:
     """Verify isolation and full data readability before starting the agent."""
@@ -140,6 +197,26 @@ async def _prepare_budget(deadline_epoch: int, budget_minutes: int,
         raise RuntimeError(f"sandbox preflight failed: {preflight}")
     await sandbox().write_file("/tmp/mbab-time-budget", f"{deadline_epoch}\n{budget_minutes}\n")
     await sandbox().write_file("/tmp/mbab-report-length", f"{report_min_words}\n{report_max_words}\n")
+    configured = await sandbox().exec(["mkdir", "-p", CLAUDE_CONFIG_DIR, CODEX_HOME])
+    if not configured.success:
+        raise RuntimeError("could not create native agent configuration directories")
+    hooks = _hook_config()
+    claude_hooks = json.loads(json.dumps(hooks))
+    claude_hooks["hooks"]["PostToolUseFailure"] = [{"hooks": [{"type": "command", "command": "python3 /sandbox/tool_telemetry.py --event PostToolUseFailure"}]}]
+    await sandbox().write_file(
+        f"{CLAUDE_CONFIG_DIR}/settings.json",
+        json.dumps(
+            {
+                "apiKeyHelper": "echo $ANTHROPIC_AUTH_TOKEN",
+                **claude_hooks,
+            }
+        ),
+    )
+    await sandbox().write_file(
+        f"{CODEX_HOME}/hooks.json",
+        json.dumps(hooks),
+    )
+
     return preflight
 
 
@@ -213,6 +290,10 @@ def inspect_native_agent(
     still fail the sample normally.
     """
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # This is a per-sample Transcript setting, including direct API evals.
+        # Inspect currently exposes no public per-task raw-API logging setter.
+        transcript()._log_model_api = True
+        state.metadata["logging_policy"] = "all_provider_exposed_fields"
         started = time.monotonic()
         deadline_epoch = int(time.time()) + time_limit_seconds
         budget_minutes = max(1, round(time_limit_seconds / 60))
@@ -250,7 +331,7 @@ def inspect_native_agent(
             report, report_read_error = await _read_report()
             while report_max_words and len(report.split()) > report_max_words and not limit_error:
                 remaining = deadline_epoch - int(time.time())
-                if remaining <= 0 or revision_count >= 3 or (agent_state.output and agent_state.output.stop_reason == "content_filter"):
+                if remaining < MIN_REVISION_SECONDS or revision_count >= 1 or (agent_state.output and agent_state.output.choices and agent_state.output.stop_reason == "content_filter"):
                     break
                 count = len(report.split())
                 agent_state, limit_error = await run(
@@ -265,7 +346,34 @@ def inspect_native_agent(
             raise
         finally:
             report, report_read_error = await _read_report()
-            state.metadata["report_length_revision_count"] = revision_count
+            expected_tool_ids = [
+                call.id
+                for message in agent_state.messages
+                if isinstance(message, ChatMessageAssistant)
+                for call in (message.tool_calls or [])
+            ]
+            state.metadata.update(
+                report_length_revision_count=revision_count, report_length_ping_count=revision_count,
+                terminal_refusal=bool(agent_state.output and agent_state.output.choices and agent_state.output.stop_reason == "content_filter"),
+                agent_stop_reason=agent_state.output.stop_reason if agent_state.output and agent_state.output.choices else None,
+                refusal_stop_reason="content_filter" if agent_state.output and agent_state.output.choices and agent_state.output.stop_reason == "content_filter" else None,
+                refusal_retry_limit=REFUSAL_RETRY_LIMIT, refusal_policy="same_model_only",
+                post_tool_hook_fired=await _marker_exists("/tmp/mbab-post-tool-hook-fired"),
+                stop_hook_fired=await _marker_exists("/tmp/mbab-stop-hook-fired"),
+            )
+            if agent != "react":
+                try:
+                    raw = await sandbox().read_file("/tmp/mbab-tool-events.jsonl")
+                    records = [json.loads(line) for line in raw.splitlines() if line.strip()]
+                    state.metadata["tool_lifecycle_events"] = records
+                    state.metadata.update(hook_coverage(records, expected_tool_ids))
+                except Exception as exc:
+                    state.metadata["tool_telemetry_error"] = f"{type(exc).__name__}: {exc}"[:500]
+                    state.metadata.update(hook_coverage([], expected_tool_ids))
+            try:
+                state.metadata.update(event_coverage(transcript().events))
+            except Exception as exc:
+                state.metadata["native_event_telemetry_error"] = f"{type(exc).__name__}: {exc}"[:500]
             _copy_agent_state(state, agent_state)
             model = state.output.model or str(state.model)
             state.output = ModelOutput.from_content(model=model, content=report or "(no report written)")

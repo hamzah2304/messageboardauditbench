@@ -11,11 +11,12 @@ Two entry points:
         --model anthropic/claude-opus-4-1
 
   * `messageboard_audit_bench_replay` imports runs already on disk under runs/,
-    so `inspect view` can render past baseline runs with scoring.
+    so `inspect view` can render past or interrupted runs with scoring.
       inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 
 View any result with:  inspect view
 """
+
 from __future__ import annotations
 
 import json
@@ -38,6 +39,7 @@ from messageboard_audit_bench.report_length import (
     render_prompt,
 )
 from messageboard_audit_bench.runtime import repo_root
+from messageboard_audit_bench.sandbox import IsolatedDockerSandbox  # noqa: F401
 from messageboard_audit_bench.scorer import (
     process_metrics,
     report_length,
@@ -45,30 +47,29 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "2-B"
-_CONDITION_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_CONDITIONS = ("blind", "context")
+EVAL_VERSION = "5-B"
+_CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_CONFIGS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20
 TIMEOUT_GRACE_MINUTES = 5
 
 
-def _load_condition(condition: str) -> dict:
-    """Load one of the repository's named, time-neutral conditions."""
+def _load_config(config_name: str) -> dict:
+    """Load one of the repository's named benchmark configurations."""
     repo = repo_root()
-    if not _CONDITION_NAME.fullmatch(condition):
+    if not _CONFIG_NAME.fullmatch(config_name):
         raise ValueError(
-            f"invalid condition name {condition!r}; use a name from {repo / 'configs'}"
+            f"invalid config name {config_name!r}; use a name from {repo / 'configs'}"
         )
-    if condition not in _CONDITIONS:
+    if config_name not in _CONFIGS:
         raise ValueError(
-            f"unknown condition {condition!r}; available conditions: "
-            f"{', '.join(_CONDITIONS)}"
+            f"unknown config {config_name!r}; available configs: {', '.join(_CONFIGS)}"
         )
-    path = repo / "configs" / f"{condition}.toml"
+    path = repo / "configs" / f"{config_name}.toml"
     if not path.is_file():
-        raise RuntimeError(f"condition file is missing: {path}")
+        raise RuntimeError(f"config file is missing: {path}")
 
     import tomllib
 
@@ -79,21 +80,26 @@ def _load_condition(condition: str) -> dict:
 
 def _time_limit(time_limit_minutes: int | None) -> int:
     value = (
-        DEFAULT_TIME_LIMIT_MINUTES
-        if time_limit_minutes is None
-        else time_limit_minutes
+        DEFAULT_TIME_LIMIT_MINUTES if time_limit_minutes is None else time_limit_minutes
     )
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("time_limit_minutes must be a positive integer")
     return value
 
 
-def _prompt_for(condition: str, time_limit_minutes: int | None = None) -> str:
-    cfg = _load_condition(condition)
-    text = (
-        repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt"
-    ).read_text()
+def _prompt_for(config_name: str, time_limit_minutes: int | None = None) -> str:
+    cfg = _load_config(config_name)
+    text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
     return render_prompt(text, _time_limit(time_limit_minutes), *limits(cfg))
+
+
+def _scaffold(agent: str, backend: str) -> str:
+    """Name the actual agent loop independently of its model transport."""
+    if agent == "claude":
+        return "claude-code"
+    if agent == "codex":
+        return "codex-cli"
+    return "inspect-react" if backend == "inspect" else "legacy-react"
 
 
 def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
@@ -101,7 +107,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
     repo = repo_root().resolve()
     data_dir = (repo / "data" / data_variant).resolve()
     return SandboxEnvironmentSpec(
-        type="docker",
+        type="isolated-docker",
         config=ComposeConfig(
             services={
                 "default": ComposeService(
@@ -112,6 +118,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                     command="tail -f /dev/null",
                     init=True,
                     network_mode="none",
+                    user="1000:1000",
                     cap_drop=["ALL"],
                     security_opt=["no-new-privileges:true"],
                     working_dir="/work",
@@ -127,8 +134,8 @@ def messageboard_audit_bench(
     agent: str = "claude",
     backend: str = "inspect",
     subscription_model: str | None = None,
-    condition: str = "blind",
-    allow_networked_subscription: bool = False,
+    config: str = "blind",
+    allow_networked_subscription: bool = True,
     time_limit_minutes: int | None = None,
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
@@ -140,13 +147,14 @@ def messageboard_audit_bench(
             Claude Code/Codex), or ``subscription`` for the original CLI login.
         subscription_model: CLI model identifier for the subscription backend.
             Native runs select their model with Inspect's ``--model`` option.
-        condition: Time-neutral prompt/data/effort condition from ``configs/``.
+        config: Named prompt/data/effort configuration from ``configs/``.
         time_limit_minutes: Trial budget in minutes. Overrides the named
-            condition's 20-minute default. The hard timeout adds five minutes.
+            config's 20-minute default. Native runs have a separate
+            five-minute outer guard for cleanup and log recovery.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
     """
-    cfg = _load_condition(condition)
+    cfg = _load_config(config)
     if agent not in _SUPPORTED_AGENTS:
         raise ValueError(
             f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
@@ -166,17 +174,18 @@ def messageboard_audit_bench(
             "backend='subscription' requires -T subscription_model=<cli-model>"
         )
     if backend == "subscription" and not allow_networked_subscription:
-        raise ValueError("subscription mode shares model-network access with the shell; use backend=inspect for network isolation or explicitly set allow_networked_subscription=true")
+        raise ValueError("subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools")
     budget_min = _time_limit(time_limit_minutes)
-    timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
+    cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
     sample_metadata = {
         "agent": agent,
+        "scaffold": _scaffold(agent, backend),
         "backend": backend,
-        "condition": condition,
+        "isolation": ("network_none" if backend == "inspect" else "provider_network_shared"),
+        "config": config,
         "budget_min": budget_min,
         "data_variant": cfg["data_variant"],
         "effort": cfg["effort"],
-        "isolation": "network_none" if backend == "inspect" else "provider_network_shared",
         "report_min_words": limits(cfg)[0],
         "report_max_words": limits(cfg)[1],
         "report_accept_min_words": acceptance_limits(cfg)[0],
@@ -185,17 +194,17 @@ def messageboard_audit_bench(
     if subscription_model is not None:
         sample_metadata["subscription_model"] = subscription_model
     sample = Sample(
-        input=_prompt_for(condition, budget_min),
-        id=f"{agent}:{backend}:{condition}:{budget_min}m",
+        input=_prompt_for(config, budget_min),
+        id=f"{agent}:{backend}:{config}:{budget_min}m",
         metadata=sample_metadata,
     )
     if backend == "inspect":
         selected_solver = inspect_native_agent(
             agent=agent,
             time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
             report_min_words=limits(cfg)[0],
             report_max_words=limits(cfg)[1],
-            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
         )
         selected_sandbox = _inspect_sandbox(cfg["data_variant"])
         generate_config = GenerateConfig(
@@ -208,9 +217,9 @@ def messageboard_audit_bench(
             agent=agent,
             model=subscription_model,
             allow_networked_subscription=allow_networked_subscription,
-            condition=condition,
+            config=config,
             time_limit_minutes=budget_min,
-            timeout_minutes=timeout_minutes,
+            timeout_minutes=cleanup_timeout_minutes,
             prompt=cfg["prompt"],
             data_variant=cfg["data_variant"],
             effort=cfg["effort"],
@@ -230,15 +239,25 @@ def messageboard_audit_bench(
         # Native execution gets a scoped budget plus this outer cleanup guard.
         # The subscription runner already owns its hard timeout; another equal
         # Inspect timeout can interrupt transcript folding and report recovery.
-        time_limit=timeout_minutes * 60 if backend == "inspect" else None,
+        time_limit=(cleanup_timeout_minutes * 60 if backend == "inspect" else None),
         version=EVAL_VERSION,
         metadata={
             "benchmark": "MessageBoardAuditBench",
             "backend": backend,
-            "condition": condition,
+            "scaffold": _scaffold(agent, backend),
+            "config": config,
             "time_limit_minutes": budget_min,
-            "hard_time_limit_minutes": timeout_minutes,
+            "hard_time_limit_minutes": cleanup_timeout_minutes,
+            "host_cleanup_guard_minutes": (
+                cleanup_timeout_minutes + TIMEOUT_GRACE_MINUTES
+                if backend == "subscription"
+                else None
+            ),
             "data_variant": cfg["data_variant"],
+            "report_min_words": limits(cfg)[0],
+            "report_max_words": limits(cfg)[1],
+            "report_accept_min_words": acceptance_limits(cfg)[0],
+            "report_accept_max_words": acceptance_limits(cfg)[1],
         },
     )
 
@@ -249,12 +268,14 @@ def messageboard_audit_bench_replay(
     include_failed: bool = True,
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
-    """Import completed local runs into Inspect without rerunning agents."""
+    """Import local run artifacts into Inspect without rerunning agents."""
     samples = []
     for d in sorted((repo_root() / "runs").glob(runs_glob)):
         if not (d / "transcript.jsonl").exists():
             continue
         meta_path = d / "meta.json"
+        # Nonzero exits can still contain a valuable partial trajectory. The
+        # replay solver records the exit status and missing-report state.
         if not meta_path.exists() or (not include_failed and json.loads(meta_path.read_text()).get("exit_code") != 0):
             continue
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")

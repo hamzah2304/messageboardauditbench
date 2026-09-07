@@ -106,6 +106,14 @@ def process_metrics() -> Scorer:
                 "output_tokens": m.get("output_tokens"),
                 "wall_seconds": m.get("wall_seconds"),
                 "report_chars": m.get("report_chars"),
+                "report_words": m.get("report_words"),
+                "report_length_ping_count": m.get("report_length_ping_count"),
+                "post_tool_hook_fired": m.get("post_tool_hook_fired"),
+                "stop_hook_fired": m.get("stop_hook_fired"),
+                "terminal_refusal": m.get("terminal_refusal"),
+                "agent_stop_reason": m.get("agent_stop_reason"),
+                "backend": m.get("backend"),
+                "scaffold": m.get("scaffold"),
             },
         )
 
@@ -114,7 +122,7 @@ def process_metrics() -> Scorer:
 
 @scorer(metrics=[mean()])
 def report_length() -> Scorer:
-    """Separate format compliance from report quality; legacy runs are exempt."""
+    """Score the saved acceptance policy separately from report quality."""
     async def score(state: TaskState, target: Target) -> Score:
         from messageboard_audit_bench.report_length import (
             acceptance_limits,
@@ -124,18 +132,42 @@ def report_length() -> Scorer:
 
         low, high = limits(state.metadata)
         result = measure(
-            state.output.completion if state.output else "", low, high,
+            state.output.completion if state.output else "",
+            low,
+            high,
             exists=bool(state.metadata.get("report_written")),
             acceptance=acceptance_limits(state.metadata),
         )
-        # _fold checks the actual report file, including Codex fallback cases.
         if "report_length_compliant" in state.metadata:
-            result.update({key: state.metadata[key] for key in result if key in state.metadata})
+            result.update(
+                {
+                    key: state.metadata[key]
+                    for key in result
+                    if key in state.metadata
+                }
+            )
         valid = result["report_length_compliant"]
+        if not high:
+            answer = "disabled"
+            explanation = "No length requirement recorded for this run."
+        else:
+            answer = "accepted" if valid else "outside acceptance limits or missing"
+            explanation = (
+                f"{result['report_words']} words; acceptance bounds "
+                f"{result['report_accept_min_words']}–"
+                f"{result['report_accept_max_words']} inclusive; report must be "
+                "nonempty."
+            )
+        if valid is None:
+            return Score.unscored(
+                answer=answer,
+                explanation=explanation,
+                metadata=result,
+            )
         return Score(
             value=0.0 if valid is False else 1.0,
-            answer="disabled" if valid is None else "accepted" if valid else "outside acceptance limits or missing",
-            explanation=f"{result['report_words']} words; acceptance bounds {result['report_accept_min_words']}–{result['report_accept_max_words']} inclusive; report must be nonempty." if high else "No length requirement recorded for this run.",
+            answer=answer,
+            explanation=explanation,
             metadata=result,
         )
 

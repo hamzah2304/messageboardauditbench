@@ -19,6 +19,7 @@ The final `result` event carries the totals.
   react_agent.py --model moonshotai/kimi-k3 --prompt-file /work/prompt.txt --effort medium --budget-min 20
 """
 import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
+from pathlib import Path
 
 from pathlib import Path
 from report_length import env_limits, feedback_if_changed, stop_reason
@@ -102,7 +103,7 @@ def chat(base, key, body):
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": e.code, "error": msg[:200]})
                 time.sleep(2 ** attempt); continue
             raise RuntimeError(f"HTTP {e.code}: {msg}")
-        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as e:  # incl. IncompleteRead, RemoteDisconnected
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as e:
             if attempt < 5:
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": None, "error": str(e)[:200]})
                 time.sleep(2 ** attempt); continue
@@ -198,7 +199,8 @@ def main():
         msgs.append(assistant)
         if not calls:
             reason = stop_reason(Path(a.cwd) / "report.md", *env_limits())
-            if not reason: break
+            if not reason:
+                break
             msgs.append({"role": "user", "content": reason})
             emit({"type": "user", "message": {"content": [{"type": "text", "text": reason}]}})
             continue
@@ -208,7 +210,8 @@ def main():
             out = ("[could not parse tool arguments as JSON]" if "_raw" in args else run_tool(c["function"]["name"], args, a.cwd))
             out += time_left_note()
             note = feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
-            if note: out += "\n\n[" + note + "]"
+            if note:
+                out += "\n\n[" + note + "]"
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})
             results.append({"type": "tool_result", "tool_use_id": c["id"], "content": out})
         emit({"type": "user", "message": {"content": results}})

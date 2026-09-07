@@ -9,7 +9,7 @@ from pathlib import Path
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 
 _EMPTY_SEARCH = re.compile(r"^\s*(?:rg|grep)\b")
-_TIME_FEEDBACK = re.compile(r"\btime budget:\s*about\s+\d+", re.IGNORECASE)
+_TIME_FEEDBACK = re.compile(r"\btime budget:\s*(?:about\s+)?\d+", re.IGNORECASE)
 
 
 def _command(call) -> str:
@@ -81,6 +81,7 @@ def trajectory_metrics(messages) -> dict:
         "time_feedback_messages": feedback_messages,
         "time_feedback_note": "Counts explicit harness budget messages visible in converted transcript text; it does not show whether the model acted on every message.",
         "truncated_tool_outputs": sum("truncat" in t.lower() for t in outputs.values()),
+        "truncation_note": "Text heuristic; corpus quotations can also mention truncation.",
         "no_match_exit_1": len(empty_searches),
     }
 

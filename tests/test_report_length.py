@@ -8,7 +8,6 @@ import pytest
 from inspect_ai.scorer import Target
 
 from messageboard_audit_bench.report_length import (
-    feedback,
     instruction,
     limits,
     measure,
@@ -41,19 +40,17 @@ def test_bad_config_rejected(low, high):
         limits({"report_min_words": low, "report_max_words": high})
 
 
-def test_hooks_report_changes_and_block_until_valid(tmp_path, monkeypatch):
+def test_stop_hook_blocks_only_overlong_reports(tmp_path, monkeypatch):
     report = tmp_path / "report.md"
     monkeypatch.setenv("MBAB_DEADLINE_EPOCH", "9999999999")
-    assert "missing" in feedback(report, 2, 3)[0]
-    for text, expected in [("", "empty report"), ("one two three four", "remove at least 1")]:
-        report.write_text(text)
-        assert expected in stop_reason(report, 2, 3)
-    report.write_text("one two")
+    assert stop_reason(report, 2, 3) == ""
+    report.write_text("")
     assert stop_reason(report, 2, 3) == ""
     report.write_text("one")
-    monkeypatch.setenv("MBAB_DEADLINE_EPOCH", "1")
     assert stop_reason(report, 2, 3) == ""
-    assert feedback(report, 2, 3)[1] is True
+    report.write_text("one two three four")
+    assert "remove at least 1" in stop_reason(report, 2, 3)
+    assert stop_reason(report, 2, 3) == ""
 
 
 @pytest.mark.parametrize("event", ["PostToolUse", "Stop"])
@@ -124,7 +121,7 @@ def test_config_validation_requires_no_inspect_and_fails_invalid(tmp_path):
     assert result.stdout == b""
 
 
-def test_react_revises_after_premature_finish(tmp_path, monkeypatch):
+def test_react_revises_overlong_report_after_finish(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(SCRIPT.parent))
     spec = importlib.util.spec_from_file_location("react_agent", ROOT / "sandbox/react_agent.py")
     react = importlib.util.module_from_spec(spec)
@@ -136,6 +133,7 @@ def test_react_revises_after_premature_finish(tmp_path, monkeypatch):
     monkeypatch.setenv("MBAB_REPORT_MAX_WORDS", "3")
     monkeypatch.setenv("MBAB_DEADLINE_EPOCH", "9999999999")
     monkeypatch.setattr(sys, "argv", ["react_agent.py", "--model", "test", "--cwd", str(tmp_path), "--prompt-file", str(prompt)])
+    (tmp_path / "report.md").write_text("one two three four")
     responses = iter([
         {"content": "Done"},
         {"tool_calls": [{"id": "write", "function": {"name": "write_file", "arguments": json.dumps({"path": "report.md", "content": "one two"})}}]},
@@ -152,7 +150,7 @@ def test_react_revises_after_premature_finish(tmp_path, monkeypatch):
     monkeypatch.setattr(react, "emit", events.append)
     react.main()
     assert len(histories) == 4
-    assert "missing" in histories[1][-1]["content"]
+    assert "4 words" in histories[1][-1]["content"]
     assert "2 words" in histories[2][-1]["content"]
     assert "Report length:" not in histories[3][-1]["content"]
     assert events[-1]["stop_reason"] == "end_turn"

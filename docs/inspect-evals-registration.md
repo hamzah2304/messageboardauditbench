@@ -6,7 +6,7 @@ fresh checkout can install it with `uv sync` and run its registered task as:
 ```bash
 scripts/build_data.sh
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T condition=blind \
+  -T agent=claude -T config=blind \
   -T time_limit_minutes=30 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
@@ -22,7 +22,7 @@ are covered:
 
 - `pyproject.toml` provides PEP 517 packaging and declares `inspect_ai`.
 - The package has an `inspect_ai` entry point and exports the `@task` functions.
-- The task has a stable sample ID, version `1-B`, and run metadata.
+- The task has a stable sample ID, version `4-B`, and run metadata.
 - The source archive and generated variants are checked against committed
   SHA-256 digests, so upstream drift fails loudly.
 - Unit tests cover task construction, native trajectory collection, transcript
@@ -30,6 +30,9 @@ are covered:
 - The default backend uses `inspect_swe.claude_code()` or
   `inspect_swe.codex_cli()`. Inspect controls model calls, provider caching,
   limits, token accounting, sandboxing, and live events.
+- The benchmark preserves Inspect SWE's bridge configuration while installing
+  native after-tool time/report hooks; hook execution is recorded in sample
+  metadata and covered by forced-tool-call Docker smokes.
 - An explicit `backend=subscription` remains available. Its CLI transcript is
   mapped into Inspect messages after execution; conversion diagnostics and a
   corpus-wide checker guard the necessarily non-native import path.

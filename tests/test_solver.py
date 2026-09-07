@@ -6,6 +6,7 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
+    ChatMessageTool,
     ChatMessageUser,
     ModelName,
     ModelOutput,
@@ -179,7 +180,7 @@ async def test_subscription_agent_folds_successful_trial(
     run_dir = _run_dir(tmp_path / "run")
     captured: dict = {}
 
-    def fake_run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
+    async def fake_run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
         captured.update(command=command, **kwargs)
         return subprocess.CompletedProcess(
             args=command,
@@ -188,20 +189,19 @@ async def test_subscription_agent_folds_successful_trial(
             stderr="",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
 
-    state = await subscription_agent(allow_networked_subscription=True,
+    state = await subscription_agent(
+        allow_networked_subscription=True,
         agent="codex",
         model="gpt-test",
-        condition="blind",
+        config="blind",
         time_limit_minutes=37,
-        timeout_minutes=42,
+        timeout_minutes=37,
         prompt="blind",
         data_variant="verbatim",
         effort="xhigh",
-    )(
-        _state(), None
-    )
+    )(_state(), None)
 
     assert state.completed
     assert state.metadata["run_dir"] == str(run_dir)
@@ -211,12 +211,13 @@ async def test_subscription_agent_folds_successful_trial(
     assert captured["env"]["DATA_DIR"].endswith("/data/verbatim")
     assert captured["env"]["EFFORT"] == "xhigh"
     assert captured["env"]["BUDGET_MIN"] == "37"
-    assert captured["env"]["TIMEOUT"] == "42m"
+    assert captured["env"]["TIMEOUT"] == "37m"
+    assert captured["timeout"] == 42 * 60
 
 
 @pytest.mark.asyncio
 async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
-    def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
+    async def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(
             args=command,
             returncode=2,
@@ -224,9 +225,182 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
             stderr="docker unavailable",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
 
-    with pytest.raises(RuntimeError, match="exit code 2: docker unavailable"):
-        await subscription_agent(allow_networked_subscription=True, agent="codex", model="gpt-test", condition="blind")(
-            _state(), None
+    with pytest.raises(
+        RuntimeError,
+        match="before producing a run directory with exit code 2: docker unavailable",
+    ):
+        await subscription_agent(
+            allow_networked_subscription=True,
+            agent="codex",
+            model="gpt-test",
+            config="blind",
+        )(_state(), None)
+
+
+@pytest.mark.asyncio
+async def test_subscription_agent_can_refuse_proxy_tradeoff() -> None:
+    with pytest.raises(ValueError, match="restricted proxy"):
+        await subscription_agent(agent="codex", model="gpt-test", allow_networked_subscription=False)(_state(), None)
+
+
+@pytest.mark.asyncio
+async def test_subscription_agent_folds_timed_out_trial(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = _run_dir(tmp_path / "timed-out")
+
+    async def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=124,
+            stdout=f"run: {run_dir}\n",
+            stderr="time limit reached",
         )
+
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+
+    state = await subscription_agent(
+        allow_networked_subscription=True,
+        agent="codex",
+        model="gpt-test",
+        config="blind",
+        timeout_minutes=3,
+    )(_state(), None)
+
+    assert state.completed
+    assert state.metadata["runner_returncode"] == 124
+    assert state.metadata["trial_failed"] is True
+    assert "Investigation complete" in state.messages[-1].text
+
+
+@pytest.mark.asyncio
+async def test_subscription_agent_recovers_host_guard_timeout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dir = _run_dir(tmp_path / "host-timeout")
+    cleaned = []
+
+    async def fake_run(command: list[str], **_kwargs):
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout=480,
+            output=f"run: {run_dir}\n".encode(),
+            stderr=b"stuck cleanup",
+        )
+
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+    monkeypatch.setattr(
+        "messageboard_audit_bench.solver._cleanup_interrupted_run",
+        lambda path: cleaned.append(path),
+    )
+
+    state = await subscription_agent(
+        allow_networked_subscription=True,
+        agent="codex",
+        model="gpt-test",
+        config="blind",
+        timeout_minutes=3,
+    )(_state(), None)
+
+    assert cleaned == [run_dir]
+    assert state.metadata["runner_returncode"] == 124
+    assert state.metadata["trial_failed"] is True
+    assert state.metadata["run_dir"] == str(run_dir)
+
+
+@pytest.mark.asyncio
+async def test_subscription_refusal_reruns_twice_with_same_model(
+    tmp_path: Path, monkeypatch
+) -> None:
+    run_dirs = [_run_dir(tmp_path / f"refusal-{index}") for index in range(3)]
+    with (run_dirs[0] / "transcript.jsonl").open("a") as stream:
+        stream.write(
+            json.dumps(
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "retry-command",
+                        "type": "command_execution",
+                        "command": "rg retry data",
+                        "aggregated_output": "",
+                    },
+                }
+            )
+            + "\n"
+        )
+    calls = 0
+
+    async def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
+        nonlocal calls
+        run_dir = run_dirs[calls]
+        calls += 1
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=5,
+            stdout=f"run: {run_dir}\n",
+            stderr="model refusal",
+        )
+
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+
+    state = await subscription_agent(
+        allow_networked_subscription=True,
+        agent="codex",
+        model="same-model",
+        config="blind",
+        timeout_minutes=3,
+    )(_state(), None)
+
+    assert calls == 3
+    assert state.metadata["refusal_rerun_limit"] == 2
+    assert state.metadata["refusal_reruns"] == 2
+    assert state.metadata["runner_returncode"] == 5
+    assert state.metadata["prior_run_dirs"] == [str(path) for path in run_dirs[:2]]
+    assert state.metadata["usage_scope"] == "final_attempt"
+    assert state.metadata["trajectory_scope"] == "all_imported_attempts"
+    assert state.metadata["trajectory_attempt_count"] == 3
+    assert [
+        item["trajectory_imported"] for item in state.metadata["prior_attempts"]
+    ] == [True, True]
+    prior_tool = next(
+        message for message in state.messages if isinstance(message, ChatMessageTool)
+    )
+    assert prior_tool.tool_call_id.startswith("retry-1:")
+
+
+@pytest.mark.asyncio
+async def test_cancellation_terminates_runner_and_cleans_recorded_resources(
+    tmp_path, monkeypatch
+):
+    import asyncio
+    import sys
+
+    from messageboard_audit_bench.solver import _run_process
+
+    ready = tmp_path / "ready"
+    cleaned = []
+    monkeypatch.setattr(
+        "messageboard_audit_bench.solver._cleanup_interrupted_run",
+        lambda path: cleaned.append(path),
+    )
+    script = (
+        "import pathlib,time; print('run: ' + "
+        + repr(str(tmp_path))
+        + ", flush=True); pathlib.Path("
+        + repr(str(ready))
+        + ").touch(); time.sleep(60)"
+    )
+    task = asyncio.create_task(
+        _run_process([sys.executable, "-c", script], cwd=tmp_path, env={}, timeout=60)
+    )
+    for _ in range(100):
+        if ready.exists():
+            break
+        await asyncio.sleep(0.01)
+    assert ready.exists()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 3)
+    assert cleaned == [tmp_path]

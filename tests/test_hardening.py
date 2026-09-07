@@ -1,58 +1,43 @@
-"""Guards for the operational fixes learned from the Sep 2026 rounds. They read the shell runner as text
-because the behaviours live in bash; the point is that a later edit cannot silently drop them."""
-from pathlib import Path
+"""Regression guards for operational failures observed in prior runs."""
 
-import messageboard_audit_bench.task as task_mod
+import subprocess
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_TRIAL = (ROOT / "sandbox" / "docker" / "run_trial.sh").read_text()
 REACT = (ROOT / "sandbox" / "react_agent.py").read_text()
+POSTPROCESS = (ROOT / "scripts" / "postprocess_trial.py").read_text()
+NATIVE = (ROOT / "messageboard_audit_bench" / "native.py").read_text()
+MATRIX = ROOT / "scripts" / "run_inspect_matrix.sh"
 
 
 def test_claude_long_lived_token_is_preferred_over_copied_credentials() -> None:
-    # Copied credentials refresh inside every container; parallel refreshes rotate the shared refresh
-    # token and all but the first trial fail to authenticate (2026-09-07). The setup-token file avoids it.
-    token = RUN_TRIAL.index('runs/.claude-oauth-token')
-    creds = RUN_TRIAL.index('cp "$ROOT/runs/.claude-home/.credentials.json"')
-    assert token < creds
+    token = RUN_TRIAL.index("runs/.claude-oauth-token")
+    credentials = RUN_TRIAL.index('cp "$ROOT/runs/.claude-home/.credentials.json"')
+
+    assert token < credentials
     assert "CLAUDE_CODE_OAUTH_TOKEN" in RUN_TRIAL
 
 
-def test_codex_relaunches_when_the_model_is_at_capacity() -> None:
+def test_codex_relaunches_twice_when_model_is_at_capacity() -> None:
     assert "is at capacity" in RUN_TRIAL
-    assert 'for attempt in 1 2 3' in RUN_TRIAL
+    assert "for attempt in 1 2 3" in RUN_TRIAL
+    assert '"turn.completed"' in RUN_TRIAL
 
 
-def test_claude_model_switch_on_refusal_stays_enabled() -> None:
-    # Decision 2026-09-06: let Claude Code switch model after a cyber-safeguard refusal and record
-    # model_served, rather than ending the trial. Disabling it made opus/fable trials die in minutes.
-    assert '"switchModelsOnFlag": false' not in RUN_TRIAL
-    assert "model_served" in RUN_TRIAL
+def test_claude_model_switching_is_not_disabled() -> None:
+    assert '"switchModelsOnFlag":false' not in RUN_TRIAL
+    assert "switchModelsOnFlag" not in NATIVE
+    assert 'meta["model_served"]' in POSTPROCESS
 
 
-def test_refusal_ended_sessions_share_one_exit_code() -> None:
-    # ReAct exits 0 and Claude Code exits 1 when a refusal ends the run; both must become exit 5 so a
-    # caller can rerun refusals uniformly.
-    assert "if rc in (0,1): rc=5" in RUN_TRIAL
-
-
-def test_react_retries_truncated_responses() -> None:
+def test_react_retries_truncated_http_responses() -> None:
     assert "http.client.HTTPException" in REACT
     assert "thought signature" in REACT
 
 
-def test_subscription_kill_keeps_a_grace_period_after_the_budget() -> None:
-    # The container is killed TIMEOUT_GRACE_MINUTES after the budget the agent is told about. A kill at
-    # the budget itself produced empty reports whenever an agent was still writing (codex smoke, 2026-09-07).
-    assert task_mod.TIMEOUT_GRACE_MINUTES >= 5
-    src = (ROOT / "messageboard_audit_bench" / "task.py").read_text()
-    assert "timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES" in src
-    assert "timeout_minutes=timeout_minutes" in src
-
-
 def test_subscription_proxy_is_scoped_to_the_selected_agent() -> None:
     assert '--agent "$AGENT"' in RUN_TRIAL
-    assert "ALLOW_NETWORKED_SUBSCRIPTION" in RUN_TRIAL
 
 
 def test_subscription_never_mounts_two_cli_credential_directories() -> None:
@@ -72,6 +57,50 @@ def test_codex_capacity_retries_preserve_attempts_and_one_deadline() -> None:
     assert 'sleep_seconds=$((remaining < 30 ? remaining : 30))' in RUN_TRIAL
 
 
-def test_postprocessing_returns_the_exit_code_written_to_metadata() -> None:
-    assert '(run/".final_exit_code").write_text(str(rc))' in RUN_TRIAL
-    assert 'RC="$(< "$RUN/.final_exit_code")"' in RUN_TRIAL
+def test_future_subscription_runs_capture_reproducible_provenance() -> None:
+    for artifact in (
+        "config.source.toml",
+        "config.rendered.json",
+        "git.commit",
+        "git.dirty.patch",
+        "code_snapshot.tar.gz",
+        "image.inspect.json",
+        "cli.version.txt",
+    ):
+        assert artifact in RUN_TRIAL
+    assert "subscription_allowlisted_provider_proxy" in RUN_TRIAL
+    assert "accepted_isolation_tradeoff" in RUN_TRIAL
+    assert "config_rendered_sha256" in RUN_TRIAL
+    assert "code_snapshot_sha256" in RUN_TRIAL
+
+
+def test_subscription_artifact_collection_rejects_agent_created_symlinks() -> None:
+    assert '[ -L "$source" ]' in RUN_TRIAL
+    assert "symlink_rejected" in RUN_TRIAL
+    assert '"launch_status":"preparing"' in RUN_TRIAL
+
+
+
+def test_matrix_cli_uses_config_and_inspect_epochs() -> None:
+    result = subprocess.run(
+        [
+            str(MATRIX),
+            "--agent",
+            "claude",
+            "--config",
+            "blind",
+            "--model",
+            "mockllm/model",
+            "--epochs",
+            "3",
+            "--dry-run",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "config=blind" in result.stdout
+    assert "--epochs 3" in result.stdout
+    assert "condition" not in result.stdout

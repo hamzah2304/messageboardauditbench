@@ -8,6 +8,21 @@ every mounted JSONL file, confirms that `/work` contains only the four intended
 data files, and fails if a non-loopback interface is present. The resulting
 record belongs in each Inspect sample's metadata.
 
+Inspect's bridge normally starts its remote-exec server as root. That conflicts
+with a non-root CLI when `cap_drop: ALL` removes root's usual override for file
+permissions: the proxy cannot write an agent-owned bridge request directory.
+The benchmark registers an Inspect Docker environment that declines root exec.
+Inspect then follows its documented rootless path, so the server, model proxy,
+and agent CLI all run as uid 1000. This keeps `network_mode: none`,
+`cap_drop: ALL`, and `no-new-privileges` in place. A clean offline mock-model
+smoke run completed for both native Claude and native Codex on 2026-09-07,
+producing a verified `report.md` and two model calls for each harness.
+
+This relies on the current Inspect Docker factory and its documented rootless
+injection fallback. It should be rechecked when the Inspect dependency lock is
+updated. The bridge helpers share the agent's uid, so they must remain
+answer-free and are not a boundary against code running as that agent.
+
 The subscription runner is a different execution mode. It needs a connection
 to the vendor because Claude Code and Codex authenticate and make model calls
 from inside the shell. It therefore cannot make the same isolation claim. Its
