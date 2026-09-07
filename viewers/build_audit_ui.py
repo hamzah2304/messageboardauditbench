@@ -20,9 +20,10 @@ exists the quote is matched exactly or with whitespace/punctuation normalised, a
 that fails the claim is reported as having no anchor rather than highlighted approximately.
 """
 import importlib.util, json, re, sys, pathlib
+from urllib.parse import quote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from paths import ROOT, RUBRICS, GRADED, GRADED_INPUTS, VIEWERS
+from paths import ROOT, RUBRICS, GRADED, GRADED_INPUTS, VIEWERS, CORPUS
 
 OUT = VIEWERS / "audit.html"
 DATA_DIR = VIEWERS / "data" / "audit"          # one <key>.json per report, fetched on demand
@@ -147,6 +148,29 @@ mark[data-audit].flash{animation:auditflash 1.1s ease-out}
 """
 
 
+FONTS = CORPUS / "fonts"
+
+
+def font_css(css: str) -> str:
+    """Point the site's @font-face rules at the vendored font files.
+
+    The stylesheet asks for fonts/et-book-*.woff relative to the page. Both panes are
+    served from the viewer's /file endpoint, where a relative URL resolves to nothing,
+    so rewrite each to an absolute /file?p= path. Without this both panes fall back to
+    Palatino and the report stops looking like the report.
+    """
+    def sub(m):
+        f = FONTS / m.group(1)
+        return f'url("/file?p={quote(str(f))}")' if f.exists() else 'local("no-such-font")'
+    return re.sub(r'url\("fonts/([^"]+)"\)', sub, css)
+
+
+def face_css() -> str:
+    """Just the @font-face rules, for the audit page's own document."""
+    faces = re.findall(r"@font-face[^}]*}", (CORPUS / "wiki_tokens.css").read_text())
+    return font_css("\n".join(faces))
+
+
 def write_human_html():
     """The published report, styled, with every collapsed block already open.
 
@@ -160,7 +184,7 @@ def write_human_html():
                   r'\1 checked>', html)
     html = re.sub(r'<details(?![^>]*\bopen\b)', '<details open', html)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    HUMAN_HTML.write_text(HUMAN_SHELL % (w.css(), html))
+    HUMAN_HTML.write_text(HUMAN_SHELL % (font_css(w.css()), html))
     return w.article_text()
 
 
@@ -275,7 +299,7 @@ def main():
             "claims": claims, "reports": reports,
             "built": __import__("datetime").datetime.now().isoformat(timespec="seconds")}
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    OUT.write_text(TEMPLATE.replace("__DATA__", payload))
+    OUT.write_text(TEMPLATE.replace("__DATA__", payload).replace("/*__FONTS__*/", face_css()))
     det = sum(f.stat().st_size for f in DATA_DIR.glob("*.json"))
     anchored = sum(1 for c in claims if c["anchor_source"] == "anchors")
     print(f"{OUT}: {len(reports)} reports, {len(claims)} claims; shell {OUT.stat().st_size/1e6:.2f} MB inline + "
@@ -292,7 +316,8 @@ TEMPLATE = r'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Judge audit — MessageBoardAuditBench</title>
 <style>
-:root{--bg:#F4F3EE;--card:#FFFFFF;--border:#E0DDD4;--ink:#1A1A1A;--ink2:#666666;--mut:#999999;--accent:#C15F3C;--accent2:#9C4A2D;--soft:#FDF2EC;--row:#FAFAF7;--ok-bg:#D1FAE5;--ok:#065F46;--warn-bg:#FEF3C7;--warn:#92400E;--dang-bg:#FEE2E2;--dang:#991B1B;--grey-bg:#ECEAE3;--grey:#555}
+/*__FONTS__*/
+:root{--essay-serif:"et-book",Palatino,"Palatino Linotype","Palatino LT STD","Book Antiqua",Georgia,serif;--essay-mono:SFMono-Regular,Menlo,Consolas,Monaco,"Liberation Mono",monospace;--sans-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--paper:#FFFFF8;--essay-ink:#111;--essay-dull:#666;--essay-wash:#F6F6EE;--essay-dull-bg:#F0F0F0;--essay-hair:#E8E8DF;--essay-rule:#D6D6CC;--essay-green:#2A623D;--essay-ui:#31566F;--bg:#F4F3EE;--card:#FFFFFF;--border:#E0DDD4;--ink:#1A1A1A;--ink2:#666666;--mut:#999999;--accent:#C15F3C;--accent2:#9C4A2D;--soft:#FDF2EC;--row:#FAFAF7;--ok-bg:#D1FAE5;--ok:#065F46;--warn-bg:#FEF3C7;--warn:#92400E;--dang-bg:#FEE2E2;--dang:#991B1B;--grey-bg:#ECEAE3;--grey:#555}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45;display:grid;grid-template-rows:auto 1fr;height:100vh;overflow:hidden}
@@ -360,18 +385,32 @@ textarea:focus{outline:2px solid var(--soft);border-color:var(--accent)}
 .pane h3 span{color:var(--mut);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pane h3 button{margin-left:auto;flex:none}
 .remind{font-size:11px;color:var(--mut);padding:3px 12px 3px 26px;border-bottom:1px solid var(--border);background:var(--card);font-style:italic}
-.doc{overflow:auto;padding:10px 14px 45vh 26px;background:var(--card);flex:1;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}
+/* The model report in the published report's clothes: the essay's serif, its narrow
+   type rung (root 15px, body 1.2rem = 18px) and its cream paper, so the two panes read
+   as one document. Every character of the markdown is still in the DOM in source order —
+   the syntax markers are merely hidden — so the Python character offsets still land. */
+.doc{overflow:auto;padding:14px 18px 45vh 34px;background:var(--paper);color:var(--essay-ink);flex:1;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--essay-serif);font-size:18px;line-height:1.42}
 #hframe{flex:1;width:100%;border:0;background:#fff;min-height:0}
-.ln{min-height:1.4em}
-.ln.h1{font-size:16px;font-weight:700;color:var(--accent);margin-top:8px}.ln.h2{font-size:14px;font-weight:700;color:var(--accent2);margin-top:6px}.ln.h3{font-weight:700;margin-top:4px}
-.ln.code,.ln.tbl{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;background:var(--row)}
-.ln.quote{color:var(--ink2);border-left:3px solid var(--border);padding-left:8px}
+.ln{min-height:1.42em;max-width:34em}
+.ln.h1{font-size:30px;line-height:1.15;font-weight:700;margin:22px 0 4px}
+.ln.h2{font-size:24.75px;line-height:1.2;font-weight:700;margin:18px 0 3px}
+.ln.h3{font-size:21px;line-height:1.25;font-weight:700;margin:14px 0 2px}
+.ln.code,.ln.tbl{font-family:var(--essay-mono);font-size:13px;line-height:1.45;background:var(--essay-wash);max-width:none}
+.ln.quote{color:#333;border-left:3px solid var(--essay-green);background:var(--essay-wash);padding:1px 10px}
+/* inline markdown: the marker characters stay in the DOM and are hidden, the text between
+   them is rendered — so offsets are untouched and the reader sees prose, not asterisks */
+.md-mk{display:none}
+.md-bul{font-size:0}.md-bul::before{content:'•';font-size:18px;color:var(--essay-dull)}
+.md-pipe{color:#B9B9AE}
+.doc strong{font-weight:700}.doc em{font-style:italic}
+.doc code{font-family:var(--essay-mono);font-size:.86em;background:var(--essay-dull-bg);padding:0 .3em;border-radius:2px}
+.doc a{color:inherit;text-decoration:underline}
 .ln.p{position:relative;border-left:3px solid transparent;margin-left:-12px;padding-left:9px;cursor:pointer}
 .ln.p:hover{background:var(--row)}
-.ln.p .g{position:absolute;left:-17px;top:3px;width:14px;height:14px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--mut);font-size:10px;line-height:12px;text-align:center;opacity:0;font-style:normal}
+.ln.p .g{position:absolute;left:-22px;top:5px;font-family:var(--sans-ui);width:14px;height:14px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--mut);font-size:10px;line-height:12px;text-align:center;opacity:0;font-style:normal}
 .ln.p:hover .g,.ln.p.has .g{opacity:1}.ln.p.has .g{color:var(--accent);border-color:var(--accent)}
 .ln.p.a-true{border-left-color:#34A87A}.ln.p.a-false{border-left-color:#D9534F}.ln.p.a-irr{border-left-color:#C9C6BC;color:var(--mut)}.ln.p.a-note{border-left-color:var(--accent)}
-.strip{margin:4px 0 10px -12px;padding:8px 10px;background:var(--row);border:1px solid var(--border);border-radius:8px;font-size:12px;white-space:normal;cursor:default}
+.strip{margin:6px 0 12px -12px;padding:8px 10px;background:var(--row);border:1px solid var(--border);border-radius:8px;font-family:var(--sans-ui);font-size:12px;line-height:1.45;color:var(--ink);white-space:normal;cursor:default;max-width:none}
 .strip .row{margin:2px 0}.strip textarea{min-height:34px;margin-top:4px}
 .strip .lab{font-weight:600;color:var(--ink2)}
 .cbox{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--card)}
@@ -882,22 +921,69 @@ function togglePara(rk, li) {
   if (openParas.has(li)) { const ta = document.querySelector('#mdoc .strip[data-li="' + li + '"] textarea'); if (ta) ta.focus(); }
 }
 
+/* ---------- markdown, rendered without moving a character ----------
+   Every character of the line keeps its place and its order in the DOM; the syntax markers
+   are simply wrapped in a span the stylesheet hides. So the Python character offsets that
+   drive the highlights, and the data-li line indices the paragraph cards key off, are
+   untouched — the reader just sees bold text instead of asterisks.
+   Returns one tag per character: '' plain, 'mk' a hidden marker, or strong/em/code/bul/pipe. */
+function mdRuns(line, cls) {
+  const n = line.length, k = new Array(n).fill('');
+  if (cls === 'code') return k;                       /* inside a fence, nothing is markup */
+  const set = (s, e, v) => { for (let i = s; i < e; i++) k[i] = v; };
+  const free = (s, e) => { for (let i = s; i < e; i++) if (k[i]) return false; return true; };
+  if (/^\s*(?:[-*_] *){3,}$/.test(line)) { set(0, n, 'mk'); return k; }   /* a horizontal rule */
+  let m;
+  if ((m = /^(\s*)#{1,6}\s+/.exec(line))) set(m[1].length, m[0].length, 'mk');
+  else if ((m = /^(\s*)>+\s?/.exec(line))) set(m[1].length, m[0].length, 'mk');
+  else if ((m = /^(\s*)[-*+](\s+)/.exec(line))) set(m[1].length, m[1].length + 1, 'bul');
+  if (cls === 'tbl') { for (let i = 0; i < n; i++) if (line[i] === '|') k[i] = 'pipe'; return k; }
+  const pass = (re, kind) => {
+    re.lastIndex = 0; let mm;
+    while ((mm = re.exec(line))) {
+      const s = mm.index, e = s + mm[0].length, w = mm[1].length;
+      if (!free(s, e)) continue;
+      if (mm[1][0] === '_') {                         /* leave snake_case identifiers alone */
+        if (/[A-Za-z0-9]/.test(s ? line[s - 1] : ' ') || /[A-Za-z0-9]/.test(e < n ? line[e] : ' ')) continue;
+      }
+      set(s, s + w, 'mk'); set(e - w, e, 'mk'); set(s + w, e - w, kind);
+    }
+  };
+  pass(/(`+)([^`]+?)\1/g, 'code');
+  pass(/(\*\*|__)(\S(?:[\s\S]*?\S)?)\1/g, 'strong');
+  pass(/(\*|_)(\S(?:[\s\S]*?\S)?)\1/g, 'em');
+  return k;
+}
+function mdRun(parent, text, kind) {
+  if (!kind) { parent.appendChild(document.createTextNode(text)); return; }
+  const x = document.createElement(kind === 'strong' ? 'strong' : kind === 'em' ? 'em' : kind === 'code' ? 'code' : 'span');
+  if (kind === 'mk' || kind === 'bul' || kind === 'pipe') x.className = 'md-' + kind;
+  x.textContent = text; parent.appendChild(x);
+}
+/* emit line[from,to) into parent, one element per run of like-tagged characters */
+function mdEmit(parent, line, k, from, to) {
+  let i = from;
+  while (i < to) { let j = i; while (j + 1 < to && k[j + 1] === k[i]) j++; mdRun(parent, line.slice(i, j + 1), k[i]); i = j + 1; }
+}
+
 function renderDoc(target, text, ranges, rk) {
   const lines = text.split('\n'); const frag = document.createDocumentFragment(); let off = 0, inCode = false;
   lines.forEach((line, li) => {
     const ls = off, le = off + line.length; off = le + 1;
-    const div = el('div', 'ln ' + lineClass(line, inCode)); if (line.startsWith('```')) inCode = !inCode;
+    const cls = lineClass(line, inCode);
+    const div = el('div', 'ln ' + cls); if (line.startsWith('```')) inCode = !inCode;
+    const k = mdRuns(line, cls);
     const cuts = new Set([ls, le]); const hits = [];
     for (const r of ranges) if (r.e > ls && r.s < le) { hits.push(r); cuts.add(Math.max(r.s, ls)); cuts.add(Math.min(r.e, le)); }
-    if (!hits.length) div.textContent = line;
+    if (!hits.length) mdEmit(div, line, k, 0, line.length);
     else {
       const pts = [...cuts].sort((a, b) => a - b);
       for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i], b = pts[i + 1]; if (a >= b) continue; const seg = text.slice(a, b); const cover = hits.filter(r => r.s < b && r.e > a);
-        if (!cover.length) { div.appendChild(document.createTextNode(seg)); continue; }
+        const a = pts[i], b = pts[i + 1]; if (a >= b) continue; const cover = hits.filter(r => r.s < b && r.e > a);
+        if (!cover.length) { mdEmit(div, line, k, a - ls, b - ls); continue; }
         const m = el('mark'); const sel = cover.find(r => r.cid === selClaim); const top = sel || cover.slice().sort((x, y) => (y.score || 0) - (x.score || 0))[0];
         m.className = scoreClass(top.score) + (sel ? ' sel' : ''); m.dataset.cids = cover.map(r => r.cid).join(',');
-        m.title = cover.map(r => r.cid + ' (' + fmtScore(r.score) + ') ' + CBY[r.cid].claim).join(' · '); m.textContent = seg;
+        m.title = cover.map(r => r.cid + ' (' + fmtScore(r.score) + ') ' + CBY[r.cid].claim).join(' · '); mdEmit(m, line, k, a - ls, b - ls);
         m.onclick = ev => {
           ev.stopPropagation();
           const next = sel && cover.length > 1 ? cover[(cover.indexOf(sel) + 1) % cover.length].cid : cover[0].cid;
