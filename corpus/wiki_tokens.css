@@ -1,0 +1,59 @@
+/* ------------------------------------------------------------------ */
+/* Tokens — from ai-2030/app/globals.css (the AI 2040 essay palette). */
+/* ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+  /* The generated analysis page still carries stale tokens in an inline style after its links.
+     Important makes this root-owned contract win without duplicating its values downstream. */
+  --vivid-background: #fffff8 !important;
+  --vivid-foreground: #000 !important;
+  --dull-background: #f0f0f0 !important;
+  --dull-foreground: #666 !important;
+
+  /* Two tiers, and the difference between them is the whole scheme.
+
+     SEMANTIC — green and amber make a claim about where a thing came from, so they are spent
+     only where that claim is the point: the timeline's two rails, the rule down the side of a
+     quoted block, the highlight inside one. Green is what we established from the wiki dumps;
+     amber is what was reported from outside them (OpenAI and METR's own write-ups, the Hugging
+     Face incident, quotes from our test agents). Every other use dilutes them, which is how the
+     authors came to be green — so nothing decorative may reach for these.
+
+     STRUCTURAL — slate carries no claim. It is the site's machinery (links in the explorer,
+     focus rings, folds, toggles, pagers) and the machinery in the evidence (IP addresses, agent
+     handles, raw log records). Cool against the cream, so it never competes with the two warm
+     signals for the reader's attention. */
+
+  /* semantic: inside the dumps */
+  --accent: #2A623D !important;
+  --accent-tint: #e6efe9 !important;    /* its wash: highlights, timeline date badges */
+  --accent-head: #f0f2ea !important;    /* the head strip of an in-dumps card */
+
+  /* semantic: outside the dumps */
+  --outside: #c77400 !important;        /* rules, dots and borders ONLY: 3.5:1 on cream clears the
+                                           3:1 asked of non-text but not the 4.5:1 asked of text */
+  --outside-ink: #7a4b00 !important;    /* the same signal wherever it has to be text — 7.4:1, and
+                                           nearly every amber text on the site is a 10-12px label */
+  --outside-tint: #fbe9cc !important;
+  --outside-head: #f5f1e6 !important;
+  --outside-wash: #fff8ea !important;   /* the fill of a warn or todo box */
+
+  /* structural */
+  --ui: #31566f !important;
+  --ui-tint: #e9edf1 !important;        /* its wash: the footnote number under the cursor */
+
+  --wash: #f6f6ee !important;           /* a quoted panel's fill */
+  --hair: #e8e8df !important;
+  --rule: #d6d6cc !important;
+  --ink: #111 !important;
+
+  --serif: "et-book", Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif !important;
+  --sans: -apple-system, BlinkMacSystemFont, "avenir next", avenir, "segoe ui", "helvetica neue", helvetica, arial, sans-serif !important;
+  --mono: SFMono-Regular, Menlo, Consolas, Monaco, "Liberation Mono", "Lucida Console", monospace !important;
+
+  /* the essay's geometry is one column, --col, owned by chrome.css and shared with the explorer */
+}
+
+@font-face { font-family: "et-book"; src: url("fonts/et-book-roman-line-figures.woff"); font-weight: normal; font-style: normal; font-display: swap; }
+@font-face { font-family: "et-book"; src: url("fonts/et-book-italic.woff2"); font-weight: normal; font-style: italic; font-display: swap; }
+@font-face { font-family: "et-book"; src: url("fonts/et-book-bold-line-figures.woff"); font-weight: bold; font-style: normal; font-display: swap; }
