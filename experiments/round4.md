@@ -63,9 +63,9 @@ model cells. With three epochs, the following runs at most nine samples per
 lane and starts 120-minute cells before 30-minute cells:
 
 ```sh
-uv run python scripts/run_round4.py --lane claude --time-limit-minutes 120 --time-limit-minutes 30 --parallel-jobs 3 --max-samples 3 --max-sandboxes 3 --execute
-uv run python scripts/run_round4.py --lane codex --time-limit-minutes 120 --time-limit-minutes 30 --parallel-jobs 3 --max-samples 3 --max-sandboxes 3 --execute
-uv run python scripts/run_round4.py --lane react --time-limit-minutes 120 --time-limit-minutes 30 --parallel-jobs 3 --max-samples 3 --max-sandboxes 3 --execute
+uv run python scripts/run_round4.py --lane claude --time-limit-minutes 120 --time-limit-minutes 30 --parallel-jobs 4 --max-samples 3 --max-sandboxes 3 --resume-existing --execute
+uv run python scripts/run_round4.py --lane codex --time-limit-minutes 120 --time-limit-minutes 30 --parallel-jobs 4 --max-samples 3 --max-sandboxes 3 --resume-existing --execute
+uv run python scripts/run_round4.py --lane react --time-limit-minutes 120 --time-limit-minutes 30 --parallel-jobs 6 --max-samples 3 --max-sandboxes 3 --resume-existing --execute
 ```
 
 For narrower staged launches, select one system. This is useful for the initial

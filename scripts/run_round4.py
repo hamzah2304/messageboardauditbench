@@ -10,6 +10,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -156,9 +157,7 @@ def select_jobs(
             if isinstance(time_limit_minutes, int)
             else set(time_limit_minutes)
         )
-        selected = [
-            job for job in selected if job.budget_minutes in requested
-        ]
+        selected = [job for job in selected if job.budget_minutes in requested]
     if not selected:
         raise ValueError("no jobs match the requested lane/system")
     return selected
@@ -179,8 +178,30 @@ def run_job(
     max_samples: int | None,
     max_sandboxes: int | None,
     epochs: int | None,
+    resume_existing: bool = False,
 ) -> int:
     destination = log_dir(manifest, job)
+    existing = (
+        sorted(destination.glob("*.eval"), key=lambda path: path.stat().st_mtime)
+        if destination.is_dir()
+        else []
+    )
+    if resume_existing and existing:
+        current = existing[-1]
+        while True:
+            try:
+                status = read_eval_log(current, header_only=True).status
+            except (EOFError, OSError, ValueError):
+                status = "started"
+            if status != "started":
+                print(
+                    f"ATTACHED: {job.system_id} {job.budget_minutes}m "
+                    f"finished with status {status}"
+                )
+                return 0 if status == "success" else 1
+            print(f"ATTACHED: waiting for {job.system_id} {job.budget_minutes}m")
+            time.sleep(30)
+
     before = set(destination.glob("*.eval")) if destination.is_dir() else set()
     result = subprocess.run(
         command(manifest, job, max_samples, max_sandboxes, epochs),
@@ -308,6 +329,11 @@ def main() -> int:
         default=1,
         help="model cells to run concurrently (default: 1)",
     )
+    parser.add_argument(
+        "--resume-existing",
+        action="store_true",
+        help="attach to the newest existing log for each cell instead of duplicating it",
+    )
     args = parser.parse_args()
 
     try:
@@ -363,10 +389,7 @@ def main() -> int:
     ) as executor:
         futures = {}
         for index, job in enumerate(jobs, start=1):
-            print(
-                f"[{index}/{len(jobs)}] queued {job.system_id} "
-                f"{job.budget_minutes}m"
-            )
+            print(f"[{index}/{len(jobs)}] queued {job.system_id} {job.budget_minutes}m")
             future = executor.submit(
                 run_job,
                 manifest,
@@ -374,6 +397,7 @@ def main() -> int:
                 args.max_samples,
                 args.max_sandboxes,
                 args.epochs,
+                args.resume_existing,
             )
             futures[future] = job
         for future in concurrent.futures.as_completed(futures):
