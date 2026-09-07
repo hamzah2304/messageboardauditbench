@@ -53,6 +53,7 @@ def _run_dir(path: Path) -> Path:
                 "agent": "codex",
                 "model": "gpt-test",
                 "config": "blind-10",
+                "prompt": "blind",
                 "budget_min": 10,
                 "data_variant": "verbatim",
                 "wall_seconds": 7,
@@ -88,6 +89,7 @@ def test_fold_imports_report_transcript_and_usage(tmp_path: Path) -> None:
     assert state.metadata["input_tokens_uncached"] == 9
     assert state.metadata["cache_read_fraction"] == 0.25
     assert state.metadata["usage_schema"] == 2
+    assert state.metadata["condition"] == "blind"
     assert state.metadata["report_written"] is True
     assert state.metadata["wall_seconds"] == 7
 
@@ -191,9 +193,12 @@ async def test_cli_agent_folds_successful_trial(
     state = await cli_agent(
         agent="codex",
         model="gpt-test",
-        config="blind-10",
+        condition="blind",
         time_limit_minutes=37,
         timeout_minutes=42,
+        prompt="blind",
+        data_variant="verbatim",
+        effort="xhigh",
     )(
         _state(), None
     )
@@ -201,7 +206,10 @@ async def test_cli_agent_folds_successful_trial(
     assert state.completed
     assert state.metadata["run_dir"] == str(run_dir)
     assert captured["command"][-3:] == ["codex", "gpt-test", "1"]
-    assert captured["env"]["CONFIG"] == "blind-10"
+    assert captured["env"]["CONFIG"] == "blind"
+    assert captured["env"]["PROMPT"] == "blind"
+    assert captured["env"]["DATA_DIR"].endswith("/data/verbatim")
+    assert captured["env"]["EFFORT"] == "xhigh"
     assert captured["env"]["BUDGET_MIN"] == "37"
     assert captured["env"]["TIMEOUT"] == "42m"
 
@@ -219,6 +227,6 @@ async def test_cli_agent_surfaces_trial_failure(monkeypatch) -> None:
     monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="exit code 2: docker unavailable"):
-        await cli_agent(agent="codex", model="gpt-test", config="blind-10")(
+        await cli_agent(agent="codex", model="gpt-test", condition="blind")(
             _state(), None
         )

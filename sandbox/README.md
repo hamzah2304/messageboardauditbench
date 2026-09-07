@@ -101,10 +101,12 @@ Lanes run concurrently. The claude and codex lanes run one trial at a time
 (one subscription each; `LANE_PARALLEL=1` lifts that); the react lane runs
 everything at once. Every trial has its own network and proxy.
 
-Collect the reports for evaluation, one folder per config and prompt version:
+Collect the reports for evaluation, one folder per normalized condition, data
+variant, effort, and rendered prompt. Legacy time-bearing config names are
+normalized to their prompt condition:
 
 ```
-scripts/collect_reports.py     # -> reports/<config>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
+scripts/collect_reports.py     # -> reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
                                #    + CONDITIONS.json per folder, reports/prompts/<prompt8>.txt, reports/index.jsonl
 ```
 

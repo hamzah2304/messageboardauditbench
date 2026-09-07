@@ -24,7 +24,9 @@ CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROO
 eval "$(python3 "$ROOT/scripts/read_config.py" "$CONFIG")"
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
-BUDGET_MIN="${BUDGET_MIN:-$CFG_BUDGET_MIN}"; TIMEOUT="${TIMEOUT:-${CFG_TIMEOUT_MIN}m}"; EFFORT="${EFFORT:-$CFG_EFFORT}"
+. "$HERE/resolve_timeout.sh"
+resolve_trial_time
+EFFORT="${EFFORT:-$CFG_EFFORT}"
 DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
@@ -115,7 +117,7 @@ GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 
 cat > "$RUN/meta.json" <<JSON
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
- "prompt":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
+ "prompt":"$PROMPT_NAME","condition":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
 JSON

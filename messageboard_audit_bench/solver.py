@@ -65,6 +65,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         cost_usd=parsed.cost_usd,
         wall_seconds=meta.get("wall_seconds"),
         config=meta.get("config"),
+        condition=meta.get("condition", meta.get("prompt", meta.get("config"))),
         prompt=meta.get("prompt"),
         budget_min=meta.get("budget_min"),
         data_variant=meta.get("data_variant"),
@@ -84,9 +85,12 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 def cli_agent(
     agent: str,
     model: str,
-    config: str = "default",
+    condition: str = "blind",
     time_limit_minutes: int | None = None,
     timeout_minutes: int | None = None,
+    prompt: str | None = None,
+    data_variant: str | None = None,
+    effort: str | None = None,
 ) -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
@@ -99,7 +103,13 @@ def cli_agent(
             model,
             str(replicate),
         ]
-        env = {"CONFIG": config}
+        env = {"CONFIG": condition}
+        if prompt is not None:
+            env["PROMPT"] = prompt
+        if data_variant is not None:
+            env["DATA_DIR"] = str(repo / "data" / data_variant)
+        if effort is not None:
+            env["EFFORT"] = effort
         if time_limit_minutes is not None:
             env["BUDGET_MIN"] = str(time_limit_minutes)
         if timeout_minutes is not None:

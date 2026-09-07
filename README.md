@@ -143,9 +143,9 @@ scripts/build_data.sh                      # downloads and verifies the dataset
 export ANTHROPIC_API_KEY=...               # the judge needs a key even when the
                                            # agents run on a subscription CLI
 
-# run fresh trials; conditions come from configs/<config>.toml
+# run fresh trials; prompt condition and time are independent
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T model=claude-opus-5 -T config=blind-20 \
+  -T agent=claude -T model=claude-opus-5 -T condition=blind \
   -T time_limit_minutes=30 \
   --epochs 3 --max-samples 1
 
@@ -160,6 +160,11 @@ uv run inspect view                        # browse the .eval logs
 default; ReAct is optional. Each harness uses the same prompt, data, time budget,
 Docker isolation, transcript conversion, and scorers. See the package README for
 complete commands for all three.
+
+The condition and time dimensions are independent: use
+`-T condition=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
+config names remain available to the direct sandbox scripts but are not part of
+the Inspect task interface. The default is 20 minutes for either condition.
 
 `--epochs N` runs N independent replicates; the replicate number identifies a run
 and does not seed sampling. Use `--max-samples 1` to serialize epochs against a

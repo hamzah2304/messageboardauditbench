@@ -25,47 +25,58 @@ from messageboard_audit_bench.scorer import process_metrics, rubric_scorer
 from messageboard_audit_bench.solver import cli_agent, replay
 
 EVAL_VERSION = "1-A"
-_CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_CONDITION_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_CONDITIONS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
+DEFAULT_TIME_LIMIT_MINUTES = 20
+TIMEOUT_GRACE_MINUTES = 5
 
 
-def _load_config(config: str) -> dict:
-    """Load one of the repository's named trial configurations."""
+def _load_condition(condition: str) -> dict:
+    """Load one of the repository's named, time-neutral conditions."""
     repo = repo_root()
-    if not _CONFIG_NAME.fullmatch(config):
+    if not _CONDITION_NAME.fullmatch(condition):
         raise ValueError(
-            f"invalid config name {config!r}; use a name from {repo / 'configs'}"
+            f"invalid condition name {condition!r}; use a name from {repo / 'configs'}"
         )
-    path = repo / "configs" / f"{config}.toml"
+    if condition not in _CONDITIONS:
+        raise ValueError(
+            f"unknown condition {condition!r}; available conditions: "
+            f"{', '.join(_CONDITIONS)}"
+        )
+    path = repo / "configs" / f"{condition}.toml"
     if not path.is_file():
-        available = ", ".join(sorted(p.stem for p in path.parent.glob("*.toml")))
-        raise ValueError(f"unknown config {config!r}; available configs: {available}")
+        raise RuntimeError(f"condition file is missing: {path}")
 
     import tomllib
 
     return tomllib.loads(path.read_text())
 
 
-def _time_limit(config: dict, time_limit_minutes: int | None) -> int:
-    value = config["budget_min"] if time_limit_minutes is None else time_limit_minutes
+def _time_limit(time_limit_minutes: int | None) -> int:
+    value = (
+        DEFAULT_TIME_LIMIT_MINUTES
+        if time_limit_minutes is None
+        else time_limit_minutes
+    )
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("time_limit_minutes must be a positive integer")
     return value
 
 
-def _prompt_for(config: str, time_limit_minutes: int | None = None) -> str:
-    cfg = _load_config(config)
+def _prompt_for(condition: str, time_limit_minutes: int | None = None) -> str:
+    cfg = _load_condition(condition)
     text = (
         repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt"
     ).read_text()
-    return text.replace("{{BUDGET_MIN}}", str(_time_limit(cfg, time_limit_minutes)))
+    return text.replace("{{BUDGET_MIN}}", str(_time_limit(time_limit_minutes)))
 
 
 @task
 def messageboard_audit_bench(
     agent: str = "claude",
     model: str = "claude-opus-5",
-    config: str = "default",
+    condition: str = "blind",
     time_limit_minutes: int | None = None,
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
@@ -74,33 +85,28 @@ def messageboard_audit_bench(
     Args:
         agent: Agent harness to launch: ``claude``, ``codex``, or ``react``.
         model: Model identifier understood by that harness.
-        config: Named configuration from ``configs/``.
+        condition: Time-neutral prompt/data/effort condition from ``configs/``.
         time_limit_minutes: Trial budget in minutes. Overrides the named
-            configuration's budget while preserving its hard-timeout grace.
+            condition's 20-minute default. The hard timeout adds five minutes.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
     """
-    cfg = _load_config(config)
+    cfg = _load_condition(condition)
     if agent not in _SUPPORTED_AGENTS:
         raise ValueError(
             f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
         )
-    budget_min = _time_limit(cfg, time_limit_minutes)
-    configured_grace = max(cfg["timeout_min"] - cfg["budget_min"], 0)
-    timeout_minutes = (
-        cfg["timeout_min"]
-        if time_limit_minutes is None
-        else budget_min + configured_grace
-    )
+    budget_min = _time_limit(time_limit_minutes)
+    timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
     return Task(
         dataset=[
             Sample(
-                input=_prompt_for(config, budget_min),
-                id=f"{agent}:{model}:{config}:{budget_min}m",
+                input=_prompt_for(condition, budget_min),
+                id=f"{agent}:{model}:{condition}:{budget_min}m",
                 metadata={
                     "agent": agent,
                     "model": model,
-                    "config": config,
+                    "condition": condition,
                     "budget_min": budget_min,
                     "data_variant": cfg["data_variant"],
                     "effort": cfg["effort"],
@@ -110,15 +116,18 @@ def messageboard_audit_bench(
         solver=cli_agent(
             agent=agent,
             model=model,
-            config=config,
+            condition=condition,
             time_limit_minutes=budget_min,
             timeout_minutes=timeout_minutes,
+            prompt=cfg["prompt"],
+            data_variant=cfg["data_variant"],
+            effort=cfg["effort"],
         ),
         scorer=[rubric_scorer(judge=judge), process_metrics()],
         version=EVAL_VERSION,
         metadata={
             "benchmark": "MessageBoardAuditBench",
-            "config": config,
+            "condition": condition,
             "time_limit_minutes": budget_min,
             "data_variant": cfg["data_variant"],
         },

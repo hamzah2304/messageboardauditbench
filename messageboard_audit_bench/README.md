@@ -39,14 +39,16 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 
 ```
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T model=claude-opus-5 -T config=blind-20 \
+  -T agent=claude -T model=claude-opus-5 -T condition=blind \
   -T time_limit_minutes=30 \
   --epochs 3 --max-samples 1
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=codex -T model=gpt-5.6-sol -T config=context-40 \
+  -T agent=codex -T model=gpt-5.6-sol -T condition=context \
+  -T time_limit_minutes=40 \
   --epochs 3 --max-samples 1
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T model=openai/gpt-5.6-sol -T config=blind-20 \
+  -T agent=react -T model=openai/gpt-5.6-sol -T condition=blind \
+  -T time_limit_minutes=20 \
   --epochs 3
 ```
 
@@ -58,10 +60,27 @@ The task supports all three existing harnesses: `claude` invokes Claude Code,
 loop. The default is Claude Code, not ReAct. These are system-level conditions,
 so comparisons across harnesses are not bare-model comparisons.
 
-Conditions (prompt, default budget, data variant, effort) come from
-`configs/<config>.toml`. `-T time_limit_minutes=N` overrides the config budget,
-updates the time stated in the prompt, and sets the hard sandbox timeout to
-`N` plus the config's timeout grace (currently five minutes).
+### Inspect integration boundary
+
+The task, custom solver, scorers, package registration, `.eval` output, and log
+viewer integration are native Inspect components. The current Claude Code and
+Codex execution path is not the `inspect-swe` agent bridge: the custom solver
+launches the repository's hardened Docker runner and folds each CLI transcript
+into Inspect after the process finishes. Consequently, use `-T model=...`, not
+Inspect's top-level `--model`; Inspect's native per-generation limits and live
+model-event stream do not control these external CLI calls. The repository's
+own deadline, timeout, usage accounting, and isolation controls do apply.
+
+For a fully Inspect-managed coding-agent run, this solver should be migrated to
+the `inspect_swe.claude_code()` and `inspect_swe.codex_cli()` agents. Those
+agents proxy model calls through Inspect, making Inspect model selection,
+limits, checkpointing, and live logs apply normally.
+
+`-T condition=blind|context` chooses the prompt and its fixed data/effort
+profile; condition names never encode time. `-T time_limit_minutes=N` controls
+the stated budget and sets the hard sandbox timeout to `N` plus the condition's
+five-minute timeout grace. If omitted, the time limit defaults to 20 minutes
+for every condition.
 `-T judge=anthropic/claude-sonnet-5` picks the judge;
 an Inspect `grader` model role takes precedence when one is supplied.
 

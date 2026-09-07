@@ -6,7 +6,7 @@ fresh checkout can install it with `uv sync` and run its registered task as:
 ```bash
 scripts/build_data.sh
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T model=claude-opus-5 -T config=blind-20 \
+  -T agent=claude -T model=claude-opus-5 -T condition=blind \
   -T time_limit_minutes=30 \
   --epochs 3 --max-samples 1
 uv run inspect view
@@ -22,6 +22,13 @@ are covered:
   SHA-256 digests, so upstream drift fails loudly.
 - Unit tests cover task construction and transcript conversion; a mock-model
   test replays a complete run through Inspect and both scorers.
+
+The current coding-agent execution is a valid custom Inspect solver, but it
+wraps the repository's existing Docker launcher rather than using the newer
+Inspect SWE agent bridge. Before describing the benchmark as fully
+Inspect-managed, migrate Claude Code and Codex to `inspect_swe.claude_code()`
+and `inspect_swe.codex_cli()` so model calls, limits, checkpoints, and live
+events are controlled by Inspect itself.
 
 ## What remains before registration
 

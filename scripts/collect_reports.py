@@ -4,12 +4,13 @@
     scripts/collect_reports.py [--out reports] [--runs runs] [--include-partial]
 
 Layout:
-    reports/<config>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
-    reports/<config>_p<prompt8>/CONDITIONS.json   prompt name, budget, data variant, effort, prompt hash
+    reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
+    reports/<condition>_<variant>_<effort>_p<prompt8>/CONDITIONS.json
     reports/prompts/<prompt8>.txt                 the exact prompt those runs saw
     reports/index.jsonl                           one line per report with the run's metadata
 <prompt8> is a hash of the rendered prompt, so editing a prompt or budget under the same
-config name lands in a new folder instead of mixing with older runs.
+condition name lands in a new folder instead of mixing with older runs. The
+variant and effort are also part of the folder key.
 
 Runs without a successful exit code are skipped unless --include-partial, in
 which case their draft report from work/ is copied and flagged partial.
@@ -56,12 +57,23 @@ def main() -> int:
         tag = f"_served-{str(served).replace('/', '_')}" if served else ""
         name = f"{meta['agent']}_{model}_r{replicate}_{stamp}{tag}{'_partial' if partial else ''}.md"
         config = meta.get("config", "legacy")
-        dest = out / f"{config}_p{p8}" / name
+        condition = meta.get("condition", meta.get("prompt", config))
+        effort = meta.get("effort") or "unknown"
+        dest = out / f"{condition}_{variant}_{effort}_p{p8}" / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(report, dest)
-        (dest.parent / "CONDITIONS.json").write_text(json.dumps({
-            "config": config, "prompt": meta.get("prompt", "legacy"), "prompt_id": p8, "budget_min": budget,
-            "data_variant": variant, "effort": meta.get("effort"), "timeout": meta.get("timeout")}, indent=1))
+        conditions = {
+            "condition": condition,
+            "prompt": meta.get("prompt", "legacy"),
+            "prompt_id": p8,
+            "budget_min": budget,
+            "data_variant": variant,
+            "effort": effort,
+        }
+        conditions_path = dest.parent / "CONDITIONS.json"
+        if conditions_path.exists() and json.loads(conditions_path.read_text()) != conditions:
+            raise RuntimeError(f"inconsistent conditions in {dest.parent}")
+        conditions_path.write_text(json.dumps(conditions, indent=1))
         if prompt:
             (out / "prompts").mkdir(parents=True, exist_ok=True)
             (out / "prompts" / f"{p8}.txt").write_text(prompt)
@@ -69,7 +81,7 @@ def main() -> int:
         if usage is not None:
             usage = dict(usage)
             usage.setdefault("usage_schema", 1)
-        rows.append({"report": str(dest.relative_to(out)), "run_dir": d.name, "partial": partial, "config": config,
+        rows.append({"report": str(dest.relative_to(out)), "run_dir": d.name, "partial": partial, "condition": condition, "config": config,
                      "prompt_name": meta.get("prompt", "legacy"), "prompt_id": p8, "budget_min": budget, "data_variant": variant,
                      "replicate": replicate,
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
@@ -80,9 +92,13 @@ def main() -> int:
     (out / "index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     by = {}
     for r in rows:
-        by.setdefault((r["config"], r["prompt_id"]), []).append(r)
-    for (c, p), rs in sorted(by.items()):
-        print(f"{c}_p{p}: {len(rs)} reports  " + ", ".join(f"{r['agent']}:{r['model']}" for r in rs))
+        key = (r["condition"], r["data_variant"], r["effort"] or "unknown", r["prompt_id"])
+        by.setdefault(key, []).append(r)
+    for (condition, variant, effort, prompt_id), rs in sorted(by.items()):
+        print(
+            f"{condition}_{variant}_{effort}_p{prompt_id}: {len(rs)} reports  "
+            + ", ".join(f"{r['agent']}:{r['model']}" for r in rs)
+        )
     print(f"{len(rows)} reports -> {out}")
     return 0
 
