@@ -16,6 +16,9 @@
 # Detached with nohup: survives this shell. Progress in runs/batch_<stamp>.log.
 set -euo pipefail
 MATRIX="${1:?matrix file}"; HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
+# Refuse to start when the disk is nearly full: a full disk corrupts Docker's storage and kills every running trial.
+FREE_GB=$(( $(df -Pk "$ROOT" | awk 'NR==2{print $4}') / 1048576 ))
+[ "$FREE_GB" -ge "${MIN_FREE_GB:-10}" ] || { echo "only ${FREE_GB} GB free (need MIN_FREE_GB=${MIN_FREE_GB:-10}); free disk before launching" >&2; exit 1; }
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; LOG="$ROOT/runs/batch_$STAMP.log"; mkdir -p "$ROOT/runs"
 LANE_PARALLEL="${LANE_PARALLEL:-0}"; LANE_MAX="${LANE_MAX:-0}"
 docker image inspect "${IMAGE:-mbab-sandbox}" >/dev/null 2>&1 || docker build -q -t "${IMAGE:-mbab-sandbox}" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
