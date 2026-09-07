@@ -14,8 +14,15 @@ more cautious in general, and no gap means the attribution result is about attri
 Scores are the raw per-point means over round 4, judged by Fable 5.1 on the v2 rubric,
 not the strict transform: the question is whether the finding is reached at all, and
 transforming would discard the partial credit that carries the answer.
+
+Intervals are a percentile bootstrap, 10,000 resamples. Both are computed and both are
+drawn, because they answer different questions. Resampling reports asks how stable the
+number is given these models; resampling models asks whether it would survive a different
+choice of models, which is the question a reader actually has, and is much the wider
+interval. The four OpenAI models are not four independent draws from a population of
+OpenAI models, so even the model-level interval understates the real uncertainty.
 """
-import json, glob, collections, statistics as st, sys, pathlib
+import json, glob, collections, random, statistics as st, sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
@@ -28,6 +35,29 @@ CLUSTERS = {"Origin": ["N07", "N08", "N09", "N10"],
             "SSH tunnelling": ["N34", "N35", "N36"]}
 SPEC = ["N07", "N08", "N09", "N10", "N37", "N38"]
 OPENAI = {"GPT-5.6 Sol", "GPT-5.6 Luna", "GPT-5.6 Terra", "GPT-6 Astra"}
+N_BOOT = 10000
+SEED = 0
+
+
+def boot(vals, n=N_BOOT):
+    """Percentile bootstrap over a list of per-report values."""
+    if not vals:
+        return None
+    draws = sorted(st.mean(random.choices(vals, k=len(vals))) for _ in range(n))
+    return [round(draws[int(0.025 * n)], 4), round(draws[int(0.975 * n)], 4)]
+
+
+def boot_by_model(rows, key, n=N_BOOT):
+    """Resample whole models, keeping each model's reports together."""
+    by = collections.defaultdict(list)
+    for r in rows:
+        by[r["model"]].append(r[key])
+    keys = list(by)
+    if len(keys) < 2:
+        return None
+    draws = sorted(st.mean(v for k in random.choices(keys, k=len(keys)) for v in by[k])
+                   for _ in range(n))
+    return [round(draws[int(0.025 * n)], 4), round(draws[int(0.975 * n)], 4)]
 
 
 def load():
@@ -54,22 +84,29 @@ def main():
                   for k in list(CLUSTERS) + ["Speculate OpenAI"]}}
               for m, v in by.items()]
     models.sort(key=lambda m: -m["Speculate OpenAI"])
+    random.seed(SEED)
     groups = []
     for label, sel in (("OpenAI models", True), ("Non-OpenAI models", False)):
         v = [r for r in rows if r["openai"] is sel]
-        groups.append({"label": label, "openai": sel, "n_reports": len(v),
-                       "n_models": len({r["model"] for r in v}),
-                       "models": sorted({r["model"] for r in v}),
-                       **{k: round(st.mean(x[k] for x in v), 4)
-                          for k in list(CLUSTERS) + ["Speculate OpenAI"]},
-                       "tun_any": round(sum(x["tun_any"] for x in v) / len(v), 4)})
-    data = {"groups": groups, "models": models, "clusters": CLUSTERS,
+        g = {"label": label, "openai": sel, "n_reports": len(v),
+             "n_models": len({r["model"] for r in v}),
+             "models": sorted({r["model"] for r in v}),
+             "tun_any": round(sum(x["tun_any"] for x in v) / len(v), 4)}
+        for k in list(CLUSTERS) + ["Speculate OpenAI"]:
+            g[k] = round(st.mean(x[k] for x in v), 4)
+            g[k + " ci_report"] = boot([x[k] for x in v])
+            g[k + " ci_model"] = boot_by_model(v, k)
+        groups.append(g)
+    data = {"groups": groups, "models": models, "clusters": CLUSTERS, "n_boot": N_BOOT,
             "n_reports": len(rows), "judge": "claude-fable-5-1"}
     OUT.write_text(TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     a, b = groups
     print(f"{OUT}: {len(rows)} reports, {len(models)} models")
     print(f"  speculate-OpenAI  {a['label']} {a['Speculate OpenAI']:.3f}  vs  {b['label']} {b['Speculate OpenAI']:.3f}")
     print(f"  SSH tunnelling    {a['label']} {a['SSH tunnelling']:.3f}  vs  {b['label']} {b['SSH tunnelling']:.3f}")
+    for g in groups:
+        print(f"    {g['label']:<18} speculate {g['Speculate OpenAI']:.3f} "
+              f"reports {g['Speculate OpenAI ci_report']}  models {g['Speculate OpenAI ci_model']}")
 
 
 TEMPLATE = r'''<!doctype html>
@@ -129,40 +166,61 @@ const el = (t, c, txt) => { const x = document.createElement(t); if (c) x.classN
 document.getElementById('sub').textContent =
   `${D.n_reports} round-4 reports, ${D.models.length} models, judged by ${D.judge} on the 38-point rubric. Mean point score, 0 to 1.`;
 
-/* two bars, one hue: this is a magnitude comparison between two groups, not two identities */
+/* Vertical bars, one hue, two groups: a magnitude comparison, not two identities.
+   The whisker is the model-level bootstrap, because the claim is about kinds of model
+   rather than about these particular reports — reports from one model are not
+   independent draws. The report-level interval is drawn faintly behind it so the
+   difference between the two questions is visible rather than hidden. */
 function bars(host, key, extra) {
-  const g = D.groups, W = 900, H = 190, L = 190, R = 90, T = 14, IW = W - L - R;
-  const max = Math.max(0.6, ...g.map(x => x[key]) ) * 1.15;
-  const x = v => L + v / max * IW;
+  const g = D.groups, W = 620, H = 330, T = 18, B = 62, L = 54, R = 18;
+  const IH = H - T - B, slot = (W - L - R) / g.length;
+  const hi = Math.max(...g.map(r => (r[key + ' ci_model'] || [0, r[key]])[1]), ...g.map(r => r[key]));
+  const max = Math.max(0.6, hi * 1.18);
+  const y = v => T + IH - v / max * IH;
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, width: '100%', height: H, role: 'img',
-                        'aria-label': key + ' by group'});
-  for (let t = 0; t <= max; t += 0.1) {
-    svg.append(s('line', {x1: x(t), x2: x(t), y1: T, y2: H - 34, class: 'tick'}));
-    const lb = s('text', {x: x(t), y: H - 18, 'text-anchor': 'middle', class: 'axis'});
+                        'aria-label': key + ' by group, with bootstrap intervals'});
+  for (let t = 0; t <= max + 1e-9; t += 0.1) {
+    svg.append(s('line', {x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'tick'}));
+    const lb = s('text', {x: L - 8, y: y(t) + 4, 'text-anchor': 'end', class: 'axis'});
     lb.textContent = t.toFixed(1); svg.append(lb);
   }
-  svg.append(s('line', {x1: L, x2: L, y1: T, y2: H - 34, class: 'axline'}));
+  svg.append(s('line', {x1: L, x2: W - R, y1: y(0), y2: y(0), class: 'axline'}));
   g.forEach((row, i) => {
-    const y = T + 18 + i * 62, bh = 26;
-    const nm = s('text', {x: L - 12, y: y + bh - 8, 'text-anchor': 'end', class: 'lab'});
-    nm.textContent = row.label; svg.append(nm);
-    const sub = s('text', {x: L - 12, y: y + bh + 8, 'text-anchor': 'end', class: 'small'});
-    sub.textContent = `${row.n_models} models · ${row.n_reports} reports`; svg.append(sub);
-    svg.append(s('rect', {x: L, y, width: Math.max(2, x(row[key]) - L), height: bh, rx: 4, ry: 4,
-                          fill: row.openai ? 'var(--accent)' : 'var(--grey)'}));
-    svg.append(s('rect', {x: L, y, width: 4, height: bh, fill: row.openai ? 'var(--accent)' : 'var(--grey)'}));
-    const vl = s('text', {x: x(row[key]) + 10, y: y + bh - 7, class: 'val'});
-    vl.textContent = row[key].toFixed(3); svg.append(vl);
-    /* each model in the group as a dot, so the spread behind the mean is visible */
-    D.models.filter(m => m.openai === row.openai).forEach(m => {
-      svg.append(s('circle', {cx: x(m[key]), cy: y + bh / 2, r: 3.4, fill: '#fff',
-                              stroke: row.openai ? '#8C3F22' : '#7C776C', 'stroke-width': 1.5}));
+    const cx = L + slot * (i + 0.5), bw = Math.min(120, slot * 0.44);
+    const col = row.openai ? 'var(--accent)' : 'var(--grey)';
+    const dark = row.openai ? '#8C3F22' : '#6F6A5F';
+    svg.append(s('rect', {x: cx - bw / 2, y: y(row[key]), width: bw, height: y(0) - y(row[key]),
+                          rx: 4, ry: 4, fill: col}));
+    svg.append(s('rect', {x: cx - bw / 2, y: y(0) - 4, width: bw, height: 4, fill: col}));
+    /* faint report-level interval behind, then the model-level whisker in front */
+    const cr = row[key + ' ci_report'], cm = row[key + ' ci_model'];
+    if (cr) svg.append(s('line', {x1: cx, x2: cx, y1: y(cr[0]), y2: y(cr[1]),
+                                  stroke: dark, 'stroke-width': 7, opacity: .18,
+                                  'stroke-linecap': 'round'}));
+    if (cm) {
+      svg.append(s('line', {x1: cx, x2: cx, y1: y(cm[0]), y2: y(cm[1]), stroke: dark, 'stroke-width': 2}));
+      for (const v of cm) svg.append(s('line', {x1: cx - 9, x2: cx + 9, y1: y(v), y2: y(v),
+                                                stroke: dark, 'stroke-width': 2}));
+    }
+    /* every model in the group, so the spread behind the mean is visible */
+    D.models.filter(m => m.openai === row.openai).forEach((m, j, arr) => {
+      const off = (j - (arr.length - 1) / 2) * Math.min(11, (bw + 46) / arr.length);
+      svg.append(s('circle', {cx: cx + bw / 2 + 26 + off * 0, cy: y(m[key]), r: 3.4, fill: '#fff',
+                              stroke: dark, 'stroke-width': 1.5, opacity: .9}));
     });
+    const vl = s('text', {x: cx, y: y(row[key]) - (cm ? 0 : 8), 'text-anchor': 'middle', class: 'val'});
+    vl.setAttribute('y', y(cm ? cm[1] : row[key]) - 9);
+    vl.textContent = row[key].toFixed(3); svg.append(vl);
+    const nm = s('text', {x: cx, y: H - 38, 'text-anchor': 'middle', class: 'lab'});
+    nm.textContent = row.label; svg.append(nm);
+    const sub = s('text', {x: cx, y: H - 22, 'text-anchor': 'middle', class: 'small'});
+    sub.textContent = `${row.n_models} models · ${row.n_reports} reports`; svg.append(sub);
   });
   host.replaceChildren(svg);
   const k = el('p', 'key');
-  k.append(document.createTextNode('bar = group mean;  hollow dots = individual models'));
-  if (extra) k.append(el('span', null, '   ' + extra));
+  k.textContent = 'bar = group mean; whisker = 95% bootstrap over models (' + D.n_boot.toLocaleString()
+    + ' resamples); pale band behind = the same over reports; dots to the right = individual models'
+    + (extra ? '.  ' + extra : '');
   host.append(k);
 }
 bars(document.getElementById('c1'), 'Speculate OpenAI');
