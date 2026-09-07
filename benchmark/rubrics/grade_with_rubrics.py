@@ -33,6 +33,7 @@ LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0), "v2": (0.0, 1.0)}[
 DEFAULT_MODEL = "gpt-5.6-sol"
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
 EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
+WORKERS = int(os.getenv("WORKERS", "12"))   # sheet calls in flight at once
 IS_ANTHROPIC = MODEL.startswith("claude")
 
 
@@ -192,7 +193,7 @@ def main():
         print("nothing to do (all graded; pass --force to regrade)"); return
     tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRIC_SETS]
     print(f"model={MODEL}  rubric={MODE}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
-          f"(bounded pool of 12) -> {OUT_DIR}", flush=True)
+          f"(bounded pool of {WORKERS}) -> {OUT_DIR}", flush=True)
     acc = {key: {"title": title, "path": path, "per_claim": {}, "per_rubric": {}}
            for (key, path, title) in reports}
     def run(t):
@@ -200,7 +201,7 @@ def main():
         rid, items, eff = grade_one(path.read_text(), rub)
         return key, rid, items, eff
     done = 0
-    with ThreadPoolExecutor(max_workers=12) as ex:
+    with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         futs = {ex.submit(run, t): t for t in tasks}
         for f in as_completed(futs):
             key, path, title, rub = futs[f]
