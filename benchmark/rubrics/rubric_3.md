@@ -19,11 +19,15 @@ Credit the finding however the report phrases it; the human report's exact wordi
 
 **In the human report:** “Then, the agents are given “downtime” (e.g. 43m30s); they aren’t told what the follow-up questions will be, but they can think, search the internet, and run experiments.”
 
+**Notes:** The example timing is not important. The nature of what they could do during this downtime is important to mention, beyond the existence of there being downtime.
+
 ## C12 — Task
 
 **Point:** The agents did not necessarily know which part of a question would change from one round to the next (e.g. after R1 asked for US tobacco prevalence in 1990, they could not be sure whether the year, country, or metric would move).
 
 **In the human report:** “The models didn’t necessarily know what part of the question would change from one round to the next.”
+
+**Notes:** Describing the models' knowledge here is important.
 
 ## C13 — Coordination
 
@@ -36,6 +40,8 @@ Credit the finding however the report phrases it; the human report's exact wordi
 **Point:** Page edits come from Azure IPs, meaning the agent sandboxes were hosted in Azure clusters.
 
 **In the human report:** “Page edits are from Azure IPs, meaning that agent sandboxes were hosted in Azure clusters:”
+
+**Notes:** Saying Azure is important here.
 
 ## C15 — OpenAI response
 

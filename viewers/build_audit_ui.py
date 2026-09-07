@@ -19,7 +19,7 @@ same for the judge quotes that are not verbatim in their model report. Where no 
 exists the quote is matched exactly or with whitespace/punctuation normalised, and if
 that fails the claim is reported as having no anchor rather than highlighted approximately.
 """
-import importlib.util, json, re, sys, pathlib
+import ast, importlib.util, json, re, shutil, sys, pathlib
 from urllib.parse import quote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -31,6 +31,46 @@ HUMAN_HTML = DATA_DIR / "_human.html"          # the published report, styled, f
 AUDIT_PATH = ROOT / "benchmark" / "audit" / "judge_audit.json"
 ANCHORS_HUMAN = ROOT / "benchmark" / "claims" / "anchors_human.json"
 ANCHORS_REPORTS = ROOT / "benchmark" / "claims" / "anchors_reports.json"
+BUILD_RUBRICS = ROOT / "benchmark" / "rubrics" / "build_rubrics.py"
+# one-time copy of the pre-namespacing audit file, taken before the page can rewrite it
+AUDIT_BACKUP = AUDIT_PATH.with_name("judge_audit.pre-auditors.json")
+
+# Two or three words per anchor, for the reminder under each anchor button. The full
+# wording always comes from SHEET_SCALE below; these are only the handle.
+SCALE_SHORT = {"1.0": "near-paraphrase", "0.9": "90% of the value", "0.7": "core there",
+               "0.5": "real effort", "0.3": "gesturing", "0.0": "absent"}
+
+# What the auditor is being asked to do, shown once on the intro panel.
+TASK_INTRO = [
+    "You are checking a language-model judge, one claim at a time. A claim is a point from "
+    "the human incident report. For each model report the judge gave that claim a score and "
+    "quoted the line it scored from; the left pane is the model report with those quotes "
+    "highlighted, the right pane is the human report with the claim's passage anchored.",
+    "Decide whether the judge's call is right. The verdict buttons say what kind of mistake "
+    "it is, if any; \u201cYour score\u201d is the number you would have given. You can also "
+    "note a paragraph directly in the model report, and record hypotheses and biases per "
+    "report under \u201cnotes\u201d.",
+    "Everything saves itself to one shared file. Your judgements are kept under your name, so "
+    "two people can score the same claim and the page can show where you disagree.",
+]
+
+
+def sheet_scale():
+    """The behavioural scale, read out of build_rubrics.py's SHEET_SCALE literal.
+
+    Parsed rather than imported: build_rubrics.py rewrites the rubric sheets at import
+    time. Parsing keeps this page's anchor wording tied to the rubric's own source, so
+    the page cannot drift from the sheets the judge was given.
+    """
+    tree = ast.parse(BUILD_RUBRICS.read_text())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "SHEET_SCALE"
+                                                for t in node.targets):
+            out = []
+            for v, text in ast.literal_eval(node.value):
+                out.append({"v": float(v), "key": v, "short": SCALE_SHORT.get(v, v), "full": text})
+            return sorted(out, key=lambda a: -a["v"])
+    raise SystemExit("SHEET_SCALE not found in " + str(BUILD_RUBRICS))
 
 TRANS = {"’": "'", "‘": "'", "“": '"', "”": '"', "—": "-", "–": "-",
          "‑": "-", " ": " ", "​": ""}
@@ -294,8 +334,21 @@ def main():
     for stale in DATA_DIR.glob("*.json"):
         if stale.stem not in {r["key"] for r in reports}:
             stale.unlink()
+    # Snapshot the audit file while it is still in the flat, unnamespaced shape. Once the
+    # page has migrated it (version 3) the backup freezes, so it always holds the last
+    # state before the auditor names took over.
+    if AUDIT_PATH.exists():
+        try:
+            pre = json.loads(AUDIT_PATH.read_text()).get("version", 2) < 3
+        except Exception:
+            pre = False
+        if pre:
+            shutil.copyfile(AUDIT_PATH, AUDIT_BACKUP)
+            print("snapshot of the pre-namespacing audit file ->", AUDIT_BACKUP.name)
+    scale = sheet_scale()
     data = {"audit_path": str(AUDIT_PATH), "data_dir": str(DATA_DIR),
             "skip_classes": wiki_report().skip_classes(), "human_html": str(HUMAN_HTML),
+            "scale": scale, "intro": TASK_INTRO,
             "claims": claims, "reports": reports,
             "built": __import__("datetime").datetime.now().isoformat(timespec="seconds")}
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
@@ -307,6 +360,8 @@ def main():
     print(f"  human anchors: {anchored} from anchors_human.json, "
           f"{sum(1 for c in claims if c['anchor_source'] == 'rubric')} from a verbatim rubric quote"
           + (f"; NO anchor for {', '.join(missing)}" if missing else "; every claim anchored"))
+    print(f"  scale: {len(scale)} anchors read from {BUILD_RUBRICS.name} "
+          f"({', '.join(a['key'] for a in scale)}); 11 values 0.0-1.0 offered")
     print(f"  report anchors: {len(ranch)} entries in anchors_reports.json"
           + ("" if ranch else " (file absent — falling back to exact/normalised quote matching)")
           + f"; human page {HUMAN_HTML.stat().st_size/1e6:.2f} MB")
@@ -378,6 +433,40 @@ main.claimview{grid-template-rows:auto 1fr}main.notesview{grid-template-rows:1fr
 textarea{width:100%;min-height:48px;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-family:inherit;font-size:12.5px;resize:vertical;background:#fff}
 textarea:focus{outline:2px solid var(--soft);border-color:var(--accent)}
 .cat{font-size:11px;color:var(--mut)}
+/* the 0.0-1.0 scale: eleven buttons, the six rubric anchors raised out of the rest */
+.scale{display:flex;gap:3px;flex-wrap:wrap;margin:3px 0 2px}
+.sb{flex:1 1 0;min-width:46px;border:1px solid var(--border);border-radius:7px;background:transparent;cursor:pointer;font-family:inherit;padding:2px 2px 3px;color:var(--ink2);display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.15}
+.sb .n{font-weight:600;font-size:12px;color:var(--mut)}
+.sb .sl{font-size:9px;color:var(--mut);text-align:center;min-height:1.05em;letter-spacing:-.01em}
+.sb.anch{background:var(--row);border-color:#CDC9BE}
+.sb.anch .n{color:var(--ink);font-weight:800;font-size:12.5px}
+.sb:hover{background:var(--soft);border-color:var(--accent)}
+.sb.on{background:var(--accent);border-color:var(--accent)}
+.sb.on .n,.sb.on .sl{color:#fff}
+.scnum{width:52px;border:1px solid var(--border);border-radius:7px;padding:2px 6px;font-family:inherit;font-size:12px;background:#fff}
+.scnum:focus{outline:2px solid var(--soft);border-color:var(--accent)}
+/* what the other auditor said about the same claim */
+.other{margin-top:5px;border-top:1px dashed var(--border);padding-top:5px;font-size:11.5px}
+.oline{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0}
+.oline .who{font-weight:700;color:var(--accent2)}
+.oline .ocmt{flex-basis:100%;color:var(--ink2);font-style:italic;margin-left:2px}
+.chip.dis{border-color:#D9534F;background:var(--dang-bg)}
+/* the intro / scale panel */
+#intro{position:fixed;inset:0;background:rgba(26,26,26,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+#intro[hidden]{display:none}
+#intro .sheet{background:var(--card);border:1px solid var(--border);border-radius:10px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:18px 22px 20px}
+#intro h2{color:var(--accent);margin:0 0 4px;font-size:17px}
+#intro h3{color:var(--accent2);font-size:13px;margin:14px 0 4px}
+#intro p{margin:6px 0;font-size:12.5px;line-height:1.5}
+#intro table{border-collapse:collapse;width:100%;font-size:12.5px}
+#intro td{border-top:1px solid var(--border);padding:5px 6px;vertical-align:top;line-height:1.45}
+#intro td.v{font-weight:800;width:38px;white-space:nowrap}
+#intro td.s{color:var(--accent2);width:118px;font-weight:600}
+.whoin{display:flex;gap:8px;align-items:center;margin:12px 0 2px;font-weight:600;font-size:12.5px}
+.whoin input{border:1px solid var(--border);border-radius:7px;padding:5px 9px;font-family:inherit;font-size:13px;min-width:210px;background:#fff}
+.whoerr{color:var(--dang);font-size:11.5px;margin:2px 0 4px;font-weight:600}
+.fine{color:var(--mut);font-size:11.5px}
+#who-btn{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #panes{display:grid;grid-template-columns:1fr 1fr;min-height:0}
 .pane{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border);position:relative}
 .pane:last-child{border-right:0}
@@ -448,6 +537,7 @@ kbd{background:var(--soft);border:1px solid var(--border);border-radius:4px;padd
   <button class="tab" id="sb-btn" title="hide / show the report list  ([)">&#9776;</button>
   <div><h1>Judge audit</h1><div class="sub" id="built"></div></div>
   <div class="tabs"><button class="tab active" data-view="report">By report</button><button class="tab" data-view="claim">By claim</button><button class="tab" data-view="notes">Notes</button></div>
+  <div class="tabs"><button class="tab" id="who-btn" title="who is auditing — click to change the name your judgements are filed under">auditor?</button><button class="tab" id="guide-btn" title="the task and the six scale anchors">the scale</button></div>
   <div class="stats" id="stats"></div>
   <div id="save">loading&hellip;</div>
 </header>
@@ -482,11 +572,28 @@ kbd{background:var(--soft);border:1px solid var(--border);border-radius:4px;padd
     <div id="notes" hidden></div>
   </main>
 </div>
+<div id="intro" hidden><div class="sheet">
+  <h2>Auditing the recall judge</h2>
+  <div id="intro-task"></div>
+  <div class="whoerr" id="who-err" hidden>Type a name first — it is what keeps your judgements separate from your partner's.</div>
+  <label class="whoin">Your name <input id="who-in" placeholder="first name" autocomplete="off" spellcheck="false"></label>
+  <h3>One scale, 0 to 1, to one decimal place</h3>
+  <p class="fine">How much of the human point does the model report actually deliver? Same scale on all six rubric sheets, read from the rubric source at build time.</p>
+  <table><tbody id="scaletab"></tbody></table>
+  <p class="fine">Those six are the defined anchors. 0.1, 0.2, 0.4, 0.6 and 0.8 are there for a claim that sits between two of them &mdash; the buttons show the anchors raised, the in-between values plain.</p>
+  <button class="vb plain" id="intro-ok">Start auditing</button>
+</div></div>
 <script type="application/json" id="data">__DATA__</script>
 <script>
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
 const AUDIT_PATH = D.audit_path, LS_KEY = 'judge_audit:' + AUDIT_PATH, SB_KEY = 'judge_audit:sidebar';
+const WHO_KEY = 'judge_audit:auditor', INTRO_KEY = 'judge_audit:intro_seen';
+/* The behavioural scale, straight out of the rubric source. Eleven values are offered;
+   the six in SCALE are the defined anchors, the rest are interpolation between them. */
+const SCALE = D.scale, SCALE_BY = Object.fromEntries(SCALE.map(a => [a.key, a]));
+const SCALE_VALS = []; for (let i = 10; i >= 0; i--) SCALE_VALS.push(i / 10);
+const DISAGREE = 0.2;                                /* a gap larger than this is flagged */
 const CLAIMS = D.claims, CIDS = CLAIMS.map(c => c.id), CBY = Object.fromEntries(CLAIMS.map(c => [c.id, c]));
 const REPORTS = D.reports, RBY = Object.fromEntries(REPORTS.map(r => [r.key, r]));
 /* Report bodies and judge quotes load per report; the page itself carries only scores. */
@@ -511,33 +618,66 @@ const CAT = {tp:['TP','ok'], adjust:['TP·adj','warn'], fp:['FP','dang'], tn_eas
 const MATCHLAB = {exact: 'quote found verbatim', norm: 'quote found (punctuation normalised)', anchor: 'validated anchor span', none: 'quote NOT found in this report'};
 const GLOBAL = '_global';
 
-let state = {version: 2, updated_at: null, entries: {}, paragraphs: {}, notes: {}};
+/* Two auditors, one file. Everything is filed under the auditor's name; version-2 files
+   kept their maps at the top level, and those are adopted by the first auditor to name
+   themselves (recorded as legacy_owner, so the other browser agrees). */
+let state = {version: 3, updated_at: null, legacy_owner: null, auditors: {}};
+let ME = '';
 let view = 'report', selReport = null, selClaim = CIDS[0], selClaimView = CIDS[0], cardForced = false;
 const filters = {round: new Set(['r3']), budget: new Set(), agent: new Set(), status: new Set(), q: ''};
 const openParas = new Set();
 
 /* ---------- persistence ---------- */
+const MAPS = ['entries', 'paragraphs', 'notes'];
+function fresh() { return {entries: {}, paragraphs: {}, notes: {}}; }
+function bkt(st, who) { return (st.auditors && st.auditors[who]) || null; }         /* read-only */
+function mkBkt(st, who) { const a = bkt(st, who) || (st.auditors[who] = fresh()); for (const m of MAPS) a[m] = a[m] || {}; return a; }
+function myMap(map) { const b = bkt(state, ME); return (b && b[map]) || {}; }
+function auditors() { return Object.keys(state.auditors).sort(); }
 function ekey(rk, cid) { return rk + '/' + cid; }
-function entry(rk, cid) { return state.entries[ekey(rk, cid)] || null; }
+function entry(rk, cid) { return myMap('entries')[ekey(rk, cid)] || null; }
+function entryOf(who, rk, cid) { const b = bkt(state, who); return (b && b.entries[ekey(rk, cid)]) || null; }
 function blank(e) { return !e.verdict && !e.comment && !e.rubric_issue && e.corrected == null && !e.relevant && !e.truth && !e.rating && !e.note && !e.hypotheses && !e.biases; }
 function setIn(map, k, patch) {
-  const e = Object.assign({}, state[map][k] || {}, patch, {updated_at: new Date().toISOString()});
+  if (!ME) { openIntro(); return; }                  /* nothing is written unnamed */
+  const b = mkBkt(state, ME);
+  const e = Object.assign({}, b[map][k] || {}, patch, {updated_at: new Date().toISOString()});
   for (const key of Object.keys(e)) if (e[key] === null || e[key] === '' || e[key] === false) delete e[key];
-  if (blank(e)) delete state[map][k]; else state[map][k] = e;
+  if (blank(e)) delete b[map][k]; else b[map][k] = e;
   scheduleSave();
 }
 function setEntry(rk, cid, patch) { setIn('entries', ekey(rk, cid), patch); }
 function pkey(rk, li) { return rk + '/p' + li; }
-function para(rk, li) { return state.paragraphs[pkey(rk, li)] || null; }
+function para(rk, li) { return myMap('paragraphs')[pkey(rk, li)] || null; }
 function setPara(rk, li, patch) { setIn('paragraphs', pkey(rk, li), Object.assign({anchor: RBY[rk].text.split('\n')[li].slice(0, 100)}, patch)); }
-function note(rk) { return state.notes[rk] || null; }
+function note(rk) { return myMap('notes')[rk] || null; }
+/* every auditor's own score for one claim, and the spread between them */
+function allCorrected(rk, cid) {
+  const out = [];
+  for (const w of auditors()) { const e = entryOf(w, rk, cid); if (e && e.corrected != null) out.push([w, e.corrected]); }
+  return out;
+}
+function round1(x) { return Math.round(x * 10) / 10; }
+function disagreement(rk, cid) {
+  const v = allCorrected(rk, cid).map(x => x[1]);
+  if (v.length < 2) return 0;
+  const d = round1(Math.max.apply(null, v) - Math.min.apply(null, v));
+  return d > DISAGREE ? d : 0;
+}
 function setNote(rk, patch) { setIn('notes', rk, patch); }
 let saveTimer = null;
 function setStatus(t, err) { const el = document.getElementById('save'); el.textContent = t; el.className = err ? 'err' : ''; }
 function scheduleSave() { clearTimeout(saveTimer); setStatus('unsaved…'); saveTimer = setTimeout(saveNow, 500); }
+/* On disk: auditors keyed by name, plus any still-unadopted version-2 maps, left where
+   they were so an older reader still finds them. */
+function serialize() {
+  const o = {version: 3, updated_at: state.updated_at, legacy_owner: state.legacy_owner || null, auditors: state.auditors};
+  if (state._legacy) Object.assign(o, state._legacy);
+  return JSON.stringify(o, null, 1);
+}
 async function saveNow() {
   state.updated_at = new Date().toISOString();
-  const body = JSON.stringify(state, null, 1);
+  const body = serialize();
   try { localStorage.setItem(LS_KEY, body); } catch (e) {}
   try {
     const r = await fetch('/save?p=' + encodeURIComponent(AUDIT_PATH), {method: 'POST', body});
@@ -545,19 +685,41 @@ async function saveNow() {
     setStatus('saved to disk ' + new Date().toLocaleTimeString());
   } catch (e) { setStatus('NOT on disk (browser copy kept): ' + e.message, true); }
 }
+function mergeInto(dst, src) {
+  for (const map of MAPS) for (const [k, e] of Object.entries((src && src[map]) || {})) {
+    const cur = dst[map][k]; if (!cur || (e.updated_at || '') > (cur.updated_at || '')) dst[map][k] = e;
+  }
+}
 function merge(a, b) {
-  const out = {version: 2, updated_at: null, entries: {}, paragraphs: {}, notes: {}};
-  for (const src of [a, b]) { if (!src) continue;
-    for (const map of ['entries', 'paragraphs', 'notes']) for (const [k, e] of Object.entries(src[map] || {})) { const cur = out[map][k]; if (!cur || (e.updated_at || '') > (cur.updated_at || '')) out[map][k] = e; } }
+  const out = {version: 3, updated_at: null, legacy_owner: null, auditors: {}};
+  const leg = fresh(); let anyLeg = false;
+  for (const src of [a, b]) {
+    if (!src) continue;
+    out.legacy_owner = out.legacy_owner || src.legacy_owner || null;
+    for (const w of Object.keys(src.auditors || {})) mergeInto(mkBkt(out, w), src.auditors[w]);
+    if (MAPS.some(m => Object.keys(src[m] || {}).length)) { mergeInto(leg, src); anyLeg = true; }
+  }
+  if (anyLeg) out._legacy = leg;
   return out;
 }
-function sameContent(a, b) { const s = x => JSON.stringify([x.entries || {}, x.paragraphs || {}, x.notes || {}]); return s(a) === s(b); }
+/* Unnamespaced version-2 entries go to whoever names themselves first; the choice is then
+   written into the file as legacy_owner, so the second auditor sees the same attribution. */
+function adoptLegacy() {
+  if (!ME || !state._legacy) return;
+  const owner = state.legacy_owner || ME;
+  state.legacy_owner = owner;
+  mergeInto(mkBkt(state, owner), state._legacy);
+  delete state._legacy;
+  scheduleSave();
+}
+function countAll(st) { let n = 0; for (const w of Object.keys(st.auditors || {})) for (const m of MAPS) n += Object.keys(st.auditors[w][m] || {}).length; for (const m of MAPS) n += Object.keys((st._legacy || {})[m] || {}).length; return n; }
+function sameContent(a, b) { const f = x => JSON.stringify([x.auditors || {}, x._legacy || null]); return f(a) === f(b); }
 async function load() {
   let server = null, local = null;
   try { const r = await fetch(fileURL(AUDIT_PATH)); if (r.ok) server = await r.json(); } catch (e) {}
   try { local = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
   state = merge(server, local);
-  const n = Object.keys(state.entries).length + Object.keys(state.paragraphs).length + Object.keys(state.notes).length;
+  const n = countAll(state);
   if (server === null && local === null) setStatus('no saved audits yet');
   else if (local && !sameContent(state, server || {})) scheduleSave();
   else setStatus('loaded ' + n + ' saved items (' + (server ? 'from disk' : 'browser copy only') + ')', !server);
@@ -582,27 +744,73 @@ function statusOk(rk, cid) {
     if (f === 'pos' && isPos(s)) return true; if (f === 'neg' && !isPos(s)) return true;
     if (f === 'unreviewed' && !(e && e.verdict)) return true; if (f === 'reviewed' && e && e.verdict && e.verdict !== 'todo') return true;
     if (f === 'flagged' && e && (e.verdict === 'todo' || e.rubric_issue)) return true;
+    if (f === 'disagree' && disagreement(rk, cid)) return true;
   }
   return false;
 }
-function paraCount(rk) { let n = 0; for (const k of Object.keys(state.paragraphs)) if (k.startsWith(rk + '/p')) n++; return n; }
+function paraCount(rk) { let n = 0; for (const k of Object.keys(myMap('paragraphs'))) if (k.startsWith(rk + '/p')) n++; return n; }
 function hasNotes(rk) { const nt = note(rk); return !!(nt && (nt.hypotheses || nt.biases)); }
 function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; }
-function fmtScore(s) { return s == null ? '–' : (s === 1 ? '1' : s === 0 ? '0' : String(s)); }
+function fmtScore(s) { return s == null ? '–' : Number(s).toFixed(1); }
 function chipBtn(parent, on, label, fn, cls) { const b = el('button', 'vb ' + (cls || 'grey') + (on ? ' on' : '')); b.textContent = label; b.onclick = ev => { ev.stopPropagation(); fn(); }; parent.appendChild(b); return b; }
 
 /* ---------- header ---------- */
 function renderStats() {
-  const reps = filteredReports(); const counts = {}; let pos = 0, reviewed = 0, total = 0, paras = 0, noted = 0;
+  const reps = filteredReports(); const counts = {}; let pos = 0, reviewed = 0, total = 0, paras = 0, noted = 0, dis = 0;
   for (const r of reps) { paras += paraCount(r.key); if (hasNotes(r.key)) noted++;
-    for (const cid of CIDS) { total++; if (isPos(r.scores[cid].score)) pos++; const v = category(r.key, cid); if (v) { counts[v] = (counts[v] || 0) + 1; if (v !== 'todo') reviewed++; } } }
+    for (const cid of CIDS) { total++; if (isPos(r.scores[cid].score)) pos++; if (disagreement(r.key, cid)) dis++; const v = category(r.key, cid); if (v) { counts[v] = (counts[v] || 0) + 1; if (v !== 'todo') reviewed++; } } }
   const box = document.getElementById('stats'); box.replaceChildren();
   box.appendChild(el('span', 'badge grey', reps.length + ' reports'));
   box.appendChild(el('span', 'badge grey', pos + ' judge-positive · ' + (total - pos) + ' negative'));
   box.appendChild(el('span', 'badge', reviewed + '/' + total + ' audited'));
   for (const [v, [lab, c]] of Object.entries(CAT)) if (counts[v]) box.appendChild(el('span', 'badge ' + c, lab + ' ' + counts[v]));
+  if (dis) box.appendChild(el('span', 'badge dang', dis + ' auditors differ >' + fmtScore(DISAGREE)));
   if (paras || noted) box.appendChild(el('span', 'badge', paras + ' ¶ noted · ' + noted + ' reports with notes'));
 }
+
+/* ---------- who is auditing, and the intro panel that teaches the scale ----------
+   The scale is long-winded to state and short to apply, so it is stated once here and
+   reduced to a two-word handle under each anchor button at the point of scoring. */
+function renderWho() {
+  const b = document.getElementById('who-btn');
+  b.textContent = ME ? 'auditor: ' + ME : 'who are you?';
+  b.classList.toggle('active', !!ME);
+  b.title = ME ? 'auditing as ' + ME + ' — click to change' : 'click to say who you are';
+}
+function setMe(n) {
+  ME = n;
+  try { localStorage.setItem(WHO_KEY, n); } catch (e) {}
+  adoptLegacy(); renderWho(); renderAll();
+}
+function buildIntro() {
+  const task = document.getElementById('intro-task'); task.replaceChildren();
+  for (const t of (D.intro || [])) task.appendChild(el('p', '', t));
+  const tab = document.getElementById('scaletab'); tab.replaceChildren();
+  for (const a of SCALE) {
+    const tr = el('tr');
+    tr.appendChild(el('td', 'v', a.key)); tr.appendChild(el('td', 's', a.short)); tr.appendChild(el('td', '', a.full));
+    tab.appendChild(tr);
+  }
+}
+function openIntro() {
+  const o = document.getElementById('intro'); o.hidden = false;
+  document.getElementById('who-err').hidden = true;
+  const inp = document.getElementById('who-in'); inp.value = ME;
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+}
+function closeIntro() {
+  const inp = document.getElementById('who-in'), n = inp.value.trim().slice(0, 40);
+  if (!n) { document.getElementById('who-err').hidden = false; inp.focus(); return; }
+  document.getElementById('intro').hidden = true;
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
+  if (n !== ME) setMe(n); else renderWho();
+}
+try { ME = localStorage.getItem(WHO_KEY) || ''; } catch (e) { ME = ''; }
+buildIntro(); renderWho();
+document.getElementById('who-btn').onclick = openIntro;
+document.getElementById('guide-btn').onclick = openIntro;
+document.getElementById('intro-ok').onclick = closeIntro;
+document.getElementById('who-in').onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); closeIntro(); } };
 
 /* ---------- collapsible sidebar ---------- */
 let sbHidden = false;
@@ -626,7 +834,7 @@ function renderFilters() {
   const budgets = [...new Set(REPORTS.map(r => String(r.budget)))].sort((a, b) => a - b);
   chipRow('f-budget', budgets, filters.budget, Object.fromEntries(budgets.map(b => [b, b + ' min'])));
   chipRow('f-agent', [...new Set(REPORTS.map(r => r.agent))].sort(), filters.agent);
-  chipRow('f-status', ['pos', 'neg', 'unreviewed', 'reviewed', 'flagged'], filters.status, {pos: 'judge +', neg: 'judge 0', unreviewed: 'unreviewed', reviewed: 'reviewed', flagged: 'flagged'});
+  chipRow('f-status', ['pos', 'neg', 'unreviewed', 'reviewed', 'flagged', 'disagree'], filters.status, {pos: 'judge +', neg: 'judge 0', unreviewed: 'unreviewed', reviewed: 'reviewed', flagged: 'flagged', disagree: 'auditors differ'});
 }
 function reportItem(r) {
   const it = el('div', 'item' + (r.key === selReport ? ' sel' : '')); it.dataset.key = r.key;
@@ -634,8 +842,9 @@ function reportItem(r) {
   const done = CIDS.filter(c => { const v = category(r.key, c); return v && v !== 'todo'; }).length;
   const flagged = CIDS.filter(c => { const e = entry(r.key, c); return e && (e.verdict === 'todo' || e.rubric_issue); }).length;
   const pc = paraCount(r.key);
+  const dis = CIDS.filter(c => disagreement(r.key, c)).length;
   const meta = el('div', 'meta'); meta.appendChild(el('span', '', r.budget + ' min')); meta.appendChild(el('span', '', r.round));
-  meta.appendChild(el('span', '', done + '/' + CIDS.length + ' audited' + (flagged ? ' · ' + flagged + ' flagged' : '') + (pc ? ' · ' + pc + ' ¶' : '') + (hasNotes(r.key) ? ' · notes' : '')));
+  meta.appendChild(el('span', '', done + '/' + CIDS.length + ' audited' + (flagged ? ' · ' + flagged + ' flagged' : '') + (dis ? ' · ' + dis + ' ≠' : '') + (pc ? ' · ' + pc + ' ¶' : '') + (hasNotes(r.key) ? ' · notes' : '')));
   it.appendChild(meta);
   const pg = el('div', 'prog'); const i = el('i'); i.style.width = (100 * done / CIDS.length) + '%'; pg.appendChild(i); it.appendChild(pg);
   it.onclick = () => { selReport = r.key; openParas.clear(); cardForced = false; renderMain(); renderList(); };
@@ -676,10 +885,23 @@ function auditControls(rk, cid, opts) {
   });
   box.appendChild(verd);
   const row = el('div', 'row'); row.appendChild(el('span', '', 'Your score:'));
-  for (const v of [0, 0.5, 1]) chipBtn(row, e.corrected === v, fmtScore(v), () => { setEntry(rk, cid, {corrected: e.corrected === v ? null : v}); refresh(rk, cid); });
+  const num = el('input'); num.className = 'scnum'; num.type = 'text'; num.inputMode = 'decimal';
+  num.placeholder = '0.0–1.0'; num.title = 'type a score and press Enter';
+  num.value = e.corrected == null ? '' : fmtScore(e.corrected);
+  const commit = () => {
+    const t = num.value.trim();
+    if (t === '') { setEntry(rk, cid, {corrected: null}); refresh(rk, cid); return; }
+    const x = parseFloat(t); if (isNaN(x)) { num.value = e.corrected == null ? '' : fmtScore(e.corrected); return; }
+    setEntry(rk, cid, {corrected: Math.min(1, Math.max(0, round1(x)))}); refresh(rk, cid);
+  };
+  num.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); commit(); } };
+  num.onchange = commit; row.appendChild(num);
   row.appendChild(el('span', 'cat', '(judge gave ' + fmtScore(s.score) + ')'));
   chipBtn(row, !!e.rubric_issue, (e.rubric_issue ? '⚑ ' : '') + 'rubric / claim needs fixing', () => { setEntry(rk, cid, {rubric_issue: !e.rubric_issue}); refresh(rk, cid); }, 'warn');
+  const g = el('a', 'link', 'the scale →'); g.onclick = ev => { ev.stopPropagation(); openIntro(); }; row.appendChild(g);
   box.appendChild(row);
+  box.appendChild(scaleRow(rk, cid, e));
+  const oth = othersRow(rk, cid, e); if (oth) box.appendChild(oth);
   const ta = el('textarea'); ta.className = 'cmt'; ta.dataset.cid = cid;
   ta.placeholder = 'Comment — why, what the report actually says, what the rubric should say…'; ta.value = e.comment || '';
   ta.oninput = () => setEntry(rk, cid, {comment: ta.value}); box.appendChild(ta);
@@ -687,6 +909,50 @@ function auditControls(rk, cid, opts) {
   foot.textContent = (v ? 'Category: ' + v[0] : 'Not audited yet') + (e.updated_at ? ' · ' + new Date(e.updated_at).toLocaleString() : '');
   if (opts && opts.jump) { foot.appendChild(document.createTextNode('  ')); const a = el('a', 'link', 'open in report view →'); a.onclick = () => switchView('report', () => { selReport = rk; selClaim = cid; openParas.clear(); cardForced = false; }); foot.appendChild(a); }
   box.appendChild(foot);
+  return box;
+}
+/* Eleven values, 0.0 to 1.0. The six rubric anchors carry their two-word handle and the
+   full sentence on hover; the five in between say which anchors they sit between. */
+function tweenTitle(v) {
+  const below = SCALE.filter(a => a.v < v), above = SCALE.filter(a => a.v > v);
+  const lo = below.length ? below[0] : null, hi = above.length ? above[above.length - 1] : null;
+  return fmtScore(v) + ' — between ' + (lo ? fmtScore(lo.v) + ' (' + lo.short + ')' : '?')
+       + ' and ' + (hi ? fmtScore(hi.v) + ' (' + hi.short + ')' : '?');
+}
+function scaleRow(rk, cid, e) {
+  const wrap = el('div', 'scale');
+  for (const v of SCALE_VALS) {
+    const key = fmtScore(v), a = SCALE_BY[key];
+    const b = el('button', 'sb' + (a ? ' anch' : '') + (e.corrected === v ? ' on' : ''));
+    b.appendChild(el('span', 'n', key));
+    b.appendChild(el('span', 'sl', a ? a.short : ''));
+    b.title = a ? key + ' — ' + a.full : tweenTitle(v);
+    b.onclick = ev => { ev.stopPropagation(); setEntry(rk, cid, {corrected: e.corrected === v ? null : v}); refresh(rk, cid); };
+    wrap.appendChild(b);
+  }
+  return wrap;
+}
+function othersRow(rk, cid, e) {
+  const rows = [];
+  for (const w of auditors()) {
+    if (w === ME) continue;
+    const o = entryOf(w, rk, cid);
+    if (!o || (o.corrected == null && !o.verdict && !o.comment)) continue;
+    rows.push([w, o]);
+  }
+  if (!rows.length) return null;
+  const box = el('div', 'other');
+  for (const [w, o] of rows) {
+    const line = el('div', 'oline');
+    line.appendChild(el('span', 'who', w + ' said'));
+    if (o.corrected != null) line.appendChild(el('span', 'sc ' + scoreClass(o.corrected), fmtScore(o.corrected)));
+    if (o.verdict) line.appendChild(el('span', 'cat', CAT[o.verdict][0]));
+    if (o.rubric_issue) line.appendChild(el('span', 'cat', '⚑ rubric'));
+    const d = (e.corrected != null && o.corrected != null) ? round1(Math.abs(e.corrected - o.corrected)) : 0;
+    if (d > DISAGREE) line.appendChild(el('span', 'badge dang', 'you disagree by ' + fmtScore(d)));
+    if (o.comment) line.appendChild(el('div', 'ocmt', '“' + o.comment + '”'));
+    box.appendChild(line);
+  }
   return box;
 }
 function refresh(rk, cid) {
@@ -825,7 +1091,8 @@ function renderRail() {
     if (!statusOk(selReport, cid)) continue;
     const s = r.scores[cid], e = entry(selReport, cid);
     const ch = el('button', 'chip' + (cid === selClaim ? ' sel' : '')); ch.appendChild(el('span', 'dot ' + scoreClass(s.score))); ch.appendChild(document.createTextNode(cid));
-    const st = e && e.verdict ? (e.verdict === 'todo' ? '?' : CAT[e.verdict][1] === 'dang' ? '✗' : '✓') : ''; if (st || (e && e.rubric_issue)) ch.appendChild(el('span', 'st', st + (e.rubric_issue ? '⚑' : '')));
+    const dis = disagreement(selReport, cid); if (dis) ch.classList.add('dis');
+    const st = e && e.verdict ? (e.verdict === 'todo' ? '?' : CAT[e.verdict][1] === 'dang' ? '✗' : '✓') : ''; if (st || dis || (e && e.rubric_issue)) ch.appendChild(el('span', 'st', st + (e.rubric_issue ? '⚑' : '') + (dis ? '≠' : '')));
     ch.title = CBY[cid].claim; ch.onclick = () => { selectClaim(cid); jumpToClaim(); }; rail.appendChild(ch);
   }
 }
@@ -1071,7 +1338,7 @@ function notesCard(rk) {
   }
   if (!global) {
     const lines = (RBY[rk].text || '').split('\n');
-    const ps = Object.entries(state.paragraphs).filter(([k]) => k.startsWith(rk + '/p')).map(([k, v]) => [parseInt(k.split('/p')[1]), v]).sort((a, b) => a[0] - b[0]);
+    const ps = Object.entries(myMap('paragraphs')).filter(([k]) => k.startsWith(rk + '/p')).map(([k, v]) => [parseInt(k.split('/p')[1]), v]).sort((a, b) => a[0] - b[0]);
     if (ps.length) c.appendChild(el('label', '', ps.length + ' paragraph notes'));
     for (const [li, a] of ps) {
       const p = el('div', 'pl'); const fake = el('div'); decorateLine(fake, rk, li); p.className = 'pl ' + [...fake.classList].filter(x => x.startsWith('a-')).join(' ');
@@ -1142,7 +1409,11 @@ document.addEventListener('keydown', ev => {
 });
 initHuman();
 renderAll();
-load().then(renderAll);
+load().then(() => {
+  adoptLegacy(); renderWho(); renderAll();
+  let seen = false; try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch (e) {}
+  if (!ME || !seen) openIntro();          /* first visit: the task, the scale, and a name */
+});
 </script></body></html>'''
 
 if __name__ == "__main__":
