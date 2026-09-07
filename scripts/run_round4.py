@@ -95,6 +95,7 @@ def command(
     job: Job,
     max_samples: int | None = None,
     max_sandboxes: int | None = None,
+    epochs: int | None = None,
 ) -> list[str]:
     logs = Path(manifest["logs_dir"]) / job.system_id / f"{job.budget_minutes}m"
     cmd = [
@@ -110,7 +111,7 @@ def command(
         "--min-runtime-fraction",
         str(manifest["min_runtime_fraction"]),
         "--epochs",
-        str(job.epochs),
+        str(epochs if epochs is not None else job.epochs),
         "--max-samples",
         str(max_samples if max_samples is not None else manifest["max_samples"]),
         "--max-sandboxes",
@@ -243,6 +244,11 @@ def main() -> int:
         type=int,
         help="override Inspect sandbox concurrency for selected jobs",
     )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        help="override replicate count for each selected job",
+    )
     args = parser.parse_args()
 
     try:
@@ -259,6 +265,7 @@ def main() -> int:
     for name, value in (
         ("max_samples", args.max_samples),
         ("max_sandboxes", args.max_sandboxes),
+        ("epochs", args.epochs),
     ):
         if value is not None and value <= 0:
             parser.error(f"--{name.replace('_', '-')} must be positive")
@@ -267,7 +274,13 @@ def main() -> int:
     for job in jobs:
         print(
             shlex.join(
-                command(manifest, job, args.max_samples, args.max_sandboxes)
+                command(
+                    manifest,
+                    job,
+                    args.max_samples,
+                    args.max_sandboxes,
+                    args.epochs,
+                )
             )
         )
 
@@ -286,7 +299,13 @@ def main() -> int:
     for index, job in enumerate(jobs, start=1):
         print(f"[{index}/{len(jobs)}] launching {job.system_id} {job.budget_minutes}m")
         result = subprocess.run(
-            command(manifest, job, args.max_samples, args.max_sandboxes),
+            command(
+                manifest,
+                job,
+                args.max_samples,
+                args.max_sandboxes,
+                args.epochs,
+            ),
             cwd=ROOT,
             env=execution_env(),
         )

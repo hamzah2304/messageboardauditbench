@@ -97,3 +97,11 @@ def test_concurrency_overrides_are_explicit() -> None:
 
     assert cmd[cmd.index("--max-samples") + 1] == "3"
     assert cmd[cmd.index("--max-sandboxes") + 1] == "3"
+
+
+def test_epoch_override_is_explicit() -> None:
+    manifest = load_manifest()
+    job = expand_jobs(manifest)[0]
+    cmd = command(manifest, job, epochs=2)
+
+    assert cmd[cmd.index("--epochs") + 1] == "2"
