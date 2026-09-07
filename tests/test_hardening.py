@@ -1,5 +1,6 @@
 """Guards for the operational fixes learned from the Sep 2026 rounds. They read the shell runner as text
 because the behaviours live in bash; the point is that a later edit cannot silently drop them."""
+import re
 from pathlib import Path
 
 import messageboard_audit_bench.task as task_mod
@@ -46,5 +47,9 @@ def test_subscription_kill_keeps_a_grace_period_after_the_budget() -> None:
     # the budget itself produced empty reports whenever an agent was still writing (codex smoke, 2026-09-07).
     assert task_mod.TIMEOUT_GRACE_MINUTES >= 5
     src = (ROOT / "messageboard_audit_bench" / "task.py").read_text()
-    assert "timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES" in src
-    assert "timeout_minutes=timeout_minutes" in src
+    # Whatever the variable is called, the value handed to the subscription solver as timeout_minutes
+    # must be defined as budget_min + TIMEOUT_GRACE_MINUTES.
+    passed = re.findall(r"timeout_minutes=(\w+)", src)
+    assert passed, "subscription solver is not given a timeout_minutes"
+    for name in passed:
+        assert re.search(rf"^\s*{name}\s*=\s*budget_min\s*\+\s*TIMEOUT_GRACE_MINUTES", src, re.M), name
