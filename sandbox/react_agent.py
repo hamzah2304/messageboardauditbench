@@ -18,7 +18,11 @@ The final `result` event carries the totals.
 
   react_agent.py --model moonshotai/kimi-k3 --prompt-file /work/prompt.txt --effort medium --budget-min 20
 """
-import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error
+import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
+from pathlib import Path
+
+from report_length import env_limits, overlong_feedback_if_changed
+from runtime_policy import stop_reason as completion_stop_reason
 
 TOOLS = [
     {"type": "function", "function": {"name": "bash",
@@ -64,14 +68,21 @@ def time_left_note():
     if not dl: return ""
     left = (int(dl) - int(time.time()) + 30) // 60
     budget = os.environ.get("MBAB_BUDGET_MIN", "?")
-    if left > 0: return f"\n\n[Time budget: about {left} of {budget} minutes left.]"
+    if left > 0:
+        note = f"Time budget: about {left} of {budget} minutes left."
+        earliest = int(os.environ.get("MBAB_EARLIEST_FINISH_EPOCH", "0"))
+        now = int(time.time())
+        if earliest > now:
+            minimum_left = max(1, (earliest - now + 59) // 60)
+            note += f" Minimum-runtime policy: continue meaningful work for about {minimum_left} more minute(s); do not idle or sleep."
+        return f"\n\n[{note}]"
     return f"\n\n[Time budget: exhausted (about {-left} minutes over). The session will be stopped any moment; make sure report.md is complete.]"
 
 def chat(base, key, body):
     """POST /chat/completions with retries. Returns (response_json, retries, latency_ms of the successful attempt)."""
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
-                 "HTTP-Referer": "https://github.com/hamzah2304/messageboardauditbench", "X-Title": "messageboardauditbench"})
+                 "HTTP-Referer": "https://github.com/hamzah2304/messageboardauditbench", "X-Title": "messageboard_audit_bench"})
     for attempt in range(6):
         t = time.time()
         try:
@@ -99,7 +110,7 @@ def chat(base, key, body):
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": e.code, "error": msg[:200]})
                 time.sleep(2 ** attempt); continue
             raise RuntimeError(f"HTTP {e.code}: {msg}")
-        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as e:  # incl. IncompleteRead, RemoteDisconnected
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as e:
             if attempt < 5:
                 emit({"type": "system", "subtype": "api_retry", "attempt": attempt + 1, "error_status": None, "error": str(e)[:200]})
                 time.sleep(2 ** attempt); continue
@@ -113,7 +124,7 @@ def usage_of(resp):
     out = {"input_tokens": u.get("prompt_tokens", 0) or 0, "output_tokens": u.get("completion_tokens", 0) or 0,
            "cache_read_input_tokens": pd.get("cached_tokens", 0) or 0,
            "cache_creation_input_tokens": pd.get("cache_write_tokens", 0) or 0,
-           "reasoning_tokens": cd.get("reasoning_tokens", 0) or 0, "cost": u.get("cost")}
+           "reasoning_tokens": cd.get("reasoning_tokens"), "cost": u.get("cost")}
     if u.get("cost_details"): out["cost_details"] = u["cost_details"]
     return out
 
@@ -143,13 +154,14 @@ def main():
     msgs = [{"role": "system", "content": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]},
             {"role": "user", "content": prompt}]
     t0 = time.time(); turns = 0; stop = "end_turn"; cost = 0.0; retries = 0; latencies = []; providers = {}
+    session_id = f"messageboard_audit_bench-{uuid.uuid4()}"
     usage = {k: 0 for k in USAGE_KEYS}
     emit({"type": "system", "subtype": "init", "cwd": a.cwd, "model": a.model, "effort": a.effort, "budget_min": a.budget_min,
           "tools": [t["function"]["name"] for t in TOOLS], "scaffold": "react_agent.py", "base_url": a.base_url})
     while turns < a.max_turns:
         elapsed = (time.time() - t0) / 60
         if elapsed > a.budget_min: stop = "budget"; break
-        body = {"model": a.model, "messages": msgs, "tools": TOOLS,
+        body = {"model": a.model, "messages": msgs, "tools": TOOLS, "session_id": session_id,
                 "cache_control": {"type": "ephemeral"}, "usage": {"include": True}}
         if a.effort: body["reasoning"] = {"effort": a.effort}
         try:
@@ -160,7 +172,11 @@ def main():
             emit({"type": "error", "error": str(e)}); stop = "api_error"; break
         turns += 1; retries += n_retry; latencies.append(latency_ms)
         tu = usage_of(resp)
-        for k in usage: usage[k] += tu.get(k) or 0
+        for k in usage:
+            if k == "reasoning_tokens" and (usage[k] is None or tu.get(k) is None):
+                usage[k] = None
+            else:
+                usage[k] += tu.get(k) or 0
         cost += tu.get("cost") or 0
         choice = resp["choices"][0]; m = choice["message"]
         mid = resp.get("id") or f"msg_{turns}"
@@ -188,12 +204,30 @@ def main():
         if m.get("reasoning_details"): assistant["reasoning_details"] = m["reasoning_details"]
         elif m.get("reasoning"): assistant["reasoning"] = m["reasoning"]   # plaintext-only providers
         msgs.append(assistant)
-        if not calls: break
+        if not calls:
+            # Match the CLI Stop hook: do not accept an ordinary early finish,
+            # but never retain an explicit error/refusal.
+            reason = completion_stop_reason(
+                {
+                    "stop_reason": choice.get("native_finish_reason")
+                    or choice.get("finish_reason"),
+                    "last_assistant_message": m.get("content") or "",
+                },
+                report=Path(a.cwd) / "report.md",
+            )
+            if not reason:
+                break
+            msgs.append({"role": "user", "content": reason})
+            emit({"type": "user", "message": {"content": [{"type": "text", "text": reason}]}})
+            continue
         results = []
         for c in calls:
             args = c["_args"]
             out = ("[could not parse tool arguments as JSON]" if "_raw" in args else run_tool(c["function"]["name"], args, a.cwd))
             out += time_left_note()
+            note = overlong_feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
+            if note:
+                out += "\n\n[" + note + "]"
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})
             results.append({"type": "tool_result", "tool_use_id": c["id"], "content": out})
         emit({"type": "user", "message": {"content": results}})

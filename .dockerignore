@@ -1,6 +1,22 @@
-# The image only needs sandbox/proxy.py, sandbox/react_agent.py and sandbox/time_left.sh (see sandbox/docker/Dockerfile).
-# Everything else is excluded so `docker build .` does not ship gigabytes of runs/ and data/ into the VM.
-*
+.git
+.venv
+.pytest_cache
+.ruff_cache
+**/__pycache__
+benchmark
+corpus
+data
+dist
+logs
+reports
+runs
+viewers
+!messageboard_audit_bench/report_length.py
+!messageboard_audit_bench/runtime_policy.py
+!sandbox/codex_with_hooks.sh
 !sandbox/proxy.py
 !sandbox/react_agent.py
 !sandbox/time_left.sh
+!sandbox/isolation_preflight.py
+
+!sandbox/tool_telemetry.py

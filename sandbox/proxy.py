@@ -1,109 +1,173 @@
 #!/usr/bin/env python3
-"""Allowlisting HTTP CONNECT proxy.
+"""A small, pinned HTTP CONNECT proxy for subscription trials.
 
-The agent container sits on an internal Docker network with no gateway, so every
-outbound connection from an agent has to come through here (HTTPS_PROXY), and
-only hosts in ALLOW get through. Everything else is refused and logged, which doubles as a record of
-what the agent tried to reach.
-
-Usage: proxy.py [--bind 127.0.0.1] [--port 3128] [--log denied.log]
+The subscription runner gives an agent an internal Docker network and this is
+its only route to the model service. Each harness has an exact hostname
+allowlist, only port 443 is accepted, and a resolved address must be public.
+The proxy connects to that already-resolved address, rather than resolving the
+hostname a second time, so DNS rebinding cannot change the destination between
+the check and the connection.
 """
+from __future__ import annotations
+
 import argparse
+import ipaddress
 import select
 import socket
 import sys
 import threading
 import time
+from collections.abc import Callable
 
-ALLOW = {
-    # Claude Code (subscription or API key)
-    "api.anthropic.com",
-    "platform.claude.com",
-    # Codex CLI (ChatGPT subscription login talks to chatgpt.com; API key to api.openai.com)
-    "chatgpt.com",
-    "api.openai.com",
-    "auth.openai.com",
-    # ReAct scaffold (sandbox/react_agent.py)
-    "openrouter.ai",
+ALLOW_BY_AGENT = {
+    "claude": frozenset({"api.anthropic.com", "platform.claude.com"}),
+    "codex": frozenset({"api.openai.com", "auth.openai.com", "chatgpt.com"}),
+    "react": frozenset({"openrouter.ai"}),
 }
+MAX_REQUEST_BYTES = 16 * 1024
+CONNECT_TIMEOUT_SECONDS = 20
+IDLE_TIMEOUT_SECONDS = 300
 
 
-def allowed(host: str) -> bool:
-    host = host.lower()
-    return any(host == a or host.endswith("." + a) for a in ALLOW)
+def allowed_host(host: str, agent: str) -> bool:
+    """True only for an exact vendor hostname for this agent."""
+    return host.lower().rstrip(".") in ALLOW_BY_AGENT[agent]
+
+
+def parse_authority(authority: str) -> tuple[str, int]:
+    """Parse a CONNECT authority without accepting an IP literal or userinfo."""
+    if authority.count(":") != 1 or any(c in authority for c in "@/\\[]"):
+        raise ValueError("CONNECT target must be a hostname followed by one port")
+    host, port_text = authority.rsplit(":", 1)
+    if not host or not port_text.isascii() or not port_text.isdecimal():
+        raise ValueError("invalid CONNECT authority")
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("IP CONNECT targets are forbidden")
+    port = int(port_text)
+    if port != 443:
+        raise ValueError("only HTTPS port 443 is allowed")
+    return host.lower().rstrip("."), port
+
+
+def public_addresses(host: str, port: int) -> list[tuple[int, tuple]]:
+    """Resolve ``host`` and retain only globally routable TCP destinations."""
+    addresses: list[tuple[int, tuple]] = []
+    seen: set[tuple[int, tuple]] = set()
+    for family, socktype, _proto, _canonname, sockaddr in socket.getaddrinfo(
+        host, port, type=socket.SOCK_STREAM
+    ):
+        if socktype != socket.SOCK_STREAM:
+            continue
+        ip = ipaddress.ip_address(sockaddr[0])
+        if not ip.is_global:
+            continue
+        item = (family, sockaddr)
+        if item not in seen:
+            seen.add(item)
+            addresses.append(item)
+    if not addresses:
+        raise OSError("hostname has no public TCP address")
+    return addresses
+
+
+def connect_pinned(addresses: list[tuple[int, tuple]]) -> socket.socket:
+    """Connect to a validated address without another DNS lookup."""
+    last_error: OSError | None = None
+    for family, sockaddr in addresses:
+        upstream = socket.socket(family, socket.SOCK_STREAM)
+        upstream.settimeout(CONNECT_TIMEOUT_SECONDS)
+        try:
+            upstream.connect(sockaddr)
+            return upstream
+        except OSError as exc:
+            last_error = exc
+            upstream.close()
+    raise last_error or OSError("could not connect to public destination")
 
 
 def pipe(a: socket.socket, b: socket.socket) -> None:
-    socks = [a, b]
     try:
         while True:
-            r, _, x = select.select(socks, [], socks, 300)
-            if x or not r:
+            readable, _, exceptional = select.select([a, b], [], [a, b], IDLE_TIMEOUT_SECONDS)
+            if exceptional or not readable:
                 return
-            for s in r:
-                data = s.recv(65536)
+            for source in readable:
+                data = source.recv(65536)
                 if not data:
                     return
-                (b if s is a else a).sendall(data)
+                (b if source is a else a).sendall(data)
     except OSError:
         return
 
 
-def handle(client: socket.socket, addr, log) -> None:
+def _deny(client: socket.socket, log: Callable[[str], None], peer: str, detail: str) -> None:
+    client.sendall(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
+    log(f"deny {peer} {detail}".replace("\r", " ").replace("\n", " "))
+
+
+def handle(client: socket.socket, addr: tuple, log: Callable[[str], None], agent: str) -> None:
+    peer = str(addr[0])
+    upstream: socket.socket | None = None
     try:
-        client.settimeout(30)
+        client.settimeout(CONNECT_TIMEOUT_SECONDS)
         head = b""
         while b"\r\n\r\n" not in head:
-            chunk = client.recv(4096)
+            chunk = client.recv(min(4096, MAX_REQUEST_BYTES + 1 - len(head)))
             if not chunk:
                 return
             head += chunk
-        line = head.split(b"\r\n", 1)[0].decode("latin-1")
-        parts = line.split()
-        if len(parts) < 2 or parts[0] != "CONNECT":
-            # Plain HTTP is never needed by the CLIs; refuse it.
-            client.sendall(b"HTTP/1.1 403 Forbidden\r\n\r\n")
-            log(f"deny {addr[0]} {line}")
+            if len(head) > MAX_REQUEST_BYTES:
+                _deny(client, log, peer, "request headers too large")
+                return
+        request_line = head.split(b"\r\n", 1)[0].decode("latin-1")
+        fields = request_line.split()
+        if len(fields) != 3 or fields[0] != "CONNECT" or not fields[2].startswith("HTTP/1."):
+            _deny(client, log, peer, f"invalid request {request_line[:160]}")
             return
-        host, _, port = parts[1].rpartition(":")
-        if not allowed(host):
-            client.sendall(b"HTTP/1.1 403 Forbidden\r\n\r\n")
-            log(f"deny {addr[0]} CONNECT {host}:{port}")
+        host, port = parse_authority(fields[1])
+        if not allowed_host(host, agent):
+            _deny(client, log, peer, f"CONNECT {host}:{port} (host not allowed for {agent})")
             return
-        upstream = socket.create_connection((host, int(port)), timeout=30)
+        upstream = connect_pinned(public_addresses(host, port))
         client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         client.settimeout(None)
         upstream.settimeout(None)
-        log(f"allow {addr[0]} CONNECT {host}:{port}")
+        log(f"allow {peer} CONNECT {host}:{port} address={upstream.getpeername()[0]}")
         pipe(client, upstream)
-        upstream.close()
-    except Exception as e:  # noqa: BLE001
-        log(f"error {addr[0]} {e}")
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        log(f"error {peer} {type(exc).__name__}: {str(exc)[:200]}")
     finally:
+        if upstream is not None:
+            upstream.close()
         client.close()
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--bind", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=3128)
-    ap.add_argument("--log", default="-")
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=3128)
+    parser.add_argument("--agent", choices=sorted(ALLOW_BY_AGENT), required=True)
+    parser.add_argument("--log", default="-")
+    args = parser.parse_args()
     out = sys.stdout if args.log == "-" else open(args.log, "a", buffering=1)
     lock = threading.Lock()
 
-    def log(msg: str) -> None:
+    def log(message: str) -> None:
         with lock:
-            out.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {msg}\n")
+            out.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {message}\n")
 
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind((args.bind, args.port))
-    srv.listen(64)
-    log(f"listening on {args.bind}:{args.port} allow={sorted(ALLOW)}")
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((args.bind, args.port))
+    server.listen(64)
+    log(f"listening on {args.bind}:{args.port} agent={args.agent} allow={sorted(ALLOW_BY_AGENT[args.agent])}")
     while True:
-        c, a = srv.accept()
-        threading.Thread(target=handle, args=(c, a, log), daemon=True).start()
+        client, address = server.accept()
+        threading.Thread(target=handle, args=(client, address, log, args.agent), daemon=True).start()
 
 
 if __name__ == "__main__":

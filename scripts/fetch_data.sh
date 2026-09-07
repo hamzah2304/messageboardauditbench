@@ -5,6 +5,9 @@ set -euo pipefail
 if command -v sha256sum >/dev/null 2>&1; then SHA256SUM=sha256sum; else SHA256SUM="shasum -a 256"; fi
 cd "$(dirname "$0")/.."
 mkdir -p data/raw && cd data/raw
-curl -sL https://collusion.wiki/explorer/download/full-wiki-logs.zip -o full-wiki-logs.zip
-unzip -o -q full-wiki-logs.zip
+ARCHIVE=full-wiki-logs.zip
+ARCHIVE_SHA256=eb68aa12d26bf189d8bfc4ce47f4d8af66ae5ba7ebbadd429738297a3cbb25ae
+curl -fsSL https://collusion.wiki/explorer/download/full-wiki-logs.zip -o "$ARCHIVE"
+printf '%s  %s\n' "$ARCHIVE_SHA256" "$ARCHIVE" | $SHA256SUM -c -
+unzip -o -q "$ARCHIVE"
 $SHA256SUM -c SHA256SUMS

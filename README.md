@@ -132,12 +132,12 @@ graded as before.
 ```
 benchmark/      ground truth: human_report.txt (answer key), claims, feasibility,
                 rubrics, graded results, and the exact reports each grade came from
-messageboard_audit/
+messageboard_audit_bench/
                 the Inspect task package — wraps the sandbox as an inspect eval
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
 scripts/        data build/fetch, grading, report collection
 configs/        trial conditions (budget, prompt, data variant, effort)
-reports/        the model report corpus, by condition
+reports/        the model report corpus, by benchmark config
 baselines/      early trial runs (meta + report; transcripts are gitignored)
 viewers/        build_*.py -> browsable HTML for every artifact
 corpus/         raw message-board exports
@@ -147,8 +147,9 @@ docs/           design notes, data processing, handoff
 
 ## Running it
 
-Two routes to the same trials: the scripts directly, or through Inspect
-(see [Inspect integration](#inspect-integration)). Both launch the same sandbox.
+Two routes to the same task: the subscription scripts directly, or the
+first-class Inspect/Inspect SWE path (see [Inspect integration](#inspect-integration)).
+Both use the benchmark image, network-disabled workspace, prompt, and data.
 
 ```bash
 uv sync                        # or: pip install -e .
@@ -158,7 +159,7 @@ scripts/build_data.sh --verify # check an existing build
 
 # run a trial: <agent> <model> <replicate>, conditions from CONFIG
 # (needs Docker; see sandbox/README.md for credentials)
-CONFIG=configs/blind-20.toml sandbox/docker/run_trial.sh claude claude-opus-5 1
+ALLOW_NETWORKED_SUBSCRIPTION=1 CONFIG=configs/blind-20.toml sandbox/docker/run_trial.sh claude claude-opus-5 1
 
 # grade a report set against the 30-claim rubrics
 python benchmark/rubrics/grade_with_rubrics.py --dir round3_blind120
@@ -183,47 +184,174 @@ from a plain clone.
 - [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
   design rationale and operational notes.
 - [`sandbox/README.md`](sandbox/README.md) — how isolation actually works.
-- [`messageboard_audit/README.md`](messageboard_audit/README.md) — the Inspect task
+- [`messageboard_audit_bench/README.md`](messageboard_audit_bench/README.md) — the Inspect task
   package in full.
 
 ## Inspect integration
 
-The repo is packaged as an [Inspect](https://inspect.aisi.org.uk/) eval.
-`messageboard_audit/` is the task package, and `inspect-ai>=0.3` is a declared
-dependency in `pyproject.toml`, so `uv sync` installs it.
+The repo is packaged as an installable [Inspect](https://inspect.aisi.org.uk/)
+eval. `pyproject.toml` registers `messageboard_audit_bench` as an Inspect plugin,
+and `messageboard_audit_bench/__init__.py` exports the task functions. After `uv sync`,
+Inspect can discover the eval by package name; no task-file path is required.
 
-Inspect does not replace the sandbox — it wraps it. The solver shells out to the
-same `sandbox/docker/run_trial.sh` that a manual run uses, so the isolation
-guarantees are identical either way. What Inspect adds is a standard log format,
-a viewer, and epoch handling.
+The default backend is fully Inspect-managed. Inspect creates the Docker
+sandbox, selects the model, enforces the agent time limit, records live model
+and tool events, and writes its standard `.eval` log. Claude Code and Codex use
+the official Inspect SWE agents; ReAct uses Inspect's built-in agent. The
+subscription backend remains available for results that must use a logged-in
+CLI, but imports that CLI's event stream after the run.
 
 | file | role |
 |---|---|
-| `task.py` | two tasks: `messageboard_audit` (fresh trials) and `messageboard_audit_replay` (import runs already on disk) |
-| `solver.py` | `cli_agent` launches the sandbox runner; `replay` imports a finished run |
-| `transcripts.py` | converts Claude Code / Codex / ReAct event streams into Inspect messages and tool calls, so the viewer renders them natively |
-| `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`) and `process_metrics` (turns, tokens, wall time — no judge) |
+| `task.py` | two tasks: `messageboard_audit_bench` (fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
+| `native.py` | runs Claude Code/Codex through Inspect SWE, or Inspect's ReAct agent, and collects `report.md` |
+| `solver.py` | `subscription_agent` launches the subscription runner; `replay` imports a finished run |
+| `transcripts.py` | loss-aware conversion of subscription/historical CLI events into Inspect messages and tool calls |
+| `scorer.py` | report-quality, process, and report-length scorers |
 | `rubric.yaml` | the rubric that scorer grades against |
 
 ```bash
-uv sync                                    # installs inspect-ai and this package
-export ANTHROPIC_API_KEY=...               # the judge needs a key even when the
-                                           # agents run on a subscription CLI
+uv sync                                    # installs Inspect and this package
+scripts/build_data.sh                      # downloads and verifies the dataset
+export ANTHROPIC_API_KEY=...               # native Claude + default judge
+export OPENAI_API_KEY=...                  # native Codex when using OpenAI
 
-# run fresh trials; conditions come from configs/<config>.toml
-uv run inspect eval messageboard_audit/task.py@messageboard_audit \
-  -T agent=claude -T model=claude-opus-5 -T config=blind-20 --epochs 3
+# Native Claude Code. The agent model is Inspect's normal --model option.
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=claude -T config=blind -T time_limit_minutes=30 \
+  -T min_runtime_fraction=0.75 \
+  --model anthropic/claude-opus-4-1 \
+  --model-role grader=anthropic/claude-sonnet-4-5 \
+  --epochs 3 --max-samples 1 --log-model-api --log-refusals
+
+# Native Codex CLI with the same task and Inspect plumbing.
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=codex -T config=blind -T time_limit_minutes=30 \
+  --model openai/gpt-5 \
+  --model-role grader=anthropic/claude-sonnet-4-5
+
+# Subscription-authenticated CLI (no agent API key/model is consumed by Inspect).
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T backend=subscription -T agent=claude \
+  -T subscription_model=claude-opus-5 \
+  -T config=blind -T time_limit_minutes=30 \
+  -T judge=anthropic/claude-sonnet-4-5 --max-samples 1
 
 # or fold runs already on disk into one eval, without spending model time
-uv run inspect eval messageboard_audit/task.py@messageboard_audit_replay
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 
 uv run inspect view                        # browse the .eval logs
+
+# Export native reports for the existing report/grade tooling. This reads logs
+# through Inspect's Log API; it does not parse .eval files directly.
+uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
+
+# Run one explicit model/agent/config cell. On macOS this prevents sleep.
+scripts/run_inspect_matrix.sh --agent claude --config blind \
+  --model anthropic/claude-opus-4-1 --epochs 3
 ```
 
-`--epochs N` runs N independent replicates; the replicate number identifies a run
-and does not seed sampling. Use `--max-samples 1` to serialize epochs against a
-subscription-backed CLI. `messageboard_audit_replay` reads `runs/`, which is
+`-T agent=claude` runs Claude Code, `-T agent=codex` runs Codex CLI, and
+`-T agent=react` runs Inspect's model-neutral ReAct agent. Claude Code is the
+default. With `backend=inspect`, all three use Inspect's `--model`, provider
+prompt cache, scoped limits, and live logging. Every native harness receives a
+time note after each tool call; Claude Code and Codex receive it through their
+lifecycle hooks, while Inspect ReAct receives it in the wrapped tool result.
+The prompt also lets every harness call `time_left` on demand. Both mechanisms
+use the same scoped deadline. With `backend=subscription`, use
+`-T subscription_model=...`; this deliberately runs outside Inspect's model
+provider and then converts the recorded CLI events for the viewer.
+
+The config, time, and minimum-runtime dimensions are independent: use
+`-T config=blind|context`, `-T time_limit_minutes=N`, and optionally
+`-T min_runtime_fraction=F`. The fraction defaults to `0.75`: a normal finish
+before 75% of the configured budget resumes the same investigation, with a
+prompt asking the agent to verify evidence and improve `report.md` rather than
+idle. The exact fraction and earliest permitted finish are stated in the
+prompt. Set the fraction to `0` only for an ablation. Terminal refusals,
+failures, and hard limits are not resumed. Time-bearing legacy config names
+remain available to direct sandbox scripts but are not part of the Inspect
+interface. Subscription agents are told exactly N minutes; their container gets
+a five-minute shutdown/write grace, followed by a separate five-minute host
+recovery guard so transcript folding is not cut off. A Codex capacity failure
+before its first completed turn is relaunched at most twice.
+The `blind` config uses the provenance-recorded `blind-v2` prompt; `context`
+retains its own prompt. Prompt templates and config names are intentionally
+separate.
+
+`--epochs N` is Inspect's standard option for N independent replicates; the
+replicate number identifies a run and does not seed sampling. Use
+`--max-samples 1` to serialize epochs against a subscription-backed CLI.
+`messageboard_audit_bench_replay` reads `runs/`, which is
 gitignored — it only has anything to import on a machine that has run trials.
+
+`export_inspect_reports.py` is the bridge from native `.eval` logs to the
+report-artifact layout used by downstream graders. It exports only native
+`backend=inspect` samples by default. Passing `--backend all` includes imported
+subscription samples. Reports are grouped by the actual scaffold, so native and
+subscription Claude Code (or Codex CLI) runs can be analyzed together; backend
+remains on every index row. The two ReAct implementations stay separate.
+`run_inspect_matrix.sh` makes its API retries, request/attempt timeouts,
+sample/sandbox/API concurrency, sample retries, and raw API/refusal logging
+explicit. It defaults to at most two sample reruns after an error and uses
+`caffeinate` on macOS; it intentionally does not impose a disk-space floor.
+Muse models always run with an explicit `--max-connections 2`; the wrapper
+rejects a conflicting value. Other models default to 4.
+
+The round-3 prompt targets 2,500–3,000 words. Short, nonempty reports are
+accepted; reports up to 3,100 words pass the separate length score. The agent
+does not see that tolerance. After-tool checks report the word count when `report.md` changes;
+reads and edits to other files do not repeat it. A Claude Code or Codex Stop hook, or the native wrapper's
+post-hoc guard, can request one shortening pass when at least a minute remains.
+Subscription hooks implement the same policy. Missing, empty, and short reports
+are never used to force additional work; normal early completion is resumed only
+until the configured minimum runtime. Native log metadata records the configured
+fraction, minimum seconds, and whether the PostToolUse and Stop hooks fired.
+
+Provider refusals are retried at most twice through the same model. A terminal
+native refusal is recorded from Inspect's `content_filter` stop reason in
+sample metadata; no model fallback occurs. The batch runner independently
+allows at most two whole-sample retries for actual sample errors.
+
+Provider prompt caching is explicitly enabled on the native backend with
+Inspect's `cache_prompt=True`; Inspect's `.eval` usage records separate cache
+read and cache write tokens. Subscription/replay logs retain the CLI-reported
+cache counters. No converter can make an old external run into an Inspect SWE
+run—Inspect SWE is the live execution bridge—but the importer maps its complete
+trajectory into the same Inspect chat/tool representation used by the UI.
+Sample metadata records both `scaffold` and `backend`: Claude Code and Codex CLI
+can be grouped across API and subscription transports, while Inspect ReAct and
+the legacy subscription ReAct loop remain distinct scaffolds.
+
+The active blind prompt is `sandbox/prompts/blind-v2.txt`, taken from the saved
+Google Doc source recorded beside it. Conditions configure a target of
+2,500–3,000 words, a strict prompted maximum of 3,000, and a final acceptance
+maximum of **3,100**. Nonempty shorter reports are accepted. All Markdown counts
+as words split on whitespace. Native adapters supply remaining time on each
+model request or tool result and a word count when report content changes.
+If an agent finishes over 3,000 words, the native solver asks it to shorten the
+saved file, once when at least 60 seconds remain within the original deadline. Subscription hooks
+provide equivalent edit feedback and stop-time correction until the deadline.
+The host measures the saved report independently; `report_length` records
+acceptance, and report collection excludes rejected reports unless explicitly
+requested. A chat answer does not substitute for `report.md`.
+
+Native containers use `network_mode: none`, with no real provider credentials
+inside. A preflight records full JSONL readability, hashes, read-only data mount,
+visible work files, and network interfaces. Inspect's model bridge disables
+hosted browsing. Normal subscription execution preserves the built-in tools and uses the
+accepted restricted-proxy setup. Agent commands can access their credentials
+and permitted vendor endpoints; logs do not establish that communication was
+impossible. See [the isolation audit](docs/isolation-audit.md).
+
+Usage schema 3 distinguishes a reported zero reasoning-token count from an
+unavailable or partial count. Raw CLI logs remain necessary for historical
+runs; conversion cannot reconstruct data the CLI never emitted. Tool types,
+failures, refusal signals, potential parallel batches, and visible time
+reminders can be summarized with `scripts/audit_runs.py --runs runs --out audit.json`.
+See [trajectory findings](docs/trajectory-audit.md) and the
+[corpus discovery audit](docs/corpus-audit.md). Synthetic administrator names
+and the Cyrillic `е` are intentional corpus clues and remain unchanged.
 
 ### Which scorer produced the headline numbers
 
@@ -234,7 +362,7 @@ Two grading paths exist, and they are not the same rubric:
   `grade_with_rubrics.py` with a GPT-5.6 Sol judge. Each claim was first checked
   against the data by the feasibility pass, so non-derivable claims are excluded.
   This is the benchmark's scoring.
-- **`messageboard_audit/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
+- **`messageboard_audit_bench/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
   LLM-seeded starter rubric: 12 weighted positive leaves (tagged derivable
   yes/partly) plus 3 penalty leaves for specific over-claims, such as asserting
   this is the same swarm that attacked Hugging Face. It has not been
@@ -244,6 +372,17 @@ So Inspect is the run-and-inspect harness here, not the source of the reported
 results. Treat `rubric_scorer` output as indicative until `rubric.yaml` is
 validated the way the 30 claims were; `docs/design-notes.md` sketches the
 claim-precision and citation-support scorers meant to close that gap.
+
+### Official Inspect Evals register
+
+This repository follows the upstream packaging conventions for an externally
+managed Inspect eval: PEP 517 packaging, an `inspect_ai` entry point, exported
+`@task` functions, versioned task metadata, pinned asset checksums, and an
+end-to-end mock-model test. It is not yet listed in the official Inspect Evals
+register. Registration also requires an immutable dataset host, a public pinned
+code commit, and an arXiv paper. See
+[`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md) for
+the exact handoff and the source-asset provenance.
 
 ## Notes on reproducibility
 

@@ -1,0 +1,15 @@
+# Named benchmark config. These time fields are direct-runner defaults.
+name = "context"
+prompt = "context"
+budget_min = 20
+timeout_min = 20
+data_variant = "verbatim"
+effort = "xhigh"
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+
+# Prompt target and strict upper limit. Scoring tolerates a 100-word overrun;
+# short nonempty reports remain valid.
+report_min_words = 2500
+report_max_words = 3000
+report_accept_min_words = 0
+report_accept_max_words = 3100

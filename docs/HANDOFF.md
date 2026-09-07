@@ -66,7 +66,7 @@ Decisions already made (2026-09-04):
 | `sandbox/` | historical entry: the lightweight sandbox (Linux user + iptables) was deleted on `oscar/docker-sandbox`; `sandbox/docker/` replaces it |
 | `sandbox/prompt.txt` | the blind prompt used for the baselines |
 | `sandbox/watch.py` | live tail of a run's transcript (Claude Code and Codex formats) |
-| `messageboard_audit/` | Inspect package: task, solver (live + replay), transcript converters, rubric scorer, starter rubric |
+| `messageboard_audit_bench/` | Inspect package: task, solver (live + replay), transcript converters, rubric scorer, starter rubric |
 | `baselines/` | the two completed baseline runs: prompt, report, full CLI transcript, metadata, proxy log |
 
 Not on the branch (gitignored, regenerate locally): `data/raw*`, `runs/`, `logs/`, `.venv/`.
@@ -134,7 +134,7 @@ iptables rejecting all its egress except loopback, and a CONNECT proxy on
 loopback that only forwards to vendor API hosts. Network isolation held. But:
 
 1. **The agent could read the answer key.** `agentbox` has read access to the
-   whole checkout: `docs/design-notes.md`, `messageboard_audit/rubric.yaml`,
+   whole checkout: `docs/design-notes.md`, `messageboard_audit_bench/rubric.yaml`,
    previous runs' `report.md`, Inspect logs, and, on this repo, the Discord
    export archives of the human investigation. Nothing stopped an agent from
    `ls ..`. The baselines happen to be clean; the next one might not be.
@@ -185,7 +185,8 @@ Components:
   --skip-git-repo-check --ignore-rules --json -o final_message.md`, with a
   minimal config.toml (no MCP, web search off) and `< /dev/null` on stdin.
   Env `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_AUTOUPDATER=1`.
-- **Budget.** `timeout 25m` around the CLI; the prompt says ~20 minutes.
+- **Budget.** The CLI hard timeout and prompt both default to 20 minutes; the
+  Inspect command can override both with `-T time_limit_minutes=N`.
   Neither CLI has a turn cap in current versions.
 
 Canary, run before every trial in the same image and network, trial aborts if
@@ -230,7 +231,9 @@ unchanged apart from the path.)
 
 ## 6. Plugging back into Inspect
 
-`messageboard_audit/solver.py::cli_agent` only needs a run directory containing
+This section describes the subscription importer. The default task now uses
+Inspect SWE directly. `messageboard_audit_bench/solver.py::subscription_agent`
+only needs a run directory containing
 `transcript.jsonl` and `report.md` (and optionally `meta.json`). Replace the
 call to `sandbox/run_trial.sh` with the Docker launcher and nothing else
 changes: the transcript converters, the replay task and the scorers all work

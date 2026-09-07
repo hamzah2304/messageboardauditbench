@@ -1,3 +1,9 @@
+Future subscription runs preserve the normal CLI tools and the accepted provider-proxy
+setup. Credentials and permitted vendor endpoints are accessible to agent commands.
+Each run now writes `audit.json`/`audit.md`, raw tool lifecycle hooks, and exact
+prompt/config/code/CLI/image provenance. See [the audit contract](../docs/isolation-audit.md)
+for coverage gaps and how to interpret attempted versus successful access.
+
 # Sandbox
 
 Runs an agent (Claude Code, Codex, or a minimal ReAct scaffold over OpenRouter)
@@ -7,6 +13,14 @@ no view of anything but the data.
 Everything lives in `sandbox/docker/`. The earlier permissions-based sandbox
 (Linux user + iptables) that produced the first baselines was removed on
 2026-09-05; `docs/HANDOFF.md` §4 records why.
+
+There are two orchestrators. The default Inspect task uses the same image and
+data in a network-disabled Inspect Docker sandbox; Claude Code and Codex obtain
+their model connection from Inspect SWE, so Inspect owns the calls and logs
+events live. The scripts documented below are the opt-in subscription backend:
+they use the repository proxy and logged-in CLI credentials, then import the
+recorded event stream into Inspect. See `messageboard_audit_bench/README.md` for
+the native commands.
 
 ## How isolation works (Docker)
 
@@ -45,14 +59,13 @@ the `claude` and `codex` binaries, non-root user `agent`), used for three roles:
   passed as OpenRouter's `reasoning.effort`; `BUDGET_MIN` (default 20) stops the
   loop issuing new model calls after that many minutes. Prompt caching markers
   are sent on every request and per-turn cache hits and cost are recorded.
-  Time information reaches the model the same way as for the CLIs: only through
-  the prompt (it can run `date`).
-- Claude: `sandbox/docker/claude_login.sh` once. It runs `claude login` inside the
-  image (prints a URL, paste the code back) and keeps the resulting
-  `.credentials.json` in `runs/.claude-home/` (gitignored), copied into each
-  trial. Needed because macOS keeps the host login in the Keychain, which a
-  Linux container cannot read. On Linux hosts `~/.claude/.credentials.json` is
-  used as a fallback, as is `CLAUDE_CODE_OAUTH_TOKEN` if set.
+  Time information reaches the model through the prompt and the shared
+  `time_left` command.
+- Claude: prefer a long-lived token from `claude setup-token`, stored as the
+  sole contents of `runs/.claude-oauth-token` (gitignored), or export it as
+  `CLAUDE_CODE_OAUTH_TOKEN`. This avoids concurrent refresh races between
+  containers. `sandbox/docker/claude_login.sh` and copied credentials remain
+  fallbacks for a single trial.
 
 ## Run
 
@@ -65,11 +78,12 @@ withheld from the agent. Shipped configs: `blind-20`, `blind-40`, `context-20`,
 `context-40` (the `context` prompt prepends a summary of the OpenAI/Hugging Face
 incident and says to treat this one as separate), plus `default` = `blind-20`.
 
-After every tool call the agent is told how much of the budget is left: Claude
-Code via a `PostToolUse` hook (`sandbox/time_left.sh`, wired through the
-throwaway `~/.claude/settings.json`), the ReAct scaffold by a line appended to
-each tool result. Codex has no equivalent hook, so it only gets the prompt's
-instruction to check `date`.
+In the subscription runner, Claude Code and Codex get the remaining budget
+after every tool call via lifecycle hooks (`sandbox/time_left.sh`, wired
+through throwaway config directories), and the ReAct scaffold appends it to
+each tool result. Native Inspect execution gives all three harnesses the same
+feedback and enforces the deadline independently with an Inspect scoped time
+limit.
 
 ```
 CONFIG=blind-20   sandbox/docker/run_trial.sh claude claude-opus-5 1
@@ -101,10 +115,12 @@ Lanes run concurrently. The claude and codex lanes run one trial at a time
 (one subscription each; `LANE_PARALLEL=1` lifts that); the react lane runs
 everything at once. Every trial has its own network and proxy.
 
-Collect the reports for evaluation, one folder per config and prompt version:
+Collect the reports for evaluation, one folder per normalized condition, data
+variant, effort, and rendered prompt. Legacy time-bearing config names are
+normalized to their prompt condition:
 
 ```
-scripts/collect_reports.py     # -> reports/<config>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
+scripts/collect_reports.py     # -> reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
                                #    + CONDITIONS.json per folder, reports/prompts/<prompt8>.txt, reports/index.jsonl
 ```
 
@@ -115,10 +131,11 @@ Each run writes `runs/<timestamp>_<agent>_<model>_r<replicate>_<config>_<run-id>
 agent saw. Exit code 124 means the timeout fired.
 
 What each run logs about the model calls (`<run>/usage.json`, written by
-`messageboard_audit/usage.py`; the key figures are copied into `meta.json` under
+`messageboard_audit_bench/usage.py`; the key figures are copied into `meta.json` under
 `usage`, and Inspect reads the same numbers through `transcripts.py`):
 
-- tokens: input, output, cache read, cache write, **reasoning** (Claude Code's
+- tokens: total input, uncached input, output, cache read, cache write, cache-read
+  fraction, and **reasoning** (Claude Code's
   `output_tokens_details.thinking_tokens`; Codex's `reasoning_output_tokens`;
   OpenRouter's `completion_tokens_details.reasoning_tokens`), plus the peak
   context size seen by any single call;
@@ -127,6 +144,12 @@ What each run logs about the model calls (`<run>/usage.json`, written by
   Claude the last rate-limit window;
 - `usage_source` says where the totals came from: the CLI's final event, a sum
   of per-call usage (run killed before it finished), or the Codex rollout.
+
+New summaries carry `usage_schema: 2`: `input_tokens` is total input context,
+`input_tokens_uncached` is its uncached subset, and `total_tokens` is total input
+plus output. Older archived summaries have no schema marker and retain the
+original harness-native meaning of `input_tokens`; do not aggregate those rows
+with schema-2 rows without normalizing them first.
 
 Reasoning text is logged where the vendor exposes it. Claude Code emits
 `thinking` blocks (usually empty or a short summary for Claude 5 models) and
