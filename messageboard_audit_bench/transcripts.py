@@ -605,7 +605,8 @@ def parse(agent: str, path: Path) -> Parsed:
         "reasoning_tokens_estimated", "reasoning_items", "reasoning_summary_chars",
         "latency_ms_mean", "permission_denials", "retry_attempt_transcripts",
         "attempts_recorded", "reasoning_raw_chars", "reasoning_items_encrypted",
-        "sessions",
+        "sessions", "usage_is_lower_bound", "reasoning_tokens_reported_partial",
+        "incomplete_stream_message_ids",
     ):
         if usage.get(key) is not None:
             parsed.extra[key] = usage[key]

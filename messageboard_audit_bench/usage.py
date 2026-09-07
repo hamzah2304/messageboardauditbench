@@ -16,6 +16,7 @@ One dialect per agent:
             killed. The session rollout Codex writes (copied to <run>/codex_sessions/) has a
             `token_count` event per API call and the reasoning items, so it is preferred when present.
 """
+
 from __future__ import annotations
 
 import json
@@ -51,10 +52,26 @@ def _lines(path: Path) -> Iterable[dict]:
 
 
 def _blank() -> dict[str, Any]:
-    return {**{k: 0 for k in KEYS}, "reasoning_tokens": None, "reasoning_tokens_source": "unavailable", "usage_schema": 3, "cost_usd": None, "api_calls": 0, "turns": 0, "tool_calls": 0,
-            "thinking_blocks": 0, "thinking_chars": 0, "api_retries": 0, "api_errors": 0,
-            "peak_context_tokens": 0, "stop_reason": None, "terminal_reason": None, "is_error": None,
-            "duration_ms": None, "usage_source": None}
+    return {
+        **{k: 0 for k in KEYS},
+        "reasoning_tokens": None,
+        "reasoning_tokens_source": "unavailable",
+        "usage_schema": 3,
+        "cost_usd": None,
+        "api_calls": 0,
+        "turns": 0,
+        "tool_calls": 0,
+        "thinking_blocks": 0,
+        "thinking_chars": 0,
+        "api_retries": 0,
+        "api_errors": 0,
+        "peak_context_tokens": 0,
+        "stop_reason": None,
+        "terminal_reason": None,
+        "is_error": None,
+        "duration_ms": None,
+        "usage_source": None,
+    }
 
 
 def agent_of(run_dir: Path) -> str:
@@ -69,9 +86,15 @@ def agent_of(run_dir: Path) -> str:
 
 # ------------------------------------------------------------ Claude Code dialect (claude, react)
 
-def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -> dict[str, Any]:
+
+def summarize_claude_stream(
+    path: Path, *, input_includes_cache: bool = False
+) -> dict[str, Any]:
     s = _blank()
     per_msg: dict[str, dict] = {}
+    stream_complete: set[str] = set()
+    stream_seen: set[str] = set()
+    active_stream_message: str | None = None
     seen_ids: set[str] = set()
     est_thinking = 0
     rate_limits: list[dict] = []
@@ -81,13 +104,34 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
     finish_reasons: dict[str, int] = {}
     for ev in _lines(path):
         t = ev.get("type")
+        if t == "stream_event":
+            stream = ev.get("event") or {}
+            stream_type = stream.get("type")
+            if stream_type == "message_start":
+                message = stream.get("message") or {}
+                active_stream_message = message.get("id")
+                if isinstance(active_stream_message, str):
+                    stream_seen.add(active_stream_message)
+                    if isinstance(message.get("usage"), dict):
+                        per_msg[active_stream_message] = message["usage"]
+            elif stream_type == "message_delta" and active_stream_message:
+                # Anthropic's initial message and partial CLI assistant items
+                # contain provisional counters. The terminal stream delta is
+                # the provider's authoritative counter for that message.
+                usage = stream.get("usage")
+                if isinstance(usage, dict):
+                    per_msg[active_stream_message] = usage
+            elif stream_type == "message_stop" and active_stream_message:
+                stream_complete.add(active_stream_message)
+                active_stream_message = None
+            continue
         if t == "assistant":
             msg = ev.get("message") or {}
             mid = msg.get("id") or f"anon{len(seen_ids)}"
             if mid not in seen_ids:
                 seen_ids.add(mid)
                 s["turns"] += 1
-            if msg.get("usage"):
+            if msg.get("usage") and mid not in per_msg:
                 per_msg[mid] = msg["usage"]
             for c in msg.get("content") or []:
                 k = c.get("type")
@@ -96,13 +140,15 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
                 elif k == "thinking":
                     s["thinking_blocks"] += 1
                     s["thinking_chars"] += len(c.get("thinking") or "")
-            api = ev.get("api") or {}   # react_agent.py only
+            api = ev.get("api") or {}  # react_agent.py only
             if api.get("latency_ms") is not None:
                 latencies.append(api["latency_ms"])
             if api.get("provider"):
                 providers.add(api["provider"])
             if api.get("finish_reason"):
-                finish_reasons[api["finish_reason"]] = finish_reasons.get(api["finish_reason"], 0) + 1
+                finish_reasons[api["finish_reason"]] = (
+                    finish_reasons.get(api["finish_reason"], 0) + 1
+                )
             s["api_retries"] += api.get("retries") or 0
         elif t == "system":
             sub = ev.get("subtype")
@@ -116,8 +162,17 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
             s["api_errors"] += 1
         elif t == "result":
             result = ev
+    stream_incomplete = bool(stream_seen - stream_complete)
+    # A streamed message without message_stop has no terminal provider
+    # counters. Its provisional start/assistant counters are deliberately not
+    # added to completed-message totals.
+    accounted_messages = {
+        mid: usage
+        for mid, usage in per_msg.items()
+        if mid not in (stream_seen - stream_complete)
+    }
     s["api_calls"] = len(per_msg) or s["turns"]
-    for u in per_msg.values():
+    for u in accounted_messages.values():
         reported_input = u.get("input_tokens") or 0
         ctx = (
             reported_input
@@ -147,9 +202,8 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
             "thinking_tokens", u.get("reasoning_tokens")
         )
         s["reasoning_tokens"] = reasoning
-        s["reasoning_tokens_source"] = (
-            reasoning_source
-            or ("reported" if reasoning is not None else "unavailable")
+        s["reasoning_tokens_source"] = reasoning_source or (
+            "reported" if reasoning is not None else "unavailable"
         )
 
     if result and result.get("usage"):
@@ -159,8 +213,13 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
         agg: dict[str, int] = {}
         reasoning_values: list[int] = []
         reasoning_missing = False
-        for u in per_msg.values():
-            for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+        for u in accounted_messages.values():
+            for k in (
+                "input_tokens",
+                "output_tokens",
+                "cache_read_input_tokens",
+                "cache_creation_input_tokens",
+            ):
                 agg[k] = agg.get(k, 0) + (u.get(k) or 0)
             details = u.get("output_tokens_details") or {}
             if details.get("thinking_tokens") is not None:
@@ -169,7 +228,8 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
                 reasoning_values.append(u["reasoning_tokens"] or 0)
             else:
                 reasoning_missing = True
-        if reasoning_values and not reasoning_missing:
+        reported_reasoning_partial = sum(reasoning_values) if reasoning_values else None
+        if reasoning_values and not reasoning_missing and not stream_incomplete:
             agg["reasoning_tokens"] = sum(reasoning_values)
             take(agg)
         else:
@@ -179,8 +239,16 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
                     "unavailable_or_partial" if reasoning_values else "unavailable"
                 ),
             )
-        s["usage_source"] = "per_message_sum" if per_msg else "none"
-    if s["reasoning_tokens"] is None and est_thinking:
+        s["usage_source"] = (
+            ("per_message_sum_partial" if stream_incomplete else "per_message_sum")
+            if accounted_messages
+            else "none"
+        )
+        if stream_incomplete:
+            s["usage_is_lower_bound"] = True
+            s["incomplete_stream_message_ids"] = sorted(stream_seen - stream_complete)
+            s["reasoning_tokens_reported_partial"] = reported_reasoning_partial
+    if s["reasoning_tokens"] is None and est_thinking and not stream_incomplete:
         s["reasoning_tokens"] = est_thinking
         s["reasoning_tokens_estimated"] = True
         s["reasoning_tokens_source"] = "cli_estimate"
@@ -190,15 +258,23 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
         s["stop_reason"] = result.get("stop_reason")
         s["terminal_reason"] = result.get("terminal_reason") or result.get("subtype")
         s["is_error"] = result.get("is_error")
-        for k in ("duration_api_ms", "ttft_ms", "api_error_status", "session_id", "num_turns"):
+        for k in (
+            "duration_api_ms",
+            "ttft_ms",
+            "api_error_status",
+            "session_id",
+            "num_turns",
+        ):
             if result.get(k) is not None:
                 s[k] = result[k]
         if result.get("permission_denials"):
             s["permission_denials"] = len(result["permission_denials"])
         if result.get("modelUsage"):
             s["per_model"] = result["modelUsage"]
-    elif per_msg:
-        s["cost_usd"] = sum((u.get("cost") or 0) for u in per_msg.values()) or None
+    elif accounted_messages:
+        s["cost_usd"] = (
+            sum((u.get("cost") or 0) for u in accounted_messages.values()) or None
+        )
         s["terminal_reason"] = "no_result_event"
     if est_thinking:
         s["thinking_tokens_estimated_by_cli"] = est_thinking
@@ -215,6 +291,7 @@ def summarize_claude_stream(path: Path, *, input_includes_cache: bool = False) -
 
 
 # --------------------------------------------------------------------------------------- Codex
+
 
 def _codex_rollouts(run_dir: Path) -> list[Path]:
     return sorted((run_dir / "codex_sessions").rglob("rollout-*.jsonl"))
@@ -246,7 +323,9 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
             s["api_errors"] += 1
             if "Reconnecting" in str(ev.get("message", "")):
                 s["api_retries"] += 1
-    s["turns"] = s["tool_calls"]  # codex's own "turn" is the whole exec; count tool round-trips like the others
+    s["turns"] = s[
+        "tool_calls"
+    ]  # codex's own "turn" is the whole exec; count tool round-trips like the others
 
     def take(u: dict, *, reasoning_source: str | None = None) -> None:
         total_input = u.get("input_tokens") or 0
@@ -258,9 +337,8 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         s["cache_read_tokens"] = cache_read
         s["cache_write_tokens"] = cache_write
         s["reasoning_tokens"] = u.get("reasoning_output_tokens")
-        s["reasoning_tokens_source"] = (
-            reasoning_source
-            or ("reported" if s["reasoning_tokens"] is not None else "unavailable")
+        s["reasoning_tokens_source"] = reasoning_source or (
+            "reported" if s["reasoning_tokens"] is not None else "unavailable"
         )
 
     rollouts = _codex_rollouts(run_dir)
@@ -292,15 +370,30 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
                             totals_by_session[session_id] = total
                     last = info.get("last_token_usage") or {}
                     if last:
-                        identity = (session_id, json.dumps(last, sort_keys=True))
+                        identity = (
+                            session_id,
+                            json.dumps(
+                                info.get("total_token_usage")
+                                or {"timestamp": ev.get("timestamp"), "last": last},
+                                sort_keys=True,
+                            ),
+                        )
                         if identity not in seen_last:
                             seen_last.add(identity)
                             calls += 1
                         peak = max(peak, last.get("input_tokens") or 0)
                 elif ev.get("type") == "response_item" and p.get("type") == "reasoning":
                     r_items += 1
-                    r_summary_chars += sum(len(x.get("text") or "") for x in (p.get("summary") or []) if isinstance(x, dict))
-                    r_raw_chars += sum(len(x.get("text") or "") for x in (p.get("content") or []) if isinstance(x, dict))
+                    r_summary_chars += sum(
+                        len(x.get("text") or "")
+                        for x in (p.get("summary") or [])
+                        if isinstance(x, dict)
+                    )
+                    r_raw_chars += sum(
+                        len(x.get("text") or "")
+                        for x in (p.get("content") or [])
+                        if isinstance(x, dict)
+                    )
                     encrypted += bool(p.get("encrypted_content"))
                 elif ev.get("type") == "turn_context":
                     for k in ("model", "effort", "summary"):
@@ -313,8 +406,10 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         s["reasoning_raw_chars"] = r_raw_chars
         s["reasoning_items_encrypted"] = encrypted
         if totals_by_session:
-            combined = {key: sum(u.get(key, 0) or 0 for u in totals_by_session.values())
-                        for key in {k for u in totals_by_session.values() for k in u}}
+            combined = {
+                key: sum(u.get(key, 0) or 0 for u in totals_by_session.values())
+                for key in {k for u in totals_by_session.values() for k in u}
+            }
             has_reasoning = [
                 u.get("reasoning_output_tokens") is not None
                 for u in totals_by_session.values()
@@ -324,8 +419,10 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
             take(
                 combined,
                 reasoning_source=(
-                    "reported" if all(has_reasoning)
-                    else "unavailable_or_partial" if any(has_reasoning)
+                    "reported"
+                    if all(has_reasoning)
+                    else "unavailable_or_partial"
+                    if any(has_reasoning)
                     else "unavailable"
                 ),
             )
@@ -336,7 +433,9 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         s["usage_source"] = "turn_completed"
     if s["usage_source"] is None:
         s["usage_source"] = "none"
-    s["terminal_reason"] = "turn_completed" if turn_usage is not None else "no_turn_completed"
+    s["terminal_reason"] = (
+        "turn_completed" if turn_usage is not None else "no_turn_completed"
+    )
     s["is_error"] = turn_usage is None
     return s
 
@@ -356,6 +455,7 @@ def _usage_size(usage: dict[str, Any]) -> int:
 
 
 # --------------------------------------------------------------------------------------- entry
+
 
 def summarize(run_dir: Path, agent: str | None = None) -> dict[str, Any]:
     run_dir = Path(run_dir)
@@ -383,8 +483,25 @@ def main(argv: list[str]) -> int:
     s = summarize(run_dir)
     (run_dir / "usage.json").write_text(json.dumps(s, indent=1) + "\n")
     if "--quiet" not in argv:
-        print(json.dumps({k: s[k] for k in ("usage_schema", "agent", "usage_source", *KEYS, "cost_usd", "api_calls", "tool_calls",
-                                             "api_retries", "peak_context_tokens", "terminal_reason")}))
+        print(
+            json.dumps(
+                {
+                    k: s[k]
+                    for k in (
+                        "usage_schema",
+                        "agent",
+                        "usage_source",
+                        *KEYS,
+                        "cost_usd",
+                        "api_calls",
+                        "tool_calls",
+                        "api_retries",
+                        "peak_context_tokens",
+                        "terminal_reason",
+                    )
+                }
+            )
+        )
     return 0
 
 

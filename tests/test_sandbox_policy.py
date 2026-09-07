@@ -32,3 +32,22 @@ async def test_root_exec_is_declined_and_default_exec_is_non_root(monkeypatch):
     assert not captured
     assert await environment.exec(["id"]) == "result"
     assert captured["user"] == "1000:1000"
+
+
+@pytest.mark.asyncio
+async def test_sample_factory_wraps_every_service(monkeypatch):
+    project = object()
+    original = DockerSandboxEnvironment("default", project, Path("/work"))
+
+    async def initialize(cls, task_name, config, metadata):
+        return {"default": original}
+
+    monkeypatch.setattr(DockerSandboxEnvironment, "sample_init", classmethod(initialize))
+    environments = await IsolatedDockerSandbox.sample_init("test", None, {})
+    wrapped = environments["default"]
+    assert isinstance(wrapped, IsolatedDockerSandbox)
+    assert wrapped._project is project
+    assert wrapped._service == original._service
+    assert wrapped._working_dir == original._working_dir
+    with pytest.raises(PermissionError):
+        await wrapped.exec(["id"], user="root")

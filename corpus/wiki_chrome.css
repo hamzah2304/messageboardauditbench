@@ -1,0 +1,270 @@
+/* chrome.css — the one header shared by every page of the site: the bar with the site name and the
+   explorer's views, and the frame geometry that both the write-up (.frame) and the bar (.chrome)
+   align to. Loaded after the site's one token vocabulary everywhere. */
+
+:root {
+  --col: 820px;        /* the essay's text column */
+  --rail: 220px;       /* the essay's contents rail */
+  --frame-gap: 40px;
+  --frame-pad: 32px;
+  --banner-h: 34px;    /* the notice's own height */
+  --notice-h: 0px;     /* the room the notice takes: none, now that no page shows one */
+  --bar-pad: 5px;      /* the bar's own top and bottom padding; the open menu measures off it */
+  --bar-h: calc(40px + 2 * var(--bar-pad));   /* one bar row: a 40px item and its padding */
+  --draft-ground: #fff3dc;  /* the open menu's ground; the amber the draft notice used to carry */
+  --menu-anim: .24s;        /* the hamburger's cross, its amber and its rows, all on one clock */
+  --menu-ease: cubic-bezier(.4, 0, .2, 1);
+}
+@media (prefers-reduced-motion: reduce) { :root { --menu-anim: 0s; } }
+@media (max-width: 1400px) { :root { --rail: 170px; } }
+@media (max-width: 900px)  { :root { --frame-pad: 18px; } }
+
+/* frame: rail | column, centred. The bar is laid out on the same grid so its rule and its title
+   land exactly where the essay's column does, on every page and at every width. */
+.frame, .chrome {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, var(--col));
+  column-gap: var(--frame-gap);
+  max-width: calc(var(--rail) + var(--frame-gap) + var(--col) + 2 * var(--frame-pad));
+  margin: 0 auto;
+  padding: 0 var(--frame-pad);
+  box-sizing: border-box;
+}
+
+/* The draft notice ("Please do not share without permission") is not shown: the site is public.
+   The write-up dropped its own on 2026-09-03; the explorer's 9,000 pages still carry the markup,
+   because their <head> and <body> are agentwatch's and manifest-gated, and this is the one file
+   that reaches all of them.  Hidden rather than restyled, and --notice-h stays at its 0px default
+   so nothing reserves the 34px the notice used to occupy. */
+.draft-bar { display: none; }
+
+/* the bar, fixed under the notice */
+.chrome {
+  position: sticky; top: var(--notice-h); z-index: 50;
+  background: var(--vivid-background);
+}
+.chrome-inner {
+  grid-column: 2;
+  display: flex; align-items: center; gap: 17px;
+  margin: 0 calc(-1 * var(--frame-pad));
+  padding: var(--bar-pad) var(--frame-pad);
+  border-bottom: 1px solid var(--hair);
+}
+.story-link {
+  display: inline-flex; align-items: center; min-height: 40px;
+  margin-right: 9px; padding: 0 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--ink); font-family: var(--serif); font-size: 17px;
+  text-decoration: none; white-space: nowrap;
+}
+.story-link[aria-current="page"], .story-link:hover, .story-link:focus-visible { border-bottom-color: var(--ink); }
+.chrome .nav { display: flex; gap: 2px; }
+.chrome .nav a, .chrome .nav button, .chrome .nav-more > summary {
+  appearance: none; display: flex; align-items: center; min-height: 40px;
+  padding: 0 8px; border: 0; border-bottom: 2px solid transparent; background: transparent;
+  color: var(--dull-foreground); font-family: var(--sans); font-size: 13px;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+.chrome .nav a:hover, .chrome .nav a:focus-visible { color: var(--ink); }
+.chrome .nav [aria-current="page"], .chrome .nav [aria-selected="true"],
+.chrome .nav-more[open] > summary, .chrome .nav-more[data-active="true"] > summary { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* The two views that hang off the analysis page -- IP timeline, Raw logs -- are marked up inside a
+   <details> caret menu on every generated explorer page, and `explorer/` cannot be hand-edited
+   (check.py gates it against its manifest), so the bar is levelled from here instead. Wide enough
+   for all six labels, that <details> is flattened into the row and its caret hidden; narrower, the
+   same <details> becomes the hamburger for the whole menu. The write-up's bar (build.py) carries
+   the identical markup, so one set of rules governs both halves and neither needs a script.
+   The three rules right below are that caret menu as the markup means it, stated here because the
+   write-up loads no explorer stylesheet; only an engine without ::details-content ever shows it. */
+.chrome .nav-more { position: relative; display: flex; }
+.chrome .nav-more > summary { list-style: none; }
+.chrome .nav-more > summary::-webkit-details-marker { display: none; }
+.chrome .nav-more-menu {
+  position: absolute; top: 100%; right: 0; z-index: 20;
+  display: flex; flex-direction: column; min-width: 10rem;
+  background: var(--vivid-background);
+  border: 1px solid var(--hair);
+}
+.chrome .nav-more-menu a, .chrome .nav-more-menu button { justify-content: flex-start; padding: 0 12px; }
+
+/* Room for every label: the caret goes and the menu's two items become items of the row like any
+   other. ::details-content is the box a closed <details> hides its contents in, so making that box
+   visible is what lifts them out; the menu itself stops being a floating panel and lays its items
+   out in a line. Measured in Chrome and Firefox on 2026-09-03: the six labels, the story link and
+   the gaps use 609px, so the row needs 645px of viewport at this width's --frame-pad. The step is
+   set at 700px, the 55px of headroom being for a system font wider than this Mac's. */
+@supports selector(::details-content) {
+  @media (min-width: 700px) {
+    .chrome .nav-more { position: static; }
+    .chrome .nav-more > summary { display: none; }
+    .chrome .nav-more::details-content { content-visibility: visible; }
+    .chrome .nav-more-menu {
+      position: static; flex-direction: row; gap: 2px; min-width: 0;
+      background: none; border: 0;
+    }
+    .chrome .nav-more-menu a, .chrome .nav-more-menu button { justify-content: center; padding: 0 8px; }
+  }
+}
+
+/* No room: the caret becomes a hamburger, and opening it floods the screen under the bar with
+   amber, the six labels fading in on top of it while the three bars turn into the cross that
+   shuts it again. `not all and` rather than a max-width, so that no fractional
+   viewport width falls between this and the step above.
+   All of it keys off the <details>'s own open state, so it needs no script on either half, and
+   every transition is on --menu-anim, which prefers-reduced-motion sets to zero. */
+@media not all and (min-width: 700px) {
+  .chrome {
+    --menu-row: 46px;                                         /* one row of the open menu */
+    --menu-top: calc(var(--notice-h) + var(--bar-h) + 10px);  /* its first row, just under the bar */
+  }
+  /* a viewport too short for six 46px rows under the bar: a phone held on its side, a small window */
+  @media (max-height: 420px) { .chrome { --menu-row: 34px; } }
+
+  .chrome-inner { position: relative; flex-wrap: nowrap; gap: 10px; }
+  /* raised, so the story link stays legible on the amber while the menu is over everything else */
+  .story-link { position: relative; z-index: 1; margin-right: 0; font-size: 16px; }
+  .chrome .nav { flex: 1 1 auto; justify-content: flex-end; gap: 0; }
+
+  /* The button. Its two pseudo-elements are the outer bars, which rotate into the cross; the
+     middle bar is the button's own background image, which shrinks from its centre to nothing --
+     three boxes are needed and an element has only two pseudo-elements to give. */
+  .chrome .nav-more { position: static; display: block; }
+  .chrome .nav-more > summary {
+    position: relative; width: 40px; justify-content: center; padding: 0; font-size: 0;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat; background-position: center; background-size: 17px 1.5px;
+    transition: background-size var(--menu-anim) var(--menu-ease);
+  }
+  .chrome .nav-more > summary::before,
+  .chrome .nav-more > summary::after {
+    content: ""; position: absolute; top: 50%; left: 50%;
+    width: 17px; height: 1.5px; margin: -.75px 0 0 -8.5px; background: currentColor;
+    transition: transform var(--menu-anim) var(--menu-ease);
+  }
+  .chrome .nav-more > summary::before { transform: translateY(-5px); }
+  .chrome .nav-more > summary::after { transform: translateY(5px); }
+  /* the cross says the menu is open on its own; the bar's rule under an open menu would only read
+     as a stray mark next to it */
+  .chrome .nav-more[open] > summary { background-size: 0 1.5px; border-bottom-color: transparent; }
+  .chrome .nav-more[open] > summary::before { transform: rotate(45deg); }
+  .chrome .nav-more[open] > summary::after { transform: rotate(-45deg); }
+
+  /* The amber. One fixed box that is there in both states and only changes opacity, so it fades in
+     and out evenly and nothing in the bar is laid out again to do it. Untouchable while the menu
+     is shut, so the page under it can be read and clicked as usual; once open it is also what
+     keeps the page behind from being clicked, and a tap on it is the outside click that shuts the
+     menu on the halves whose script says so. */
+  .chrome .nav::before {
+    content: ""; position: fixed; top: var(--notice-h); left: 0; right: 0; bottom: 0;
+    background: var(--draft-ground); opacity: 0; pointer-events: none;
+    transition: opacity var(--menu-anim) var(--menu-ease);
+  }
+  .chrome .nav:has(.nav-more[open])::before { opacity: 1; pointer-events: auto; }
+
+  /* The rows. Every one of them is fixed to the viewport at its own place in the stack, in both
+     states, and opening the menu changes nothing but whether they are shown -- if their layout
+     depended on the open state instead, the moment the menu shut they would fall back into the
+     bar and lay themselves out across it, wrapped, for as long as the fade-out lasted.
+     Being fixed, they need their own row number, and the numbers have to run unbroken: the bar is
+     three labels in the row and one more inside the <details>, so Download is row 3, not row 4.
+     The <details> itself is never given one -- it is the 4th child of .nav but is neither an <a>
+     nor a <button>, so nothing positions it, and numbering it only left an empty row where it
+     would have gone.  Adding a label to the row moves the menu's numbers down; a fifth label
+     needs another line here.  They are full width, so the bar's rule under the current view would
+     read as a divider across the menu; it is marked in the gutter instead, 10px left of labels
+     that line up with the story link above them. */
+  .chrome .nav > :nth-child(1) { --i: 0; }
+  .chrome .nav > :nth-child(2) { --i: 1; }
+  .chrome .nav > :nth-child(3) { --i: 2; }
+  .chrome .nav-more-menu > :nth-child(1) { --i: 3; }
+  .chrome .nav-more-menu > :nth-child(2) { --i: 4; }
+  .chrome .nav > a, .chrome .nav > button,
+  .chrome .nav-more-menu > a, .chrome .nav-more-menu > button {
+    position: fixed; top: calc(var(--menu-top) + var(--i) * var(--menu-row));
+    left: var(--frame-pad); right: var(--frame-pad);
+    height: var(--menu-row); min-height: 0;
+    justify-content: flex-start; margin-left: -12px; padding: 0 0 0 10px; font-size: 15px;
+    border-bottom-color: transparent; border-left: 2px solid transparent;
+    /* Shut: hidden, which keeps them out of the focus order, out of the a11y tree and out of
+       hit-testing, exactly as `display: none` would -- but leaves them rendered, which is what
+       lets them fade in and back out. `visibility` is the property that holds a fade-out on its
+       own: mid-transition it counts as visible and flips only at the end, in every engine.
+       (`display` with `transition-behavior: allow-discrete` reads better and does the same in
+       Chrome, but Firefox 154 drops the rows at once on the way out -- measured 2026-09-03 --
+       and it needs @starting-style to fade them in, which this does not.) */
+    visibility: hidden; opacity: 0; transform: translateY(-6px);
+    transition: opacity var(--menu-anim) var(--menu-ease),
+                transform var(--menu-anim) var(--menu-ease),
+                visibility var(--menu-anim) var(--menu-ease);
+  }
+  /* stated at the specificity of the bar's own rule for the current view, and after it, so that
+     the rule that marks it up there does not come back as a divider down here */
+  .chrome .nav [aria-current="page"], .chrome .nav [aria-selected="true"] {
+    border-bottom-color: transparent; border-left-color: var(--ink);
+  }
+  /* the menu's own box is not wanted: its two labels are placed on the screen like the other four */
+  .chrome .nav-more-menu { display: contents; }
+  /* and the box a closed <details> would hide those two in is taken out of the question, so that
+     they are shown and hidden by the same rules, and on the same clock, as the other four */
+  .chrome .nav-more::details-content { content-visibility: visible; }
+
+  /* Open: show the rows. Nothing here moves anything. */
+  .chrome .nav:has(.nav-more[open]) > a,
+  .chrome .nav:has(.nav-more[open]) > button,
+  .chrome .nav:has(.nav-more[open]) .nav-more-menu > a,
+  .chrome .nav:has(.nav-more[open]) .nav-more-menu > button { visibility: visible; opacity: 1; transform: none; }
+}
+
+/* Where an anchor jump or a scrollIntoView lands: 15px clear of everything pinned above the page --
+   the notice, the bar, and the bar's rule -- rather than tucked underneath it. Stated as the sum so
+   that dropping the notice, or changing the bar's row, carries the landing spot with it. */
+html { scroll-padding-top: calc(var(--notice-h) + var(--bar-h) + 1px + 15px); }
+
+/* a plain content column aligned with the essay's text column: same frame width, and the left
+   padding steps past the rail so the text starts where the essay's does */
+.framed-column {
+  max-width: calc(var(--rail) + var(--frame-gap) + var(--col) + 2 * var(--frame-pad));
+  margin: 0 auto;
+  padding-left: calc(var(--frame-pad) + var(--rail) + var(--frame-gap));
+  padding-right: var(--frame-pad);
+  box-sizing: border-box;
+}
+
+/* below the rail breakpoint the frame is a single column; stated last so it wins */
+@media (max-width: 1320px) {
+  .frame, .chrome { grid-template-columns: minmax(0, var(--col)); max-width: calc(var(--col) + 2 * var(--frame-pad)); }
+  .rail { display: none; }
+  .main, .chrome-inner { grid-column: 1; }
+  .framed-column { max-width: calc(var(--col) + 2 * var(--frame-pad)); padding-left: var(--frame-pad); }
+}
+
+/* phones (the explorer's own 30rem step): the bar scrolls with the page here, so anchor targets
+   have nothing pinned to clear. The menu itself is the hamburger from 700px down, so its layout
+   is stated once, above, and not again here. */
+@media (max-width: 30rem) {
+  /* Static, so the bar scrolls away on a narrow screen -- but `relative` rather than `static`, so
+     it still makes a stacking context.  Without one, the analysis page's record heading
+     (`position: relative; z-index: 1`) paints over the bar and the menu cannot be opened at all:
+     measured at 360px on 2026-09-03, where a click on the button lands on the H1.
+     `top: auto` because the sticky rule above sets `top: var(--notice-h)`, which static ignored
+     and relative does not: it painted the bar 34px below its own flow box, over the first 34px of
+     every page's content. Relative for the stacking context only, no offset. */
+  .chrome { position: relative; top: auto; z-index: 50; }
+  html { scroll-padding-top: calc(var(--notice-h) + 15px); }
+}
+
+/* the privacy footer every explorer route ends with (2026-09-04, agentwatch decision 0019). Here
+   rather than in explorer.css because Base.astro loads this file too and the footer is chrome, not
+   a record view. A top rule and dull ink: a reader who scrolls to the end of a thread should see
+   it, without it competing with the records above. */
+.privacy {
+  margin: 3rem 0 0;
+  padding-top: 0.9rem;
+  padding-bottom: 2.5rem;
+  border-top: 1px solid var(--rule);
+  color: var(--dull-foreground);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.privacy p { margin: 0; max-width: 68ch; }

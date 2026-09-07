@@ -21,8 +21,8 @@ The final `result` event carries the totals.
 import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
 from pathlib import Path
 
-from pathlib import Path
-from report_length import env_limits, feedback_if_changed, stop_reason
+from report_length import env_limits, overlong_feedback_if_changed
+from runtime_policy import stop_reason as completion_stop_reason
 
 TOOLS = [
     {"type": "function", "function": {"name": "bash",
@@ -68,7 +68,14 @@ def time_left_note():
     if not dl: return ""
     left = (int(dl) - int(time.time()) + 30) // 60
     budget = os.environ.get("MBAB_BUDGET_MIN", "?")
-    if left > 0: return f"\n\n[Time budget: about {left} of {budget} minutes left.]"
+    if left > 0:
+        note = f"Time budget: about {left} of {budget} minutes left."
+        earliest = int(os.environ.get("MBAB_EARLIEST_FINISH_EPOCH", "0"))
+        now = int(time.time())
+        if earliest > now:
+            minimum_left = max(1, (earliest - now + 59) // 60)
+            note += f" Minimum-runtime policy: continue meaningful work for about {minimum_left} more minute(s); do not idle or sleep."
+        return f"\n\n[{note}]"
     return f"\n\n[Time budget: exhausted (about {-left} minutes over). The session will be stopped any moment; make sure report.md is complete.]"
 
 def chat(base, key, body):
@@ -198,7 +205,16 @@ def main():
         elif m.get("reasoning"): assistant["reasoning"] = m["reasoning"]   # plaintext-only providers
         msgs.append(assistant)
         if not calls:
-            reason = stop_reason(Path(a.cwd) / "report.md", *env_limits())
+            # Match the CLI Stop hook: do not accept an ordinary early finish,
+            # but never retain an explicit error/refusal.
+            reason = completion_stop_reason(
+                {
+                    "stop_reason": choice.get("native_finish_reason")
+                    or choice.get("finish_reason"),
+                    "last_assistant_message": m.get("content") or "",
+                },
+                report=Path(a.cwd) / "report.md",
+            )
             if not reason:
                 break
             msgs.append({"role": "user", "content": reason})
@@ -209,7 +225,7 @@ def main():
             args = c["_args"]
             out = ("[could not parse tool arguments as JSON]" if "_raw" in args else run_tool(c["function"]["name"], args, a.cwd))
             out += time_left_note()
-            note = feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
+            note = overlong_feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
             if note:
                 out += "\n\n[" + note + "]"
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})

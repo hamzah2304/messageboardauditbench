@@ -9,6 +9,7 @@ exactly what was credited.
 `process_metrics` is a no-LLM scorer that surfaces turns, tokens and whether a
 report was written, so those show up as columns without a judge call.
 """
+
 from __future__ import annotations
 
 from importlib.resources import files
@@ -72,7 +73,11 @@ def rubric_scorer(judge: str | Model = "anthropic/claude-sonnet-5") -> Scorer:
         penalty = 0.0
         for pnode in penalties:
             hit, reason = await _judge(model, pnode["claim"], report)
-            verdicts[pnode["id"]] = {"penalty": hit, "weight": pnode["weight"], "reason": reason}
+            verdicts[pnode["id"]] = {
+                "penalty": hit,
+                "weight": pnode["weight"],
+                "reason": reason,
+            }
             if hit:
                 penalty += pnode["weight"]
         raw = (got - penalty) / pos_total if pos_total else 0.0
@@ -108,6 +113,12 @@ def process_metrics() -> Scorer:
                 "report_chars": m.get("report_chars"),
                 "report_words": m.get("report_words"),
                 "report_length_ping_count": m.get("report_length_ping_count"),
+                "min_runtime_fraction": m.get("min_runtime_fraction"),
+                "minimum_runtime_seconds": m.get("minimum_runtime_seconds"),
+                "minimum_runtime_reached": m.get("minimum_runtime_reached"),
+                "early_stop_attempts": m.get("early_stop_attempts"),
+                "early_stop_hook_attempts": m.get("early_stop_hook_attempts"),
+                "early_stop_resume_attempts": m.get("early_stop_resume_attempts"),
                 "post_tool_hook_fired": m.get("post_tool_hook_fired"),
                 "stop_hook_fired": m.get("stop_hook_fired"),
                 "terminal_refusal": m.get("terminal_refusal"),
@@ -123,6 +134,7 @@ def process_metrics() -> Scorer:
 @scorer(metrics=[mean()])
 def report_length() -> Scorer:
     """Score the saved acceptance policy separately from report quality."""
+
     async def score(state: TaskState, target: Target) -> Score:
         from messageboard_audit_bench.report_length import (
             acceptance_limits,
@@ -140,11 +152,7 @@ def report_length() -> Scorer:
         )
         if "report_length_compliant" in state.metadata:
             result.update(
-                {
-                    key: state.metadata[key]
-                    for key in result
-                    if key in state.metadata
-                }
+                {key: state.metadata[key] for key in result if key in state.metadata}
             )
         valid = result["report_length_compliant"]
         if not high:

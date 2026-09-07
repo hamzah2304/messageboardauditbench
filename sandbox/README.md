@@ -1,3 +1,9 @@
+Future subscription runs preserve the normal CLI tools and the accepted provider-proxy
+setup. Credentials and permitted vendor endpoints are accessible to agent commands.
+Each run now writes `audit.json`/`audit.md`, raw tool lifecycle hooks, and exact
+prompt/config/code/CLI/image provenance. See [the audit contract](../docs/isolation-audit.md)
+for coverage gaps and how to interpret attempted versus successful access.
+
 # Sandbox
 
 Runs an agent (Claude Code, Codex, or a minimal ReAct scaffold over OpenRouter)

@@ -27,6 +27,8 @@ REPORT_MIN_WORDS="${CFG_REPORT_MIN_WORDS:-0}"
 REPORT_MAX_WORDS="${CFG_REPORT_MAX_WORDS:-0}"
 REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
 REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$REPORT_MAX_WORDS}"
+MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
+MIN_RUNTIME_FRACTION="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
 . "$HERE/resolve_timeout.sh"
@@ -52,9 +54,9 @@ echo "run: $RUN"
 # and the runnable checkout, rather than relying on a mutable branch name.
 cp "$CONFIG" "$RUN/config.source.toml"
 python3 "$ROOT/scripts/read_config.py" "$CONFIG" --json > "$RUN/config.rendered.json"
-git rev-parse HEAD > "$RUN/git.commit" 2>/dev/null || printf 'unavailable\n' > "$RUN/git.commit"
-git status --porcelain=v1 > "$RUN/git.status" 2>/dev/null || true
-git diff --binary HEAD > "$RUN/git.dirty.patch" 2>/dev/null || true
+git -C "$ROOT" rev-parse HEAD > "$RUN/git.commit" 2>/dev/null || printf 'unavailable\n' > "$RUN/git.commit"
+git -C "$ROOT" status --porcelain=v1 > "$RUN/git.status" 2>/dev/null || true
+git -C "$ROOT" diff --binary HEAD > "$RUN/git.dirty.patch" 2>/dev/null || true
 GIT_COMMIT_SHA="$(tr -d '\n' < "$RUN/git.commit")"
 GIT_DIRTY_DIFF_SHA256="$(shasum -a 256 "$RUN/git.dirty.patch" | cut -c1-64)"
 CONFIG_SOURCE_SHA256="$(shasum -a 256 "$RUN/config.source.toml" | cut -c1-64)"
@@ -76,6 +78,11 @@ cleanup() {
   # reasoning items. It contains no credentials and is retained for auditing.
   [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
   rm -rf "$SECRETS"
+  AUDIT_PYTHON="${AUDIT_PYTHON:-$ROOT/.venv/bin/python}"
+  [ -x "$AUDIT_PYTHON" ] || AUDIT_PYTHON="$(command -v python3)"
+  PYTHONPATH="$ROOT" "$AUDIT_PYTHON" -m messageboard_audit_bench.run_audit "$RUN" --out "$RUN" > "$RUN/audit-build.log" 2>&1 || {
+    echo "per-run audit failed; see $RUN/audit-build.log" >&2
+  }
 }
 trap cleanup EXIT
 
@@ -88,10 +95,12 @@ timeout_seconds() {
     return 2
   fi
 }
-# data/<variant> is bind-mounted read-only straight into /work/data: no per-run copy (42 MB each; this filled the disk once).
-# The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
+# data/<variant> is bind-mounted read-only straight into /work/data.
 python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" > "$RUN/work/prompt.txt"
-PROMPT="$(cat "$RUN/work/prompt.txt")"
+python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$RUN/work/prompt.txt"
+MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
+cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
+PROMPT="$(cat "$RUN/prompt.txt")"
 
 # Credentials: only the selected harness receives its throwaway credential directory.
 # Claude: a login done inside the container (sandbox/docker/claude_login.sh) lands in
@@ -192,35 +201,50 @@ cat > "$RUN/meta.json" <<JSON
  "isolation":"subscription_allowlisted_provider_proxy","allow_networked_subscription":true,"accepted_isolation_tradeoff":"subscription credentials and the vendor endpoint are available to the normal CLI agent container; direct egress remains blocked and the proxy permits only its provider hosts",
  "report_min_words":$REPORT_MIN_WORDS,"report_max_words":$REPORT_MAX_WORDS,"report_accept_min_words":$REPORT_ACCEPT_MIN_WORDS,"report_accept_max_words":$REPORT_ACCEPT_MAX_WORDS,
  "prompt":"$PROMPT_NAME","condition":"$CFG_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
+ "min_runtime_fraction":$MIN_RUNTIME_FRACTION,"minimum_runtime_seconds":$MINIMUM_RUNTIME_SECONDS,
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
- "prompt_path":"work/prompt.txt","config_source_path":"config.source.toml","config_source_sha256":"$CONFIG_SOURCE_SHA256","config_rendered_path":"config.rendered.json","config_rendered_sha256":"$CONFIG_RENDERED_SHA256",
+ "prompt_path":"prompt.txt","config_source_path":"config.source.toml","config_source_sha256":"$CONFIG_SOURCE_SHA256","config_rendered_path":"config.rendered.json","config_rendered_sha256":"$CONFIG_RENDERED_SHA256",
  "git_commit":"$GIT_COMMIT_SHA","git_dirty_patch_path":"git.dirty.patch","git_dirty_patch_sha256":"$GIT_DIRTY_DIFF_SHA256","code_snapshot_path":"code_snapshot.tar.gz","code_snapshot_sha256":"$CODE_SNAPSHOT_SHA256",
  "image":"$IMAGE","image_id":"$IMAGE_ID","image_inspect_path":"image.inspect.json","dockerfile_sha256":"$DOCKERFILE_SHA256","cli_version_path":"cli.version.txt","cli_version_sha256":"$CLI_VERSION_SHA256"}
 JSON
 
+record_runner_event() {
+  python3 - "$RUN/runner-events.jsonl" "$1" "${2:-1}" "${3:-}" <<'PY_EVENT'
+import datetime, json, sys, time
+with open(sys.argv[1], "a") as stream:
+    stream.write(json.dumps({"event": sys.argv[2], "attempt": int(sys.argv[3]),
+        "exit_code": int(sys.argv[4]) if sys.argv[4] else None,
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "monotonic_ns": time.monotonic_ns()}) + "\n")
+PY_EVENT
+}
 START=$(date +%s); set +e
 HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
-TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN")
+EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH")
 case "$AGENT" in
   claude)
+    record_runner_event cli_started
     docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
       --dangerously-skip-permissions --no-chrome --no-session-persistence --setting-sources user \
       ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
       --output-format stream-json --verbose --include-partial-messages \
-      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
+      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?; record_runner_event cli_finished 1 "$RC" ;;
   codex)
     # A capacity response can terminate Codex before it begins a turn. Relaunch
     # at most twice, against the original fixed deadline, and preserve attempts.
     for attempt in 1 2 3; do
       remaining="$((HARD_DEADLINE - $(date +%s)))"
       if [ "$remaining" -le 0 ]; then RC=124; break; fi
+      record_runner_event cli_started "$attempt"
       docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "${remaining}s" codex exec -C /work \
         --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
         --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
         --json -o /work/final_message.md "$PROMPT" \
         < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?
+      record_runner_event cli_finished "$attempt" "$RC"
       if { grep -q 'is at capacity' "$RUN/transcript.jsonl" || grep -q 'is at capacity' "$RUN/stderr.log"; } \
           && ! grep -q '"turn.completed"' "$RUN/transcript.jsonl" && [ "$attempt" -lt 3 ]; then
         echo "codex: model at capacity, relaunching (attempt $((attempt+1)))" >&2
@@ -229,18 +253,22 @@ case "$AGENT" in
         remaining="$((HARD_DEADLINE - $(date +%s)))"
         [ "$remaining" -gt 0 ] || { RC=124; break; }
         sleep_seconds=$((remaining < 30 ? remaining : 30))
+        record_runner_event capacity_backoff_started "$attempt"
         sleep "$sleep_seconds"
+        record_runner_event capacity_backoff_finished "$attempt"
         continue
       fi
       break
     done ;;
   react)
+    record_runner_event cli_started
     docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
       --model "$MODEL" --effort "$EFFORT" --prompt-file /work/prompt.txt --cwd /work --budget-min "$BUDGET_MIN" \
-      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
+      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?; record_runner_event cli_finished 1 "$RC" ;;
   *) echo "unknown agent $AGENT" >&2; exit 2 ;;
 esac
 set -e; END=$(date +%s)
+record_runner_event runner_finished 1 "$RC"
 for f in report.md final_message.md; do
   source="$RUN/work/$f"
   if [ -L "$source" ]; then
@@ -252,6 +280,14 @@ for f in report.md final_message.md; do
   fi
 done
 [ ! -f "$RUN/tool-telemetry/events.jsonl" ] || cp "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
+[ -f "$RUN/work/.mbab-runtime-policy.json" ] && cp "$RUN/work/.mbab-runtime-policy.json" "$RUN/runtime_policy.json"
+EARLY_STOP_ATTEMPTS=0
+[ -f "$RUN/runtime_policy.json" ] && EARLY_STOP_ATTEMPTS="$(jq -r '.early_finish_blocks // 0' "$RUN/runtime_policy.json" 2>/dev/null || echo 0)"
+META_TMP="$RUN/meta.runtime-policy.json"
+jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
+   --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
+   '. + {early_stop_attempts: $early_stop_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
+   "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 # Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
 [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.

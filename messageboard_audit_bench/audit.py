@@ -1,4 +1,5 @@
 """Observable investigation metrics; heuristics are explicitly labelled."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.tool import ToolCallError
 
 _EMPTY_SEARCH = re.compile(r"^\s*(?:rg|grep)\b")
 _TIME_FEEDBACK = re.compile(r"\btime budget:\s*(?:about\s+)?\d+", re.IGNORECASE)
@@ -37,7 +39,32 @@ def _is_empty_search(call, result: ChatMessageTool) -> bool:
     )
 
 
+def observed_tool_results(messages):
+    """Read Codex's execution header, without interpreting command output."""
+    for message in messages:
+        if (
+            isinstance(message, ChatMessageTool)
+            and message.error is None
+            and message.function in {"exec_command", "write_stdin"}
+        ):
+            match = re.match(
+                r"\AChunk ID: [^\n]+\nWall time: [^\n]+\nProcess exited with code (-?\d+)\n",
+                message.text,
+            )
+            if match and int(match[1]) != 0:
+                message = message.model_copy(
+                    update={
+                        "error": ToolCallError(
+                            type="unknown",
+                            message=f"Codex execution header: exit code {match[1]}",
+                        )
+                    }
+                )
+        yield message
+
+
 def trajectory_metrics(messages) -> dict:
+    messages = list(observed_tool_results(messages))
     calls = {}
     batches = []
     for message in messages:
@@ -53,17 +80,23 @@ def trajectory_metrics(messages) -> dict:
             outputs[message.tool_call_id] = text
             if message.error:
                 call = calls.get(message.tool_call_id)
-                failure = {"id": message.tool_call_id, "tool": message.function,
-                           "type": message.error.type, "message": message.error.message[:500]}
+                failure = {
+                    "id": message.tool_call_id,
+                    "tool": message.function,
+                    "type": message.error.type,
+                    "message": message.error.message[:500],
+                }
                 if call is not None and _is_empty_search(call, message):
                     empty_searches.append(failure)
                 else:
                     failures.append(failure)
     counts = Counter(call.function for call in calls.values())
-    commands = [_command(call) or json.dumps(call.arguments, ensure_ascii=False) for call in calls.values()]
+    commands = [
+        _command(call) or json.dumps(call.arguments, ensure_ascii=False)
+        for call in calls.values()
+    ]
     feedback_messages = sum(
-        _TIME_FEEDBACK.search(message.text or "") is not None
-        for message in messages
+        _TIME_FEEDBACK.search(message.text or "") is not None for message in messages
     )
     return {
         "tool_calls_by_type": dict(sorted(counts.items())),
@@ -75,9 +108,19 @@ def trajectory_metrics(messages) -> dict:
         "max_tool_calls_in_assistant_message": max(batches, default=0),
         "multi_tool_messages": sum(n > 1 for n in batches),
         "parallelism_note": "Multiple calls in a message are potential concurrency, not proof of overlapping execution.",
-        "network_command_mentions": sum(bool(re.search(r"\b(curl|wget)\b|requests\.(get|post)|urllib\.request|socket\.connect", c)) for c in commands),
+        "network_command_mentions": sum(
+            bool(
+                re.search(
+                    r"\b(curl|wget)\b|requests\.(get|post)|urllib\.request|socket\.connect",
+                    c,
+                )
+            )
+            for c in commands
+        ),
         "network_mentions_note": "Command-text heuristic; mentions can quote corpus data and do not prove network access.",
-        "time_check_commands": sum(bool(re.search(r"\b(date|time_left)\b", c)) for c in commands),
+        "time_check_commands": sum(
+            bool(re.search(r"\b(date|time_left)\b", c)) for c in commands
+        ),
         "time_feedback_messages": feedback_messages,
         "time_feedback_note": "Counts explicit harness budget messages visible in converted transcript text; it does not show whether the model acted on every message.",
         "truncated_tool_outputs": sum("truncat" in t.lower() for t in outputs.values()),
@@ -90,18 +133,31 @@ def corpus_audit(directory: Path) -> dict:
     files = {}
     field_sets = Counter()
     mixed = []
-    for path in sorted(directory.glob('*.jsonl')):
+    for path in sorted(directory.glob("*.jsonl")):
         count = 0
         maximum = 0
         for line in path.open():
             row = json.loads(line)
             count += 1
             maximum = max(maximum, len(line))
-            if path.name == 'labels.jsonl':
-                field_sets[','.join(sorted(row))] += 1
-                label = row.get('label', '')
-                if re.search('[A-Za-z]', label) and re.search('[\u0400-\u04ff]', label):
-                    mixed.append({'label': label, 'codepoints': [f'U+{ord(c):04X}' for c in label],
-                                  'stored_revisions': row.get('stored_revisions')})
-        files[path.name] = {'rows': count, 'bytes': path.stat().st_size, 'max_jsonl_line_chars': maximum}
-    return {'files': files, 'label_field_sets': dict(field_sets), 'mixed_latin_cyrillic_labels': mixed}
+            if path.name == "labels.jsonl":
+                field_sets[",".join(sorted(row))] += 1
+                label = row.get("label", "")
+                if re.search("[A-Za-z]", label) and re.search("[\u0400-\u04ff]", label):
+                    mixed.append(
+                        {
+                            "label": label,
+                            "codepoints": [f"U+{ord(c):04X}" for c in label],
+                            "stored_revisions": row.get("stored_revisions"),
+                        }
+                    )
+        files[path.name] = {
+            "rows": count,
+            "bytes": path.stat().st_size,
+            "max_jsonl_line_chars": maximum,
+        }
+    return {
+        "files": files,
+        "label_field_sets": dict(field_sets),
+        "mixed_latin_cyrillic_labels": mixed,
+    }

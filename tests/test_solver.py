@@ -91,6 +91,7 @@ def test_fold_imports_report_transcript_and_usage(tmp_path: Path) -> None:
     assert state.metadata["cache_read_fraction"] == 0.25
     assert state.metadata["usage_schema"] == 3
     assert state.metadata["condition"] == "blind"
+    assert state.metadata["config"] == "blind-10"
     assert state.metadata["report_written"] is True
     assert state.metadata["wall_seconds"] == 7
 
@@ -189,7 +190,7 @@ async def test_subscription_agent_folds_successful_trial(
             stderr="",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
 
     state = await subscription_agent(
         allow_networked_subscription=True,
@@ -201,6 +202,7 @@ async def test_subscription_agent_folds_successful_trial(
         prompt="blind",
         data_variant="verbatim",
         effort="xhigh",
+        min_runtime_fraction=0.6,
     )(_state(), None)
 
     assert state.completed
@@ -212,6 +214,7 @@ async def test_subscription_agent_folds_successful_trial(
     assert captured["env"]["EFFORT"] == "xhigh"
     assert captured["env"]["BUDGET_MIN"] == "37"
     assert captured["env"]["TIMEOUT"] == "37m"
+    assert captured["env"]["MBAB_MIN_RUNTIME_FRACTION"] == "0.6"
     assert captured["timeout"] == 42 * 60
 
 
@@ -225,7 +228,7 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
             stderr="docker unavailable",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
 
     with pytest.raises(
         RuntimeError,
@@ -242,7 +245,9 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_subscription_agent_can_refuse_proxy_tradeoff() -> None:
     with pytest.raises(ValueError, match="restricted proxy"):
-        await subscription_agent(agent="codex", model="gpt-test", allow_networked_subscription=False)(_state(), None)
+        await subscription_agent(
+            agent="codex", model="gpt-test", allow_networked_subscription=False
+        )(_state(), None)
 
 
 @pytest.mark.asyncio
@@ -259,7 +264,7 @@ async def test_subscription_agent_folds_timed_out_trial(
             stderr="time limit reached",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
 
     state = await subscription_agent(
         allow_networked_subscription=True,
@@ -290,7 +295,7 @@ async def test_subscription_agent_recovers_host_guard_timeout(
             stderr=b"stuck cleanup",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
     monkeypatch.setattr(
         "messageboard_audit_bench.solver._cleanup_interrupted_run",
         lambda path: cleaned.append(path),
@@ -343,7 +348,7 @@ async def test_subscription_refusal_reruns_twice_with_same_model(
             stderr="model refusal",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_process", fake_run)
+    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
 
     state = await subscription_agent(
         allow_networked_subscription=True,
@@ -377,7 +382,7 @@ async def test_cancellation_terminates_runner_and_cleans_recorded_resources(
     import asyncio
     import sys
 
-    from messageboard_audit_bench.solver import _run_process
+    from messageboard_audit_bench.solver import _run_async
 
     ready = tmp_path / "ready"
     cleaned = []
@@ -393,7 +398,7 @@ async def test_cancellation_terminates_runner_and_cleans_recorded_resources(
         + ").touch(); time.sleep(60)"
     )
     task = asyncio.create_task(
-        _run_process([sys.executable, "-c", script], cwd=tmp_path, env={}, timeout=60)
+        _run_async([sys.executable, "-c", script], cwd=tmp_path, env={}, timeout=60)
     )
     for _ in range(100):
         if ready.exists():

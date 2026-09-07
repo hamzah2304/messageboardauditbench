@@ -31,7 +31,7 @@ REPORTS = {
     "haiku": ("Claude Haiku 4.5", "haiku_audit.md"),
     "luna":  ("GPT-5.6 Luna",     "luna_audit.md"),
 }
-RUBRICS = [json.loads((RUBRICS / f"rubric_{i}.json").read_text()) for i in range(1, 7)]
+RUBRIC_SETS = [json.loads((RUBRICS / f"rubric_{i}.json").read_text()) for i in range(1, 7)]
 # Each rubric_N.md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
 # {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal).
 RUBRIC_MD = {f"R{i}": (RUBRICS / f"rubric_{i}.md").read_text() for i in range(1, 7)}
@@ -66,7 +66,7 @@ def grade_one(report_md, rub):
 
 def aggregate(key, title, per_claim, per_rubric):
     total = round(sum(i["score"] for i in per_claim.values()), 2); mx = len(per_claim)
-    mode = {c["id"]: c["grading_mode"] for r in RUBRICS for c in r["claims"]}
+    mode = {c["id"]: c["grading_mode"] for r in RUBRIC_SETS for c in r["claims"]}
     def mean(ids):
         xs = [per_claim[i]["score"] for i in ids if i in per_claim]
         return round(sum(xs) / len(xs), 3) if xs else 0.0
@@ -105,8 +105,8 @@ def main():
         reports = [r for r in reports if not (GRADED / f"graded_{r[0]}.json").exists()]
     if not reports:
         print("nothing to do (all graded; pass --force to regrade)"); return
-    tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRICS]
-    print(f"model={MODEL}  grading {len(reports)} reports x {len(RUBRICS)} rubrics = {len(tasks)} calls "
+    tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRIC_SETS]
+    print(f"model={MODEL}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
           f"(bounded pool of 12)...")
     acc = {key: {"title": title, "path": path, "per_claim": {}, "per_rubric": {}}
            for (key, path, title) in reports}

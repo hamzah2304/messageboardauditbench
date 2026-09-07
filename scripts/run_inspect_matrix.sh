@@ -16,10 +16,10 @@ Backend/model:
   --backend BACKEND             inspect (default) or subscription
   --model MODEL                 Inspect model for backend=inspect
   --subscription-model MODEL    CLI model for backend=subscription
-  --allow-networked-subscription acknowledge shell-accessible provider networking
 
 Run shape:
   --time-limit-minutes N        agent budget (default: 20)
+  --min-runtime-fraction F      minimum fraction before completion (default: 0.75; 0 disables)
   --epochs N                    independent replicates (default: 1)
   --judge MODEL                 grader model (default: anthropic/claude-sonnet-5)
   --logs DIR                    Inspect log directory (default: logs)
@@ -27,7 +27,7 @@ Run shape:
 Operational limits (all explicit in the resulting command):
   --max-samples N               default: 1
   --max-sandboxes N             default: 1
-  --max-connections N           default: 4
+  --max-connections N           default: 4 (Muse requires and defaults to 2)
   --max-retries N               API retries per request (default: 5)
   --request-timeout N           total API request timeout seconds (default: 900)
   --attempt-timeout N           timeout for each API attempt (default: 600)
@@ -46,14 +46,14 @@ agent=""
 config=""
 model=""
 subscription_model=""
-allow_networked_subscription=0
 time_limit_minutes=20
+min_runtime_fraction=0.75
 epochs=1
 judge="anthropic/claude-sonnet-5"
 logs=logs
 max_samples=1
 max_sandboxes=1
-max_connections=4
+max_connections=""
 max_retries=5
 request_timeout=900
 attempt_timeout=600
@@ -65,10 +65,9 @@ extra=()
 while (($#)); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
-    --backend|--agent|--config|--model|--subscription-model|--time-limit-minutes|--epochs|--judge|--logs|--max-samples|--max-sandboxes|--max-connections|--max-retries|--request-timeout|--attempt-timeout|--retry-on-error)
+    --backend|--agent|--config|--model|--subscription-model|--time-limit-minutes|--min-runtime-fraction|--epochs|--judge|--logs|--max-samples|--max-sandboxes|--max-connections|--max-retries|--request-timeout|--attempt-timeout|--retry-on-error)
       (($# >= 2)) || { echo "missing value for $1" >&2; exit 2; }
       key=${1#--}; key=${key//-/_}; printf -v "$key" '%s' "$2"; shift 2 ;;
-    --allow-networked-subscription) allow_networked_subscription=1; shift ;;
     --no-log-model-api) echo "raw model API logging is mandatory for native telemetry" >&2; exit 2 ;;
     --no-log-refusals) log_refusals=0; shift ;;
     --dry-run) dry_run=1; shift ;;
@@ -87,9 +86,21 @@ else
   [[ -z "$model" ]] || { echo "--model only applies to backend=inspect" >&2; exit 2; }
 fi
 
+selected_model="${model:-$subscription_model}"
+case "$selected_model" in
+  *[Mm][Uu][Ss][Ee]*)
+    if [[ -n "$max_connections" && "$max_connections" != 2 ]]; then
+      echo "Muse requires --max-connections 2" >&2
+      exit 2
+    fi
+    max_connections=2
+    ;;
+  *) max_connections="${max_connections:-4}" ;;
+esac
+
 cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench
   -T "backend=$backend" -T "agent=$agent" -T "config=$config"
-  -T "time_limit_minutes=$time_limit_minutes" -T "judge=$judge"
+  -T "time_limit_minutes=$time_limit_minutes" -T "min_runtime_fraction=$min_runtime_fraction" -T "judge=$judge"
   --epochs "$epochs" --max-samples "$max_samples" --max-sandboxes "$max_sandboxes"
   --max-connections "$max_connections" --max-retries "$max_retries"
   --timeout "$request_timeout" --attempt-timeout "$attempt_timeout"
@@ -97,8 +108,7 @@ cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench
 if [[ "$backend" == inspect ]]; then
   cmd+=(--model "$model")
 else
-  (( allow_networked_subscription )) || { echo "subscription requires --allow-networked-subscription; use native Inspect for network isolation" >&2; exit 2; }
-  cmd+=(-T "subscription_model=$subscription_model" -T "allow_networked_subscription=true")
+  cmd+=(-T "subscription_model=$subscription_model")
 fi
 cmd+=(--log-model-api)
 (( log_refusals )) && cmd+=(--log-refusals)

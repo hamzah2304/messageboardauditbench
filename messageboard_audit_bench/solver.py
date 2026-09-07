@@ -57,39 +57,11 @@ def _cleanup_interrupted_run(run_dir: Path) -> None:
         run_id = str(meta["run_id"])
     except (OSError, KeyError, json.JSONDecodeError):
         run_id = ""
-    resources = meta.get("resource_names", {}) if run_id else {}
     if run_id:
-        # Only remove resources named for this run; metadata is trusted runner
-        # output but the extra restriction prevents a broad cleanup by mistake.
-        if resources:
-            names = {
-                key: value
-                for key, value in resources.items()
-                if isinstance(value, str)
-                and value.startswith("mbab-")
-                and value.endswith(run_id)
-            }
-            commands = [
-                ["docker", "rm", "-f", names[key]]
-                for key in ("model", "tools", "proxy")
-                if key in names
-            ]
-            commands += (
-                [["docker", "network", "rm", names["network"]]]
-                if "network" in names
-                else []
-            )
-            commands += [
-                ["docker", "volume", "rm", names[key]]
-                for key in ("ipc", "telemetry")
-                if key in names
-            ]
-        else:
-            commands = [
-                ["docker", "rm", "-f", f"mbab-agent-{run_id}", f"mbab-proxy-{run_id}"],
-                ["docker", "network", "rm", f"mbab-inner-{run_id}"],
-            ]
-        for command in commands:
+        for command in (
+            ["docker", "rm", "-f", f"mbab-agent-{run_id}", f"mbab-proxy-{run_id}"],
+            ["docker", "network", "rm", f"mbab-inner-{run_id}"],
+        ):
             try:
                 subprocess.call(
                     command,
@@ -99,15 +71,12 @@ def _cleanup_interrupted_run(run_dir: Path) -> None:
                 )
             except (OSError, subprocess.TimeoutExpired):
                 pass
-    trusted_auth = run_dir / ".trusted-auth"
-    if trusted_auth.is_dir():
-        shutil.rmtree(trusted_auth)
     secrets = run_dir / ".secrets"
     if secrets.is_dir():
         shutil.rmtree(secrets)
 
 
-async def _run_process(
+async def _run_async(
     command: list[str], *, cwd: Path, env: dict, timeout: float | None
 ):
     """Drain output throughout a run and terminate the runner on cancellation.
@@ -175,20 +144,35 @@ async def _run_process(
 
 def _raw_artifacts(run_dir: Path) -> dict[str, str]:
     """Keep unnormalized future CLI evidence in the portable Inspect log."""
-    names = (
+    names = [
         "transcript.jsonl",
         "stderr.log",
-        "tools.jsonl",
-        "model_container.log",
-        "tool_supervisor.log",
         "proxy.log",
+        "canary.log",
         "launch_error.log",
-        "retries.jsonl", "tool-events.jsonl", "audit.json", "provenance.json",
-    )
+        "retries.jsonl",
+        "runner-events.jsonl",
+        "tool-events.jsonl",
+        "audit.json",
+        "prompt.txt",
+        "config.source.toml",
+        "config.rendered.json",
+        "git.commit",
+        "cli.version.txt",
+        "image.inspect.json",
+        "artifact-rejections.jsonl",
+    ]
+    paths = [run_dir / name for name in names]
+    for pattern in (
+        "codex_sessions/**/*.jsonl",
+        "transcript.attempt*.jsonl",
+        "stderr.attempt*.log",
+    ):
+        paths.extend(sorted(run_dir.glob(pattern)))
     return {
-        name: (run_dir / name).read_text(errors="replace")
-        for name in names
-        if (run_dir / name).is_file()
+        str(path.relative_to(run_dir)): path.read_text(errors="replace")
+        for path in paths
+        if path.is_file()
     }
 
 
@@ -297,6 +281,9 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
     if (run_dir / "meta.json").exists():
         meta = json.loads((run_dir / "meta.json").read_text())
     state.metadata["subscription_raw_artifacts"] = _raw_artifacts(run_dir)
+    from messageboard_audit_bench.run_audit import audit_run
+
+    state.metadata["run_audit"] = audit_run(run_dir)
     for key in ("isolation", "scaffold", "logging", "resource_names"):
         if key in meta:
             state.metadata[key] = meta[key]
@@ -322,6 +309,10 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         condition=meta.get("condition", meta.get("prompt", meta.get("config"))),
         prompt=meta.get("prompt"),
         budget_min=meta.get("budget_min"),
+        min_runtime_fraction=meta.get("min_runtime_fraction"),
+        minimum_runtime_seconds=meta.get("minimum_runtime_seconds"),
+        minimum_runtime_reached=meta.get("minimum_runtime_reached"),
+        early_stop_attempts=meta.get("early_stop_attempts", 0),
         data_variant=meta.get("data_variant"),
         effort=meta.get("effort"),
         exit_code=meta.get("exit_code"),
@@ -364,15 +355,23 @@ def subscription_agent(
     prompt: str | None = None,
     data_variant: str | None = None,
     effort: str | None = None,
+    min_runtime_fraction: float = 0.75,
 ) -> Solver:
     """Launch a fresh sandbox trial, then fold its transcript into state."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         repo = repo_root()
         replicate = state.epoch
-        cmd = [str(repo / "sandbox" / "docker" / "run_trial.sh"), agent, model, str(replicate)]
+        cmd = [
+            str(repo / "sandbox" / "docker" / "run_trial.sh"),
+            agent,
+            model,
+            str(replicate),
+        ]
         if not allow_networked_subscription:
-            raise ValueError("subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools")
+            raise ValueError(
+                "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
+            )
         env = {"CONFIG": config, "ALLOW_NETWORKED_SUBSCRIPTION": "1"}
         if prompt is not None:
             env["PROMPT"] = prompt
@@ -384,12 +383,18 @@ def subscription_agent(
             env["BUDGET_MIN"] = str(time_limit_minutes)
         if timeout_minutes is not None:
             env["TIMEOUT"] = f"{timeout_minutes}m"
+        # The runner derives its absolute earliest-finish timestamp from its
+        # actual container start, alongside its deadline. Computing one here
+        # would incorrectly charge image build/canary time to the agent.
+        env["MBAB_MIN_RUNTIME_FRACTION"] = str(min_runtime_fraction)
         run_dirs: list[Path] = []
         proc = None
         run_dir = None
         for refusal_attempt in range(REFUSAL_RERUN_LIMIT + 1):
+            # Await the runner instead of blocking the event loop: a blocking subprocess.run here made
+            # every sample of an eval run one at a time whatever --max-samples said.
             try:
-                proc = await _run_process(
+                proc = await _run_async(
                     cmd,
                     cwd=repo,
                     env={**_os_environ(), **env},

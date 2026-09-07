@@ -58,6 +58,75 @@ Read the top row with some caution: opus-5 at 30 min is a single replicate, as i
 claude·fable at 10 and 20 min. Dashes are missing runs, not zeros. Per-claim scores
 are in `benchmark/graded/`.
 
+### Round 3 — three replicates, two more models, a 2-hour budget
+
+Same blind prompt and verbatim data, at 10, 30 and 120 minutes. The 10- and
+30-minute prompts are byte-identical to round 2's; blind-120 differs only in the
+budget it states. 76 reports, graded on the **revised sheets** (see below), so these
+numbers are not comparable with round 2's without regrading round 2.
+
+| harness · model | 10 min | 30 min | 120 min |
+|---|---|---|---|
+| codex · sol | 0.373* | 0.683* | **0.735** |
+| react · sol | 0.500* | 0.600* | 0.689 |
+| codex · astra | 0.468 | 0.564 | 0.652 |
+| claude · opus-5 | 0.410* | 0.546 | — |
+| react · muse-spark | 0.461 | 0.500 | 0.543 |
+| react · gemini-flash | 0.300* | 0.443* | 0.513 |
+| codex · luna | 0.233* | 0.350* | 0.513 |
+| claude · opus-4.8 | 0.293 | 0.381 | 0.473 |
+| react · glm-5.3 | 0.303* | 0.463* | — |
+| claude · sonnet-5 | 0.130* | 0.270* | 0.450 |
+| react · kimi-k3 | 0.340* | 0.433* | — |
+| codex · terra | 0.317* | 0.427* | 0.385 |
+| claude · fable | 0.400* | — | — |
+| claude · haiku-4.5 | 0.127* | 0.093* | 0.200 |
+
+`*` marks a cell resting on one replicate; dashes are missing runs, not zeros.
+
+Nothing plateaus at two hours. Every model with a 120-minute cell scores highest
+there, and the mean across harness/model pairs rises 0.333 → 0.443 → 0.515. The best
+configuration recovers about three quarters of the derivable claims.
+
+Eight runs sit outside the table because Claude Code switched model after a
+safeguard refusal; they are graded under their served name, and `model_served` in
+`reports/round3/index.jsonl` records each switch.
+
+| nominal → served | 10 min | 30 min | 120 min |
+|---|---|---|---|
+| claude · fable → opus-5 | 0.470* | 0.600* | — |
+| claude · opus-5 → opus-4.8 | — | 0.560* | 0.500 |
+| claude · fable → opus-4.8 | — | 0.454 | — |
+
+### What the judge sheets say now
+
+An audit of the strongest 2-hour report (23 of its 30 claims, in
+`benchmark/audit/judge_audit.json`) found the sheets were withholding from the judge
+the very ground truth the feasibility pass had established. Each claim in
+`rubric_N.json` carries a feasibility note, corrections and a trap; `build_rubrics.py`
+rendered none of it. The judge got a claim, one quote and a generic three-band scale,
+and set its own strictness — docking C10 for saying R1–R6 when the ground truth states
+in writing that the R6/R7 tail justifies the claim's own "usually 5".
+
+Three changes followed, and round 3 was regraded on them:
+
+- each claim now carries **what the data supports**, from the feasibility pass;
+- the half-point band is **vagueness only**, with an explicit rule not to deduct for
+  wording, for extra detail, or for a range where the claim is itself hedged;
+- **C02** no longer scores the training-versus-testing hedge as a specific.
+
+Mean recall rose 0.434 → 0.457 across the 76 reports, 58 up and 16 down. The movement
+is concentrated where it was aimed: C10 +0.301, C11 +0.266, C02 +0.182. On the audited
+report the judge now agrees with the auditor's own score on 20 of 22 claims, up from 18,
+and scores it 0.723 against the auditor's 0.717.
+
+**C21, C22 and C28 deliberately carry no data note.** Their gradeability flips with the
+data variant, the feasibility notes describe the stripped dump, and every round-2 and
+round-3 run used verbatim. Rendering those notes told the judge the correct answer was
+"not determinable" and drove C22 to 0.000 across all 76 reports — penalising reports for
+stating something true. Until a sheet knows which variant it is grading, these three are
+graded as before.
+
 ## Layout
 
 ```
@@ -93,7 +162,7 @@ scripts/build_data.sh --verify # check an existing build
 ALLOW_NETWORKED_SUBSCRIPTION=1 CONFIG=configs/blind-20.toml sandbox/docker/run_trial.sh claude claude-opus-5 1
 
 # grade a report set against the 30-claim rubrics
-python benchmark/rubrics/grade_with_rubrics.py --dir round2_blind30
+python benchmark/rubrics/grade_with_rubrics.py --dir round3_blind120
 
 # rebuild the browsable viewers
 cd viewers && for f in build_*.py; do python "$f"; done
@@ -150,6 +219,7 @@ export OPENAI_API_KEY=...                  # native Codex when using OpenAI
 # Native Claude Code. The agent model is Inspect's normal --model option.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T agent=claude -T config=blind -T time_limit_minutes=30 \
+  -T min_runtime_fraction=0.75 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1 --log-model-api --log-refusals
@@ -162,7 +232,7 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 
 # Subscription-authenticated CLI (no agent API key/model is consumed by Inspect).
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T backend=subscription -T allow_networked_subscription=true -T agent=claude \
+  -T backend=subscription -T agent=claude \
   -T subscription_model=claude-opus-5 \
   -T config=blind -T time_limit_minutes=30 \
   -T judge=anthropic/claude-sonnet-4-5 --max-samples 1
@@ -192,15 +262,22 @@ use the same scoped deadline. With `backend=subscription`, use
 `-T subscription_model=...`; this deliberately runs outside Inspect's model
 provider and then converts the recorded CLI events for the viewer.
 
-The config and time dimensions are independent: use
-`-T config=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
-config names remain available to the direct sandbox scripts but are not part of
-the Inspect task interface. The default is 20 minutes for either config.
-The limit is a cap, not a minimum: agents may stop early and short reports are
-not sent back for expansion. Subscription agents are told exactly N minutes;
-their container gets a five-minute shutdown/write grace, followed by a separate
-five-minute host recovery guard so transcript folding is not cut off. A Codex
-capacity failure before its first completed turn is relaunched at most twice.
+The config, time, and minimum-runtime dimensions are independent: use
+`-T config=blind|context`, `-T time_limit_minutes=N`, and optionally
+`-T min_runtime_fraction=F`. The fraction defaults to `0.75`: a normal finish
+before 75% of the configured budget resumes the same investigation, with a
+prompt asking the agent to verify evidence and improve `report.md` rather than
+idle. The exact fraction and earliest permitted finish are stated in the
+prompt. Set the fraction to `0` only for an ablation. Terminal refusals,
+failures, and hard limits are not resumed. Time-bearing legacy config names
+remain available to direct sandbox scripts but are not part of the Inspect
+interface. Subscription agents are told exactly N minutes; their container gets
+a five-minute shutdown/write grace, followed by a separate five-minute host
+recovery guard so transcript folding is not cut off. A Codex capacity failure
+before its first completed turn is relaunched at most twice.
+The `blind` config uses the provenance-recorded `blind-v2` prompt; `context`
+retains its own prompt. Prompt templates and config names are intentionally
+separate.
 
 `--epochs N` is Inspect's standard option for N independent replicates; the
 replicate number identifies a run and does not seed sampling. Use
@@ -218,15 +295,18 @@ remains on every index row. The two ReAct implementations stay separate.
 sample/sandbox/API concurrency, sample retries, and raw API/refusal logging
 explicit. It defaults to at most two sample reruns after an error and uses
 `caffeinate` on macOS; it intentionally does not impose a disk-space floor.
+Muse models always run with an explicit `--max-connections 2`; the wrapper
+rejects a conflicting value. Other models default to 4.
 
 The round-3 prompt targets 2,500–3,000 words. Short, nonempty reports are
 accepted; reports up to 3,100 words pass the separate length score. The agent
 does not see that tolerance. After-tool checks report the word count when `report.md` changes;
 reads and edits to other files do not repeat it. A Claude Code or Codex Stop hook, or the native wrapper's
 post-hoc guard, can request one shortening pass when at least a minute remains.
-Subscription hooks implement the same policy. Missing, empty, short, and early
-reports are never used to force additional work. Native log metadata records
-whether the PostToolUse and Stop hooks actually fired.
+Subscription hooks implement the same policy. Missing, empty, and short reports
+are never used to force additional work; normal early completion is resumed only
+until the configured minimum runtime. Native log metadata records the configured
+fraction, minimum seconds, and whether the PostToolUse and Stop hooks fired.
 
 Provider refusals are retried at most twice through the same model. A terminal
 native refusal is recorded from Inspect's `content_filter` stop reason in
@@ -259,10 +339,10 @@ requested. A chat answer does not substitute for `report.md`.
 Native containers use `network_mode: none`, with no real provider credentials
 inside. A preflight records full JSONL readability, hashes, read-only data mount,
 visible work files, and network interfaces. Inspect's model bridge disables
-hosted browsing. Subscription execution needs shell-accessible vendor networking
-and credentials, so it requires explicit `allow_networked_subscription=true`
-(or `ALLOW_NETWORKED_SUBSCRIPTION=1` for the direct runner) and cannot carry the
-same isolation claim. See [the isolation audit](docs/isolation-audit.md).
+hosted browsing. Normal subscription execution preserves the built-in tools and uses the
+accepted restricted-proxy setup. Agent commands can access their credentials
+and permitted vendor endpoints; logs do not establish that communication was
+impossible. See [the isolation audit](docs/isolation-audit.md).
 
 Usage schema 3 distinguishes a reported zero reasoning-token count from an
 unavailable or partial count. Raw CLI logs remain necessary for historical

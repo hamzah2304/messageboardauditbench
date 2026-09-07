@@ -1,4 +1,5 @@
 """Shared report-length policy, also executable inside the sandbox."""
+
 from __future__ import annotations
 
 import argparse
@@ -34,9 +35,10 @@ def acceptance_limits(cfg: dict) -> tuple[int, int]:
     low, high = limits(cfg)
     minimum = cfg.get("report_accept_min_words", low)
     maximum = cfg.get("report_accept_max_words", high)
-    if any(
-        type(value) is not int or value < 0 for value in (minimum, maximum)
-    ) or minimum > maximum:
+    if (
+        any(type(value) is not int or value < 0 for value in (minimum, maximum))
+        or minimum > maximum
+    ):
         raise ValueError(
             "report acceptance limits must be nonnegative integers with min <= max"
         )
@@ -65,9 +67,7 @@ def measure(
         "report_accept_max_words": maximum,
         "report_word_count_method": COUNT_METHOD,
         "report_length_compliant": (
-            bool(exists and count > 0 and minimum <= count <= maximum)
-            if high
-            else None
+            bool(exists and count > 0 and minimum <= count <= maximum) if high else None
         ),
     }
 
@@ -86,7 +86,7 @@ def instruction(low: int, high: int) -> str:
 
 
 def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
-    """Render a prompt template with an optional report-length block."""
+    """Render shared config values without duplicating embedded length prose."""
     embedded_length = "{{#REPORT_LENGTH}}" in template
     text = re.sub(
         r"\{\{#REPORT_LENGTH\}\}(.*?)\{\{/REPORT_LENGTH\}\}",
@@ -132,43 +132,8 @@ def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
 
 def overlong_feedback(path: Path, low: int, high: int) -> str:
     """Return feedback only when a present report exceeds the prompted maximum."""
-    if not high:
-        return ""
-    try:
-        count = len(path.read_text(errors="replace").split())
-    except OSError:
-        return ""
-    return feedback(path, low, high)[0] if count > high else ""
-
-
-def feedback_if_changed(
-    path: Path,
-    low: int,
-    high: int,
-    *,
-    cache: Path | None = None,
-) -> str:
-    """Emit the count once for every observed report content change."""
-    if not high:
-        return ""
-    if cache is None:
-        key = hashlib.sha256(str(path.absolute()).encode()).hexdigest()
-        cache = Path(tempfile.gettempdir()) / f"mbab-report-length-{key}.json"
-    with cache.open("a+") as saved:
-        fcntl.flock(saved, fcntl.LOCK_EX)
-        try:
-            current = hashlib.sha256(path.read_bytes()).hexdigest()
-        except OSError:
-            current = None
-        saved.seek(0)
-        previous = saved.read()
-        fingerprint = json.dumps([current, low, high])
-        changed = previous != fingerprint and (bool(previous) or current is not None)
-        saved.seek(0)
-        saved.truncate()
-        saved.write(fingerprint)
-        saved.flush()
-        return feedback(path, low, high)[0] if changed else ""
+    note, within_limit = feedback(path, low, high)
+    return "" if within_limit else note
 
 
 def overlong_feedback_if_changed(
@@ -227,9 +192,7 @@ def stop_reason(
     """Ask once for another editing turn when the final report is overlong."""
     note = overlong_feedback(path, low, high)
     deadline = os.environ.get("MBAB_DEADLINE_EPOCH")
-    if not note or (
-        deadline and int(deadline) - time.time() < MIN_REVISION_SECONDS
-    ):
+    if not note or (deadline and int(deadline) - time.time() < MIN_REVISION_SECONDS):
         return ""
     if cache is None:
         key = hashlib.sha256(str(path.absolute()).encode()).hexdigest()
@@ -247,7 +210,7 @@ def main() -> None:
     parser.add_argument("--max-words", type=int)
     parser.add_argument("--instruction", action="store_true")
     parser.add_argument("--template", type=Path)
-    parser.add_argument("--budget-min", type=int)
+    parser.add_argument("--budget-min", type=int, default=20)
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
     args = parser.parse_args()
@@ -262,9 +225,10 @@ def main() -> None:
         )
     )
     if args.template:
-        if args.budget_min is None:
-            parser.error("--template requires --budget-min")
-        print(render_prompt(args.template.read_text(), args.budget_min, low, high), end="")
+        print(
+            render_prompt(args.template.read_text(), args.budget_min, low, high),
+            end="",
+        )
     elif args.instruction:
         print(instruction(low, high), end="")
     elif args.hook == "Stop":
@@ -272,7 +236,7 @@ def main() -> None:
         reason = stop_reason(args.report, low, high)
         print(json.dumps({"decision": "block", "reason": reason} if reason else {}))
     elif args.hook:
-        note = feedback_if_changed(args.report, low, high)
+        note = overlong_feedback_if_changed(args.report, low, high)
         if not note:
             print("{}")
         else:
