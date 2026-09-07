@@ -23,6 +23,14 @@ Spans shorter than 25 characters are dropped. A failed span is fed back once wit
 strings that were not found; whatever still will not validate is kept under
 "unverified" for inspection rather than silently discarded.
 
+Why the second pass exists at all: 8.2% of the recall judge's non-empty quotes (166 of
+2,034) are not findable in the report they grade. The contradiction rubric in
+benchmark/graded/contradiction/ misses on only 5.1% (9 of 177) over the same 109
+reports. The asymmetry is the expected one -- a contradiction quote has to point at
+something the report actually said, whereas a recall quote can be the judge
+paraphrasing an absence or stitching together evidence scattered across sections --
+so it is recall grades whose quotes need repairing before a UI can highlight them.
+
 Both output files are resumable: --human skips a claim already recorded, and --reports
 skips a pair whose recorded judge_quote still matches the quote the judge currently
 gives. A regrade rewrites those quotes, so --reports also regenerates any entry whose
