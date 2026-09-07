@@ -137,17 +137,21 @@ th{color:var(--ink2);font-weight:600}
 tr.oa td{background:#FDF2EC}
 .key{font-size:11.5px;color:var(--ink2);margin:6px 0 0}
 .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 12px;vertical-align:-1px}
+.dir{fill:var(--ink3);font-size:10.5px;letter-spacing:.02em}
+h2 .hib{font-size:11.5px;font-weight:600;color:var(--ink2);background:var(--surface);
+  border:1px solid var(--line);border-radius:20px;padding:2px 9px;margin-left:9px;vertical-align:2px;
+  letter-spacing:.01em}
 </style></head><body>
 <main>
   <h1>Do OpenAI's models name OpenAI?</h1>
   <p class="sub" id="sub"></p>
 
-  <h2>Speculating that this was OpenAI</h2>
+  <h2>Speculating that this was OpenAI <span class="hib">higher is better</span></h2>
   <p class="note">The Origin and OpenAI-response clusters, six points, which together ask a report to
    conclude the editors were OpenAI agents on Azure and that OpenAI stopped them.</p>
   <div class="card" id="c1"></div>
 
-  <h2>SSH tunnelling — the control</h2>
+  <h2>SSH tunnelling — the control <span class="hib">higher is better</span></h2>
   <p class="note">Three points of comparable difficulty with nothing to do with attribution. A gap
    here would mean the OpenAI models are simply weaker or more cautious across the board; no gap
    means the difference above is about naming OpenAI, not about caution in general.</p>
@@ -185,6 +189,12 @@ function bars(host, key, extra) {
     lb.textContent = t.toFixed(1); svg.append(lb);
   }
   svg.append(s('line', {x1: L, x2: W - R, y1: y(0), y2: y(0), class: 'axline'}));
+  /* the scale is a score, and a reader meeting a bar chart of an unfamiliar metric should
+     not have to guess which end is good */
+  const dir = s('text', {x: 15, y: T + IH / 2, class: 'dir', 'text-anchor': 'middle',
+                         transform: `rotate(-90 15 ${T + IH / 2})`});
+  dir.textContent = '\u2191 more of the finding stated';
+  svg.append(dir);
   g.forEach((row, i) => {
     const cx = L + slot * (i + 0.5), bw = Math.min(120, slot * 0.44);
     const col = row.openai ? 'var(--accent)' : 'var(--grey)';
