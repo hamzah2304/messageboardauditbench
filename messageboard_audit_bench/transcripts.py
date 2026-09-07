@@ -35,7 +35,7 @@ class Parsed:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
-    reasoning_tokens: int = 0
+    reasoning_tokens: int | None = None
     turns: int = 0
     tool_calls: int = 0
     cost_usd: float | None = None
@@ -528,7 +528,10 @@ def parse_codex(path: Path) -> Parsed:
                 parsed.output_tokens += int(usage.get("output_tokens", 0) or 0)
                 parsed.cache_read_tokens += int(usage.get("cached_input_tokens", 0) or 0)
                 parsed.cache_write_tokens += int(usage.get("cache_write_input_tokens", 0) or 0)
-                parsed.reasoning_tokens += int(usage.get("reasoning_output_tokens", 0) or 0)
+                if "reasoning_output_tokens" in usage:
+                    parsed.reasoning_tokens = (parsed.reasoning_tokens or 0) + int(
+                        usage.get("reasoning_output_tokens") or 0
+                    )
         elif event_type in {"thread.started", "turn.started"}:
             if event_type == "thread.started" and event.get("thread_id"):
                 parsed.extra["codex_thread_id"] = event["thread_id"]
@@ -544,10 +547,47 @@ def parse_codex(path: Path) -> Parsed:
     return parsed
 
 
+def _codex_hook_feedback(run_dir: Path) -> list[str]:
+    """Recover hook context that Codex stores only in its session rollouts."""
+    feedback: list[str] = []
+    seen: set[str] = set()
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            context = value.get("additionalContext")
+            if isinstance(context, str) and context and context not in seen:
+                seen.add(context)
+                feedback.append(context)
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    sessions = run_dir / "codex_sessions"
+    if not sessions.exists():
+        return feedback
+    for rollout in sorted(sessions.rglob("rollout-*.jsonl")):
+        diagnostics = _Diagnostics()
+        for event in _lines(rollout, diagnostics):
+            # Session events wrap their useful payloads one or two levels deep.
+            # Restrict extraction to explicit hook output, avoiding arbitrary
+            # prompt text that happens to contain an "additionalContext" key.
+            if "hookSpecificOutput" in json.dumps(event, ensure_ascii=False):
+                visit(event)
+    return feedback
+
+
 def parse(agent: str, path: Path) -> Parsed:
     """Parse a subscription transcript and apply the benchmark's canonical usage totals."""
     # react_agent.py deliberately writes the Claude Code dialect.
     parsed = parse_codex(path) if agent == "codex" else parse_claude(path)
+    if agent == "codex":
+        feedback = _codex_hook_feedback(path.parent)
+        for note in feedback:
+            parsed.messages.append(_visible_user("Codex hook feedback", note))
+        if feedback:
+            parsed.extra["codex_hook_feedback_count"] = len(feedback)
     usage = summarize(path.parent, agent)
     parsed.input_tokens = usage["input_tokens"]
     parsed.input_tokens_uncached = usage["input_tokens_uncached"]
@@ -561,8 +601,11 @@ def parse(agent: str, path: Path) -> Parsed:
         "usage_schema", "usage_source", "api_calls", "api_retries", "api_errors",
         "peak_context_tokens", "cache_read_fraction", "stop_reason", "terminal_reason",
         "is_error", "duration_api_ms", "ttft_ms", "thinking_blocks", "thinking_chars",
+        "reasoning_tokens_source",
         "reasoning_tokens_estimated", "reasoning_items", "reasoning_summary_chars",
-        "latency_ms_mean", "permission_denials",
+        "latency_ms_mean", "permission_denials", "retry_attempt_transcripts",
+        "attempts_recorded", "reasoning_raw_chars", "reasoning_items_encrypted",
+        "sessions",
     ):
         if usage.get(key) is not None:
             parsed.extra[key] = usage[key]

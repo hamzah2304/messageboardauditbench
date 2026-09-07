@@ -32,6 +32,7 @@ from inspect_ai.util import (
 )
 
 from messageboard_audit_bench import runtime_policy
+from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
@@ -146,7 +147,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
     repo = repo_root().resolve()
     data_dir = (repo / "data" / data_variant).resolve()
     return SandboxEnvironmentSpec(
-        type="docker",
+        type="isolated-docker",
         config=ComposeConfig(
             services={
                 "default": ComposeService(
@@ -157,6 +158,9 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                     command="tail -f /dev/null",
                     init=True,
                     network_mode="none",
+                    user="1000:1000",
+                    cap_drop=["ALL"],
+                    security_opt=["no-new-privileges:true"],
                     working_dir="/work",
                     volumes=[f"{data_dir}:/work/data:ro"],
                 )

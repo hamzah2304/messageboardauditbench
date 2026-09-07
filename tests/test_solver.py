@@ -88,7 +88,7 @@ def test_fold_imports_report_transcript_and_usage(tmp_path: Path) -> None:
     assert state.output.usage.input_tokens_cache_read == 3
     assert state.metadata["input_tokens_uncached"] == 9
     assert state.metadata["cache_read_fraction"] == 0.25
-    assert state.metadata["usage_schema"] == 2
+    assert state.metadata["usage_schema"] == 3
     assert state.metadata["config"] == "blind-10"
     assert state.metadata["report_written"] is True
     assert state.metadata["wall_seconds"] == 7
