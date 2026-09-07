@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run one declared MessageBoardAuditBench condition with explicit operational
-# limits. Invoke this script once per model/agent/condition cell; doing so keeps
+# Run one declared MessageBoardAuditBench config with explicit operational
+# limits. Invoke this script once per model/agent/config cell; doing so keeps
 # native and subscription scaffolds visibly separate in Inspect logs.
 set -euo pipefail
 
@@ -10,7 +10,7 @@ Usage: scripts/run_inspect_matrix.sh [options]
 
 Required:
   --agent AGENT                 claude, codex, or react
-  --condition CONDITION         blind or context
+  --config CONFIG               blind or context
 
 Backend/model:
   --backend BACKEND             inspect (default) or subscription
@@ -43,7 +43,7 @@ EOF
 
 backend=inspect
 agent=""
-condition=""
+config=""
 model=""
 subscription_model=""
 time_limit_minutes=20
@@ -65,7 +65,7 @@ extra=()
 while (($#)); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
-    --backend|--agent|--condition|--model|--subscription-model|--time-limit-minutes|--epochs|--judge|--logs|--max-samples|--max-sandboxes|--max-connections|--max-retries|--request-timeout|--attempt-timeout|--retry-on-error)
+    --backend|--agent|--config|--model|--subscription-model|--time-limit-minutes|--epochs|--judge|--logs|--max-samples|--max-sandboxes|--max-connections|--max-retries|--request-timeout|--attempt-timeout|--retry-on-error)
       (($# >= 2)) || { echo "missing value for $1" >&2; exit 2; }
       key=${1#--}; key=${key//-/_}; printf -v "$key" '%s' "$2"; shift 2 ;;
     --no-log-model-api) log_model_api=0; shift ;;
@@ -76,7 +76,7 @@ while (($#)); do
   esac
 done
 
-[[ -n "$agent" && -n "$condition" ]] || { echo "--agent and --condition are required" >&2; exit 2; }
+[[ -n "$agent" && -n "$config" ]] || { echo "--agent and --config are required" >&2; exit 2; }
 case "$backend" in inspect|subscription) ;; *) echo "invalid --backend: $backend" >&2; exit 2;; esac
 if [[ "$backend" == inspect ]]; then
   [[ -n "$model" ]] || { echo "--model is required for backend=inspect" >&2; exit 2; }
@@ -87,7 +87,7 @@ else
 fi
 
 cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench
-  -T "backend=$backend" -T "agent=$agent" -T "condition=$condition"
+  -T "backend=$backend" -T "agent=$agent" -T "config=$config"
   -T "time_limit_minutes=$time_limit_minutes" -T "judge=$judge"
   --epochs "$epochs" --max-samples "$max_samples" --max-sandboxes "$max_sandboxes"
   --max-connections "$max_connections" --max-retries "$max_retries"

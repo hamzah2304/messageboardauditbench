@@ -31,7 +31,9 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
             *_state().messages,
             ChatMessageAssistant(
                 content="checking",
-                tool_calls=[ToolCall(id="call-1", function="bash", arguments={"cmd": "ls"})],
+                tool_calls=[
+                    ToolCall(id="call-1", function="bash", arguments={"cmd": "ls"})
+                ],
             ),
             ChatMessageTool(content="data", tool_call_id="call-1", function="bash"),
             ChatMessageAssistant(content="done"),
@@ -86,7 +88,10 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
     assert captured["report_min_words"] == 0
     assert captured["report_max_words"] == 0
     assert captured["agent_kwargs"]["env"]["MBAB_BUDGET_MIN"] == "2"
-    assert int(captured["agent_kwargs"]["env"]["MBAB_DEADLINE_EPOCH"]) == captured["deadline_epoch"]
+    assert (
+        int(captured["agent_kwargs"]["env"]["MBAB_DEADLINE_EPOCH"])
+        == captured["deadline_epoch"]
+    )
     assert captured["messages"][0].content == "Investigate"
     assert state.messages == agent_state.messages
     assert state.output.completion.startswith("# Audit report")
@@ -104,8 +109,12 @@ async def test_native_solver_keeps_trajectory_and_prefers_report(monkeypatch) ->
 
 
 @pytest.mark.asyncio
-async def test_native_solver_records_scoped_timeout_and_partial_report(monkeypatch) -> None:
-    agent_state = AgentState(messages=[*_state().messages, ChatMessageAssistant(content="partial")])
+async def test_native_solver_records_scoped_timeout_and_partial_report(
+    monkeypatch,
+) -> None:
+    agent_state = AgentState(
+        messages=[*_state().messages, ChatMessageAssistant(content="partial")]
+    )
     limit = LimitExceededError(type="time", value=60, limit=60)
 
     monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: object())
@@ -179,9 +188,14 @@ def test_native_solver_writes_a_standard_eval_log(tmp_path, monkeypatch) -> None
 
 
 @pytest.mark.asyncio
-async def test_native_solver_never_grades_chat_when_report_is_missing(monkeypatch) -> None:
+async def test_native_solver_never_grades_chat_when_report_is_missing(
+    monkeypatch,
+) -> None:
     agent_state = AgentState(
-        messages=[*_state().messages, ChatMessageAssistant(content="excellent findings")]
+        messages=[
+            *_state().messages,
+            ChatMessageAssistant(content="excellent findings"),
+        ]
     )
     agent_state.output = ModelOutput.from_content(
         model="mockllm/model", content="excellent findings"
@@ -210,9 +224,14 @@ async def test_native_solver_never_grades_chat_when_report_is_missing(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_native_solver_marks_terminal_refusal_after_bounded_retries(monkeypatch) -> None:
+async def test_native_solver_marks_terminal_refusal_after_bounded_retries(
+    monkeypatch,
+) -> None:
     agent_state = AgentState(
-        messages=[*_state().messages, ChatMessageAssistant(content="I cannot help with that.")]
+        messages=[
+            *_state().messages,
+            ChatMessageAssistant(content="I cannot help with that."),
+        ]
     )
     agent_state.output = ModelOutput.from_content(
         model="anthropic/test-model",
@@ -301,9 +320,7 @@ async def test_native_solver_does_not_continue_missing_short_or_valid_reports(
     agent_state = AgentState(
         messages=[*_state().messages, ChatMessageAssistant(content="done")]
     )
-    agent_state.output = ModelOutput.from_content(
-        model="mockllm/model", content="done"
-    )
+    agent_state.output = ModelOutput.from_content(model="mockllm/model", content="done")
     calls = 0
 
     monkeypatch.setattr(native, "inspect_agent", lambda *_args, **_kwargs: object())
@@ -423,7 +440,7 @@ async def test_native_preflight_installs_claude_and_codex_hooks(monkeypatch) -> 
     claude = json.loads(writes[f"{native.CLAUDE_CONFIG_DIR}/settings.json"])
     codex = json.loads(writes[f"{native.CODEX_HOME}/hooks.json"])
     assert claude["apiKeyHelper"] == "echo $ANTHROPIC_AUTH_TOKEN"
-    assert claude["switchModelsOnFlag"] is False
+    assert "switchModelsOnFlag" not in claude
     assert claude["hooks"] == codex["hooks"]
     commands = [
         hook["command"]

@@ -6,7 +6,7 @@ fresh checkout can install it with `uv sync` and run its registered task as:
 ```bash
 scripts/build_data.sh
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T condition=blind \
+  -T agent=claude -T config=blind \
   -T time_limit_minutes=30 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
@@ -22,7 +22,7 @@ are covered:
 
 - `pyproject.toml` provides PEP 517 packaging and declares `inspect_ai`.
 - The package has an `inspect_ai` entry point and exports the `@task` functions.
-- The task has a stable sample ID, version `3-B`, and run metadata.
+- The task has a stable sample ID, version `4-B`, and run metadata.
 - The source archive and generated variants are checked against committed
   SHA-256 digests, so upstream drift fails loudly.
 - Unit tests cover task construction, native trajectory collection, transcript

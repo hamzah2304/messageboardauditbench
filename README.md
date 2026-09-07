@@ -68,7 +68,7 @@ messageboard_audit_bench/
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
 scripts/        data build/fetch, grading, report collection
 configs/        trial conditions (budget, prompt, data variant, effort)
-reports/        the model report corpus, by condition
+reports/        the model report corpus, by benchmark config
 baselines/      early trial runs (meta + report; transcripts are gitignored)
 viewers/        build_*.py -> browsable HTML for every artifact
 corpus/         raw message-board exports
@@ -149,14 +149,14 @@ export OPENAI_API_KEY=...                  # native Codex when using OpenAI
 
 # Native Claude Code. The agent model is Inspect's normal --model option.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T condition=blind -T time_limit_minutes=30 \
+  -T agent=claude -T config=blind -T time_limit_minutes=30 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
 
 # Native Codex CLI with the same task and Inspect plumbing.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=codex -T condition=blind -T time_limit_minutes=30 \
+  -T agent=codex -T config=blind -T time_limit_minutes=30 \
   --model openai/gpt-5 \
   --model-role grader=anthropic/claude-sonnet-4-5
 
@@ -164,7 +164,7 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T backend=subscription -T agent=claude \
   -T subscription_model=claude-opus-5 \
-  -T condition=blind -T time_limit_minutes=30 \
+  -T config=blind -T time_limit_minutes=30 \
   -T judge=anthropic/claude-sonnet-4-5 --max-samples 1
 
 # or fold runs already on disk into one eval, without spending model time
@@ -176,8 +176,8 @@ uv run inspect view                        # browse the .eval logs
 # through Inspect's Log API; it does not parse .eval files directly.
 uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
 
-# Run one explicit model/agent/condition cell. On macOS this prevents sleep.
-scripts/run_inspect_matrix.sh --agent claude --condition blind \
+# Run one explicit model/agent/config cell. On macOS this prevents sleep.
+scripts/run_inspect_matrix.sh --agent claude --config blind \
   --model anthropic/claude-opus-4-1 --epochs 3
 ```
 
@@ -192,16 +192,20 @@ use the same scoped deadline. With `backend=subscription`, use
 `-T subscription_model=...`; this deliberately runs outside Inspect's model
 provider and then converts the recorded CLI events for the viewer.
 
-The condition and time dimensions are independent: use
-`-T condition=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
+The config and time dimensions are independent: use
+`-T config=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
 config names remain available to the direct sandbox scripts but are not part of
-the Inspect task interface. The default is 20 minutes for either condition.
+the Inspect task interface. The default is 20 minutes for either config.
 The limit is a cap, not a minimum: agents may stop early and short reports are
-not sent back for expansion.
+not sent back for expansion. Subscription agents are told exactly N minutes;
+their container gets a five-minute shutdown/write grace, followed by a separate
+five-minute host recovery guard so transcript folding is not cut off. A Codex
+capacity failure before its first completed turn is relaunched at most twice.
 
-`--epochs N` runs N independent replicates; the replicate number identifies a run
-and does not seed sampling. Use `--max-samples 1` to serialize epochs against a
-subscription-backed CLI. `messageboard_audit_bench_replay` reads `runs/`, which is
+`--epochs N` is Inspect's standard option for N independent replicates; the
+replicate number identifies a run and does not seed sampling. Use
+`--max-samples 1` to serialize epochs against a subscription-backed CLI.
+`messageboard_audit_bench_replay` reads `runs/`, which is
 gitignored — it only has anything to import on a machine that has run trials.
 
 `export_inspect_reports.py` is the bridge from native `.eval` logs to the

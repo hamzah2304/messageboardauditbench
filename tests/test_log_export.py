@@ -4,9 +4,7 @@ from types import SimpleNamespace
 from messageboard_audit_bench.log_export import export_records, records_from_log
 
 
-def _log(
-    *, backend: str = "inspect", report: str = "# Report", exit_code: int = 0
-):
+def _log(*, backend: str = "inspect", report: str = "# Report", exit_code: int = 0):
     sample = SimpleNamespace(
         id="claude:inspect:blind:20m",
         epoch=2,
@@ -17,7 +15,7 @@ def _log(
             "agent": "claude",
             "scaffold": "claude-code",
             "model": "anthropic/claude-test",
-            "condition": "blind",
+            "config": "blind",
             "budget_min": 20,
             "data_variant": "verbatim",
             "effort": "xhigh",
@@ -32,8 +30,12 @@ def _log(
 
 def test_records_only_select_requested_backend_and_real_reports() -> None:
     assert len(records_from_log(_log(), "native.eval", backend="inspect")) == 1
-    assert not records_from_log(_log(backend="subscription"), "old.eval", backend="inspect")
-    assert not records_from_log(_log(report="(no report written)"), "empty.eval", backend="inspect")
+    assert not records_from_log(
+        _log(backend="subscription"), "old.eval", backend="inspect"
+    )
+    assert not records_from_log(
+        _log(report="(no report written)"), "empty.eval", backend="inspect"
+    )
 
 
 def test_export_groups_by_scaffold_and_keeps_backend_in_index(tmp_path: Path) -> None:
@@ -50,7 +52,7 @@ def test_export_groups_by_scaffold_and_keeps_backend_in_index(tmp_path: Path) ->
         for path in tmp_path.iterdir()
         if path.is_dir() and path.name.startswith("claude-code_blind_")
     )
-    assert (group / "CONDITIONS.json").is_file()
+    assert (group / "CONFIG.json").is_file()
 
 
 def test_same_scaffold_can_pool_transports(tmp_path: Path) -> None:
@@ -62,9 +64,16 @@ def test_same_scaffold_can_pool_transports(tmp_path: Path) -> None:
     rows = export_records([*native, *subscription], tmp_path)
 
     assert {row["backend"] for row in rows} == {"inspect", "subscription"}
-    assert len(
-        [path for path in tmp_path.iterdir() if path.is_dir() and path.name != "prompts"]
-    ) == 1
+    assert (
+        len(
+            [
+                path
+                for path in tmp_path.iterdir()
+                if path.is_dir() and path.name != "prompts"
+            ]
+        )
+        == 1
+    )
 
 
 def test_records_fall_back_to_inspect_model_when_task_metadata_omits_it() -> None:

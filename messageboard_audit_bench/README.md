@@ -23,7 +23,8 @@ Run these commands from the repository root:
 ```
 uv sync                           # installs Inspect and registers the plugin
 scripts/build_data.sh             # downloads and verifies the data variants
-sandbox/docker/claude_login.sh    # only for subscription Claude trials
+claude setup-token                # preferred subscription Claude credential
+# save its token in runs/.claude-oauth-token, or export CLAUDE_CODE_OAUTH_TOKEN
 ```
 
 The eval deliberately depends on the repository's Docker sandbox, configs, and
@@ -41,30 +42,30 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 
 ```
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T condition=blind -T time_limit_minutes=30 \
+  -T agent=claude -T config=blind -T time_limit_minutes=30 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=codex -T condition=context -T time_limit_minutes=40 \
+  -T agent=codex -T config=context -T time_limit_minutes=40 \
   --model openai/gpt-5 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T condition=blind \
+  -T agent=react -T config=blind \
   -T time_limit_minutes=20 \
   --model openai/gpt-5 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3
 ```
 
-`--epochs N` runs N independent replicates. Replicate numbers identify runs;
-they do not seed model sampling. Use `--max-samples 1` to serialize epochs when
-running a subscription-backed CLI.
+`--epochs N` is Inspect's standard option for N independent replicates.
+Replicate numbers identify runs; they do not seed model sampling. Use
+`--max-samples 1` to serialize epochs when running a subscription-backed CLI.
 The task supports three harnesses: `claude` invokes Inspect SWE's Claude Code
 agent, `codex` invokes Inspect SWE's Codex CLI agent, and `react` invokes
 Inspect's model-neutral ReAct agent. The default is Claude Code. These are
-system-level conditions, so comparisons across harnesses are not bare-model
+different agent scaffolds, so comparisons across harnesses are not bare-model
 comparisons.
 
 ### Inspect integration boundary
@@ -78,17 +79,20 @@ governs model calls. Providers may reject or map unsupported reasoning-effort
 levels; the requested level is recorded in task and sample metadata. The
 wrapper only retrieves the report after the agent finishes (or the scoped time
 limit fires). Provider refusals receive two same-model retries. Terminal
-refusals are recorded from Inspect's normalized stop reason; no fallback model
-is substituted.
+refusals are recorded from Inspect's normalized stop reason. Claude Code's
+built-in safeguard model switching is not disabled.
 
-`-T condition=blind|context` chooses the prompt and its fixed data/effort
-profile; condition names never encode time. `-T time_limit_minutes=N` controls
+`-T config=blind|context` chooses the prompt and its fixed data/effort
+profile; config names never encode time. `-T time_limit_minutes=N` controls
 the stated budget and the scoped Inspect agent limit. An outer task guard gives
 native cleanup five additional minutes; it does not give the agent more time.
 The shared `time_left` sandbox command reports the same deadline. If omitted,
-the time limit defaults to 20 minutes for every condition.
+the time limit defaults to 20 minutes for every config.
 This limit is a cap, not a minimum; the task never resumes an agent merely for
-stopping early or writing a short report.
+stopping early or writing a short report. Subscription agents are told exactly
+N minutes; their container gets five additional minutes to stop and finish
+writing, and the host guard allows another five minutes for recovery and
+transcript folding.
 Native Claude Code and Codex install lifecycle hooks without replacing Inspect
 SWE's API bridge configuration. They inject the remaining time after every tool
 call and report-length feedback only when the file is over the strict maximum.
@@ -104,7 +108,7 @@ an Inspect `grader` model role takes precedence when one is supplied.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
   -T backend=subscription -T agent=claude \
   -T subscription_model=claude-opus-5 \
-  -T condition=blind -T time_limit_minutes=30 \
+  -T config=blind -T time_limit_minutes=30 \
   -T judge=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
 ```
@@ -113,8 +117,11 @@ The subscription backend uses the existing login and hardened proxy runner.
 Its model calls necessarily occur outside Inspect, so it cannot have live
 Inspect SWE model events. Afterward, a loss-aware importer maps CLI text,
 reasoning, tool calls/results, errors, and usage into Inspect's
-message schema. Conversion diagnostics appear in sample metadata. Refusals do
-not switch the configured model. Run
+message schema. Conversion diagnostics appear in sample metadata. Claude Code's
+built-in safeguard switch remains enabled and any served fallback is recorded;
+terminal refusals are still eligible for the task's bounded reruns. Codex is
+relaunched at most twice when it exits on a capacity error before completing a
+turn. Run
 `PYTHONPATH=. python scripts/check_transcript_conversion.py runs` to verify all
 completed local trajectories have valid, one-to-one tool call/result IDs.
 

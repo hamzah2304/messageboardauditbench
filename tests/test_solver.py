@@ -89,7 +89,7 @@ def test_fold_imports_report_transcript_and_usage(tmp_path: Path) -> None:
     assert state.metadata["input_tokens_uncached"] == 9
     assert state.metadata["cache_read_fraction"] == 0.25
     assert state.metadata["usage_schema"] == 2
-    assert state.metadata["condition"] == "blind"
+    assert state.metadata["config"] == "blind-10"
     assert state.metadata["report_written"] is True
     assert state.metadata["wall_seconds"] == 7
 
@@ -193,15 +193,13 @@ async def test_subscription_agent_folds_successful_trial(
     state = await subscription_agent(
         agent="codex",
         model="gpt-test",
-        condition="blind",
+        config="blind",
         time_limit_minutes=37,
         timeout_minutes=37,
         prompt="blind",
         data_variant="verbatim",
         effort="xhigh",
-    )(
-        _state(), None
-    )
+    )(_state(), None)
 
     assert state.completed
     assert state.metadata["run_dir"] == str(run_dir)
@@ -231,7 +229,7 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
         RuntimeError,
         match="before producing a run directory with exit code 2: docker unavailable",
     ):
-        await subscription_agent(agent="codex", model="gpt-test", condition="blind")(
+        await subscription_agent(agent="codex", model="gpt-test", config="blind")(
             _state(), None
         )
 
@@ -255,7 +253,7 @@ async def test_subscription_agent_folds_timed_out_trial(
     state = await subscription_agent(
         agent="codex",
         model="gpt-test",
-        condition="blind",
+        config="blind",
         timeout_minutes=3,
     )(_state(), None)
 
@@ -289,7 +287,7 @@ async def test_subscription_agent_recovers_host_guard_timeout(
     state = await subscription_agent(
         agent="codex",
         model="gpt-test",
-        condition="blind",
+        config="blind",
         timeout_minutes=3,
     )(_state(), None)
 
@@ -322,7 +320,7 @@ async def test_subscription_refusal_reruns_twice_with_same_model(
     state = await subscription_agent(
         agent="claude",
         model="same-model",
-        condition="blind",
+        config="blind",
         timeout_minutes=3,
     )(_state(), None)
 

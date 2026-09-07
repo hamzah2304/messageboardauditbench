@@ -60,6 +60,17 @@ def finalize(run: pathlib.Path, force: bool = False) -> None:
             last = r
             break
     rc = 1 if last.get("is_error") else 0
+    if m["agent"] == "codex":
+        # Codex has no result line. A transcript without a completed turn was
+        # cut off and must not be retrospectively marked successful.
+        rc = (
+            0
+            if any(
+                '"type":"turn.completed"' in line or '"type": "turn.completed"' in line
+                for line in lines
+            )
+            else 1
+        )
     started = datetime.datetime.strptime(m["started"], "%Y%m%dT%H%M%SZ").replace(
         tzinfo=datetime.UTC
     )

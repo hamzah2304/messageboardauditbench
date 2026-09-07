@@ -4,6 +4,7 @@ The Inspect log is the source of truth for native runs.  This module deliberatel
 uses :mod:`inspect_ai.log` rather than opening the compressed ``.eval`` files
 itself, so exported reports remain compatible with Inspect log-format changes.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -44,7 +45,9 @@ class ExportRecord:
     partial: bool
 
 
-def records_from_log(log: Any, log_file: str, *, backend: str | None) -> list[ExportRecord]:
+def records_from_log(
+    log: Any, log_file: str, *, backend: str | None
+) -> list[ExportRecord]:
     """Read report-bearing samples from an already decoded Inspect log.
 
     ``backend=None`` accepts all MessageBoardAuditBench logs.  The native
@@ -90,14 +93,14 @@ def records_from_log(log: Any, log_file: str, *, backend: str | None) -> list[Ex
 def export_records(
     records: Iterable[ExportRecord], out: Path, *, include_partial: bool = False
 ) -> list[dict[str, Any]]:
-    """Write reports, exact prompts, condition manifests, and an index."""
+    """Write reports, exact prompts, config manifests, and an index."""
     out.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     for record in records:
         if record.partial and not include_partial:
             continue
         meta = record.metadata
-        condition = str(meta.get("condition", "unknown"))
+        config_name = str(meta.get("config", meta.get("condition", "unknown")))
         variant = str(meta.get("data_variant", "unknown"))
         effort = str(meta.get("effort", "unknown"))
         backend = str(meta.get("backend", "unknown"))
@@ -116,7 +119,7 @@ def export_records(
         # Group by the actual agent loop. Native and subscription transports
         # may be pooled when they run the same Claude Code/Codex scaffold;
         # genuinely different ReAct implementations remain separate.
-        group = out / f"{scaffold}_{condition}_{variant}_{effort}_p{prompt_id}"
+        group = out / f"{scaffold}_{config_name}_{variant}_{effort}_p{prompt_id}"
         group.mkdir(parents=True, exist_ok=True)
         name = (
             f"{agent}_{model}_r{record.epoch}_{_safe_name(Path(record.log_file).stem)}"
@@ -125,18 +128,21 @@ def export_records(
         destination = group / name
         destination.write_text(record.report)
 
-        conditions = {
+        config_manifest = {
             "scaffold": scaffold,
-            "condition": condition,
+            "config": config_name,
             "prompt_id": prompt_id,
             "budget_min": meta.get("budget_min"),
             "data_variant": variant,
             "effort": effort,
         }
-        conditions_path = group / "CONDITIONS.json"
-        if conditions_path.exists() and json.loads(conditions_path.read_text()) != conditions:
-            raise RuntimeError(f"inconsistent conditions in {group}")
-        conditions_path.write_text(json.dumps(conditions, indent=2) + "\n")
+        config_path = group / "CONFIG.json"
+        if (
+            config_path.exists()
+            and json.loads(config_path.read_text()) != config_manifest
+        ):
+            raise RuntimeError(f"inconsistent config in {group}")
+        config_path.write_text(json.dumps(config_manifest, indent=2) + "\n")
         if record.prompt:
             prompts = out / "prompts"
             prompts.mkdir(exist_ok=True)
@@ -144,35 +150,52 @@ def export_records(
             if not prompt_path.exists():
                 prompt_path.write_text(record.prompt)
 
-        usage = {key: meta.get(key) for key in (
-            "input_tokens", "input_tokens_uncached", "output_tokens",
-            "reasoning_tokens", "cache_read_tokens", "cache_write_tokens",
-            "cache_read_fraction", "cost_usd", "usage_schema", "usage_source",
-        ) if key in meta}
-        rows.append({
-            "report": str(destination.relative_to(out)),
-            "source": "inspect_eval_log",
-            "log_file": record.log_file,
-            "sample_id": record.sample_id,
-            "partial": record.partial,
-            "backend": backend,
-            "scaffold": scaffold,
-            "condition": condition,
-            "prompt_id": prompt_id,
-            "budget_min": meta.get("budget_min"),
-            "data_variant": variant,
-            "effort": effort,
-            "agent": meta.get("agent"),
-            "model": meta.get("model"),
-            "replicate": record.epoch,
-            "usage": usage or None,
-        })
+        usage = {
+            key: meta.get(key)
+            for key in (
+                "input_tokens",
+                "input_tokens_uncached",
+                "output_tokens",
+                "reasoning_tokens",
+                "cache_read_tokens",
+                "cache_write_tokens",
+                "cache_read_fraction",
+                "cost_usd",
+                "usage_schema",
+                "usage_source",
+            )
+            if key in meta
+        }
+        rows.append(
+            {
+                "report": str(destination.relative_to(out)),
+                "source": "inspect_eval_log",
+                "log_file": record.log_file,
+                "sample_id": record.sample_id,
+                "partial": record.partial,
+                "backend": backend,
+                "scaffold": scaffold,
+                "config": config_name,
+                "prompt_id": prompt_id,
+                "budget_min": meta.get("budget_min"),
+                "data_variant": variant,
+                "effort": effort,
+                "agent": meta.get("agent"),
+                "model": meta.get("model"),
+                "replicate": record.epoch,
+                "usage": usage or None,
+            }
+        )
     (out / "index.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
     return rows
 
 
 def export_logs(
-    log_dir: Path, out: Path, *, backend: str | None = "inspect", include_partial: bool = False
+    log_dir: Path,
+    out: Path,
+    *,
+    backend: str | None = "inspect",
+    include_partial: bool = False,
 ) -> list[dict[str, Any]]:
     """Read ``log_dir`` through Inspect's public Log API and export reports."""
     from inspect_ai.log import list_eval_logs, read_eval_log

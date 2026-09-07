@@ -6,6 +6,7 @@ Inspect owns model calls, provider prompt caching, limits, and live transcript
 events. The small wrapper below exists only to collect ``/work/report.md`` after
 the agent stops, including when the scoped Inspect time limit fires.
 """
+
 from __future__ import annotations
 
 import json
@@ -54,8 +55,7 @@ def _hook_config() -> dict:
                         {
                             "type": "command",
                             "command": (
-                                "python3 /sandbox/report_length.py "
-                                "--hook PostToolUse"
+                                "python3 /sandbox/report_length.py --hook PostToolUse"
                             ),
                         },
                     ]
@@ -197,9 +197,7 @@ async def _prepare_budget(
         "/tmp/mbab-report-length",
         f"{report_min_words}\n{report_max_words}\n",
     )
-    configured = await sandbox().exec(
-        ["mkdir", "-p", CLAUDE_CONFIG_DIR, CODEX_HOME]
-    )
+    configured = await sandbox().exec(["mkdir", "-p", CLAUDE_CONFIG_DIR, CODEX_HOME])
     if not configured.success:
         raise RuntimeError("could not create native agent configuration directories")
     hooks = _hook_config()
@@ -208,7 +206,6 @@ async def _prepare_budget(
         json.dumps(
             {
                 "apiKeyHelper": "echo $ANTHROPIC_AUTH_TOKEN",
-                "switchModelsOnFlag": False,
                 **hooks,
             }
         ),
@@ -334,6 +331,7 @@ def inspect_native_agent(
     update throughout the investigation. Unexpected agent or sandbox failures
     still fail the sample normally.
     """
+
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         started = time.monotonic()
         deadline_epoch = int(time.time()) + time_limit_seconds
@@ -393,9 +391,7 @@ def inspect_native_agent(
         agent_stop_reason = (
             agent_state.output.stop_reason if agent_state.output else None
         )
-        post_tool_hook_fired = await _marker_exists(
-            "/tmp/mbab-post-tool-hook-fired"
-        )
+        post_tool_hook_fired = await _marker_exists("/tmp/mbab-post-tool-hook-fired")
         stop_hook_fired = await _marker_exists("/tmp/mbab-stop-hook-fired")
         _copy_agent_state(state, agent_state)
         model = state.output.model or str(state.model)

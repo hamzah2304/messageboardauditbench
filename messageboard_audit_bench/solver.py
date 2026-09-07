@@ -7,6 +7,7 @@ renders the whole session and the scorers see the report as the completion.
 `replay(...)` does the same for runs already on disk under runs/, so you can
 bring past baseline runs into Inspect without re-running the models.
 """
+
 from __future__ import annotations
 
 import json
@@ -94,7 +95,9 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         reasoning_tokens=parsed.reasoning_tokens or None,
         total_cost=parsed.cost_usd,
     )
-    state.output = ModelOutput.from_content(model=agent, content=report or "(no report written)")
+    state.output = ModelOutput.from_content(
+        model=agent, content=report or "(no report written)"
+    )
     state.output.usage = usage
 
     meta = {}
@@ -118,8 +121,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         reasoning_tokens=parsed.reasoning_tokens,
         cost_usd=parsed.cost_usd,
         wall_seconds=meta.get("wall_seconds"),
-        config=meta.get("config"),
-        condition=meta.get("condition", meta.get("prompt", meta.get("config"))),
+        config=meta.get("config", meta.get("condition", meta.get("prompt"))),
         prompt=meta.get("prompt"),
         budget_min=meta.get("budget_min"),
         data_variant=meta.get("data_variant"),
@@ -133,7 +135,11 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         model_fallback=meta.get("model_fallback"),
         terminal_refusal=bool(meta.get("model_refusal")),
         transcript_diagnostics=parsed.extra.get("transcript_diagnostics"),
-        **{f"cli_{k}": v for k, v in parsed.extra.items() if isinstance(v, (str, int, float))},
+        **{
+            f"cli_{k}": v
+            for k, v in parsed.extra.items()
+            if isinstance(v, (str, int, float))
+        },
     )
     state.metadata.update(
         measure(
@@ -151,7 +157,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 def subscription_agent(
     agent: str,
     model: str,
-    condition: str = "blind",
+    config: str = "blind",
     time_limit_minutes: int | None = None,
     timeout_minutes: int | None = None,
     prompt: str | None = None,
@@ -169,7 +175,7 @@ def subscription_agent(
             model,
             str(replicate),
         ]
-        env = {"CONFIG": condition}
+        env = {"CONFIG": config}
         if prompt is not None:
             env["PROMPT"] = prompt
         if data_variant is not None:
@@ -222,7 +228,9 @@ def subscription_agent(
                     f"code {proc.returncode}: {detail}"
                 )
             state.metadata["launch_error"] = proc.stderr[-2000:]
-            state.output = ModelOutput.from_content(model=agent, content="(trial did not launch)")
+            state.output = ModelOutput.from_content(
+                model=agent, content="(trial did not launch)"
+            )
             state.completed = True
             return state
         state = _fold(state, run_dir, agent)
@@ -248,7 +256,9 @@ def replay() -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         run_dir = Path(state.metadata["run_dir"])
-        agent = state.metadata.get("agent") or ("codex" if "codex" in run_dir.name else "claude")
+        agent = state.metadata.get("agent") or (
+            "codex" if "codex" in run_dir.name else "claude"
+        )
         return _fold(state, run_dir, agent)
 
     return solve
@@ -256,4 +266,5 @@ def replay() -> Solver:
 
 def _os_environ() -> dict:
     import os
+
     return dict(os.environ)

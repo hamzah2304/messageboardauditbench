@@ -55,12 +55,11 @@ the `claude` and `codex` binaries, non-root user `agent`), used for three roles:
   are sent on every request and per-turn cache hits and cost are recorded.
   Time information reaches the model through the prompt and the shared
   `time_left` command.
-- Claude: `sandbox/docker/claude_login.sh` once. It runs `claude login` inside the
-  image (prints a URL, paste the code back) and keeps the resulting
-  `.credentials.json` in `runs/.claude-home/` (gitignored), copied into each
-  trial. Needed because macOS keeps the host login in the Keychain, which a
-  Linux container cannot read. On Linux hosts `~/.claude/.credentials.json` is
-  used as a fallback, as is `CLAUDE_CODE_OAUTH_TOKEN` if set.
+- Claude: prefer a long-lived token from `claude setup-token`, stored as the
+  sole contents of `runs/.claude-oauth-token` (gitignored), or export it as
+  `CLAUDE_CODE_OAUTH_TOKEN`. This avoids concurrent refresh races between
+  containers. `sandbox/docker/claude_login.sh` and copied credentials remain
+  fallbacks for a single trial.
 
 ## Run
 
@@ -73,13 +72,12 @@ withheld from the agent. Shipped configs: `blind-20`, `blind-40`, `context-20`,
 `context-40` (the `context` prompt prepends a summary of the OpenAI/Hugging Face
 incident and says to treat this one as separate), plus `default` = `blind-20`.
 
-In the subscription runner, Claude Code gets the remaining budget after every
-tool call via a `PostToolUse` hook (`sandbox/time_left.sh`, wired through the
-throwaway `~/.claude/settings.json`) and the ReAct scaffold appends it to each
-tool result. Codex does not reliably support the equivalent hook, so the prompt
-tells it to call `time_left` periodically. Native Inspect execution gives all
-three harnesses the same command and enforces the deadline independently with
-an Inspect scoped time limit.
+In the subscription runner, Claude Code and Codex get the remaining budget
+after every tool call via lifecycle hooks (`sandbox/time_left.sh`, wired
+through throwaway config directories), and the ReAct scaffold appends it to
+each tool result. Native Inspect execution gives all three harnesses the same
+feedback and enforces the deadline independently with an Inspect scoped time
+limit.
 
 ```
 CONFIG=blind-20   sandbox/docker/run_trial.sh claude claude-opus-5 1

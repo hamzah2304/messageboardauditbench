@@ -46,8 +46,9 @@ VARIANT="$(basename "$DATA_DIR")"
 RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN_ID:0:12}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
 NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"
-mkdir -p "$RUN/work/data" "$SECRETS/claude" "$SECRETS/codex"
-cp "$DATA_DIR"/*.jsonl "$RUN/work/data/"
+mkdir -p "$RUN/work" "$SECRETS/claude" "$SECRETS/codex"
+# Mount the shared variant directly below; copying it into every run previously
+# consumed tens of megabytes per sample.
 # The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
 sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$PROMPT_FILE" > "$RUN/work/prompt.txt"
 python3 "$ROOT/messageboard_audit_bench/report_length.py" \
@@ -56,14 +57,17 @@ python3 "$ROOT/messageboard_audit_bench/report_length.py" \
 PROMPT="$(cat "$RUN/work/prompt.txt")"
 
 # Credentials: a throwaway copy, mounted as the container user's ~/.claude and ~/.codex.
-# Claude: a login done inside the container (sandbox/docker/claude_login.sh) lands in
-# runs/.claude-home/.credentials.json. Fallbacks: CLAUDE_CODE_OAUTH_TOKEN, or the host's
-# ~/.claude/.credentials.json (Linux hosts only; macOS keeps it in the Keychain).
+# Claude: prefer a long-lived token produced by `claude setup-token`. Copied
+# credentials can race while refreshing when several containers start together.
+# Fallbacks are an environment token, a container login, or host credentials.
 CLAUDE_ENV=()
-if [ -f "$ROOT/runs/.claude-home/.credentials.json" ]; then
-  cp "$ROOT/runs/.claude-home/.credentials.json" "$SECRETS/claude/.credentials.json"
+if [ -s "$ROOT/runs/.claude-oauth-token" ]; then
+  export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$ROOT/runs/.claude-oauth-token")"
+  CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
 elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
   CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
+elif [ -f "$ROOT/runs/.claude-home/.credentials.json" ]; then
+  cp "$ROOT/runs/.claude-home/.credentials.json" "$SECRETS/claude/.credentials.json"
 elif [ -f "$HOME/.claude/.credentials.json" ]; then
   cp "$HOME/.claude/.credentials.json" "$SECRETS/claude/.credentials.json"
 elif [ "$AGENT" = claude ]; then
@@ -87,9 +91,7 @@ printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_sear
 # time. Report-length hooks remain silent unless report.md is over the strict
 # maximum; the Stop hook requests at most one shortening pass.
 # Both CLIs accept the same hook file shape; Codex additionally needs the codex_hooks feature and the hook-trust bypass flag.
-HOOKS='{"switchModelsOnFlag":false,"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"},{"type":"command","command":"python3 /sandbox/report_length.py --hook PostToolUse"}]}],"Stop":[{"hooks":[{"type":"command","command":"python3 /sandbox/report_length.py --hook Stop"}]}]}}'
-# A safeguard refusal never switches the configured model. The subscription
-# sample fails and the Inspect launcher may rerun it up to its explicit limit.
+HOOKS='{"hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"/sandbox/time_left.sh"},{"type":"command","command":"python3 /sandbox/report_length.py --hook PostToolUse"}]}],"Stop":[{"hooks":[{"type":"command","command":"python3 /sandbox/report_length.py --hook Stop"}]}]}}'
 printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 
@@ -107,7 +109,7 @@ docker network connect "$NET" "$PROXY"
 # Everything the agent container gets. Note NO_PROXY is empty and DNS points nowhere.
 DOCKER_ARGS=(--rm --network "$NET" --dns 0.0.0.0 --cap-drop ALL --security-opt no-new-privileges ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} ${REACT_ENV[@]+"${REACT_ENV[@]}"}
   -e HTTPS_PROXY="http://$PROXY:3128" -e HTTP_PROXY="http://$PROXY:3128" -e NO_PROXY=
-  -v "$RUN/work:/work" -v "$RUN/work/data:/work/data:ro"
+  -v "$RUN/work:/work" -v "$DATA_DIR:/work/data:ro"
   -v "$SECRETS/claude:/home/agent/.claude" -v "$SECRETS/codex:/home/agent/.codex"
   -w /work "$IMAGE")
 
@@ -123,7 +125,7 @@ docker run -e VENDOR_HOST="$VENDOR_HOST" "${DOCKER_ARGS[@]}" bash -c '
   echo "--- files visible under /work:"; find /work -type f | sort
   echo "--- bind mounts:"; awk "\$2 ~ /^\/(work|home)/ {print \$2, \$4}" /proc/mounts
   exit $fail' > "$RUN/canary.log" 2>&1 || { cat "$RUN/canary.log"; echo "canary failed; trial aborted" >&2; exit 3; }
-EXPECT="$( (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#') | sort)"
+EXPECT="$( { (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#'); (cd "$DATA_DIR" && find . -type f | sed 's#^\./#/work/data/#'); } | sort)"
 GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
 
@@ -131,7 +133,7 @@ cat > "$RUN/meta.json" <<JSON
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
  "report_min_words":$REPORT_MIN_WORDS,"report_max_words":$REPORT_MAX_WORDS,
  "report_accept_min_words":$REPORT_ACCEPT_MIN_WORDS,"report_accept_max_words":$REPORT_ACCEPT_MAX_WORDS,
- "prompt":"$PROMPT_NAME","condition":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
+ "prompt":"$PROMPT_NAME","budget_min":$BUDGET_MIN,"timeout":"$TIMEOUT","data_variant":"$VARIANT",
  "started":"$STAMP","data_dir":"$DATA_DIR","prompt_sha256":"$(shasum -a 256 "$RUN/work/prompt.txt" | cut -c1-64)","prompt_template_sha256":"$(shasum -a 256 "$PROMPT_FILE" | cut -c1-64)",
  "image":"$IMAGE","cli_version":"$([ "$AGENT" = react ] && echo react_agent.py || docker run --rm "$IMAGE" "$AGENT" --version 2>/dev/null | head -1)"}
 JSON
@@ -149,11 +151,25 @@ case "$AGENT" in
       --output-format stream-json --verbose \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   codex)
-    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
-      --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
-      --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
-      --json -o /work/final_message.md "$PROMPT" \
-      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
+    # A capacity response can terminate Codex before it begins a turn. Relaunch
+    # at most twice, against the original fixed deadline, and preserve attempts.
+    for attempt in 1 2 3; do
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
+        --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
+        --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
+        --json -o /work/final_message.md "$PROMPT" \
+        < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?
+      if { grep -q 'is at capacity' "$RUN/transcript.jsonl" || grep -q 'is at capacity' "$RUN/stderr.log"; } \
+          && ! grep -q '"turn.completed"' "$RUN/transcript.jsonl" \
+          && [ "$attempt" -lt 3 ]; then
+        echo "codex: model at capacity, relaunching (attempt $((attempt + 1)))" >&2
+        cp "$RUN/transcript.jsonl" "$RUN/transcript.attempt$attempt.jsonl"
+        cp "$RUN/stderr.log" "$RUN/stderr.attempt$attempt.log"
+        sleep 30
+        continue
+      fi
+      break
+    done ;;
   react)
     docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
       --model "$MODEL" --effort "$EFFORT" --prompt-file /work/prompt.txt --cwd /work --budget-min "$BUDGET_MIN" \
