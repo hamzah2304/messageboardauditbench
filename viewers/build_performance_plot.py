@@ -54,8 +54,9 @@ def main():
     for r in nominal:
         cells[(f"{r['agent']} · {r['model']}", r["budget"])].append(r["acc"])
     pairs = sorted({k[0] for k in cells})
-    # recall against general capability: one point per model at its shortest budget and
-    # one at its longest, so the reader sees both the level and how much time buys.
+    # recall against general capability, at the 2-hour budget only. The shorter budgets
+    # measure how fast a model works as much as what it can find, which is a different
+    # question from how capable it is; mixing them muddied the axis.
     per_model = defaultdict(lambda: defaultdict(list))
     for r in nominal:
         per_model[r["model"]][r["budget"]].append(r["acc"])
@@ -74,8 +75,9 @@ def main():
             "model": model, "eci": e.get("eci"), "eci_model": e.get("eci_model"),
             "exact": e.get("exact"), "note": e.get("note") or "", "source": e.get("source") or "",
             "ci": [float(ci.group(1)), float(ci.group(2))] if ci else None,
-            "low": {"budget": bs[0], "mean": st.mean(buds[bs[0]]), "n": len(buds[bs[0]])},
-            "high": {"budget": bs[-1], "mean": st.mean(buds[bs[-1]]), "n": len(buds[bs[-1]])},
+            "runs": sorted(buds.get(120, [])),
+            "mean": st.mean(buds[120]) if 120 in buds else None,
+            "other_budgets": [b for b in bs if b != 120],
         })
     capability.sort(key=lambda c: (c["eci"] is None, -(c["eci"] or 0)))
 
@@ -237,76 +239,70 @@ function hover(node, html) {
   document.getElementById('bars').replaceChildren(svg);
 })();
 
-/* ---------- recall against ECI ---------- */
+/* ---------- recall against ECI, at the 2-hour budget ---------- */
 (function () {
   const box = document.getElementById('eci'), note = document.getElementById('eci-note');
-  const have = D.capability.filter(c => c.eci != null);
-  const missing = D.capability.filter(c => c.eci == null);
+  const have = D.capability.filter(c => c.eci != null && c.mean != null);
+  const noRun = D.capability.filter(c => c.mean == null);
+  const noEci = D.capability.filter(c => c.eci == null && c.mean != null);
   if (!have.length) {
-    note.textContent = 'No Epoch Capabilities Index scores are available, so this chart is not drawn.';
-    box.replaceChildren(el('div', 'note', D.eci_notes || 'benchmark/eci_scores.json is empty or absent.'));
-    return;
+    note.textContent = 'Nothing to plot: no model has both an ECI score and a two-hour run.';
+    box.replaceChildren(); return;
   }
   const fb = have.filter(c => c.exact === false);
-  note.innerHTML = 'Each model twice: at its shortest time budget and its longest. '
-    + 'Epoch Capabilities Index on the horizontal axis' + (D.eci_retrieved ? ', retrieved ' + D.eci_retrieved : '') + '. '
-    + (fb.length ? '<b>' + fb.length + '</b> model' + (fb.length > 1 ? 's use' : ' uses') + ' a previous generation\u2019s score, marked with a hollow ring on the label. ' : '')
-    + (missing.length ? '<b>' + missing.length + '</b> excluded for having no score: ' + missing.map(c => c.model).join(', ') + '. ' : '')
-    + 'The grey hairline through each model is its 95% interval; most of the field overlaps.';
+  note.innerHTML = 'Recall at the <b>two-hour</b> budget only, against the Epoch Capabilities Index'
+    + (D.eci_retrieved ? ', retrieved ' + D.eci_retrieved : '') + '. Small dots are replicates. '
+    + (fb.length ? '<b>' + fb.length + '</b> model' + (fb.length > 1 ? 's use' : ' uses') + ' a previous generation\u2019s score, ringed on the label. ' : '')
+    + (noRun.length ? '<b>' + noRun.length + '</b> excluded for having no two-hour run: ' + noRun.map(c => c.model).join(', ') + '. ' : '')
+    + (noEci.length ? '<b>' + noEci.length + '</b> excluded for having no score: ' + noEci.map(c => c.model).join(', ') + '. ' : '')
+    + 'The grey hairline is each model\u2019s 95% interval; most of the field overlaps.';
 
-  const xs = have.flatMap(c => [c.eci]);
-  const lo = Math.min(...xs), hi = Math.max(...xs), pad = Math.max(2, (hi - lo) * 0.12);
+  const xs = have.map(c => c.eci);
+  const lo = Math.min(...xs), hi = Math.max(...xs), pad = Math.max(2, (hi - lo) * 0.1);
   const X0 = lo - pad, X1 = hi + pad;
-  const W = 940, H = 430, L = 52, R = 130, T = 16, B = 40, IW = W - L - R, IH = H - T - B;
+  const ys = have.map(c => c.mean);
+  const Y1 = Math.min(1, Math.ceil((Math.max(...ys) + 0.08) * 10) / 10);
+  const W = 940, H = 420, L = 52, R = 40, T = 18, B = 42, IW = W - L - R, IH = H - T - B;
   const x = v => L + (v - X0) / (X1 - X0) * IW;
-  const y = v => T + IH - v * IH;
+  const y = v => T + IH - v / Y1 * IH;
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, width: '100%', height: H,
-                        role: 'img', 'aria-label': 'Recall against Epoch Capabilities Index'});
-  for (let t = 0; t <= 1.0001; t += 0.2) {
+                        role: 'img', 'aria-label': 'Recall at two hours against the Epoch Capabilities Index'});
+  for (let t = 0; t <= Y1 + 1e-9; t += 0.2) {
     svg.append(s('line', {x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'tick'}));
     const lb = s('text', {x: L - 8, y: y(t) + 4, 'text-anchor': 'end', class: 'axis'});
     lb.textContent = t.toFixed(1); svg.append(lb);
   }
-  const step = (X1 - X0) > 40 ? 10 : 5;
-  for (let v = Math.ceil(X0 / step) * step; v <= X1; v += step) {
-    const lb = s('text', {x: x(v), y: H - 18, 'text-anchor': 'middle', class: 'axis'});
-    lb.textContent = v; svg.append(lb);
+  for (let v = Math.ceil(X0 / 5) * 5; v <= X1; v += 5) {
     svg.append(s('line', {x1: x(v), x2: x(v), y1: T, y2: T + IH, class: 'tick'}));
+    const lb = s('text', {x: x(v), y: H - 20, 'text-anchor': 'middle', class: 'axis'});
+    lb.textContent = v; svg.append(lb);
   }
-  const ax = s('text', {x: L + IW / 2, y: H - 3, 'text-anchor': 'middle', class: 'axis'});
+  const ax = s('text', {x: L + IW / 2, y: H - 4, 'text-anchor': 'middle', class: 'axis'});
   ax.textContent = 'Epoch Capabilities Index'; svg.append(ax);
+  const ay = s('text', {x: 14, y: T + IH / 2, class: 'axis',
+                        transform: `rotate(-90 14 ${T + IH / 2})`, 'text-anchor': 'middle'});
+  ay.textContent = 'recall at 2 hours'; svg.append(ay);
   svg.append(s('line', {x1: L, x2: W - R, y1: y(0), y2: y(0), class: 'axline'}));
 
-  // legend: two states of the same entity, so one hue at two weights
-  const lg = s('g', {}); let lx = L + 4;
-  [['at the shortest budget', 'var(--surface)', 'var(--accent)'], ['at the longest budget', 'var(--accent)', 'var(--surface)']]
-    .forEach(([txt, fill, stroke]) => {
-      lg.append(s('circle', {cx: lx + 6, cy: T + 6, r: 5, fill, stroke, 'stroke-width': 2}));
-      const t2 = s('text', {x: lx + 17, y: T + 10, class: 'small'}); t2.textContent = txt; lg.append(t2);
-      lx += 24 + txt.length * 5.6;
-    });
-  svg.append(lg);
-
-  have.forEach(c => {
-    if (c.ci) svg.append(s('line', {x1: x(c.ci[0]), x2: x(c.ci[1]), y1: y(c.high.mean), y2: y(c.high.mean),
+  /* place each label on the side with more room, so neighbours do not collide */
+  const sorted = have.slice().sort((a, b) => a.eci - b.eci);
+  sorted.forEach(c => {
+    if (c.ci) svg.append(s('line', {x1: x(c.ci[0]), x2: x(c.ci[1]), y1: y(c.mean), y2: y(c.mean),
                                     stroke: 'var(--grey)', 'stroke-width': 1}));
-    const same = c.low.budget === c.high.budget;
-    if (!same) svg.append(s('line', {x1: x(c.eci), x2: x(c.eci), y1: y(c.low.mean), y2: y(c.high.mean),
-                                     stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linecap': 'round',
-                                     opacity: .35}));
-    if (!same) svg.append(s('circle', {cx: x(c.eci), cy: y(c.low.mean), r: 5,
-                                       fill: 'var(--surface)', stroke: 'var(--accent)', 'stroke-width': 2}));
-    svg.append(s('circle', {cx: x(c.eci), cy: y(c.high.mean), r: 5.5,
-                            fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2}));
-    const lb = s('text', {x: x(c.eci) + 9, y: y(c.high.mean) - 7, class: 'small'});
+    c.runs.forEach(v => svg.append(s('circle', {cx: x(c.eci), cy: y(v), r: 2.6, fill: 'var(--grey)'})));
+    svg.append(s('circle', {cx: x(c.eci), cy: y(c.mean), r: 5.5, fill: 'var(--accent)',
+                            stroke: 'var(--surface)', 'stroke-width': 2}));
+    const right = x(c.eci) < L + IW * 0.72;
+    const lb = s('text', {x: x(c.eci) + (right ? 10 : -10), y: y(c.mean) - 8,
+                          'text-anchor': right ? 'start' : 'end', class: 'small'});
     lb.textContent = c.model + (c.exact === false ? ' \u25cb' : '');
     svg.append(lb);
     const hit = s('rect', {x: x(c.eci) - 16, y: T, width: 32, height: IH, class: 'hit'});
     hover(hit, `<b>${c.model}</b> · ECI ${c.eci}`
       + (c.exact === false ? `<br><i>score is ${c.eci_model}</i>` : '')
-      + (c.ci ? `<br>95% interval ${c.ci[0]}–${c.ci[1]}` : '')
-      + `<br>${c.high.budget} min: ${fmt(c.high.mean)} (${c.high.n} run${c.high.n > 1 ? 's' : ''})`
-      + (same ? '<br>no other budget' : `<br>${c.low.budget} min: ${fmt(c.low.mean)} (${c.low.n} run${c.low.n > 1 ? 's' : ''})`));
+      + (c.ci ? `<br>95% interval ${c.ci[0]}\u2013${c.ci[1]}` : '')
+      + `<br>recall ${fmt(c.mean)} over ${c.runs.length} run${c.runs.length > 1 ? 's' : ''}`
+      + (c.runs.length > 1 ? '<br>' + c.runs.map(fmt).join(' · ') : ''));
     svg.append(hit);
   });
   box.replaceChildren(svg);
