@@ -35,6 +35,12 @@ def main() -> int:
         help="sample backend to export (default: inspect)",
     )
     parser.add_argument("--include-partial", action="store_true")
+    parser.add_argument(
+        "--graded-inputs",
+        metavar="ROUND",
+        help="also copy the reports into benchmark/graded_inputs/<ROUND>_<condition><budget>/ "
+        "(the layout grade_with_rubrics.py --dir reads)",
+    )
     args = parser.parse_args()
     backend = None if args.backend == "all" else args.backend
     rows = export_logs(
@@ -44,6 +50,13 @@ def main() -> int:
         include_partial=args.include_partial,
     )
     print(f"{len(rows)} reports -> {args.out}")
+    if args.graded_inputs:
+        from messageboard_audit_bench.log_export import export_graded_inputs
+
+        written = export_graded_inputs(
+            rows, Path(args.out), repo_root() / "benchmark" / "graded_inputs", args.graded_inputs
+        )
+        print(f"{len(written)} graded inputs -> benchmark/graded_inputs/{args.graded_inputs}_*")
     return 0
 
 

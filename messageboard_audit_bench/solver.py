@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import asyncio
 import subprocess
 from pathlib import Path
 
@@ -199,13 +200,13 @@ def subscription_agent(
         proc = None
         run_dir = None
         for refusal_attempt in range(REFUSAL_RERUN_LIMIT + 1):
+            # Await the runner instead of blocking the event loop: a blocking subprocess.run here made
+            # every sample of an eval run one at a time whatever --max-samples said.
             try:
-                proc = subprocess.run(
+                proc = await _run_async(
                     cmd,
                     cwd=repo,
                     env={**_os_environ(), **env},
-                    capture_output=True,
-                    text=True,
                     timeout=(timeout_minutes + TIMEOUT_GRACE_MINUTES) * 60
                     if timeout_minutes is not None
                     else None,
@@ -271,6 +272,16 @@ def replay() -> Solver:
         return _fold(state, run_dir, agent)
 
     return solve
+
+
+async def _run_async(
+    cmd: list[str], *, cwd: Path, env: dict, timeout: float | None
+) -> subprocess.CompletedProcess:
+    """subprocess.run(capture_output=True, text=True) on a worker thread, so the event loop keeps
+    serving the other samples. TimeoutExpired propagates unchanged."""
+    return await asyncio.to_thread(
+        subprocess.run, cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout
+    )
 
 
 def _os_environ() -> dict:
