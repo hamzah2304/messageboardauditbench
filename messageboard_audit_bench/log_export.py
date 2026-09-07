@@ -115,6 +115,10 @@ def export_records(
             )
         )
         model = _safe_name(meta.get("model", "unknown"))
+        # Claude Code may switch model after a safeguard refusal; the report is then mostly the served
+        # model's work. Tag it in the filename so a grader never mistakes it for the requested model.
+        served = meta.get("model_served")
+        served_tag = f"_served-{_safe_name(served)}" if served and served != meta.get("model") else ""
         prompt_id = hashlib.sha256(record.prompt.encode()).hexdigest()[:8]
         # Group by the actual agent loop. Native and subscription transports
         # may be pooled when they run the same Claude Code/Codex scaffold;
@@ -123,7 +127,7 @@ def export_records(
         group.mkdir(parents=True, exist_ok=True)
         name = (
             f"{agent}_{model}_r{record.epoch}_{_safe_name(Path(record.log_file).stem)}"
-            f"_{_safe_name(record.sample_id)}{'_partial' if record.partial else ''}.md"
+            f"_{_safe_name(record.sample_id)}{served_tag}{'_partial' if record.partial else ''}.md"
         )
         destination = group / name
         destination.write_text(record.report)
@@ -182,7 +186,14 @@ def export_records(
                 "effort": effort,
                 "agent": meta.get("agent"),
                 "model": meta.get("model"),
+                "model_served": served or meta.get("model"),
+                "model_fallback": meta.get("model_fallback"),
+                "terminal_refusal": meta.get("terminal_refusal"),
                 "replicate": record.epoch,
+                "exit_code": meta.get("exit_code"),
+                "wall_seconds": meta.get("wall_seconds"),
+                "report_words": len(record.report.split()),
+                "report_length_compliant": meta.get("report_length_compliant"),
                 "usage": usage or None,
             }
         )
@@ -205,3 +216,33 @@ def export_logs(
         log = read_eval_log(info)
         records.extend(records_from_log(log, info.name, backend=backend))
     return export_records(records, out, include_partial=include_partial)
+
+
+def export_graded_inputs(
+    rows: Iterable[dict[str, Any]], reports_root: Path, graded_inputs: Path, round_name: str
+) -> list[Path]:
+    """Copy exported reports into the layout benchmark/rubrics/grade_with_rubrics.py --dir reads.
+
+    One folder per (round, condition, budget): ``<graded_inputs>/<round>_<condition><budget>/``, files named
+    ``b<budget>__<agent>__<model>__rep<N>.md`` (plus ``_served-<model>`` when the run switched model), and an
+    ``_index.jsonl`` with the export rows, matching ``benchmark/graded_inputs/round2_blind30``.
+    """
+    written: list[Path] = []
+    by_dir: dict[Path, list[dict[str, Any]]] = {}
+    for row in rows:
+        budget = row.get("budget_min")
+        folder = graded_inputs / f"{round_name}_{row.get('config', 'unknown')}{budget if budget is not None else ''}"
+        folder.mkdir(parents=True, exist_ok=True)
+        served = row.get("model_served")
+        served_tag = f"_served-{_safe_name(served)}" if served and served != row.get("model") else ""
+        name = (
+            f"b{budget}__{_safe_name(row.get('agent'))}__{_safe_name(row.get('model'))}"
+            f"__rep{row.get('replicate')}{served_tag}.md"
+        )
+        destination = folder / name
+        destination.write_text((reports_root / row["report"]).read_text())
+        written.append(destination)
+        by_dir.setdefault(folder, []).append({**row, "graded_input": name})
+    for folder, folder_rows in by_dir.items():
+        (folder / "_index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in folder_rows))
+    return written

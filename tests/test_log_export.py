@@ -95,3 +95,34 @@ def test_nonzero_exit_is_exported_only_when_partial_runs_are_requested(
     assert export_records(records, tmp_path / "default") == []
     rows = export_records(records, tmp_path / "included", include_partial=True)
     assert rows[0]["partial"] is True
+
+
+def test_index_carries_outcome_fields_and_served_model_tag(tmp_path: Path) -> None:
+    from messageboard_audit_bench.log_export import export_graded_inputs
+
+    log = _log(report="# Report\n\nfour words here now")
+    log.samples[0].metadata.update(
+        model="claude-opus-5",
+        model_served="claude-opus-4-8",
+        model_fallback={"chain": ["claude-opus-5", "claude-opus-4-8"]},
+        terminal_refusal=False,
+        wall_seconds=1234,
+        report_length_compliant=False,
+    )
+    rows = export_records(records_from_log(log, "native.eval", backend="inspect"), tmp_path)
+    row = rows[0]
+    assert row["model"] == "claude-opus-5"
+    assert row["model_served"] == "claude-opus-4-8"
+    assert row["model_fallback"]["chain"][-1] == "claude-opus-4-8"
+    assert row["terminal_refusal"] is False
+    assert row["wall_seconds"] == 1234
+    assert row["report_words"] == 6
+    assert row["report_length_compliant"] is False
+    assert "_served-claude-opus-4-8" in row["report"]
+
+    graded = tmp_path / "graded_inputs"
+    written = export_graded_inputs(rows, tmp_path, graded, "round4")
+    assert written == [graded / "round4_blind20" / "b20__claude__claude-opus-5__rep2_served-claude-opus-4-8.md"]
+    assert written[0].read_text() == "# Report\n\nfour words here now"
+    index = (graded / "round4_blind20" / "_index.jsonl").read_text().splitlines()
+    assert len(index) == 1 and '"graded_input"' in index[0]
