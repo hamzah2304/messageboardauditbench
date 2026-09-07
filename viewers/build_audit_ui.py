@@ -336,7 +336,7 @@ kbd{background:var(--soft);border:1px solid var(--border);border-radius:4px;padd
     <div class="filt" id="f-agent"><span class="lab">harness</span></div>
     <div class="filt" id="f-status"><span class="lab">show</span></div>
     <div id="list"></div>
-    <div class="hint"><b>Keys</b> <kbd>j</kbd>/<kbd>k</kbd> claim · <kbd>n</kbd>/<kbd>p</kbd> report · <kbd>1</kbd>–<kbd>4</kbd> verdict · <kbd>c</kbd> comment · <kbd>e</kbd> report notes · <kbd>Esc</kbd> leave box · click a paragraph to note it</div>
+    <div class="hint"><b>Reports: best judge score first.</b> <kbd>j</kbd>/<kbd>k</kbd> claim · <kbd>n</kbd>/<kbd>p</kbd> report · <kbd>1</kbd>–<kbd>4</kbd> verdict · <kbd>c</kbd> comment · <kbd>e</kbd> report notes · <kbd>Esc</kbd> leave box · click a paragraph to note it</div>
   </aside>
   <main id="main">
     <div id="rail"></div>
@@ -441,7 +441,10 @@ function category(rk, cid) { const e = entry(rk, cid); return e && e.verdict ? e
 function filteredReports() {
   const q = filters.q.toLowerCase();
   return REPORTS.filter(r => (!filters.round.size || filters.round.has(r.round)) && (!filters.budget.size || filters.budget.has(String(r.budget)))
-    && (!filters.agent.size || filters.agent.has(r.agent)) && (!q || (r.title + ' ' + r.file + ' ' + r.budget).toLowerCase().includes(q)));
+    && (!filters.agent.size || filters.agent.has(r.agent)) && (!q || (r.title + ' ' + r.file + ' ' + r.budget).toLowerCase().includes(q)))
+    /* best judge score first, so the strongest runs are audited first */
+    .sort((a, b) => (b.accuracy == null ? -1 : b.accuracy) - (a.accuracy == null ? -1 : a.accuracy)
+                    || a.title.localeCompare(b.title) || a.budget - b.budget || (a.rep || 0) - (b.rep || 0));
 }
 function statusOk(rk, cid) {
   if (!filters.status.size) return true;
@@ -704,7 +707,7 @@ function cardFor(rk, cid) {
 function renderClaimView() {
   const head = document.getElementById('claimhead'); head.replaceChildren(); head.appendChild(claimInfo(selClaimView));
   const cards = document.getElementById('cards'); cards.replaceChildren();
-  const reps = filteredReports().filter(r => statusOk(r.key, selClaimView)).sort((a, b) => (b.scores[selClaimView].score || 0) - (a.scores[selClaimView].score || 0) || a.title.localeCompare(b.title) || a.budget - b.budget);
+  const reps = filteredReports().filter(r => statusOk(r.key, selClaimView)).sort((a, b) => (b.scores[selClaimView].score || 0) - (a.scores[selClaimView].score || 0) || (b.accuracy || 0) - (a.accuracy || 0) || a.title.localeCompare(b.title));
   const n = reps.length, pos = reps.filter(r => isPos(r.scores[selClaimView].score)).length;
   head.appendChild(el('div', 'cat', n + ' reports shown · ' + pos + ' judge-positive · sorted by judge score'));
   for (const r of reps) cards.appendChild(cardFor(r.key, selClaimView));
