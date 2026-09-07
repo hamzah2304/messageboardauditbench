@@ -86,6 +86,10 @@ def records_from_log(
                     getattr(sample, "error", None)
                     or metadata.get("trial_failed")
                     or metadata.get("exit_code") not in (None, 0)
+                    # A run that ended before the minimum-runtime floor is not
+                    # an accepted completion, whatever its exit code: the CLI
+                    # ends a session on its own after enough blocked stops.
+                    or metadata.get("minimum_runtime_reached") is False
                 ),
             )
         )
@@ -206,6 +210,9 @@ def export_records(
                 "replicate": record.epoch,
                 "exit_code": meta.get("exit_code"),
                 "wall_seconds": meta.get("wall_seconds"),
+                "minimum_runtime_seconds": meta.get("minimum_runtime_seconds"),
+                "minimum_runtime_reached": meta.get("minimum_runtime_reached"),
+                "early_stop_attempts": meta.get("early_stop_attempts"),
                 "report_rejected": rejected,
                 **length,
                 "usage": usage or None,
