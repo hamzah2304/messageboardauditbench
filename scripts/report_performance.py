@@ -16,8 +16,12 @@ the difference between the two is itself worth reading.
 import json, re, statistics as st, sys, collections
 from pathlib import Path
 
-RX = re.compile(r"graded_(r(\d)b(\d+))_(claude|codex|react)_(.+?)_rep(\d)(?:_served_(.+))?\.json$")
-NAMES = {"gpt_5_6_sol": "GPT-5.6 Sol", "openai_gpt_5_6_sol": "GPT-5.6 Sol", "gpt_5_6_luna": "GPT-5.6 Luna",
+# a report can carry _served_<model> and/or _p<prompt id>; both are optional and either
+# order is possible, so the tail is matched loosely rather than enumerated
+RX = re.compile(r"graded_(r(\d)b(\d+))_(claude|codex|react)_(.+?)_rep(\d)"
+                r"(?:_served_([a-z0-9_]+?))?(?:_p[0-9a-f]+)?\.json$")
+NAMES = {"gpt_5_6_sol": "GPT-5.6 Sol", "openai_gpt_5_6_sol": "GPT-5.6 Sol",
+         "openai_gpt_6_astra": "GPT-6 Astra", "gpt_5_6_luna": "GPT-5.6 Luna",
          "gpt_5_6_terra": "GPT-5.6 Terra", "gpt_6_astra": "GPT-6 Astra",
          "google_gemini_3_8_flash": "Gemini 3.8 Flash", "meta_muse_spark_1_3": "Muse Spark 1.3",
          "moonshotai_kimi_k3": "Kimi K3", "z_ai_glm_5_3": "GLM 5.3", "claude_opus_5": "Opus 5",
