@@ -59,3 +59,12 @@ def test_matrix_cli_uses_config_and_inspect_epochs() -> None:
     assert "config=blind" in result.stdout
     assert "--epochs 3" in result.stdout
     assert "condition" not in result.stdout
+
+
+def test_subscription_solver_does_not_block_the_event_loop() -> None:
+    # A blocking subprocess.run inside the async solver serialized every sample of an eval regardless of
+    # --max-samples (audit 2026-09-07). The runner must be awaited.
+    src = (ROOT / "messageboard_audit_bench" / "solver.py").read_text()
+    solve_body = src[src.index("def subscription_agent"):src.index("def replay")]
+    assert "subprocess.run(" not in solve_body
+    assert "await _run_async(" in solve_body
