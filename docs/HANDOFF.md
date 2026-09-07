@@ -230,7 +230,9 @@ unchanged apart from the path.)
 
 ## 6. Plugging back into Inspect
 
-`messageboard_audit_bench/solver.py::cli_agent` only needs a run directory containing
+This section describes the subscription importer. The default task now uses
+Inspect SWE directly. `messageboard_audit_bench/solver.py::subscription_agent`
+only needs a run directory containing
 `transcript.jsonl` and `report.md` (and optionally `meta.json`). Replace the
 call to `sandbox/run_trial.sh` with the Docker launcher and nothing else
 changes: the transcript converters, the replay task and the scorers all work

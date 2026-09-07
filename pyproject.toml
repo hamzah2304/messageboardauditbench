@@ -2,10 +2,16 @@
 name = "messageboard_audit_bench"
 version = "0.1.0"
 description = "Benchmark: can coding agents audit message-board logs of colluding AI agents?"
+authors = [
+    { name = "hamzah2304" },
+    { name = "oscar-gilg" },
+    { name = "hasanbaig8" },
+]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "inspect_ai>=0.3.263",
+    "inspect-swe>=0.2.70,<0.3",
     "anthropic",
     "openai",
     "pyyaml>=6.0",
@@ -41,7 +47,11 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py311"
-include = ["messageboard_audit_bench/**/*.py", "tests/**/*.py"]
+include = [
+    "messageboard_audit_bench/**/*.py",
+    "scripts/check_transcript_conversion.py",
+    "tests/**/*.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

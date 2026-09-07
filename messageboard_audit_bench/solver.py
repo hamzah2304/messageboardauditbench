@@ -1,8 +1,8 @@
 """Solvers that run a coding-agent CLI in the sandbox, or replay a finished run.
 
-`cli_agent(...)` launches sandbox/docker/run_trial.sh, then folds the CLI's transcript
-and the report it wrote into Inspect state, so `inspect view` renders the whole
-session and the scorers see the report as the completion.
+`subscription_agent(...)` launches sandbox/docker/run_trial.sh, then folds the
+CLI's transcript and the report it wrote into Inspect state, so `inspect view`
+renders the whole session and the scorers see the report as the completion.
 
 `replay(...)` does the same for runs already on disk under runs/, so you can
 bring past baseline runs into Inspect without re-running the models.
@@ -75,6 +75,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
         run_id=meta.get("run_id"),
         cli_version=meta.get("cli_version"),
         model=meta.get("model"),
+        transcript_diagnostics=parsed.extra.get("transcript_diagnostics"),
         **{f"cli_{k}": v for k, v in parsed.extra.items() if isinstance(v, (str, int, float))},
     )
     state.completed = True
@@ -82,7 +83,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
 
 
 @solver
-def cli_agent(
+def subscription_agent(
     agent: str,
     model: str,
     condition: str = "blind",
@@ -134,6 +135,10 @@ def cli_agent(
         return _fold(state, run_dir, agent)
 
     return solve
+
+
+# Compatibility for code that imported the first packaged version directly.
+cli_agent = subscription_agent
 
 
 @solver

@@ -78,8 +78,9 @@ docs/           design notes, data processing, handoff
 
 ## Running it
 
-Two routes to the same trials: the scripts directly, or through Inspect
-(see [Inspect integration](#inspect-integration)). Both launch the same sandbox.
+Two routes to the same task: the subscription scripts directly, or the
+first-class Inspect/Inspect SWE path (see [Inspect integration](#inspect-integration)).
+Both use the benchmark image, network-disabled workspace, prompt, and data.
 
 ```bash
 uv sync                        # or: pip install -e .
@@ -124,30 +125,47 @@ eval. `pyproject.toml` registers `messageboard_audit_bench` as an Inspect plugin
 and `messageboard_audit_bench/__init__.py` exports the task functions. After `uv sync`,
 Inspect can discover the eval by package name; no task-file path is required.
 
-Inspect does not replace the sandbox — it wraps it. The solver shells out to the
-same `sandbox/docker/run_trial.sh` that a manual run uses, so the isolation
-guarantees are identical either way. What Inspect adds is a standard log format,
-a viewer, and epoch handling.
+The default backend is fully Inspect-managed. Inspect creates the Docker
+sandbox, selects the model, enforces the agent time limit, records live model
+and tool events, and writes its standard `.eval` log. Claude Code and Codex use
+the official Inspect SWE agents; ReAct uses Inspect's built-in agent. The
+subscription backend remains available for results that must use a logged-in
+CLI, but imports that CLI's event stream after the run.
 
 | file | role |
 |---|---|
 | `task.py` | two tasks: `messageboard_audit_bench` (fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
-| `solver.py` | `cli_agent` launches the sandbox runner; `replay` imports a finished run |
-| `transcripts.py` | converts Claude Code / Codex / ReAct event streams into Inspect messages and tool calls, so the viewer renders them natively |
+| `native.py` | runs Claude Code/Codex through Inspect SWE, or Inspect's ReAct agent, and collects `report.md` |
+| `solver.py` | `subscription_agent` launches the subscription runner; `replay` imports a finished run |
+| `transcripts.py` | loss-aware conversion of subscription/historical CLI events into Inspect messages and tool calls |
 | `scorer.py` | `rubric_scorer` (model judge over `rubric.yaml`) and `process_metrics` (turns, tokens, wall time — no judge) |
 | `rubric.yaml` | the rubric that scorer grades against |
 
 ```bash
 uv sync                                    # installs Inspect and this package
 scripts/build_data.sh                      # downloads and verifies the dataset
-export ANTHROPIC_API_KEY=...               # the judge needs a key even when the
-                                           # agents run on a subscription CLI
+export ANTHROPIC_API_KEY=...               # native Claude + default judge
+export OPENAI_API_KEY=...                  # native Codex when using OpenAI
 
-# run fresh trials; prompt condition and time are independent
+# Native Claude Code. The agent model is Inspect's normal --model option.
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T model=claude-opus-5 -T condition=blind \
-  -T time_limit_minutes=30 \
+  -T agent=claude -T condition=blind -T time_limit_minutes=30 \
+  --model anthropic/claude-opus-4-1 \
+  --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
+
+# Native Codex CLI with the same task and Inspect plumbing.
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=codex -T condition=blind -T time_limit_minutes=30 \
+  --model openai/gpt-5 \
+  --model-role grader=anthropic/claude-sonnet-4-5
+
+# Subscription-authenticated CLI (no agent API key/model is consumed by Inspect).
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T backend=subscription -T agent=claude \
+  -T subscription_model=claude-opus-5 \
+  -T condition=blind -T time_limit_minutes=30 \
+  -T judge=anthropic/claude-sonnet-4-5 --max-samples 1
 
 # or fold runs already on disk into one eval, without spending model time
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
@@ -156,10 +174,13 @@ uv run inspect view                        # browse the .eval logs
 ```
 
 `-T agent=claude` runs Claude Code, `-T agent=codex` runs Codex CLI, and
-`-T agent=react` runs the model-neutral OpenRouter tool loop. Claude Code is the
-default; ReAct is optional. Each harness uses the same prompt, data, time budget,
-Docker isolation, transcript conversion, and scorers. See the package README for
-complete commands for all three.
+`-T agent=react` runs Inspect's model-neutral ReAct agent. Claude Code is the
+default. With `backend=inspect`, all three use Inspect's `--model`, provider
+prompt cache, scoped limits, and live logging. The prompt tells every harness
+to call the sandbox's `time_left` helper periodically; its deadline is set from
+the same scoped limit. With `backend=subscription`, use
+`-T subscription_model=...`; this deliberately runs outside Inspect's model
+provider and then converts the recorded CLI events for the viewer.
 
 The condition and time dimensions are independent: use
 `-T condition=blind|context` and `-T time_limit_minutes=N`. Time-bearing legacy
@@ -170,6 +191,13 @@ the Inspect task interface. The default is 20 minutes for either condition.
 and does not seed sampling. Use `--max-samples 1` to serialize epochs against a
 subscription-backed CLI. `messageboard_audit_bench_replay` reads `runs/`, which is
 gitignored — it only has anything to import on a machine that has run trials.
+
+Provider prompt caching is explicitly enabled on the native backend with
+Inspect's `cache_prompt=True`; Inspect's `.eval` usage records separate cache
+read and cache write tokens. Subscription/replay logs retain the CLI-reported
+cache counters. No converter can make an old external run into an Inspect SWE
+run—Inspect SWE is the live execution bridge—but the importer maps its complete
+trajectory into the same Inspect chat/tool representation used by the UI.
 
 ### Which scorer produced the headline numbers
 
@@ -195,12 +223,12 @@ claim-precision and citation-support scorers meant to close that gap.
 
 This repository follows the upstream packaging conventions for an externally
 managed Inspect eval: PEP 517 packaging, an `inspect_ai` entry point, exported
-`@task` functions, versioned task metadata, declared asset provenance, and an
+`@task` functions, versioned task metadata, pinned asset checksums, and an
 end-to-end mock-model test. It is not yet listed in the official Inspect Evals
 register. Registration also requires an immutable dataset host, a public pinned
-code commit, an arXiv paper, and full logs from two models. See
+code commit, and an arXiv paper. See
 [`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md) for
-the exact handoff.
+the exact handoff and the source-asset provenance.
 
 ## Notes on reproducibility
 

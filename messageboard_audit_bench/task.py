@@ -2,9 +2,13 @@
 
 Two entry points:
 
-  * `messageboard_audit_bench` runs fresh trials through the sandbox CLI launcher.
+  * `messageboard_audit_bench` runs fresh trials. The default ``inspect``
+    backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt
+    caching, and live logs. The ``subscription`` backend preserves the original
+    subscription-authenticated CLI runner.
       inspect eval messageboard_audit_bench/messageboard_audit_bench \
-        -T agent=claude -T model=claude-opus-5 -T time_limit_minutes=30
+        -T agent=claude -T backend=inspect -T time_limit_minutes=30 \
+        --model anthropic/claude-opus-4-1
 
   * `messageboard_audit_bench_replay` imports runs already on disk under runs/,
     so `inspect view` can render past baseline runs with scoring.
@@ -19,15 +23,24 @@ import re
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig
+from inspect_ai.util import (
+    ComposeBuild,
+    ComposeConfig,
+    ComposeService,
+    SandboxEnvironmentSpec,
+)
 
+from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.runtime import repo_root
 from messageboard_audit_bench.scorer import process_metrics, rubric_scorer
-from messageboard_audit_bench.solver import cli_agent, replay
+from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "1-A"
+EVAL_VERSION = "1-B"
 _CONDITION_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CONDITIONS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
+_BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20
 TIMEOUT_GRACE_MINUTES = 5
 
@@ -72,10 +85,35 @@ def _prompt_for(condition: str, time_limit_minutes: int | None = None) -> str:
     return text.replace("{{BUDGET_MIN}}", str(_time_limit(time_limit_minutes)))
 
 
+def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
+    """Build the standard Inspect Docker sandbox with read-only benchmark data."""
+    repo = repo_root().resolve()
+    data_dir = (repo / "data" / data_variant).resolve()
+    return SandboxEnvironmentSpec(
+        type="docker",
+        config=ComposeConfig(
+            services={
+                "default": ComposeService(
+                    build=ComposeBuild(
+                        context=str(repo),
+                        dockerfile="sandbox/docker/Dockerfile",
+                    ),
+                    command="tail -f /dev/null",
+                    init=True,
+                    network_mode="none",
+                    working_dir="/work",
+                    volumes=[f"{data_dir}:/work/data:ro"],
+                )
+            }
+        ),
+    )
+
+
 @task
 def messageboard_audit_bench(
     agent: str = "claude",
-    model: str = "claude-opus-5",
+    backend: str = "inspect",
+    subscription_model: str | None = None,
     condition: str = "blind",
     time_limit_minutes: int | None = None,
     judge: str = "anthropic/claude-sonnet-5",
@@ -84,7 +122,10 @@ def messageboard_audit_bench(
 
     Args:
         agent: Agent harness to launch: ``claude``, ``codex``, or ``react``.
-        model: Model identifier understood by that harness.
+        backend: ``inspect`` for first-class Inspect execution (Inspect SWE for
+            Claude Code/Codex), or ``subscription`` for the original CLI login.
+        subscription_model: CLI model identifier for the subscription backend.
+            Native runs select their model with Inspect's ``--model`` option.
         condition: Time-neutral prompt/data/effort condition from ``configs/``.
         time_limit_minutes: Trial budget in minutes. Overrides the named
             condition's 20-minute default. The hard timeout adds five minutes.
@@ -96,39 +137,83 @@ def messageboard_audit_bench(
         raise ValueError(
             f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
         )
+    if backend not in _BACKENDS:
+        raise ValueError(
+            f"unsupported backend {backend!r}; choose from: "
+            f"{', '.join(sorted(_BACKENDS))}"
+        )
+    if backend == "inspect" and subscription_model is not None:
+        raise ValueError(
+            "subscription_model only applies to backend='subscription'; "
+            "use Inspect's --model option for backend='inspect'"
+        )
+    if backend == "subscription" and not subscription_model:
+        raise ValueError(
+            "backend='subscription' requires -T subscription_model=<cli-model>"
+        )
     budget_min = _time_limit(time_limit_minutes)
     timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
-    return Task(
-        dataset=[
-            Sample(
-                input=_prompt_for(condition, budget_min),
-                id=f"{agent}:{model}:{condition}:{budget_min}m",
-                metadata={
-                    "agent": agent,
-                    "model": model,
-                    "condition": condition,
-                    "budget_min": budget_min,
-                    "data_variant": cfg["data_variant"],
-                    "effort": cfg["effort"],
-                },
-            )
-        ],
-        solver=cli_agent(
+    sample_metadata = {
+        "agent": agent,
+        "backend": backend,
+        "condition": condition,
+        "budget_min": budget_min,
+        "data_variant": cfg["data_variant"],
+        "effort": cfg["effort"],
+    }
+    if subscription_model is not None:
+        sample_metadata["subscription_model"] = subscription_model
+    sample = Sample(
+        input=_prompt_for(condition, budget_min),
+        id=f"{agent}:{backend}:{condition}:{budget_min}m",
+        metadata=sample_metadata,
+    )
+    if backend == "inspect":
+        selected_solver = inspect_native_agent(
             agent=agent,
-            model=model,
+            time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
+        )
+        selected_sandbox = _inspect_sandbox(cfg["data_variant"])
+        generate_config = GenerateConfig(
+            cache_prompt=True,
+            reasoning_effort=cfg["effort"],
+        )
+    else:
+        assert subscription_model is not None
+        selected_solver = subscription_agent(
+            agent=agent,
+            model=subscription_model,
             condition=condition,
             time_limit_minutes=budget_min,
             timeout_minutes=timeout_minutes,
             prompt=cfg["prompt"],
             data_variant=cfg["data_variant"],
             effort=cfg["effort"],
-        ),
+        )
+        selected_sandbox = None
+        generate_config = GenerateConfig()
+    return Task(
+        dataset=[sample],
+        solver=selected_solver,
         scorer=[rubric_scorer(judge=judge), process_metrics()],
+        config=generate_config,
+        # Subscription calls occur outside Inspect's model provider. Supplying
+        # the no-cost mock model keeps Inspect from requiring an unrelated
+        # default; metadata records the actual CLI model.
+        model="mockllm/model" if backend == "subscription" else None,
+        sandbox=selected_sandbox,
+        # Native execution gets a scoped budget plus this outer cleanup guard.
+        # The subscription runner already owns its hard timeout; another equal
+        # Inspect timeout can interrupt transcript folding and report recovery.
+        time_limit=timeout_minutes * 60 if backend == "inspect" else None,
         version=EVAL_VERSION,
         metadata={
             "benchmark": "MessageBoardAuditBench",
+            "backend": backend,
             "condition": condition,
             "time_limit_minutes": budget_min,
+            "hard_time_limit_minutes": timeout_minutes,
             "data_variant": cfg["data_variant"],
         },
     )

@@ -16,7 +16,7 @@ from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
 from messageboard_audit_bench.scorer import process_metrics, rubric_scorer
-from messageboard_audit_bench.solver import _fold, cli_agent, replay
+from messageboard_audit_bench.solver import _fold, replay, subscription_agent
 
 
 def _run_dir(path: Path) -> Path:
@@ -173,7 +173,7 @@ def test_replay_eval_runs_end_to_end_with_mock_model(
 
 
 @pytest.mark.asyncio
-async def test_cli_agent_folds_successful_trial(
+async def test_subscription_agent_folds_successful_trial(
     tmp_path: Path, monkeypatch
 ) -> None:
     run_dir = _run_dir(tmp_path / "run")
@@ -190,7 +190,7 @@ async def test_cli_agent_folds_successful_trial(
 
     monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
-    state = await cli_agent(
+    state = await subscription_agent(
         agent="codex",
         model="gpt-test",
         condition="blind",
@@ -215,7 +215,7 @@ async def test_cli_agent_folds_successful_trial(
 
 
 @pytest.mark.asyncio
-async def test_cli_agent_surfaces_trial_failure(monkeypatch) -> None:
+async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
     def fake_run(command: list[str], **_kwargs) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(
             args=command,
@@ -227,6 +227,6 @@ async def test_cli_agent_surfaces_trial_failure(monkeypatch) -> None:
     monkeypatch.setattr("messageboard_audit_bench.solver.subprocess.run", fake_run)
 
     with pytest.raises(RuntimeError, match="exit code 2: docker unavailable"):
-        await cli_agent(agent="codex", model="gpt-test", condition="blind")(
+        await subscription_agent(agent="codex", model="gpt-test", condition="blind")(
             _state(), None
         )
