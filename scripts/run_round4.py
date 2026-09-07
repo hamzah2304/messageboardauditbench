@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import os
 import shlex
 import shutil
@@ -13,6 +14,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from inspect_ai.log import read_eval_log
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "experiments" / "round4.toml"
@@ -142,18 +145,67 @@ def select_jobs(
     jobs: list[Job],
     lane: str,
     system: str | None,
-    time_limit_minutes: int | None = None,
+    time_limit_minutes: int | list[int] | None = None,
 ) -> list[Job]:
     selected = [job for job in jobs if lane == "all" or job.agent == lane]
     if system is not None:
         selected = [job for job in selected if job.system_id == system]
     if time_limit_minutes is not None:
+        requested = (
+            {time_limit_minutes}
+            if isinstance(time_limit_minutes, int)
+            else set(time_limit_minutes)
+        )
         selected = [
-            job for job in selected if job.budget_minutes == time_limit_minutes
+            job for job in selected if job.budget_minutes in requested
         ]
     if not selected:
         raise ValueError("no jobs match the requested lane/system")
     return selected
+
+
+def ordered_longest_first(jobs: list[Job]) -> list[Job]:
+    """Schedule long cells first to reduce the batch's overall makespan."""
+    return sorted(jobs, key=lambda job: job.budget_minutes, reverse=True)
+
+
+def log_dir(manifest: dict[str, Any], job: Job) -> Path:
+    return ROOT / manifest["logs_dir"] / job.system_id / f"{job.budget_minutes}m"
+
+
+def run_job(
+    manifest: dict[str, Any],
+    job: Job,
+    max_samples: int | None,
+    max_sandboxes: int | None,
+    epochs: int | None,
+) -> int:
+    destination = log_dir(manifest, job)
+    before = set(destination.glob("*.eval")) if destination.is_dir() else set()
+    result = subprocess.run(
+        command(manifest, job, max_samples, max_sandboxes, epochs),
+        cwd=ROOT,
+        env=execution_env(),
+    )
+    if result.returncode:
+        return result.returncode
+
+    created = sorted(set(destination.glob("*.eval")) - before)
+    if len(created) != 1:
+        print(
+            f"ERROR: expected one new Inspect log for {job.system_id} "
+            f"{job.budget_minutes}m, found {len(created)}",
+            file=sys.stderr,
+        )
+        return 1
+    status = read_eval_log(created[0], header_only=True).status
+    if status != "success":
+        print(
+            f"ERROR: {job.system_id} {job.budget_minutes}m log status is {status}",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
 
 
 def readiness(jobs: list[Job]) -> list[str]:
@@ -228,11 +280,12 @@ def main() -> int:
     parser.add_argument(
         "--time-limit-minutes",
         type=int,
-        help="select only jobs with this declared time limit",
+        action="append",
+        help="select a declared time limit; repeat to select more than one",
     )
     parser.add_argument("--check", action="store_true", help="check launch readiness")
     parser.add_argument(
-        "--execute", action="store_true", help="actually run selected jobs sequentially"
+        "--execute", action="store_true", help="actually run selected jobs"
     )
     parser.add_argument(
         "--max-samples",
@@ -248,6 +301,12 @@ def main() -> int:
         "--epochs",
         type=int,
         help="override replicate count for each selected job",
+    )
+    parser.add_argument(
+        "--parallel-jobs",
+        type=int,
+        default=1,
+        help="model cells to run concurrently (default: 1)",
     )
     args = parser.parse_args()
 
@@ -266,10 +325,12 @@ def main() -> int:
         ("max_samples", args.max_samples),
         ("max_sandboxes", args.max_sandboxes),
         ("epochs", args.epochs),
+        ("parallel_jobs", args.parallel_jobs),
     ):
         if value is not None and value <= 0:
             parser.error(f"--{name.replace('_', '-')} must be positive")
 
+    jobs = ordered_longest_first(jobs)
     print(f"{manifest['name']}: {summary(jobs)}")
     for job in jobs:
         print(
@@ -296,27 +357,37 @@ def main() -> int:
         print("DRY RUN: nothing launched (pass --execute explicitly)")
         return 0
 
-    for index, job in enumerate(jobs, start=1):
-        print(f"[{index}/{len(jobs)}] launching {job.system_id} {job.budget_minutes}m")
-        result = subprocess.run(
-            command(
+    failures: list[tuple[Job, int]] = []
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=args.parallel_jobs
+    ) as executor:
+        futures = {}
+        for index, job in enumerate(jobs, start=1):
+            print(
+                f"[{index}/{len(jobs)}] queued {job.system_id} "
+                f"{job.budget_minutes}m"
+            )
+            future = executor.submit(
+                run_job,
                 manifest,
                 job,
                 args.max_samples,
                 args.max_sandboxes,
                 args.epochs,
-            ),
-            cwd=ROOT,
-            env=execution_env(),
-        )
-        if result.returncode:
-            print(
-                f"STOPPED: {job.system_id} {job.budget_minutes}m exited "
-                f"{result.returncode}",
-                file=sys.stderr,
             )
-            return result.returncode
-    return 0
+            futures[future] = job
+        for future in concurrent.futures.as_completed(futures):
+            job = futures[future]
+            result = future.result()
+            if result:
+                failures.append((job, result))
+                print(
+                    f"FAILED: {job.system_id} {job.budget_minutes}m rc={result}",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"DONE: {job.system_id} {job.budget_minutes}m")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

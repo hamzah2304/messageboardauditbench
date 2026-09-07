@@ -8,6 +8,7 @@ from scripts.run_round4 import (
     command,
     expand_jobs,
     load_manifest,
+    ordered_longest_first,
     select_jobs,
     summary,
 )
@@ -105,3 +106,11 @@ def test_epoch_override_is_explicit() -> None:
     cmd = command(manifest, job, epochs=2)
 
     assert cmd[cmd.index("--epochs") + 1] == "2"
+
+
+def test_multiple_budgets_are_selected_longest_first() -> None:
+    jobs = select_jobs(expand_jobs(load_manifest()), "claude", None, [30, 120])
+    ordered = ordered_longest_first(jobs)
+
+    assert len(ordered) == 8
+    assert [job.budget_minutes for job in ordered] == [120] * 4 + [30] * 4
