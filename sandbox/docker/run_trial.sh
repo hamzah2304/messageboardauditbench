@@ -50,10 +50,16 @@ PROMPT="$(cat "$RUN/work/prompt.txt")"
 # runs/.claude-home/.credentials.json. Fallbacks: CLAUDE_CODE_OAUTH_TOKEN, or the host's
 # ~/.claude/.credentials.json (Linux hosts only; macOS keeps it in the Keychain).
 CLAUDE_ENV=()
-if [ -f "$ROOT/runs/.claude-home/.credentials.json" ]; then
-  cp "$ROOT/runs/.claude-home/.credentials.json" "$SECRETS/claude/.credentials.json"
+# Preferred: a long-lived token from `claude setup-token` in runs/.claude-oauth-token (gitignored). The
+# copied-credentials route below refreshes its access token inside each container; when many trials
+# start together the first refresh rotates the shared refresh token and the rest fail to authenticate.
+if [ -s "$ROOT/runs/.claude-oauth-token" ]; then
+  export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$ROOT/runs/.claude-oauth-token")"
+  CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
 elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
   CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
+elif [ -f "$ROOT/runs/.claude-home/.credentials.json" ]; then
+  cp "$ROOT/runs/.claude-home/.credentials.json" "$SECRETS/claude/.credentials.json"
 elif [ -f "$HOME/.claude/.credentials.json" ]; then
   cp "$HOME/.claude/.credentials.json" "$SECRETS/claude/.credentials.json"
 elif [ "$AGENT" = claude ]; then
@@ -135,11 +141,19 @@ case "$AGENT" in
       --output-format stream-json --verbose \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
   codex)
-    docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
-      --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
-      --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust --skip-git-repo-check --ignore-rules \
-      --json -o /work/final_message.md "$PROMPT" \
-      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$? ;;
+    # Codex does not retry "Selected model is at capacity" (a provider blip that killed a 2 h trial once).
+    # Relaunch up to 3 times when the run ends on that error before any turn completed; the deadline stays fixed.
+    for attempt in 1 2 3; do
+      docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" codex exec -C /work \
+        --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
+        --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust --skip-git-repo-check --ignore-rules \
+        --json -o /work/final_message.md "$PROMPT" \
+        < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?
+      if grep -q 'is at capacity' "$RUN/transcript.jsonl" && ! grep -q '"turn.completed"' "$RUN/transcript.jsonl" && [ "$attempt" -lt 3 ]; then
+        echo "codex: model at capacity, relaunching (attempt $((attempt+1)))" >&2; cp "$RUN/transcript.jsonl" "$RUN/transcript.attempt$attempt.jsonl"; sleep 30; continue
+      fi
+      break
+    done ;;
   react)
     docker run -i "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
       --model "$MODEL" --effort "$EFFORT" --prompt-file /work/prompt.txt --cwd /work --budget-min "$BUDGET_MIN" \
@@ -169,7 +183,9 @@ rf=[l for l in (run/"transcript.jsonl").read_text().splitlines() if '"native_fin
 if rf:
     m["model_refusal"]={"events":len(rf)}
     print(f"FAIL model refusal: {m['model']} refused ({len(rf)} refusal responses)",file=sys.stderr)
-    if rc==0: rc=5; m["exit_code"]=rc
+    # exit 5 = ended by a refusal (ReAct exits 0 in that case; Claude Code exits 1 with "safeguards flagged" as its
+    # result). One code for both so the Inspect solver's refusal rerun applies to every harness.
+    if rc in (0,1): rc=5; m["exit_code"]=rc
 u=json.loads((run/"usage.json").read_text()) if (run/"usage.json").exists() else {}
 m["usage"]={k:u.get(k) for k in ("usage_schema","input_tokens","input_tokens_uncached","output_tokens","cache_read_tokens","cache_write_tokens","cache_read_fraction","reasoning_tokens",
             "cost_usd","api_calls","tool_calls","api_retries","api_errors","peak_context_tokens","terminal_reason","is_error","usage_source")}
