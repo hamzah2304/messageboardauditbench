@@ -15,9 +15,10 @@ import json, re, statistics as st, sys, pathlib
 from collections import defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from paths import GRADED, VIEWERS
+from paths import GRADED, VIEWERS, ROOT
 
 OUT = VIEWERS / "performance.html"
+ECI = ROOT / "benchmark" / "eci_scores.json"     # Epoch Capabilities Index, looked up separately
 NAMES = {"gpt_5_6_sol": "GPT-5.6 Sol", "openai_gpt_5_6_sol": "GPT-5.6 Sol",
          "gpt_5_6_luna": "GPT-5.6 Luna", "gpt_5_6_terra": "GPT-5.6 Terra",
          "gpt_6_astra": "GPT-6 Astra", "google_gemini_3_8_flash": "Gemini 3.8 Flash",
@@ -53,8 +54,35 @@ def main():
     for r in nominal:
         cells[(f"{r['agent']} · {r['model']}", r["budget"])].append(r["acc"])
     pairs = sorted({k[0] for k in cells})
+    # recall against general capability: one point per model at its shortest budget and
+    # one at its longest, so the reader sees both the level and how much time buys.
+    per_model = defaultdict(lambda: defaultdict(list))
+    for r in nominal:
+        per_model[r["model"]][r["budget"]].append(r["acc"])
+    eci_raw = json.loads(ECI.read_text()) if ECI.exists() else {"models": [], "source_notes": "", "retrieved": ""}
+    # the ECI file names Claude models in full ("Claude Opus 5"); the chart's labels are short
+    eci = {}
+    for m in eci_raw.get("models", []):
+        eci[m["name"]] = m
+        eci.setdefault(re.sub(r"^Claude ", "", m["name"]), m)
+    capability = []
+    for model, buds in per_model.items():
+        bs = sorted(buds)
+        e = eci.get(model) or {}
+        ci = re.search(r"CI\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)", e.get("note") or "")
+        capability.append({
+            "model": model, "eci": e.get("eci"), "eci_model": e.get("eci_model"),
+            "exact": e.get("exact"), "note": e.get("note") or "", "source": e.get("source") or "",
+            "ci": [float(ci.group(1)), float(ci.group(2))] if ci else None,
+            "low": {"budget": bs[0], "mean": st.mean(buds[bs[0]]), "n": len(buds[bs[0]])},
+            "high": {"budget": bs[-1], "mean": st.mean(buds[bs[-1]]), "n": len(buds[bs[-1]])},
+        })
+    capability.sort(key=lambda c: (c["eci"] is None, -(c["eci"] or 0)))
+
     data = {
         "grader": grader, "n_reports": len(rows), "n_nominal": len(nominal),
+        "capability": capability, "eci_notes": eci_raw.get("source_notes", ""),
+        "eci_retrieved": eci_raw.get("retrieved", ""),
         "pairs": pairs,
         "cells": {f"{k[0]}|{k[1]}": sorted(v) for k, v in cells.items()},
         "switched": [{"nominal": f"{r['agent']} · {r['model']}", "served": r["served"],
@@ -117,6 +145,10 @@ summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:600}
   <h2>At the two-hour budget</h2>
   <p class="note">Each replicate is a dot; the bar is their mean. Four pairs have no two-hour run and are left out.</p>
   <div class="card" id="bars"></div>
+
+  <h2>Recall against general capability</h2>
+  <p class="note" id="eci-note"></p>
+  <div class="card" id="eci"></div>
 
   <h2>Recall against time budget</h2>
   <p class="note">One panel per harness and model, same scale throughout. A hollow marker is a single replicate.</p>
@@ -203,6 +235,82 @@ function hover(node, html) {
     svg.append(hit);
   });
   document.getElementById('bars').replaceChildren(svg);
+})();
+
+/* ---------- recall against ECI ---------- */
+(function () {
+  const box = document.getElementById('eci'), note = document.getElementById('eci-note');
+  const have = D.capability.filter(c => c.eci != null);
+  const missing = D.capability.filter(c => c.eci == null);
+  if (!have.length) {
+    note.textContent = 'No Epoch Capabilities Index scores are available, so this chart is not drawn.';
+    box.replaceChildren(el('div', 'note', D.eci_notes || 'benchmark/eci_scores.json is empty or absent.'));
+    return;
+  }
+  const fb = have.filter(c => c.exact === false);
+  note.innerHTML = 'Each model twice: at its shortest time budget and its longest. '
+    + 'Epoch Capabilities Index on the horizontal axis' + (D.eci_retrieved ? ', retrieved ' + D.eci_retrieved : '') + '. '
+    + (fb.length ? '<b>' + fb.length + '</b> model' + (fb.length > 1 ? 's use' : ' uses') + ' a previous generation\u2019s score, marked with a hollow ring on the label. ' : '')
+    + (missing.length ? '<b>' + missing.length + '</b> excluded for having no score: ' + missing.map(c => c.model).join(', ') + '. ' : '')
+    + 'The grey hairline through each model is its 95% interval; most of the field overlaps.';
+
+  const xs = have.flatMap(c => [c.eci]);
+  const lo = Math.min(...xs), hi = Math.max(...xs), pad = Math.max(2, (hi - lo) * 0.12);
+  const X0 = lo - pad, X1 = hi + pad;
+  const W = 940, H = 430, L = 52, R = 130, T = 16, B = 40, IW = W - L - R, IH = H - T - B;
+  const x = v => L + (v - X0) / (X1 - X0) * IW;
+  const y = v => T + IH - v * IH;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, width: '100%', height: H,
+                        role: 'img', 'aria-label': 'Recall against Epoch Capabilities Index'});
+  for (let t = 0; t <= 1.0001; t += 0.2) {
+    svg.append(s('line', {x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'tick'}));
+    const lb = s('text', {x: L - 8, y: y(t) + 4, 'text-anchor': 'end', class: 'axis'});
+    lb.textContent = t.toFixed(1); svg.append(lb);
+  }
+  const step = (X1 - X0) > 40 ? 10 : 5;
+  for (let v = Math.ceil(X0 / step) * step; v <= X1; v += step) {
+    const lb = s('text', {x: x(v), y: H - 18, 'text-anchor': 'middle', class: 'axis'});
+    lb.textContent = v; svg.append(lb);
+    svg.append(s('line', {x1: x(v), x2: x(v), y1: T, y2: T + IH, class: 'tick'}));
+  }
+  const ax = s('text', {x: L + IW / 2, y: H - 3, 'text-anchor': 'middle', class: 'axis'});
+  ax.textContent = 'Epoch Capabilities Index'; svg.append(ax);
+  svg.append(s('line', {x1: L, x2: W - R, y1: y(0), y2: y(0), class: 'axline'}));
+
+  // legend: two states of the same entity, so one hue at two weights
+  const lg = s('g', {}); let lx = L + 4;
+  [['at the shortest budget', 'var(--surface)', 'var(--accent)'], ['at the longest budget', 'var(--accent)', 'var(--surface)']]
+    .forEach(([txt, fill, stroke]) => {
+      lg.append(s('circle', {cx: lx + 6, cy: T + 6, r: 5, fill, stroke, 'stroke-width': 2}));
+      const t2 = s('text', {x: lx + 17, y: T + 10, class: 'small'}); t2.textContent = txt; lg.append(t2);
+      lx += 24 + txt.length * 5.6;
+    });
+  svg.append(lg);
+
+  have.forEach(c => {
+    if (c.ci) svg.append(s('line', {x1: x(c.ci[0]), x2: x(c.ci[1]), y1: y(c.high.mean), y2: y(c.high.mean),
+                                    stroke: 'var(--grey)', 'stroke-width': 1}));
+    const same = c.low.budget === c.high.budget;
+    if (!same) svg.append(s('line', {x1: x(c.eci), x2: x(c.eci), y1: y(c.low.mean), y2: y(c.high.mean),
+                                     stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linecap': 'round',
+                                     opacity: .35}));
+    if (!same) svg.append(s('circle', {cx: x(c.eci), cy: y(c.low.mean), r: 5,
+                                       fill: 'var(--surface)', stroke: 'var(--accent)', 'stroke-width': 2}));
+    svg.append(s('circle', {cx: x(c.eci), cy: y(c.high.mean), r: 5.5,
+                            fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2}));
+    const lb = s('text', {x: x(c.eci) + 9, y: y(c.high.mean) - 7, class: 'small'});
+    lb.textContent = c.model + (c.exact === false ? ' \u25cb' : '');
+    svg.append(lb);
+    const hit = s('rect', {x: x(c.eci) - 16, y: T, width: 32, height: IH, class: 'hit'});
+    hover(hit, `<b>${c.model}</b> · ECI ${c.eci}`
+      + (c.exact === false ? `<br><i>score is ${c.eci_model}</i>` : '')
+      + (c.ci ? `<br>95% interval ${c.ci[0]}–${c.ci[1]}` : '')
+      + `<br>${c.high.budget} min: ${fmt(c.high.mean)} (${c.high.n} run${c.high.n > 1 ? 's' : ''})`
+      + (same ? '<br>no other budget' : `<br>${c.low.budget} min: ${fmt(c.low.mean)} (${c.low.n} run${c.low.n > 1 ? 's' : ''})`));
+    svg.append(hit);
+  });
+  box.replaceChildren(svg);
+  if (D.eci_notes) box.append(el('div', 'note', D.eci_notes));
 })();
 
 /* ---------- small multiples ---------- */
