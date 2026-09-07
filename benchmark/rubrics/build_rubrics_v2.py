@@ -37,9 +37,21 @@ def sheet_scale():
 
 
 def point_md(c):
+    """Print every validated span, not just the representative one.
+
+    A point with two demands — the NO_PROXY exception *and* that the proxy honoured it
+    on hostname alone — often has each demand in a different sentence. Printing one
+    quote showed the judge the evidence for half the claim while the rest sat unread in
+    the data, so the sheet lists them all, the representative one first.
+    """
     out = [f"## {c['id']} — {c['section']}", "", f"**Point:** {c['claim']}"]
-    if c.get("report_quote"):
-        out += ["", f"**In the human report:** “{c['report_quote']}”"]
+    quote = c.get("report_quote")
+    spans = [s for s in (c.get("spans") or []) if s != quote]
+    if quote and spans:
+        out += ["", "**In the human report:**"]
+        out += [f"- “{q}”" for q in [quote] + spans]
+    elif quote:
+        out += ["", f"**In the human report:** “{quote}”"]
     else:
         out += ["", "**In the human report:** _no anchor found — see the notes._"]
     if c.get("note"):
