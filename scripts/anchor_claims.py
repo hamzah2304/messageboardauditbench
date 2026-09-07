@@ -11,6 +11,13 @@ a source text and then *checking* that every span really is a substring of it:
              anchors, not the quotes, are what a highlighter can trust.
              -> benchmark/claims/anchors_human.json
 
+  --v2       the same job for the auditor's finer 39-claim list, whose entries carry
+             no rubric quote to hint from and where a claim may genuinely have no
+             support in the report. Fills "spans" and "report_quote" in place in
+             benchmark/claims/claims_v2.json, leaving anchors_human.json (still live
+             in the audit UI) alone. Resumable: a claim with spans is skipped.
+             -> benchmark/claims/claims_v2.json
+
   --reports  repairs for judge quotes that do not occur in the model report they
              grade. For every (report, claim) in benchmark/graded/graded_<key>.json
              whose quote is unfindable in benchmark/graded_inputs/<dir>/<stem>.md,
@@ -38,7 +45,7 @@ quote has moved on and drops any entry whose pair no longer needs repairing at a
 re-running it after a regrade costs only the pairs that actually changed. --force
 redoes everything.
 
-    scripts/anchor_claims.py [--human] [--reports] [--force]      (neither = both)
+    scripts/anchor_claims.py [--human] [--reports] [--v2] [--force]   (none = human+reports)
 Env: OPENAI_API_KEY (.env), MODEL (default gpt-5.6-sol), EFFORT (default xhigh).
 """
 from __future__ import annotations
@@ -64,6 +71,7 @@ EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
 client = OpenAI()
 
 HUMAN_OUT = CLAIMS / "anchors_human.json"
+CLAIMS_V2 = CLAIMS / "claims_v2.json"
 REPORTS_OUT = CLAIMS / "anchors_reports.json"
 REPORT_DIRS = ["round2_blind10", "round2_blind20", "round2_blind30",
                "round3_blind10", "round3_blind30", "round3_blind120",
@@ -199,6 +207,153 @@ def run_human(force):
     print(f"[human] no span: {', '.join(miss) if miss else 'none'}")
 
 
+# ------------------------------------------------------------------------ pass 1b
+
+def v2_prompt(article, claim):
+    """Like human_prompt, but for the auditor's finer v2 claim list.
+
+    No rubric hint exists for these, and the list is deliberately fine-grained -- two
+    v2 claims may legitimately land on the same sentence -- so the prompt asks for a
+    quote as well as spans and is explicit that an unsupported claim gets nothing.
+    """
+    note = claim.get("note") or ""
+    return f"""Below is the full text of a published incident report, then a claim drawn
+from it. Find where in the report that claim is stated.
+
+Return strict JSON: {{"spans": ["...", "..."], "quote": "...", "note": "..."}}
+  - 1 to 3 spans, each COPIED CHARACTER-FOR-CHARACTER from the REPORT TEXT below,
+    each at least {MIN_SPAN} characters. A plain substring search must find them.
+  - Prefer whole sentences that state the claim, including any figures, names,
+    handles or spellings it depends on. If the claim carries a specific -- a
+    duration, a hostname, a provider list, an account name, an unusual character --
+    anchor the sentence that carries that specific, not a general one nearby.
+  - If several separated sentences are needed, return them as separate spans; never
+    join them with " ... ".
+  - "quote": the single most representative span, the one sentence a human would
+    quote to show the report makes this claim. It too must be COPIED
+    CHARACTER-FOR-CHARACTER from the report text -- it may be one of your spans, or
+    a shorter contiguous run inside one if a span is very long. Do not stitch.
+  - IMPORTANT: this claim list is finer-grained than the report's own structure, and
+    some claims may simply not be supported anywhere in the report. If the report
+    does not state this claim, return {{"spans": [], "quote": "", "note": "why"}}.
+    Do NOT reach for a loosely related or merely adjacent sentence: an empty result
+    is far more useful than a wrong anchor. It is fine for a span to be one another
+    claim also anchors to.
+  - "note": one sentence on what you anchored, or why nothing matched.
+
+=== CLAIM ({claim['id']}, section "{claim.get('section', '')}") ===
+{claim['claim']}
+
+=== GRADING NOTE (what the auditor considers the load-bearing part of this claim) ===
+{note or "(none)"}
+
+=== REPORT TEXT ===
+{article}
+"""
+
+
+def parse_v2(raw):
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return [], "", ""
+    spans = data.get("spans") or []
+    if isinstance(spans, str):
+        spans = [spans]
+    spans = [s for s in spans if isinstance(s, str) and s.strip()]
+    return spans[:3], str(data.get("quote") or ""), str(data.get("note") or "")
+
+
+def anchor_v2(prompt, source, tries=2):
+    """anchor(), plus a representative quote that is validated the same way.
+
+    The quote is held to the same literal-substring test as the spans; a quote that
+    fails, or that the model omits, falls back to the shortest validated span so the
+    rubric sheet never prints something the report does not say.
+    """
+    good, bad, note, quote, attempts = [], [], "", "", 0
+    msg = prompt
+    while attempts < tries:
+        attempts += 1
+        spans, q, note = parse_v2(sol(SYS, msg))
+        bad = []
+        for s in spans:
+            s = s.strip()
+            if s in source and len(s) >= MIN_SPAN:
+                if s not in good:
+                    good.append(s)
+            elif s:
+                if s not in bad:
+                    bad.append(s)
+        q = (q or "").strip()
+        if q and q in source and len(q) >= MIN_SPAN:
+            quote = q
+        elif q:
+            bad.append(q)
+        if not bad or attempts >= tries:
+            break
+        msg = (prompt + "\n\n=== RETRY ===\nSome of your strings were rejected. These "
+               "were NOT found in the document by an exact substring search:\n"
+               + "\n".join(f"  - {b!r}" for b in bad)
+               + "\nYou must COPY the text out of the document exactly as it appears -- "
+                 "same words, same punctuation, same spacing, no ' ... ' elisions, no "
+                 "paraphrase, no summarising. Each span and the quote must be at least "
+               f"{MIN_SPAN} characters. Try again, and return only strings you have "
+               "checked occur literally in the document. If the claim is genuinely "
+               "unsupported, return empty spans rather than guessing.")
+    good = good[:3]
+    if good and quote not in good and quote not in source:
+        quote = ""
+    if not quote and good:
+        quote = min(good, key=len)
+    if not good:
+        quote = ""
+    return good, quote, bad, note, attempts
+
+
+def run_v2(force):
+    """Fill report_quote + spans on every claim in benchmark/claims/claims_v2.json.
+
+    Rewrites that file in place, preserving id/section/claim/descends_from/note and
+    the claim order; anchors_human.json (v1, live in the audit UI) is untouched.
+    """
+    article = article_text()
+    doc = json.loads(CLAIMS_V2.read_text())
+    claims = doc["claims"]
+    todo = [c for c in claims if force or not c.get("spans")]
+    print(f"[v2] {len(claims)} claims, {len(todo)} to do "
+          f"(article {len(article)/1000:.0f} KB)")
+    if todo:
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            futs = {ex.submit(anchor_v2, v2_prompt(article, c), article): c for c in todo}
+            for f in as_completed(futs):
+                c = futs[f]
+                try:
+                    good, quote, bad, note, attempts = f.result()
+                except Exception as e:
+                    print(f"  [{c['id']}] FAILED: {e!r}")
+                    continue
+                c["spans"] = good
+                c["report_quote"] = quote
+                c["anchor_note"] = note
+                if bad:
+                    c["unverified"] = bad
+                else:
+                    c.pop("unverified", None)
+                print(f"  [{c['id']}] {len(good)} span(s), {attempts} attempt(s)"
+                      + (f", {len(bad)} unverified" if bad else ""))
+    for c in claims:
+        for s in c.get("spans", []):
+            assert s in article, f"{c['id']}: span not in article"
+        assert not c.get("report_quote") or c["report_quote"] in article, c["id"]
+    CLAIMS_V2.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
+    hit = [c["id"] for c in claims if c.get("spans")]
+    miss = [c["id"] for c in claims if not c.get("spans")]
+    print(f"[v2] {len(hit)}/{len(claims)} claims anchored, "
+          f"{sum(len(c.get('spans', [])) for c in claims)} spans -> {CLAIMS_V2}")
+    print(f"[v2] no span: {', '.join(miss) if miss else 'none'}")
+
+
 # --------------------------------------------------------------------------- pass 2
 
 def findable(quote, text, norm):
@@ -318,12 +473,15 @@ def main():
     force = "--force" in args
     do_human = "--human" in args
     do_reports = "--reports" in args
-    if not do_human and not do_reports:
+    do_v2 = "--v2" in args
+    if not do_human and not do_reports and not do_v2:
         do_human = do_reports = True
     CLAIMS.mkdir(parents=True, exist_ok=True)
     print(f"model={MODEL} efforts={EFFORTS}")
     if do_human:
         run_human(force)
+    if do_v2:
+        run_v2(force)
     if do_reports:
         run_reports(force)
     print(f"[total] {CALLS} Sol calls")

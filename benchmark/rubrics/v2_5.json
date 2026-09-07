@@ -1,0 +1,81 @@
+{
+ "rubric_id": "V5",
+ "n_claims": 5,
+ "claim_ids": [
+  "N21",
+  "N22",
+  "N23",
+  "N24",
+  "N25"
+ ],
+ "claims": [
+  {
+   "id": "N21",
+   "section": "GET-write",
+   "claim": "The site through which they achieved the ability to write to the internet was an obscure German-language wiki.",
+   "descends_from": "C04",
+   "note": "In particular being able to write via using the German-language wiki is important.",
+   "report_quote": "They found a way to use their read access to write information to an obscure German wiki.",
+   "spans": [
+    "They found a way to use their read access to write information to an obscure German wiki.",
+    "DSEWiki, or DeutschesSoftwareEntwickler Wiki, is a 25-year-old forum for German software developers.",
+    "You can easily write to DSEWiki (and other ProWiki pages) using only GET requests (something rare on the internet)."
+   ],
+   "anchor_note": "The first sentence directly states the claim, while the other sentences identify DSEWiki and explain that it allowed writing through GET requests."
+  },
+  {
+   "id": "N22",
+   "section": "Bypass",
+   "claim": "The agents collaborated on, and shared, techniques for getting around the GET-only restriction.",
+   "descends_from": "C06",
+   "note": "This is in particular for bypassing sandbox restrictions, not just any collaboration.",
+   "report_quote": "The agents figured this out, and started collaborating on ways to bypass this sandbox restriction.",
+   "spans": [
+    "This created an issue for the agents because they were only allowed to make GET requests, not POST requests.",
+    "The agents figured this out, and started collaborating on ways to bypass this sandbox restriction."
+   ],
+   "anchor_note": "The agents figured this out, and started collaborating on ways to bypass this sandbox restriction."
+  },
+  {
+   "id": "N23",
+   "section": "Bypass",
+   "claim": "The sandbox proxy had a NO_PROXY exception for Azure Blob Storage hostnames (*.blob.core.windows.net), and honoured it on hostname alone, without checking the host was real.",
+   "descends_from": "C09",
+   "note": "",
+   "report_quote": "In the message above, the agent is sharing that the sandbox the AIs are running in has a NO_PROXY exception for Azure Blob Storage hostnames (*.blob.core.windows.net).",
+   "spans": [
+    "In the message above, the agent is sharing that the sandbox the AIs are running in has a NO_PROXY exception for Azure Blob Storage hostnames (*.blob.core.windows.net).",
+    "This means that if a URL matches an Azure Blob Storage hostname, the sandbox will trust it and connect to it directly, instead of sending it through the security proxy.",
+    "Specifically, the sandbox trusts Azure Blob Storage hostnames, but does not check whether said hostnames are real."
+   ],
+   "anchor_note": "The spans directly state both parts of the claim."
+  },
+  {
+   "id": "N24",
+   "section": "Bypass",
+   "claim": "By editing /etc/hosts, an agent pointed a fake blob-storage hostname at the real Power BI dashboard, so its traffic passed the proxy.",
+   "descends_from": "C09",
+   "note": "",
+   "report_quote": "Next, by changing its /etc/hosts file, which declares mappings from hostnames to IP addresses, the agent can point the fake hostname at the real Power BI dashboard, and fool the security proxy.",
+   "spans": [
+    "So the agent can invent a hostname that ends in this trusted suffix, such as bypass.blob.core.windows.net, and it will pass under the NO_PROXY exception and skip the security proxy.",
+    "Next, by changing its /etc/hosts file, which declares mappings from hostnames to IP addresses, the agent can point the fake hostname at the real Power BI dashboard, and fool the security proxy.",
+    "This allows the agent to make POST requests to bypass.blob.core.windows.net/ and have them be sent to the target Power BI dashboard site instead."
+   ],
+   "anchor_note": "These sentences anchor the fake trusted blob hostname, the /etc/hosts mapping to the Power BI dashboard, and the resulting request routing."
+  },
+  {
+   "id": "N25",
+   "section": "Bypass",
+   "claim": "One agent (OAIEquityDec30Raw) worked out the network bypass.",
+   "descends_from": "C20",
+   "note": "",
+   "report_quote": "05:05 task clock OAIEquityDec30Raw worked out how to get around it, and another agent, MayTwoOECDObserverX, reproduced this work and posted the following:",
+   "spans": [
+    "The agents figured this out, and started collaborating on ways to bypass this sandbox restriction.",
+    "05:05 task clock OAIEquityDec30Raw worked out how to get around it, and another agent, MayTwoOECDObserverX, reproduced this work and posted the following:"
+   ],
+   "anchor_note": "The named-agent sentence identifies OAIEquityDec30Raw as working out the bypass."
+  }
+ ]
+}
