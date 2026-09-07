@@ -36,8 +36,8 @@ from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
-    instruction,
     limits,
+    render_prompt,
 )
 from messageboard_audit_bench.runtime import repo_root
 from messageboard_audit_bench.scorer import (
@@ -47,7 +47,7 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "5-B"
+EVAL_VERSION = "6-B"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CONFIGS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
@@ -126,10 +126,8 @@ def _prompt_for(
     budget_minutes = _time_limit(time_limit_minutes)
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
-    return (
-        text.replace("{{BUDGET_MIN}}", str(budget_minutes))
-        + _minimum_runtime_instruction(budget_minutes * 60, fraction)
-        + instruction(*limits(cfg))
+    return render_prompt(text, budget_minutes, *limits(cfg)) + (
+        _minimum_runtime_instruction(budget_minutes * 60, fraction)
     )
 
 

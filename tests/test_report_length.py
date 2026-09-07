@@ -14,6 +14,7 @@ from messageboard_audit_bench.report_length import (
     limits,
     measure,
     overlong_feedback_if_changed,
+    render_prompt,
     stop_reason,
 )
 from messageboard_audit_bench.scorer import report_length
@@ -108,7 +109,9 @@ def test_stop_ping_does_not_start_a_rewrite_near_deadline(
     report = tmp_path / "report.md"
     report.write_text("one two three four")
     monkeypatch.setenv("MBAB_DEADLINE_EPOCH", "1059")
-    monkeypatch.setattr("messageboard_audit_bench.report_length.time.time", lambda: 1000)
+    monkeypatch.setattr(
+        "messageboard_audit_bench.report_length.time.time", lambda: 1000
+    )
 
     assert stop_reason(report, 2, 3, cache=tmp_path / "stop-state") == ""
 
@@ -145,6 +148,44 @@ def test_prompt_contains_target_but_not_hidden_tolerance() -> None:
     assert "between 2,500 and 3,000 words" in prompt
     assert "3,000 words is a strict upper limit" in prompt
     assert "3,100" not in prompt
+
+
+def test_embedded_prompt_renders_once_and_can_disable_length() -> None:
+    template = (ROOT / "sandbox" / "prompts" / "blind-v2.txt").read_text()
+
+    rendered = render_prompt(template, 37, 2500, 3000)
+    disabled = render_prompt(template, 15, 0, 0)
+
+    assert "Time budget: you have 37 minutes" in rendered
+    assert "(2,500 to 3,000 words)" in rendered
+    assert rendered.count("3,000 words is a strict upper limit") == 1
+    assert "{{" not in rendered
+    assert "strict upper limit" not in disabled
+    assert "0 to 0" not in disabled
+
+
+def test_prompt_renderer_cli_matches_library() -> None:
+    template = ROOT / "sandbox" / "prompts" / "blind-v2.txt"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(SCRIPT),
+            "--template",
+            str(template),
+            "--budget-min",
+            "37",
+            "--min-words",
+            "2500",
+            "--max-words",
+            "3000",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout == render_prompt(template.read_text(), 37, 2500, 3000)
 
 
 async def test_codex_fallback_report_is_measured(tmp_path: Path) -> None:

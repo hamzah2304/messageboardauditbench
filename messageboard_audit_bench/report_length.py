@@ -1,4 +1,5 @@
 """Shared report-length policy, also executable inside the sandbox."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,6 +7,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -33,9 +35,10 @@ def acceptance_limits(cfg: dict) -> tuple[int, int]:
     low, high = limits(cfg)
     minimum = cfg.get("report_accept_min_words", low)
     maximum = cfg.get("report_accept_max_words", high)
-    if any(
-        type(value) is not int or value < 0 for value in (minimum, maximum)
-    ) or minimum > maximum:
+    if (
+        any(type(value) is not int or value < 0 for value in (minimum, maximum))
+        or minimum > maximum
+    ):
         raise ValueError(
             "report acceptance limits must be nonnegative integers with min <= max"
         )
@@ -64,9 +67,7 @@ def measure(
         "report_accept_max_words": maximum,
         "report_word_count_method": COUNT_METHOD,
         "report_length_compliant": (
-            bool(exists and count > 0 and minimum <= count <= maximum)
-            if high
-            else None
+            bool(exists and count > 0 and minimum <= count <= maximum) if high else None
         ),
     }
 
@@ -82,6 +83,24 @@ def instruction(low: int, high: int) -> str:
         "code and appendices. Aim near the midpoint. Run report_length to check it "
         "yourself. Before finishing, shorten report.md if it exceeds the upper limit.\n"
     )
+
+
+def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
+    """Render shared config values without duplicating embedded length prose."""
+    embedded_length = "{{#REPORT_LENGTH}}" in template
+    text = re.sub(
+        r"\{\{#REPORT_LENGTH\}\}(.*?)\{\{/REPORT_LENGTH\}\}",
+        lambda match: match.group(1) if high else "",
+        template,
+        flags=re.DOTALL,
+    )
+    for token, value in {
+        "BUDGET_MIN": str(budget_min),
+        "REPORT_MIN_WORDS": f"{low:,}",
+        "REPORT_MAX_WORDS": f"{high:,}",
+    }.items():
+        text = text.replace("{{" + token + "}}", value)
+    return text if embedded_length else text + instruction(low, high)
 
 
 def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
@@ -173,9 +192,7 @@ def stop_reason(
     """Ask once for another editing turn when the final report is overlong."""
     note = overlong_feedback(path, low, high)
     deadline = os.environ.get("MBAB_DEADLINE_EPOCH")
-    if not note or (
-        deadline and int(deadline) - time.time() < MIN_REVISION_SECONDS
-    ):
+    if not note or (deadline and int(deadline) - time.time() < MIN_REVISION_SECONDS):
         return ""
     if cache is None:
         key = hashlib.sha256(str(path.absolute()).encode()).hexdigest()
@@ -192,6 +209,8 @@ def main() -> None:
     parser.add_argument("--min-words", type=int)
     parser.add_argument("--max-words", type=int)
     parser.add_argument("--instruction", action="store_true")
+    parser.add_argument("--template", type=Path)
+    parser.add_argument("--budget-min", type=int, default=20)
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
     args = parser.parse_args()
@@ -205,7 +224,12 @@ def main() -> None:
             }
         )
     )
-    if args.instruction:
+    if args.template:
+        print(
+            render_prompt(args.template.read_text(), args.budget_min, low, high),
+            end="",
+        )
+    elif args.instruction:
         print(instruction(low, high), end="")
     elif args.hook == "Stop":
         json.load(sys.stdin)

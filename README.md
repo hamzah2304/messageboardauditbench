@@ -275,6 +275,9 @@ interface. Subscription agents are told exactly N minutes; their container gets
 a five-minute shutdown/write grace, followed by a separate five-minute host
 recovery guard so transcript folding is not cut off. A Codex capacity failure
 before its first completed turn is relaunched at most twice.
+The `blind` config uses the provenance-recorded `blind-v2` prompt; `context`
+retains its own prompt. Prompt templates and config names are intentionally
+separate.
 
 `--epochs N` is Inspect's standard option for N independent replicates; the
 replicate number identifies a run and does not seed sampling. Use
@@ -292,6 +295,8 @@ remains on every index row. The two ReAct implementations stay separate.
 sample/sandbox/API concurrency, sample retries, and raw API/refusal logging
 explicit. It defaults to at most two sample reruns after an error and uses
 `caffeinate` on macOS; it intentionally does not impose a disk-space floor.
+Muse models always run with an explicit `--max-connections 2`; the wrapper
+rejects a conflicting value. Other models default to 4.
 
 The round-3 prompt targets 2,500–3,000 words. Short, nonempty reports are
 accepted; reports up to 3,100 words pass the separate length score. The agent

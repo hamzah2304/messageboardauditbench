@@ -17,7 +17,7 @@ from messageboard_audit_bench.task import messageboard_audit_bench as build_task
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", config="blind")
 
-    assert task.version == EVAL_VERSION == "5-B"
+    assert task.version == EVAL_VERSION == "6-B"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
@@ -40,13 +40,16 @@ def test_task_has_stable_sample_and_version() -> None:
 def test_prompt_uses_named_config() -> None:
     prompt = _prompt_for("blind")
 
-    assert "Time budget: you have up to 20 minutes" in prompt
+    assert "Time budget: you have 20 minutes" in prompt
     assert (
         "at least 75% of the 20-minute time budget has elapsed (about 15 minutes)"
         in prompt
     )
     assert "{{BUDGET_MIN}}" not in prompt
+    assert "{{REPORT_MIN_WORDS}}" not in prompt
+    assert "{{REPORT_MAX_WORDS}}" not in prompt
     assert "between 2,500 and 3,000 words" in prompt
+    assert prompt.count("3,000 words is a strict upper limit") == 1
     assert "3,100" not in prompt
 
 
@@ -57,7 +60,7 @@ def test_command_time_limit_overrides_prompt_and_metadata() -> None:
         time_limit_minutes=37,
     )
 
-    assert "Time budget: you have up to 37 minutes" in task.dataset[0].input
+    assert "Time budget: you have 37 minutes" in task.dataset[0].input
     assert task.dataset[0].metadata["budget_min"] == 37
     assert task.dataset[0].id.endswith(":37m")
     assert task.metadata["time_limit_minutes"] == 37
@@ -108,7 +111,7 @@ def test_command_time_limit_reaches_solver(monkeypatch) -> None:
 
     assert captured["time_limit_minutes"] == 37
     assert captured["timeout_minutes"] == 42
-    assert captured["prompt"] == "blind"
+    assert captured["prompt"] == "blind-v2"
     assert captured["data_variant"] == "verbatim"
     assert captured["effort"] == "xhigh"
     assert captured["min_runtime_fraction"] == 0.75
@@ -223,8 +226,8 @@ def test_config_error_lists_names() -> None:
 def test_all_public_configs_build(config_name: str) -> None:
     cfg = _load_config(config_name)
 
-    assert cfg["prompt"] == config_name
-    assert (repo_root() / "sandbox" / "prompts" / f"{config_name}.txt").is_file()
+    assert cfg["prompt"] == ("blind-v2" if config_name == "blind" else config_name)
+    assert (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").is_file()
     assert cfg["data_variant"] in {"raw_stripped", "verbatim"}
     assert build_task(config=config_name).dataset[0].id.endswith(f":{config_name}:20m")
 

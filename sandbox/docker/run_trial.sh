@@ -51,13 +51,14 @@ NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"
 mkdir -p "$RUN/work" "$SECRETS/claude" "$SECRETS/codex"
 # Mount the shared variant directly below; copying it into every run previously
 # consumed tens of megabytes per sample.
-# The prompt template has one placeholder, {{BUDGET_MIN}}; the rendered prompt is what the agent sees and what gets hashed.
-sed "s/{{BUDGET_MIN}}/$BUDGET_MIN/g" "$PROMPT_FILE" > "$RUN/work/prompt.txt"
+# Render once with the same helper as Inspect; the rendered prompt is what the
+# agent sees and what gets hashed. Templates may embed their own length prose.
+python3 "$ROOT/messageboard_audit_bench/report_length.py" \
+  --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" \
+  --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" \
+  > "$RUN/work/prompt.txt"
 python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction \
   --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$RUN/work/prompt.txt"
-python3 "$ROOT/messageboard_audit_bench/report_length.py" \
-  --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" \
-  --instruction >> "$RUN/work/prompt.txt"
 MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" \
   --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 PROMPT="$(cat "$RUN/work/prompt.txt")"

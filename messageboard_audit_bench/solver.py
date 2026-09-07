@@ -10,9 +10,9 @@ bring past baseline runs into Inspect without re-running the models.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
-import asyncio
 import subprocess
 from pathlib import Path
 

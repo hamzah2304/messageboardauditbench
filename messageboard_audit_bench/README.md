@@ -98,6 +98,8 @@ ablation. Refusals, failures, and hard limits are not resumed. Subscription
 agents are told exactly N minutes; their container gets five additional minutes
 to stop and finish writing, and the host guard allows another five minutes for
 recovery and transcript folding.
+The `blind` config currently renders the provenance-recorded `blind-v2`
+template; `context` retains its own template.
 Native Claude Code and Codex install lifecycle hooks without replacing Inspect
 SWE's API bridge configuration. They inject the remaining time after every tool
 call and report-length feedback only when the file is over the strict maximum.

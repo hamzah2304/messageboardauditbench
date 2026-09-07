@@ -27,7 +27,7 @@ Run shape:
 Operational limits (all explicit in the resulting command):
   --max-samples N               default: 1
   --max-sandboxes N             default: 1
-  --max-connections N           default: 4
+  --max-connections N           default: 4 (Muse requires and defaults to 2)
   --max-retries N               API retries per request (default: 5)
   --request-timeout N           total API request timeout seconds (default: 900)
   --attempt-timeout N           timeout for each API attempt (default: 600)
@@ -54,7 +54,7 @@ judge="anthropic/claude-sonnet-5"
 logs=logs
 max_samples=1
 max_sandboxes=1
-max_connections=4
+max_connections=""
 max_retries=5
 request_timeout=900
 attempt_timeout=600
@@ -87,6 +87,18 @@ else
   [[ -n "$subscription_model" ]] || { echo "--subscription-model is required for backend=subscription" >&2; exit 2; }
   [[ -z "$model" ]] || { echo "--model only applies to backend=inspect" >&2; exit 2; }
 fi
+
+selected_model="${model:-$subscription_model}"
+case "$selected_model" in
+  *[Mm][Uu][Ss][Ee]*)
+    if [[ -n "$max_connections" && "$max_connections" != 2 ]]; then
+      echo "Muse requires --max-connections 2" >&2
+      exit 2
+    fi
+    max_connections=2
+    ;;
+  *) max_connections="${max_connections:-4}" ;;
+esac
 
 cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench
   -T "backend=$backend" -T "agent=$agent" -T "config=$config"
