@@ -3,7 +3,14 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from scripts.run_round4 import ROOT, command, expand_jobs, load_manifest, summary
+from scripts.run_round4 import (
+    ROOT,
+    command,
+    expand_jobs,
+    load_manifest,
+    select_jobs,
+    summary,
+)
 
 
 def test_round4_has_full_base_grid_and_one_astra_react_sample() -> None:
@@ -72,3 +79,12 @@ def test_generation_is_unscored_and_default_cli_cannot_launch() -> None:
     )
     assert "DRY RUN: nothing launched" in result.stdout
     assert "--subscription-model claude-opus-5" in result.stdout
+
+
+def test_time_limit_selector_returns_only_requested_budget() -> None:
+    jobs = select_jobs(expand_jobs(load_manifest()), "all", None, 10)
+
+    assert len(jobs) == 13
+    assert sum(job.epochs for job in jobs) == 39
+    assert {job.budget_minutes for job in jobs} == {10}
+    assert all("exploratory" not in job.system_id for job in jobs)

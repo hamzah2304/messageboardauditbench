@@ -27,6 +27,7 @@ Review the fully expanded commands without launching anything:
 ```sh
 uv run python scripts/run_round4.py
 uv run python scripts/run_round4.py --lane react
+uv run python scripts/run_round4.py --time-limit-minutes 10
 uv run python scripts/run_round4.py --system react-gpt-6-astra-exploratory
 ```
 
@@ -45,6 +46,15 @@ flight concurrently:
 uv run python scripts/run_round4.py --lane claude --execute
 uv run python scripts/run_round4.py --lane codex --execute
 uv run python scripts/run_round4.py --lane react --execute
+```
+
+Select a single budget across every lane with `--time-limit-minutes`. Combine
+it with `--lane` when launching the same budget in separate terminals:
+
+```sh
+uv run python scripts/run_round4.py --lane claude --time-limit-minutes 10 --execute
+uv run python scripts/run_round4.py --lane codex --time-limit-minutes 10 --execute
+uv run python scripts/run_round4.py --lane react --time-limit-minutes 10 --execute
 ```
 
 For narrower staged launches, select one system. This is useful for the initial

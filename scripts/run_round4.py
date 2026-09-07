@@ -132,10 +132,19 @@ def command(manifest: dict[str, Any], job: Job) -> list[str]:
     return cmd
 
 
-def select_jobs(jobs: list[Job], lane: str, system: str | None) -> list[Job]:
+def select_jobs(
+    jobs: list[Job],
+    lane: str,
+    system: str | None,
+    time_limit_minutes: int | None = None,
+) -> list[Job]:
     selected = [job for job in jobs if lane == "all" or job.agent == lane]
     if system is not None:
         selected = [job for job in selected if job.system_id == system]
+    if time_limit_minutes is not None:
+        selected = [
+            job for job in selected if job.budget_minutes == time_limit_minutes
+        ]
     if not selected:
         raise ValueError("no jobs match the requested lane/system")
     return selected
@@ -210,6 +219,11 @@ def main() -> int:
         "--lane", choices=["all", "claude", "codex", "react"], default="all"
     )
     parser.add_argument("--system", help="run/print one manifest system id")
+    parser.add_argument(
+        "--time-limit-minutes",
+        type=int,
+        help="select only jobs with this declared time limit",
+    )
     parser.add_argument("--check", action="store_true", help="check launch readiness")
     parser.add_argument(
         "--execute", action="store_true", help="actually run selected jobs sequentially"
@@ -218,7 +232,12 @@ def main() -> int:
 
     try:
         manifest = load_manifest(args.manifest)
-        jobs = select_jobs(expand_jobs(manifest), args.lane, args.system)
+        jobs = select_jobs(
+            expand_jobs(manifest),
+            args.lane,
+            args.system,
+            args.time_limit_minutes,
+        )
     except (OSError, KeyError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         parser.error(str(exc))
 
