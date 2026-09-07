@@ -1,0 +1,731 @@
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+html { font-size: 15px; -webkit-text-size-adjust: 100%; scroll-padding-top: 24px; }
+body {
+  margin: 0;
+  background: var(--vivid-background);
+  color: var(--ink);
+  font-family: var(--serif);
+  counter-reset: sidenote-counter;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+a { color: inherit; text-decoration: underline; text-decoration-skip-ink: auto; text-decoration-thickness: 1.5px; text-underline-offset: 1.5px; }
+a:hover { text-decoration-thickness: from-font; }
+code, pre, kbd { font-family: var(--mono); }
+code { font-size: 0.86em; }
+code.path { font-size: 0.8em; background: var(--dull-background); padding: 0 .3em; border-radius: 2px; word-break: break-all; }
+b, strong { font-weight: 600; }
+mark.todo-inline { background: #fff3c4; color: var(--outside-ink); padding: 0 .2em; }
+
+/* ------------------------------------------------------------------ */
+/* Type scale                                                          */
+/* ------------------------------------------------------------------ */
+/* Six rungs, always in this order: title > section h2 > key-fact fold > subsection > h4 > body.
+   The whole ladder is here, desktop and narrow alike, because sizing by custom property is the
+   only way to keep the order safe.  Two of the rungs are set by class-bearing selectors far down
+   this file (details.fact > summary h3, and .sub below it), and a media query adds no specificity
+   — so a breakpoint that overrode a bare `h2`/`h3` would lose to them on specificity or on source
+   order, and the ladder would silently invert itself.  That is how a sub fold came to outrank
+   its own parent on a phone.  Reassigning a :root variable sidesteps both: it beats nothing and
+   needs to beat nothing, it only has to come after the block above it.  Keep these three blocks
+   together, in this order, and change a size only here.
+   The root is 15px, so the px each rung resolves to is in the comment beside it.
+   These are the essay's own scale and live in this essay-only sheet on purpose: tokens.css is
+   shared with every generated explorer page, and the explorer has its own --step-* scale. */
+:root {
+  --text-title:    3.6rem;   /* 54px    */
+  --text-h2:       2.75rem;  /* 41.25   */
+  --text-fold:     2.25rem;  /* 33.75   */
+  --text-h3:       1.8rem;   /* 27      */
+  --text-h4:       1.5rem;   /* 22.5    */
+  --text-body:     1.3rem;   /* 19.5    */
+  --leading-body:  1.85rem;
+  --fold-mark:     1.5rem;   /* the +/− before a fold, sized off its heading */
+  --fold-mark-sub: 1.3rem;
+}
+@media (max-width: 900px) {
+  :root {
+    --text-title:    2.9rem;   /* 43.5px */
+    --text-h2:       2.4rem;   /* 36     */
+    --text-fold:     2rem;     /* 30     */
+    --text-h3:       1.65rem;  /* 24.75  */
+    --text-h4:       1.4rem;   /* 21     */
+    --text-body:     1.2rem;   /* 18     */
+    --leading-body:  1.7rem;
+    --fold-mark:     1.35rem;
+    --fold-mark-sub: 1.2rem;
+  }
+}
+@media (max-width: 560px) {
+  :root {
+    --text-title:    2.4rem;   /* 36px   */
+    --text-h2:       2.05rem;  /* 30.75  */
+    --text-fold:     1.8rem;   /* 27     */
+    --text-h3:       1.55rem;  /* 23.25  */
+    --text-h4:       1.35rem;  /* 20.25  */
+    --fold-mark:     1.25rem;
+    --fold-mark-sub: 1.1rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Page frame: rail | content+margin                                   */
+/* ------------------------------------------------------------------ */
+/* 40px further off the column than --frame-gap gives. Shifted here, not in that token: it also
+   lays out every explorer page. */
+.rail { grid-column: 1; margin-left: -40px; margin-right: 40px; }
+.main { grid-column: 2; min-width: 0; }
+
+/* left rail (section nav) */
+.rail-inner {
+  /* The contents list is taller than most viewports, so instead of a scrolling box it rides
+     along with the page: it moves up as you scroll until its bottom reaches the viewport's
+     bottom edge, then holds there, so the whole list is always reachable. */
+  /* A top-sticky with a negative offset: while the list is taller than the viewport the offset
+     is negative, so the list scrolls up with the page until its bottom sits 24px above the
+     viewport's bottom edge and holds there. site.js keeps --rail-h current. */
+  position: sticky; top: min(28px, calc(100vh - var(--rail-h, 0px) - 24px));
+  padding-top: 126px;                 /* clears the header row */
+  font-family: var(--sans);
+}
+.rail { align-self: stretch; }
+.rail-inner { display: flow-root; }
+.rail ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--hair); }
+.rail li { margin: 0; }
+.rail a {
+  display: block; padding: 5px 0 5px 14px; margin-left: -1px;
+  border-left: 1.5px solid transparent;
+  color: var(--dull-foreground); text-decoration: none;
+  font-size: 12.5px; line-height: 1.25;
+}
+.rail a:hover { color: var(--ink); }
+.rail a.active { color: var(--ink); border-left-color: var(--ink); }
+.rail .rail-title { font-family: var(--serif); font-size: 14px; color: var(--dull-foreground); margin: 0 0 12px 14px; }
+.rail ol ol { border-left: 0; margin: 0 0 4px 14px; }
+.rail ol ol a { font-size: 11.5px; padding: 3px 0 3px 10px; color: #8a8a80; }
+.rail ol ol a:hover, .rail ol ol a.active { color: var(--ink); }
+.rail ol ol a.active { border-left-color: var(--ink); }
+.rail li > a.active + ol a { color: #666; }
+
+/* ------------------------------------------------------------------ */
+/* Header                                                              */
+/* ------------------------------------------------------------------ */
+/* positioned so the byline's footnote hangs off the masthead, as the essay's do off .essay */
+.masthead { position: relative; max-width: var(--col); padding: 30px 0 0; }
+.tags { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.tag {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 8px; border: 1px solid var(--ink); border-radius: 3px; color: var(--ink); text-decoration: none;
+}
+.tag.solid { background: var(--ink); color: var(--vivid-background); }
+.tag.warn { border-color: var(--outside); color: var(--outside-ink); }
+h1.title { font-weight: 400; font-size: var(--text-title); line-height: 1.02; margin: 6px 0 14px; letter-spacing: -.005em; text-wrap: balance; }
+/* The authors are metadata, not a provenance claim — grey, like the dek and the date beside them. */
+.byline { color: var(--dull-foreground); font-size: 15px; margin: 0 0 8px; }
+.byline .sep { color: var(--dull-foreground); margin: 0 .4em; }
+.dek { font-size: 19px; line-height: 1.45; color: var(--dull-foreground); margin: 14px 0 0; font-style: italic; }
+.draft-banner {
+  margin: 22px 0 0; padding: 10px 14px; border: 1px solid var(--outside); color: var(--outside-ink);
+  background: var(--outside-wash); font-family: var(--sans); font-size: 13px; line-height: 1.45;
+}
+
+/* ------------------------------------------------------------------ */
+/* Essay typography                                                    */
+/* ------------------------------------------------------------------ */
+.essay { padding: 20px 0 80px; }
+.sec { padding: 1rem 0; }
+.sec > * { max-width: var(--col); }
+.sec > .wide, .sec .wide { max-width: none; width: 100%; }
+
+/* Sizes come from the Type scale at the top of this file; the key-facts folds take --text-fold,
+   a rung of their own between h2 and h3 (details.fact, below). */
+h2 { font-weight: 400; font-size: var(--text-h2); line-height: 1.05; margin: 3.2rem 0 1.6rem; letter-spacing: -.005em; }
+h3 { font-weight: 400; font-size: var(--text-h3); line-height: 1.1; margin: 2.4rem 0 1.1rem; }
+h4 { font-weight: 400; font-style: italic; font-size: var(--text-h4); margin: 1.6rem 0 .8rem; line-height: 1.1; }
+h2 + h3 { margin-top: .6rem; }
+
+.essay p, .essay ul, .essay ol, .essay summary, .essay dl { font-size: var(--text-body); line-height: var(--leading-body); }
+.essay p { margin: 1.25rem 0; text-wrap: pretty; }
+.essay ul, .essay ol { padding-left: 1.6rem; margin: 1rem 0; }
+.essay li { margin: .35rem 0; }
+.essay li > p { margin: .35rem 0; }
+p.lead { font-size: var(--text-body); line-height: var(--leading-body); }
+/* `ol`, not a bare `.summary`: the log table's own "Summary" column is td.summary, and a table
+   cell silently drops the margin until something gives it a display that honours one. */
+ol.summary { margin: 1.4rem 0; padding: 0; list-style: none; counter-reset: sumn; }
+ol.summary li { position: relative; padding-left: 2.2rem; margin: .7rem 0; counter-increment: sumn; }
+ol.summary li::before { content: counter(sumn); position: absolute; left: 0; top: .12em; font-family: var(--sans); font-size: .72em; line-height: 1; color: var(--ui); border: 1px solid var(--ui); border-radius: 50%; width: 1.45rem; height: 1.45rem; box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding-top: 1px; }
+
+hr { border: 0; border-top: 1px solid var(--rule); margin: 2.4rem 0; max-width: var(--col); }
+
+/* ------------------------------------------------------------------ */
+/* Footnotes as hovernotes                                             */
+/* ------------------------------------------------------------------ */
+.essay { position: relative; }
+.sidenote-number { counter-increment: sidenote-counter; }
+label.sidenote-number { display: inline-block; cursor: pointer; max-height: 2rem; }
+label.sidenote-number::after {
+  content: attr(data-n);
+  position: relative; top: -.5rem; margin-right: .12rem;
+  font-family: var(--serif); font-size: .85rem; color: var(--ui);
+  border-radius: 2px;
+}
+/* The tint under the cursor is a halo, not padding: padding would put 2px of air between the
+   number and the word it annotates, and the number belongs to the word before it. */
+label.sidenote-number:hover::after, label.sidenote-number.on::after {
+  background: var(--ui-tint); box-shadow: 0 0 0 2px var(--ui-tint);
+}
+input.margin-toggle { display: none; }
+.sidenote {
+  display: none; position: absolute; z-index: 30;
+  width: min(380px, calc(100% - 8px)); box-sizing: border-box;
+  padding: 10px 13px; background: var(--vivid-background);
+  border: 1px solid var(--ink); box-shadow: 0 6px 22px rgba(0,0,0,.10);
+  font-size: 1rem; line-height: 1.4; color: #222;
+  float: none; margin: 0;
+}
+.sidenote.open { display: block; }
+.sidenote::before {
+  content: attr(data-n) "\00a0";
+  font-family: var(--serif); font-size: .85rem; color: var(--ui); position: relative; top: -.3rem;
+}
+.sidenote a { text-decoration-thickness: 1px; }
+.sidenote code { font-size: .8em; }
+
+/* ------------------------------------------------------------------ */
+/* Figures                                                             */
+/* ------------------------------------------------------------------ */
+figure.fig { margin: 2.2rem 0; padding: 0; }
+figure.fig img { display: block; max-width: 100%; height: auto; border: 1px solid var(--hair); }
+figure.post .post-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+figure.fig figcaption, figure.post figcaption {
+  font-size: 1rem; line-height: 1.45; color: var(--dull-foreground); font-style: italic;
+  margin: .7rem 0 0; max-width: var(--col);
+}
+figure.fig figcaption a { text-decoration-thickness: 1px; }
+figure.fig.wide { margin-top: 2.6rem; }
+figure.fig[data-figure] { position: relative; }
+figure.fig[data-figure]:not([data-mounted]) { min-height: 260px; }
+figure.fig .fig-title { font-size: 1.2rem; margin: 0 0 .4rem; }
+
+/* side-by-side pair */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.pair figure.fig { margin: 0; }
+@media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------------------ */
+/* Wiki excerpts — figure.ex, the one way a selection from the wiki    */
+/* appears. Header line = the explorer's revision marker, and the link. */
+/* ------------------------------------------------------------------ */
+figure.ex { margin: 1.5rem 0; padding: 0; max-width: var(--col); position: relative; }
+figure.ex .ex-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .9rem;
+  padding: 5px 12px 4px; border-left: 3px solid var(--accent);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.5; color: var(--dull-foreground);
+  text-decoration: none; background: var(--accent-head);
+}
+figure.ex .ex-head .who { color: var(--ui); }
+figure.ex .ex-head .who .hl { color: var(--accent); background: #dfe9e2; border-radius: 2px; padding: 0 .1em; }
+figure.ex .ex-head .ex-open { margin-left: auto; color: var(--ui); white-space: nowrap; }
+figure.ex .ex-head .ex-open::after { content: " \2197"; }
+figure.ex .ex-head:hover { background: var(--accent-tint); }
+figure.ex .ex-head:hover .ex-open { text-decoration: underline; text-underline-offset: 2px; }
+figure.ex .ex-body {
+  margin: 0; padding: 10px 14px 11px; border-left: 3px solid var(--accent); background: var(--wash);
+  font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: #1b1b1b;
+}
+figure.ex .ex-body .hl { background: var(--accent-tint); color: var(--accent); padding: 0 .12em; border-radius: 2px; }
+figure.ex .cut, .ex-legend .cut { color: #999; font-family: var(--mono); font-size: .95em; }
+figure.ex figcaption { margin-top: .55rem; }
+
+/* the rest of the post: hidden until the checkbox is on; the best part stays in ink */
+figure.ex .ex-ctx { display: none; color: #6b6b60; }
+/* Parked at the card's foot, beside the label that drives it, rather than at its static position up
+   at the card's head where the sibling selectors below force it in source order. Clicking a label
+   focuses its control, and the browser centres a focus target the pinned bar covers, so a box at
+   the head means a 450-550px jump on a card whose top has left the screen. site.js takes the click
+   before that can happen and scrolls deliberately instead; this keeps the no-JS fallback's jump to
+   the height of one card. */
+figure.ex .ex-toggle { position: absolute; bottom: 0; left: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); }
+figure.ex .ex-toggle:focus-visible ~ .ex-more { outline: 2px solid var(--ui); outline-offset: -2px; }
+/* the card's rule stays green — it is still dump material — but the control on it is a control */
+figure.ex .ex-more {
+  display: block; padding: 4px 14px; border-left: 3px solid var(--accent); background: var(--wash);
+  font-family: var(--sans); font-size: 12px; color: var(--ui); cursor: pointer;
+}
+figure.ex .ex-more:hover { text-decoration: underline; }
+figure.ex .ex-more .less { display: none; }
+figure.ex .ex-toggle:checked ~ .ex-body .ex-ctx { display: inline; }
+figure.ex .ex-toggle:checked ~ .ex-body .ex-cut { display: none; }
+figure.ex .ex-toggle:checked ~ .ex-more .more { display: none; }
+figure.ex .ex-toggle:checked ~ .ex-more .less { display: inline; }
+
+/* an ask and its answers: the cards sit tight, one caption under the thread */
+figure.ex-thread { margin: 1.5rem 0; padding: 0; max-width: var(--col); }
+figure.ex-thread figure.ex { margin: 0 0 .45rem; }
+figure.ex-thread > figcaption { display: block; margin-top: .55rem; }
+figure.ex-thread > figcaption, figure.ex figcaption { font-family: var(--serif); font-style: italic; font-size: 1.05rem; line-height: 1.5; color: var(--dull-foreground); }
+
+/* said once, after the first excerpt on the page */
+.ex-legend { font-family: var(--serif); font-style: italic; font-size: 1.05rem; line-height: 1.5; color: var(--dull-foreground); margin: .55rem 0 1.6rem; max-width: var(--col); }
+
+/* inside a carousel the card is the slide */
+.carousel .slide figure.ex, .carousel .slide figure.ex-thread { margin: 0; max-width: none; }
+.pair figure.ex { margin: 0; }
+
+/* ------------------------------------------------------------------ */
+/* Quotes from our own test agents (not from the dumps): amber rule    */
+/* ------------------------------------------------------------------ */
+blockquote.agent {
+  margin: 1.4rem 0; padding: .1rem 0 .1rem 1.1rem;
+  border-left: 3px solid var(--outside);
+}
+blockquote.agent p { margin: .4rem 0; font-size: var(--text-body); line-height: var(--leading-body); color: #222; }
+blockquote.agent footer { font-size: .98rem; color: var(--dull-foreground); margin-top: .35rem; }
+blockquote.agent .who { font-family: var(--mono); font-size: .9em; color: var(--outside-ink); }
+.agent-stack blockquote.agent { margin: .8rem 0; }
+
+ol.why { padding-left: 1.6rem; margin: .6rem 0 1.2rem; }
+ol.why > li { margin: .8rem 0; }
+ol.why > li > p:first-child { margin-top: 0; }
+.canary { font-family: var(--mono); font-size: .8rem; color: #aaa; }
+/* Quotations from published OpenAI / METR documents: amber "outside the dumps" rule, boxed like the wiki cards. */
+figure.cite { margin: 1.1rem 0 1.6rem; padding: 0; max-width: var(--col); }
+figure.cite .cite-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .9rem;
+  padding: 5px 12px 4px; border-left: 3px solid var(--outside); background: var(--outside-head);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.5; color: var(--dull-foreground);
+}
+figure.cite .cite-src { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: .2rem .9rem; align-items: baseline; text-decoration: none; color: inherit; min-width: 0; }
+figure.cite .cite-src .src { color: var(--outside-ink); }
+figure.cite .cite-src .src i { font-style: normal; color: #222; }
+figure.cite .cite-src .cite-open { margin-left: auto; color: var(--ui); white-space: nowrap; }
+figure.cite .cite-src .cite-open::after { content: " \2197"; }
+figure.cite .cite-src:hover .cite-open { text-decoration: underline; text-underline-offset: 2px; }
+figure.cite .cite-body { margin: 0; padding: 10px 14px 11px; border-left: 3px solid var(--outside); background: var(--wash); }
+figure.cite .cite-body p { margin: 0 0 .6rem; font-size: 1.15rem; line-height: 1.6rem; color: #1b1b1b; }
+figure.cite .cite-body p:last-child { margin-bottom: 0; }
+figure.cite figcaption { margin-top: .55rem; font-family: var(--serif); font-style: italic; font-size: 1.05rem; line-height: 1.5; color: var(--dull-foreground); }
+@media (max-width: 560px) { figure.cite .cite-head { font-size: 11px; } figure.cite .cite-src .cite-open { margin-left: 0; } }
+
+
+@media (max-width: 700px) {
+  figure.ex .ex-head { font-size: 11px; gap: .1rem .6rem; }
+  figure.ex .ex-head .who { overflow-wrap: anywhere; }
+  figure.ex .ex-body { font-size: 12px; padding: 8px 10px; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Logs, raw lines, tables                                             */
+/* ------------------------------------------------------------------ */
+ol.reqlog { list-style: none; padding: 0; margin: 1.2rem 0; font-family: var(--mono); font-size: 12px; line-height: 1.55; border-top: 1px solid var(--hair); }
+ol.reqlog li { padding: 8px 0; border-bottom: 1px solid var(--hair); }
+ol.reqlog time { color: var(--dull-foreground); margin-right: 14px; }
+ol.reqlog .ip { color: var(--ui); margin-right: 14px; }
+ol.reqlog .who { color: var(--ui); margin-right: 14px; }
+ol.reqlog code { display: block; margin-top: 3px; font-size: 12px; overflow-wrap: anywhere; color: #1b1b1b; }
+ol.reqlog .ref { color: var(--dull-foreground); }
+ol.reqlog li.note { font-family: var(--serif); font-size: 1.05rem; color: var(--dull-foreground); }
+ol.reqlog li.note code { display: inline; margin: 0; font-size: .85em; }
+/* long requests: show four lines, the rest behind a toggle (no JS needed) */
+ol.reqlog li.long .req-toggle { display: none; }
+ol.reqlog li.long code { display: block; position: relative; overflow: hidden; transition: max-height .2s; }
+ol.reqlog li.long .req-toggle:not(:checked) ~ code { max-height: calc(4 * 1.55em); -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+ol.reqlog li.long .req-more { display: inline-block; margin-top: 4px; font-family: var(--sans); font-size: 12px; color: var(--ui); cursor: pointer; }
+ol.reqlog li.long .req-toggle:not(:checked) ~ .req-more::after { content: "Show the whole request"; }
+ol.reqlog li.long .req-toggle:checked ~ .req-more::after { content: "Show less"; }
+
+pre.raw {
+  margin: 1.2rem 0; padding: 12px 14px; background: var(--wash); border-left: 3px solid var(--hair);
+  font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: #1b1b1b;
+  max-height: 420px; overflow: auto;
+}
+
+.table-wrapper { overflow-x: auto; margin: 1.6rem 0; }
+.tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1.2rem 0; }
+.tablewrap table.data { margin: 0; }
+table.data { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 12.5px; line-height: 1.4; }
+table.data caption { text-align: left; font-family: var(--serif); font-size: 1.05rem; color: var(--dull-foreground); font-style: italic; padding: 0 0 .5rem; caption-side: top; }
+table.data th, table.data td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--hair); }
+table.data thead th { font-weight: 600; border-bottom: 1px solid var(--ink); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--dull-foreground); }
+table.data td time, table.data td.ip, table.data td.name, table.data code { font-family: var(--mono); font-size: 11.5px; }
+table.data td.ip { color: var(--ui); white-space: nowrap; }
+table.data td.name { color: var(--ui); white-space: nowrap; }
+table.data td.page { font-family: var(--mono); font-size: 11.5px; }
+table.data td.summary em { color: var(--dull-foreground); }
+table.data tr.phase th { background: var(--wash); font-family: var(--mono); font-size: 11px; letter-spacing: .02em; text-transform: none; color: var(--ink); border-bottom: 1px solid var(--hair); padding-top: 12px; }
+table.data code.req { overflow-wrap: anywhere; color: #1b1b1b; }
+table.data td time { white-space: nowrap; color: var(--dull-foreground); }
+table.data.numeric td:not(:first-child), table.data.numeric th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+/* Phone: the phase log's four columns become two. Time and IP stack one per line in the first,
+   and the request — the column worth reading — takes everything left over instead of the sliver
+   a four-column row leaves it. The name is dropped: every request that has one spells it out as
+   p_username=… anyway. */
+@media (max-width: 560px) {
+  table.data.phases, table.data.phases thead, table.data.phases tbody { display: block; }
+  /* Every row is its own grid, so column 1 is a fixed width: an auto column is sized per row and
+     the request would start at a different x on each line. 7rem clears the widest stacked value
+     (a 14-character IP measures 97px at the mono 11.5px). The rows are auto/1fr so a tall request
+     pushes the slack below the IP rather than spreading the time and IP apart. */
+  table.data.phases tr {
+    display: grid; grid-template-columns: 7rem minmax(0, 1fr); grid-template-rows: auto 1fr;
+    align-items: start; column-gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--hair);
+  }
+  table.data.phases thead tr { border-bottom: 1px solid var(--ink); }
+  table.data.phases th, table.data.phases td { padding: 0; border-bottom: 0; }
+  table.data.phases tr > :nth-child(1) { grid-area: 1 / 1; }
+  table.data.phases tr > :nth-child(2) { grid-area: 2 / 1; }
+  table.data.phases tr > :nth-child(3) { display: none; }
+  table.data.phases tr > :nth-child(4) { grid-area: 1 / 2 / 3 / 3; }
+  /* a phase heading is one full-width banner, not a row of cells */
+  table.data.phases tr.phase { display: block; padding: 0; border-bottom: 0; }
+  table.data.phases tr.phase th { display: block; padding: 9px 10px; }
+}
+/* Phone: the usemod log becomes one labelled card per row. Unlike the phase log it has no one
+   column worth promoting — four columns of a few words each, none of which can be narrowed
+   enough to fit — so an edit is read down instead of across. The heading moves onto each cell
+   as data-label (build.py, label_table_cells) and the <thead> goes away.
+   590px, not the 560px the rest of this sheet uses for phones: these four columns need 518px, and
+   with the frame around them that is still wider than the viewport until 582px, so a 560px cutoff
+   would leave a band of widths that went on scrolling sideways — the thing this replaces. */
+@media (max-width: 590px) {
+  table.data.cards, table.data.cards tbody { display: block; }
+  /* a table-caption inside a block table shrink-wraps to a column of its own */
+  table.data.cards caption { display: block; }
+  table.data.cards thead { display: none; }
+  table.data.cards tr { display: block; padding: 7px 0; border-bottom: 1px solid var(--hair); }
+  /* 4.8rem clears the widest heading ("Summary" sets it) so every value lines up down the card */
+  table.data.cards td {
+    display: grid; grid-template-columns: 4.8rem minmax(0, 1fr); column-gap: 10px;
+    padding: 1px 0; border-bottom: 0;
+  }
+  table.data.cards td::before {
+    content: attr(data-label);
+    font-family: var(--sans); font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--dull-foreground);
+  }
+  /* two edits carry no summary; a bare label would read as missing data rather than none given */
+  table.data.cards td:empty { display: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Timeline list                                                       */
+/* ------------------------------------------------------------------ */
+.key { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--sans); font-size: 12px; color: var(--dull-foreground); margin: .6rem 0 1rem; }
+.key i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+ol.timeline { list-style: none; padding: 0; margin: 1.4rem 0; border-left: 1px solid var(--hair); }
+ol.timeline li { position: relative; padding: 0 0 .9rem 26px; margin: 0; font-size: var(--text-body); line-height: var(--leading-body); }
+ol.timeline li::before { content: ""; position: absolute; left: -5px; top: .62rem; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+ol.timeline li.out::before { background: var(--outside); }
+ol.timeline time { display: inline-block; min-width: 3.6rem; font-family: var(--mono); font-size: .8rem; color: var(--accent); margin-right: .3rem; letter-spacing: .01em; vertical-align: 1px; }
+ol.timeline li.out time { color: var(--outside-ink); }
+ol.timeline .src { font-family: var(--sans); font-size: .72rem; color: var(--outside-ink); margin-left: .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+/* visit-log timeline (June 21 → present) */
+dl.visits { margin: 1.4rem 0; }
+dl.visits dt { font-family: var(--mono); font-size: .85rem; color: var(--ui); margin-top: 1.1rem; }
+dl.visits dd { margin: .2rem 0 0; font-size: var(--text-body); line-height: var(--leading-body); }
+
+/* ------------------------------------------------------------------ */
+/* TODO callouts and drafts (for the analysts; strip before publishing) */
+/* ------------------------------------------------------------------ */
+aside.todo {
+  margin: 1.2rem 0; padding: 9px 12px; border: 1px dashed var(--outside); background: var(--outside-wash);
+  color: var(--outside-ink); font-family: var(--sans); font-size: 13px; line-height: 1.5; max-width: var(--col);
+}
+aside.todo b { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--outside-ink); margin-right: 6px; }
+.draft { margin: 1.4rem 0; padding: 4px 16px 10px; border: 1px dashed var(--rule); background: #fbfbf3; }
+.draft .draft-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dull-foreground); margin: 8px 0 4px; }
+.draft p, .draft ul, .draft ol { font-size: var(--text-body); line-height: var(--leading-body); color: #333; }
+body.hide-todos aside.todo, body.hide-todos .draft, body.hide-todos mark.todo-inline { display: none; }
+.todo-toggle { font-family: var(--sans); font-size: 12px; color: var(--dull-foreground); background: none; border: 1px solid var(--hair); border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+.todo-toggle:hover { color: var(--ink); border-color: var(--ink); }
+
+/* ------------------------------------------------------------------ */
+/* Carousel widget                                                     */
+/* ------------------------------------------------------------------ */
+.carousel { margin: 2rem 0; border: 1px solid var(--rule); background: #fdfdf6; }
+.carousel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hair); font-family: var(--sans); font-size: 12px; color: var(--dull-foreground); }
+.carousel-head .ctitle { font-family: var(--serif); font-size: 1.1rem; color: var(--ink); }
+/* the view is a real scroll container, so every slide is on the page and find-in-page
+   reaches it; the scrollbar is hidden because Prev/Next and the dots are the controls */
+.carousel-view { position: relative; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.carousel-view::-webkit-scrollbar { display: none; }
+.carousel-track { display: flex; align-items: flex-start; }
+.carousel .slide { flex: 0 0 100%; min-width: 0; padding: 14px 16px 12px; scroll-snap-align: start; }
+.carousel .slide figure.post { margin: 0; max-width: none; }
+.carousel .slide figure.fig { margin: 0; }
+.carousel .slide figure.fig img { border: 0; }
+.carousel .slide .slide-cap { font-size: 1.05rem; line-height: 1.5; color: #333; margin: .8rem 0 0; }
+.carousel .slide .slide-cap a { text-decoration-thickness: 1px; }
+.carousel-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--hair); }
+.carousel-foot .dots { display: flex; gap: 6px; }
+.carousel-foot .dots button { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 1px solid var(--dull-foreground); background: transparent; cursor: pointer; }
+.carousel-foot .dots button[aria-current="true"] { background: var(--ink); border-color: var(--ink); }
+.carousel-foot .nav { display: flex; gap: 8px; align-items: center; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--dull-foreground); }
+.carousel-foot .nav button { font-family: var(--sans); font-size: 13px; background: none; border: 1px solid var(--ink); border-radius: 3px; padding: 3px 10px; cursor: pointer; color: var(--ink); }
+.carousel-foot .nav button:hover { background: var(--ink); color: var(--vivid-background); }
+.carousel-foot .nav button:disabled { opacity: .35; cursor: default; }
+.carousel-foot .nav button:disabled:hover { background: none; color: var(--ink); }
+.carousel .excerpt { font-size: var(--text-body); line-height: var(--leading-body); margin: .2rem 0 .6rem; color: #1b1b1b; }
+.carousel .excerpt .hl { background: var(--accent-tint); color: var(--accent); padding: 0 .15em; border-radius: 2px; }
+.carousel .sig { font-family: var(--mono); font-size: 12px; color: var(--ui); }
+.carousel .sig .hl { color: var(--accent); background: var(--accent-tint); border-radius: 2px; padding: 0 .15em; }
+.carousel .meta { font-family: var(--sans); font-size: 12px; color: var(--dull-foreground); margin-top: .35rem; }
+
+/* name cloud */
+.namecloud { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 1rem 0 0; font-family: var(--mono); font-size: 12px; }
+.namecloud span { color: var(--ui); }
+.namecloud span .hl { color: var(--accent); font-weight: 600; }
+.namecloud small { color: var(--dull-foreground); }
+
+/* ------------------------------------------------------------------ */
+/* Footer                                                              */
+/* ------------------------------------------------------------------ */
+/* One row: canary left, inquiries right; stacks when narrow. The space under the rule is this
+   padding rather than a margin on the canary, so the stacked pair stays tight. */
+.site-foot { border-top: 1px solid var(--ink); margin-top: 3rem; padding: 66px 0 60px; font-size: 1rem; color: var(--dull-foreground); max-width: var(--col); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; column-gap: 1.5rem; row-gap: 1rem; }
+.site-foot > p { margin: 0; }
+.site-foot a { text-decoration-thickness: 1px; }
+
+/* ------------------------------------------------------------------ */
+/* Responsive                                                          */
+/* ------------------------------------------------------------------ */
+/* geometry steps: keep rail + column inside the viewport */
+@media (max-width: 1400px) { :root { --rail: 170px; } }
+@media (max-width: 1000px) { .sidenote { font-size: .92rem; } }
+/* Geometry only: the type ladder narrows at these same two widths from the Type scale at the top
+   of the file, where every rung including body text moves together. */
+@media (max-width: 900px) {
+  .frame { padding: 0 18px; }
+  .sec > * { max-width: none; }
+  figure.fig figcaption { max-width: none; }
+  }
+@media (max-width: 560px) {
+  figure.post { margin-left: 0; margin-right: 0; }
+  .carousel .slide { padding: 12px 12px 10px; }
+  .carousel-head, .carousel-foot { padding: 8px 12px; }
+  .carousel-foot .nav button { padding: 3px 8px; }
+  ol.reqlog time, ol.reqlog .ip, ol.reqlog .who { display: inline-block; margin-right: 10px; }
+  }
+@media (max-width: 400px) {
+  .carousel-foot { flex-wrap: wrap; }
+  }
+/* a bare URL printed as its own link text has no natural break; let it wrap anywhere rather than widen the page */
+.essay a[href^="http"] { overflow-wrap: anywhere; }
+@media print {
+  .rail,   .frame { display: block; }
+  figure.ex .ex-ctx { display: inline; }
+  figure.ex .ex-cut { display: none; }
+  .carousel-view { height: auto !important; overflow: visible; }
+  .carousel-track { display: block; }
+  .carousel .slide { display: block; }
+}
+
+/* addenda */
+.sidenote.todo-note { color: var(--outside-ink); border-color: var(--outside); }
+.sidenote .todo-tag, .sidenote.todo-note .todo-tag { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--outside-ink); margin-right: 5px; font-weight: 600; }
+body.hide-todos .sidenote.todo-note { display: none !important; }
+p.dek-small { font-style: italic; color: var(--dull-foreground); margin-top: -1rem; }
+
+.namecloud-lead { font-size: 1.05rem !important; color: var(--dull-foreground); margin: 1rem 0 .2rem !important; font-style: italic; }
+
+/* explanation panel inside the storage carousel */
+/* our own commentary beside a slide, not a quotation, so it takes no provenance rule */
+.explain { font-size: 1rem; line-height: 1.5; color: #222; border-left: 3px solid var(--ui); padding: 4px 14px 6px; background: var(--wash); max-height: 460px; overflow: auto; }
+.explain p, .explain ol { font-size: 1rem !important; line-height: 1.5 !important; margin: .5rem 0 !important; }
+.explain ol { padding-left: 1.3rem; }
+.explain .explain-title { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ui); margin: .7rem 0 .2rem !important; }
+.explain code { font-size: .82em; background: #ecece2; padding: 0 .25em; border-radius: 2px; overflow-wrap: anywhere; }
+.pair figure.post .post-body { max-height: 460px; }
+
+.thanks { font-size: var(--text-body) !important; line-height: var(--leading-body) !important; color: #333; margin-top: 1.8rem !important; }
+
+/* ---- uniform boxes for everything quoted from the wikis ---- */
+pre.raw { border-left: 3px solid var(--ui); }
+ol.reqlog { border-top: 0; }
+ol.reqlog li { background: var(--wash); border-left: 3px solid var(--ui); border-bottom: 0; padding: 8px 12px; margin: .6rem 0; }
+ol.reqlog li.note { background: none; border-left: 0; padding: 4px 0; }
+
+/* ---- tighter vertical rhythm ---- */
+.byline { margin-bottom: 0; }
+.essay { padding-top: 0; }
+.sec { padding: .4rem 0; }
+h2 { margin-top: 2.2rem; margin-bottom: 1.1rem; }
+.essay .sec:first-child > p.lead { margin-top: 1.1rem; }
+.thanks { margin-top: 1.2rem !important; margin-bottom: .4rem !important; }
+.key { margin: .2rem 0 .8rem; }
+figure.fig.wide { margin: 1.4rem 0 1.2rem; }
+
+/* ---- timeline widget: colour carries the provenance, and so does the side ---- */
+/* Two rails. What we saw ourselves runs down the left; what OpenAI and METR reported runs down the
+   right, its rows mirrored so the date and the dot sit on that rail. Both gutters are reserved on
+   every row, so the prose is one column between the rails and never crosses either. Every row hangs
+   its date and its dot off --tl-line1, the centre of the body's first line, so they read as one. */
+/* on the section, not the list, because the legend above the list is measured off the same rails */
+#timeline {
+  --tl-date: 5.4rem;                              /* the date badge's column */
+  --tl-badge-gap: .55rem;                         /* badge to dot, whichever side the badge is on */
+  --tl-dot-col: 1.6rem;                           /* the column the dot is centred in */
+  --tl-dot: 11px;
+  --tl-rail: calc(var(--tl-date) + var(--tl-dot-col) / 2);
+  --tl-body-pad: .25rem;                          /* the air inside a body's tinted plate */
+  --tl-line1: calc(var(--tl-body-pad) + var(--leading-body) / 2);
+  /* the two pill tints, thinned against the cream page until they only just register */
+  --tl-plate-ours: #f2f7f2;
+  --tl-plate-theirs: #fdf4e7;
+}
+/* The section folds closed, but its body is a two-rail graphic, not prose: it keeps the column's
+   full width so the rails land where they would have with no fold around them. */
+#timeline .fact-body { padding-left: 0; }
+ol.timeline { border-left: 0; margin: 1rem 0 0; position: relative; padding-left: 0; }
+ol.timeline::before, ol.timeline::after { content: ""; position: absolute; top: .6rem; bottom: .6rem; border-left: 1px solid var(--hair); }
+ol.timeline::before { left: var(--tl-rail); }
+ol.timeline::after { right: var(--tl-rail); }
+ol.timeline li { display: grid; grid-template-columns: var(--tl-date) var(--tl-dot-col) 1fr var(--tl-dot-col) var(--tl-date); column-gap: 0; align-items: start; padding: 0 0 .85rem 0; font-size: var(--text-body); line-height: var(--leading-body); }
+ol.timeline li::before { content: ""; grid-column: 2; grid-row: 1; justify-self: center; position: static; width: var(--tl-dot); height: var(--tl-dot); border-radius: 50%; margin-top: calc(var(--tl-line1) - var(--tl-dot) / 2); background: var(--accent); box-shadow: 0 0 0 3px var(--vivid-background); z-index: 1; }
+ol.timeline li.out::before { grid-column: 4; background: var(--outside); }
+/* no vertical padding, so the badge is exactly one line tall and clearing the plate's own top
+   padding is all it takes to land it on that line */
+ol.timeline time { grid-column: 1; grid-row: 1; justify-self: end; min-width: 0; margin: var(--tl-body-pad) var(--tl-badge-gap) 0 0; padding: 0 7px; border-radius: 3px; font-family: var(--mono); font-size: .74rem; letter-spacing: .01em; color: var(--accent); background: var(--accent-tint); vertical-align: 0; white-space: nowrap; }
+ol.timeline li.out time { grid-column: 5; justify-self: start; margin: var(--tl-body-pad) 0 0 var(--tl-badge-gap); color: var(--outside-ink); background: var(--outside-tint); }
+ol.timeline .body { grid-column: 3; padding: var(--tl-body-pad) .6rem; border-radius: 3px; background: var(--tl-plate-ours); }
+ol.timeline li.out .body { text-align: right; color: #3a3a3a; background: var(--tl-plate-theirs); }
+/* The legend heads the rails it names: each swatch stands over the dots below it, the amber one
+   after its label as those rows read. 4px is half the swatch, so its centre lands on the rail.
+   Scoped to the section, because `.key` is the site's legend class and the figures use it too. */
+#timeline .key { justify-content: space-between; }
+#timeline .key span { display: flex; align-items: center; }
+#timeline .key span:first-child { padding-left: calc(var(--tl-rail) - 4px); }
+#timeline .key span:last-child { flex-direction: row-reverse; padding-right: calc(var(--tl-rail) - 4px); }
+#timeline .key span:last-child i { margin: 0 0 0 6px; }
+/* Below this there is not enough width for two gutters: one rail, everything reading left to right. */
+@media (max-width: 700px) {
+  ol.timeline::after { display: none; }
+  ol.timeline li { grid-template-columns: var(--tl-date) var(--tl-dot-col) 1fr; }
+  ol.timeline li.out::before { grid-column: 2; }
+  ol.timeline li.out time { grid-column: 1; justify-self: end; margin: var(--tl-body-pad) var(--tl-badge-gap) 0 0; }
+  ol.timeline li.out .body { text-align: left; }
+  ol.timeline .body { padding: var(--tl-body-pad) .6rem; }
+  #timeline .key { justify-content: flex-start; }
+  #timeline .key span:first-child { padding-left: 0; }
+  #timeline .key span:last-child { flex-direction: row; padding-right: 0; }
+  #timeline .key span:last-child i { margin: 0 6px 0 0; }
+}
+/* Phone: the date column was holding 81px on a list only 354px wide, a width it inherited from the
+   desktop column. Cut to 2.7rem it walks the rail left and hands 40px back to the prose. That is
+   narrower than a date range measures on one line, so the badge is let off nowrap and breaks at its
+   en dash — 7/9–7/13 takes two lines — with padding small enough that the longer half still fits.
+   Keeping them on one line does not work at this width: the overflow wants 28px and the frame
+   leaves 18px, so the viewport clips the leading digit. */
+@media (max-width: 560px) {
+  #timeline { --tl-date: 2.7rem; --tl-badge-gap: .4rem; }
+  ol.timeline time { padding: 0 3px; font-size: .7rem; white-space: normal; }
+}
+
+.essay .sec:first-child figure.fig.wide { margin-top: .9rem; }
+/* ---- Key facts: each fact folds closed so the list scans at a glance ---- */
+/* The fold's own clock: the mark's turn and the body's height run on it together, and a reader who
+   asks for less motion gets the same folds with no movement at all. */
+:root { --fold-anim: .28s; --fold-ease: cubic-bezier(.4, 0, .2, 1); }
+@media (prefers-reduced-motion: reduce) { :root { --fold-anim: 0s; } }
+
+details.fact { border-top: 1px solid var(--hair); padding: .2rem 0 .4rem; }
+details.fact:last-of-type { border-bottom: 1px solid var(--hair); }
+details.fact > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: .7rem; padding: .3rem 0; }
+details.fact > summary::-webkit-details-marker { display: none; }
+/* Sharing a baseline is not the same as looking level: a "+" is a small mark floating .318em above
+   its own baseline, so beside a heading whose capitals reach .653em it reads as having slipped.
+   Lifting it by the difference puts the middle of the + on the middle of the capitals. Each fold
+   size names the heading it sits beside; both ratios are measurements of the two faces, not taste. */
+details.fact {
+  --fold-head: var(--text-fold);
+  --fold-lift: calc(var(--fold-mark) * .318 - var(--fold-head) * .327);
+}
+/* One mark, not two: the + turns a quarter-turn into a × as the fold opens, so the sign that opened
+   it is visibly the sign that shuts it again. (A "−" swapped in for the "+" could not be turned:
+   `content` does not animate.) */
+details.fact > summary::before { content: "+"; font-family: var(--mono); font-size: var(--fold-mark); color: var(--ui); width: 1.1rem; flex: none; text-align: center; transform: translateY(var(--fold-lift)); transition: transform var(--fold-anim) var(--fold-ease); }
+details.fact[open] > summary::before { transform: translateY(var(--fold-lift)) rotate(45deg); }
+
+/* Opening and closing are animated, so the reader sees the text arrive rather than the page jump
+   under them. ::details-content is the box a closed <details> keeps its contents in: giving that
+   box a height makes it the thing to animate, interpolate-size is what lets the height run all the
+   way to auto, and content-visibility rides the same clock (allow-discrete) so the contents are
+   still painted while the box closes. Both are asked for together, because a browser with the box
+   but not the keyword would hold the old height for the whole duration and then snap — worse than
+   no animation. Without them the folds open at once, as they did before. */
+@supports selector(::details-content) and (interpolate-size: allow-keywords) {
+  details.fact { interpolate-size: allow-keywords; }
+  details.fact::details-content {
+    block-size: 0; overflow: hidden;
+    transition: block-size var(--fold-anim) var(--fold-ease),
+                content-visibility var(--fold-anim) allow-discrete;
+  }
+  details.fact[open]::details-content { block-size: auto; }
+}
+/* A key fact is the headline item of its section, so it outranks an ordinary h3 — but it is still
+   inside the section, so it stays a rung below the h2 above it. */
+details.fact > summary h3 { margin: .35rem 0; font-size: var(--text-fold); line-height: 1.05; }
+details.fact > summary:hover h3 { text-decoration: underline; text-decoration-color: var(--hair); text-underline-offset: 4px; }
+details.fact .fact-body { padding: 0 0 .6rem 1.8rem; }
+details.fact .fact-body > :first-child { margin-top: .4rem; }
+@media (max-width: 560px) { details.fact .fact-body { padding-left: 0; } }
+/* "What were the agents doing?" stays open as a top-level section; each subsection folds at ordinary h3 size. */
+details.fact.sub > summary h3 { font-size: var(--text-h3); line-height: 1.2; margin: .3rem 0; }
+details.fact.sub { --fold-mark: var(--fold-mark-sub); --fold-head: var(--text-h3); }
+#what-they-did > .fold-note { font-style: italic; color: var(--dull-foreground); margin-bottom: 1.2rem; }
+
+
+/* warning box (the live wikis log every visitor's IP) */
+.warn { margin: 1.2rem 0; padding: 10px 16px 6px; border: 1px solid var(--outside); background: var(--outside-wash); }
+.warn > p { margin: .3rem 0 .4rem !important; font-size: 1.1rem !important; color: var(--outside-ink); }
+.warn ul { margin: .2rem 0 .6rem !important; }
+
+/* the explorer link: a plain bordered button in the essay's own style, beside its sentence */
+.cta { margin: 1.4rem 0; padding: 14px 18px; border: 1px solid var(--rule); background: #fbfbf3; display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.cta .button { display: inline-block; padding: 11px 22px; border: 1px solid var(--ink); border-radius: 3px; background: var(--ink); color: var(--vivid-background); font-family: var(--serif); font-size: 1.25rem; text-decoration: none; white-space: nowrap; }
+.cta .button:hover, .cta .button:focus-visible { background: #333; border-color: #333; }
+.cta p { flex: 1 1 22rem; margin: 0 !important; font-size: var(--text-body) !important; line-height: var(--leading-body) !important; color: #333; }
+
+/* A whole section folded at its own h2 (the appendices, the timeline). */
+details.whole { --fold-head: var(--text-h2); }
+details.whole > summary .fold-head { min-width: 0; }
+details.whole .fact-body > .fold-note { margin: .2rem 0 1.2rem !important; font-size: var(--text-body) !important; font-style: italic; color: var(--dull-foreground); }
+
+.warn ul { font-size: 1.1rem !important; line-height: 1.6rem !important; }
+.warn ul a { color: var(--dull-foreground); text-decoration-thickness: 1px; text-decoration-color: var(--rule); }
+.warn ul a:hover { color: var(--ink); }
+
+#report > h2 { margin-top: 1.6rem; }
+#report figure.fig.wide { margin-top: 1rem; }
+
+/* a lone button, centred, no panel around it */
+.cta-solo { text-align: center; margin: 1.4rem 0 !important; }
+.cta-solo .button { display: inline-block; margin: 0.3rem 0.35rem; padding: 11px 22px; border: 1px solid var(--ink); border-radius: 3px; background: var(--ink); color: var(--vivid-background); font-family: var(--serif); font-size: 1.25rem; text-decoration: none; white-space: nowrap; }
+.cta-solo .button:hover, .cta-solo .button:focus-visible { background: #333; border-color: #333; }
+
+/* quote carousel: one source box per slide */
+.carousel .slide figure.cite { margin: 0; max-width: none; }
+
+/* long raw pastes: a few lines by default, the rest behind a toggle (no JS, same pattern as ol.reqlog li.long) */
+.raw-fold { position: relative; margin: 1.1rem 0 1.6rem; }
+.raw-fold pre.raw { margin: 0; }
+.raw-fold .raw-toggle { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); }
+.raw-fold .raw-toggle:not(:checked) ~ pre.raw { max-height: calc(5 * 1.55em); overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.raw-fold .raw-more { display: inline-block; margin-top: 4px; font-family: var(--sans); font-size: 12px; color: var(--ui); cursor: pointer; }
+.raw-fold .raw-toggle:not(:checked) ~ .raw-more::after { content: "Show the whole post"; }
+.raw-fold .raw-toggle:checked ~ .raw-more::after { content: "Show less"; }
+.raw-fold .raw-toggle:focus-visible ~ .raw-more { outline: 2px solid var(--ui); outline-offset: 2px; }
+
+/* 404.html (build.py's not_found_page): the essay's title and buttons, without the rail or anything
+   else that needs the essay's structure. Only the spacing is its own — the top padding the essay's
+   .masthead would have given the title, and the min-height so a title and two buttons are not left
+   hanging under the bar on a tall screen. */
+.notfound { padding: 60px 0 120px; min-height: 62vh; }
+/* The buttons are .cta-solo's, but ranged left rather than centred: on a page of two elements the
+   column's left edge is the only line there is, and a centred row visibly breaks it. The negative
+   margin cancels the first button's own, so its border starts on that edge. */
+.notfound .cta-solo { margin: 2.2rem 0 0 -0.35rem !important; text-align: left; }
