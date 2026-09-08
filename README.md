@@ -26,6 +26,9 @@ Claims are only counted when the dump can support them. A separate feasibility p
 excluded, so a model is never penalised for missing something unknowable. Claims that
 flip between data variants (C21/C22/C28) carry a per-variant note.
 
+Because the budget is part of the condition, a score means nothing without the budget it
+was measured at. This measures investigation, not recall of things already known.
+
 ## Quick start
 
 Needs Python 3.11+, [uv](https://docs.astral.sh/uv/) and Docker. Full walk-through
@@ -43,106 +46,25 @@ python benchmark/rubrics/grade_with_rubrics.py --dir my_round   # grade it (need
 
 Or run the same trial through Inspect; see [Inspect integration](#inspect-integration).
 
-## Headline result
+## Results
 
-Round 2, blind prompt on the verbatim data, xhigh effort, mean recall across
-replicates at three wall-clock budgets:
+Measured results are reported in the accompanying write-up, not here, so that this README
+stays a description of the benchmark rather than a snapshot that goes stale every round.
 
-| harness · model | 10 min | 20 min | 30 min |
-|---|---|---|---|
-| claude · opus-5 | 0.283 | 0.413 | **0.510** |
-| react · sol | 0.467 | 0.475 | 0.500 |
-| react · kimi-k3 | 0.333 | 0.319 | 0.449 |
-| react · gemini-flash | 0.382 | — | 0.425 |
-| codex · sol | 0.417 | 0.358 | 0.400 |
-| react · glm-5.3 | 0.383 | 0.420 | 0.392 |
-| claude · fable | 0.367 | 0.383 | — |
-| codex · terra | 0.259 | 0.242 | 0.334 |
-| codex · luna | 0.209 | 0.192 | 0.333 |
-| claude · sonnet-5 | 0.145 | 0.175 | 0.242 |
-| claude · haiku-4.5 | 0.067 | 0.075 | 0.125 |
+What lives in the repo:
 
-The benchmark is far from saturated: the best configuration recovers about half
-the derivable claims, and the weakest recovers an eighth.
+- `benchmark/graded/` — every committed per-claim grade, per report, per round. File names
+  encode round, budget, harness, model and replicate.
+- `benchmark/graded_inputs/` — byte-identical copies of the reports those grades came from,
+  keyed to match, so any score traces to its exact input.
+- `reports/` — the full model report corpus, grouped by benchmark config, with an
+  `index.jsonl` per set carrying run metadata.
+- `viewers/build_*.py` — build browsable HTML over all of it.
+- [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) — every artifact, what
+  produced it, and the run history.
 
-Recall is strongly budget-sensitive, which is the point — this measures
-investigation, not recall of things already known. Opus 5 climbs steadily with
-time (0.283 → 0.413 → 0.510) and is the only model to clear 0.5. react·sol is
-strong immediately but plateaus around 0.47–0.50, so ranking at one budget says
-little about ranking at another.
-
-Read the top row with some caution: opus-5 at 30 min is a single replicate, as is
-claude·fable at 10 and 20 min. Dashes are missing runs, not zeros. Per-claim scores
-are in `benchmark/graded/`.
-
-### Round 3 — three replicates, two more models, a 2-hour budget
-
-Same blind prompt and verbatim data, at 10, 30 and 120 minutes. The 10- and
-30-minute prompts are byte-identical to round 2's; blind-120 differs only in the
-budget it states. 76 reports, graded on the **revised sheets** (see below), so these
-numbers are not comparable with round 2's without regrading round 2.
-
-| harness · model | 10 min | 30 min | 120 min |
-|---|---|---|---|
-| codex · sol | 0.373* | 0.683* | **0.735** |
-| react · sol | 0.500* | 0.600* | 0.689 |
-| codex · astra | 0.468 | 0.564 | 0.652 |
-| claude · opus-5 | 0.410* | 0.546 | — |
-| react · muse-spark | 0.461 | 0.500 | 0.543 |
-| react · gemini-flash | 0.300* | 0.443* | 0.513 |
-| codex · luna | 0.233* | 0.350* | 0.513 |
-| claude · opus-4.8 | 0.293 | 0.381 | 0.473 |
-| react · glm-5.3 | 0.303* | 0.463* | — |
-| claude · sonnet-5 | 0.130* | 0.270* | 0.450 |
-| react · kimi-k3 | 0.340* | 0.433* | — |
-| codex · terra | 0.317* | 0.427* | 0.385 |
-| claude · fable | 0.400* | — | — |
-| claude · haiku-4.5 | 0.127* | 0.093* | 0.200 |
-
-`*` marks a cell resting on one replicate; dashes are missing runs, not zeros.
-
-Nothing plateaus at two hours. Every model with a 120-minute cell scores highest
-there, and the mean across harness/model pairs rises 0.333 → 0.443 → 0.515. The best
-configuration recovers about three quarters of the derivable claims.
-
-Eight runs sit outside the table because Claude Code switched model after a
-safeguard refusal; they are graded under their served name, and `model_served` in
-`reports/round3/index.jsonl` records each switch.
-
-| nominal → served | 10 min | 30 min | 120 min |
-|---|---|---|---|
-| claude · fable → opus-5 | 0.470* | 0.600* | — |
-| claude · opus-5 → opus-4.8 | — | 0.560* | 0.500 |
-| claude · fable → opus-4.8 | — | 0.454 | — |
-
-### What the judge sheets say now
-
-An audit of the strongest 2-hour report (23 of its 30 claims, in
-`benchmark/audit/judge_audit.json`) found the sheets were withholding from the judge
-the very ground truth the feasibility pass had established. Each claim in
-`rubric_N.json` carries a feasibility note, corrections and a trap; `build_rubrics.py`
-rendered none of it. The judge got a claim, one quote and a generic three-band scale,
-and set its own strictness — docking C10 for saying R1–R6 when the ground truth states
-in writing that the R6/R7 tail justifies the claim's own "usually 5".
-
-Three changes followed, and round 3 was regraded on them:
-
-- each claim now carries **what the data supports**, from the feasibility pass;
-- the half-point band is **vagueness only**, with an explicit rule not to deduct for
-  wording, for extra detail, or for a range where the claim is itself hedged;
-- **C02** no longer scores the training-versus-testing hedge as a specific.
-
-Mean recall rose 0.434 → 0.457 across the 76 reports, 58 up and 16 down. The movement
-is concentrated where it was aimed: C10 +0.301, C11 +0.266, C02 +0.182. On the audited
-report the judge now agrees with the auditor's own score on 20 of 22 claims, up from 18,
-and scores it 0.723 against the auditor's 0.717.
-
-**C21, C22 and C28 deliberately carry no data note.** Their gradeability flips with the
-data variant, the feasibility notes describe the stripped dump, and every round-2 and
-round-3 run used verbatim. Rendering those notes told the judge the correct answer was
-"not determinable" and drove C22 to 0.000 across all 76 reports — penalising reports for
-stating something true. Until a sheet knows which variant it is grading, these three are
-graded as before.
+`scripts/report_performance.py <graded-dir>` aggregates a graded directory if you want to
+recompute numbers yourself.
 
 ## Layout
 
@@ -152,14 +74,17 @@ benchmark/      ground truth: human_report.txt (answer key), claims, feasibility
 messageboard_audit_bench/
                 the Inspect task package — wraps the sandbox as an inspect eval
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
-scripts/        data build/fetch, grading, report collection
+scripts/        data build/fetch, grading, report collection, analysis
 configs/        trial conditions (budget, prompt, data variant, effort)
+experiments/    manifests for the multi-cell rounds and ablations
 reports/        the model report corpus, by benchmark config
 baselines/      early trial runs (meta + report; transcripts are gitignored)
 viewers/        build_*.py -> browsable HTML for every artifact
-corpus/         raw message-board exports
+corpus/         raw message-board and chat exports
 data/           gitignored; rebuilt and checksum-verified by scripts/build_data.sh
-docs/           design notes, data processing, handoff
+docs/           design notes, data processing, audits, handoff
+tests/          pytest suite for the task package and tooling
+paths.py        every script resolves its inputs through this
 ```
 
 ## Running it
@@ -191,11 +116,132 @@ python3 -m http.server 8765 --directory viewers
 All scripts resolve their inputs through `paths.py` at the repo root, so the repo works
 from a plain clone.
 
-## Working on it
+## How grading works
 
-Task work happens in linked worktrees under `.worktrees/`, created with
-`scripts/worktree_add.sh <task>`; the primary checkout stays on `main`. The
-rules for worktrees, merging and shared run data are in [`AGENTS.md`](AGENTS.md).
+Two grading paths exist, and they are not the same rubric:
+
+- **`benchmark/rubrics/` — the 30-claim rubrics.** Every committed grade in
+  `benchmark/graded/` came from here, via `grade_with_rubrics.py` with a GPT-5.6 Sol
+  judge. Each claim was first checked against the data by the feasibility pass, so
+  non-derivable claims are excluded. **This is the benchmark's scoring.**
+- **`messageboard_audit_bench/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
+  LLM-seeded starter rubric: 12 weighted positive leaves (tagged derivable yes/partly)
+  plus 3 penalty leaves for specific over-claims, such as asserting this is the same
+  swarm that attacked Hugging Face. It has not been human-validated. It exists so an
+  `inspect eval` returns a score in one command.
+
+So Inspect is the run-and-inspect harness here, not the source of reported results. Treat
+`rubric_scorer` output as indicative until `rubric.yaml` is validated the way the 30
+claims were; [`docs/design-notes.md`](docs/design-notes.md) sketches the claim-precision
+and citation-support scorers meant to close that gap.
+
+### What the judge sheets carry
+
+An audit of the strongest long-budget report (`benchmark/audit/judge_audit.json`) found
+the sheets were withholding from the judge the very ground truth the feasibility pass had
+established. Each claim in `rubric_N.json` carries a feasibility note, corrections and a
+trap; `build_rubrics.py` rendered none of it. The judge got a claim, one quote and a
+generic three-band scale, and set its own strictness. Three changes followed:
+
+- each claim now carries **what the data supports**, from the feasibility pass;
+- the half-point band is **vagueness only**, with an explicit rule not to deduct for
+  wording, for extra detail, or for a range where the claim is itself hedged;
+- **C02** no longer scores the training-versus-testing hedge as a specific.
+
+**C21, C22 and C28 deliberately carry no data note.** Their gradeability flips with the
+data variant, the feasibility notes describe the stripped dump, and the rounds graded so
+far all used verbatim. Rendering those notes told the judge the correct answer was "not
+determinable" and penalised reports for stating something true. Until a sheet knows which
+variant it is grading, these three are graded as before.
+
+Grade sets are not comparable across sheet revisions without regrading. The sheet revision
+that produced a grade is recorded with it.
+
+## Inspect integration
+
+The repo is packaged as an installable [Inspect](https://inspect.aisi.org.uk/) eval.
+`pyproject.toml` registers `messageboard_audit_bench` as an Inspect plugin and
+`messageboard_audit_bench/__init__.py` exports the task functions, so after `uv sync`
+Inspect discovers the eval by package name — no task-file path required.
+
+The default backend is fully Inspect-managed: Inspect creates the Docker sandbox, selects
+the model, enforces the agent time limit, records live model and tool events, and writes
+its standard `.eval` log. Claude Code and Codex use the official Inspect SWE agents;
+`agent=react` uses Inspect's built-in agent. The subscription backend remains available
+for results that must use a logged-in CLI, and imports that CLI's event stream after the
+run.
+
+```bash
+uv sync                                    # installs Inspect and this package
+scripts/build_data.sh                      # downloads and verifies the dataset
+export ANTHROPIC_API_KEY=...               # native Claude + default judge
+
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=claude -T config=blind -T time_limit_minutes=30 \
+  --model anthropic/claude-opus-4-1 \
+  --model-role grader=anthropic/claude-sonnet-4-5 \
+  --epochs 3 --max-samples 1
+
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay  # import runs on disk
+uv run inspect view                                                           # browse the .eval logs
+```
+
+**[`messageboard_audit_bench/README.md`](messageboard_audit_bench/README.md) is the full
+reference** — every task option, the three harnesses, the subscription backend, the
+integration boundary, minimum-runtime and report-length policy, and log export.
+
+A few things that live at repo level rather than in the package:
+
+- `scripts/run_inspect_matrix.sh` runs one explicit model/agent/config cell, making its
+  API retries, timeouts, concurrency, sample retries and refusal logging explicit. It
+  defaults to at most two sample reruns after an error and uses `caffeinate` on macOS.
+  Muse models always run with `--max-connections 2`; others default to 4.
+- `scripts/export_inspect_reports.py` bridges native `.eval` logs to the report-artifact
+  layout the graders expect, through Inspect's Log API rather than parsing `.eval` files.
+- `scripts/audit_runs.py --runs runs --out audit.json` summarises tool types, failures,
+  refusal signals, parallel batches and visible time reminders across runs. See
+  [`docs/trajectory-audit.md`](docs/trajectory-audit.md) and
+  [`docs/corpus-audit.md`](docs/corpus-audit.md).
+- `experiments/*.toml` are the manifests for multi-cell rounds and ablations.
+
+### Isolation
+
+Native containers use `network_mode: none`, with no real provider credentials inside. A
+preflight records full JSONL readability, hashes, read-only data mount, visible work
+files, and network interfaces. Inspect's model bridge disables hosted browsing.
+
+Normal subscription execution preserves the built-in tools and uses the accepted
+restricted-proxy setup — agent commands can reach their credentials and permitted vendor
+endpoints, and logs do not establish that communication was impossible. This trade-off is
+stated rather than hidden; see [the isolation audit](docs/isolation-audit.md) and
+[`sandbox/README.md`](sandbox/README.md).
+
+Synthetic administrator names and the Cyrillic `е` are intentional corpus clues and remain
+unchanged.
+
+### Official Inspect Evals register
+
+This repository follows the upstream packaging conventions for an externally managed
+Inspect eval: PEP 517 packaging, an `inspect_ai` entry point, exported `@task` functions,
+versioned task metadata, pinned asset checksums, and an end-to-end mock-model test. It is
+not yet listed in the official register, which also requires an immutable dataset host, a
+public pinned code commit, and an arXiv paper. See
+[`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md) for the exact
+handoff and the source-asset provenance.
+
+## Notes on reproducibility
+
+- `data/` is a build output, not a source. `scripts/build_data.sh` fetches the public dump
+  and derives both variants deterministically; the committed `data/SHA256SUMS.variants`
+  must reproduce exactly.
+- Generated viewer HTML is gitignored — rebuild with `viewers/build_*.py`. The one
+  exception is `viewers/coverage_combined.html`, whose builder needs a rendered
+  collusion.wiki bundle that is not redistributed here.
+- `benchmark/graded_inputs/` holds byte-identical copies of the reports in `reports/`,
+  keyed to match their grade files, so every committed score can be traced to its input.
+- `benchmark/legacy_68claim/` is the superseded first-pass pipeline, kept for provenance.
+- Run metadata in older report and grade artifacts records the absolute path of the
+  machine that produced it. Those paths are provenance, not configuration.
 
 ## Docs
 
@@ -208,217 +254,29 @@ rules for worktrees, merging and shared run data are in [`AGENTS.md`](AGENTS.md)
 - [`docs/data-processing.md`](docs/data-processing.md) — every transformation from the
   public dump to the benchmark inputs; [`docs/verbatim-data.md`](docs/verbatim-data.md)
   covers the augmented variant.
+- [`docs/discord-corpus-handoff.md`](docs/discord-corpus-handoff.md) — the swarmchasers
+  Discord corpus, **including the prompt-injection payloads it contains**. Read this
+  before pointing an agent at `corpus/`.
+  [`docs/discord-findings-diff.md`](docs/discord-findings-diff.md) diffs it against the
+  human report and claims.
 - [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
   design rationale and operational notes.
 - [`sandbox/README.md`](sandbox/README.md) — how isolation actually works.
-- [`messageboard_audit_bench/README.md`](messageboard_audit_bench/README.md) — the Inspect task
-  package in full.
+- [`messageboard_audit_bench/README.md`](messageboard_audit_bench/README.md) — the Inspect
+  task package in full.
 
-## Inspect integration
+## Working on it
 
-The repo is packaged as an installable [Inspect](https://inspect.aisi.org.uk/)
-eval. `pyproject.toml` registers `messageboard_audit_bench` as an Inspect plugin,
-and `messageboard_audit_bench/__init__.py` exports the task functions. After `uv sync`,
-Inspect can discover the eval by package name; no task-file path is required.
+Task work happens in linked worktrees under `.worktrees/`, created with
+`scripts/worktree_add.sh <task>`; the primary checkout stays on `main`. The rules for
+worktrees, merging and shared run data are in [`AGENTS.md`](AGENTS.md).
 
-The default backend is fully Inspect-managed. Inspect creates the Docker
-sandbox, selects the model, enforces the agent time limit, records live model
-and tool events, and writes its standard `.eval` log. Claude Code and Codex use
-the official Inspect SWE agents; ReAct uses Inspect's built-in agent. The
-subscription backend remains available for results that must use a logged-in
-CLI, but imports that CLI's event stream after the run.
+Checks: `uv run ruff check . && uv run pytest -q`.
 
-| file | role |
-|---|---|
-| `task.py` | two tasks: `messageboard_audit_bench` (fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
-| `native.py` | runs Claude Code/Codex through Inspect SWE, or Inspect's ReAct agent, and collects `report.md` |
-| `solver.py` | `subscription_agent` launches the subscription runner; `replay` imports a finished run |
-| `transcripts.py` | loss-aware conversion of subscription/historical CLI events into Inspect messages and tool calls |
-| `scorer.py` | report-quality, process, and report-length scorers |
-| `rubric.yaml` | the rubric that scorer grades against |
+## Licence
 
-```bash
-uv sync                                    # installs Inspect and this package
-scripts/build_data.sh                      # downloads and verifies the dataset
-export ANTHROPIC_API_KEY=...               # native Claude + default judge
-export OPENAI_API_KEY=...                  # native Codex when using OpenAI
-
-# Native Claude Code. The agent model is Inspect's normal --model option.
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=claude -T config=blind -T time_limit_minutes=30 \
-  -T min_runtime_fraction=0.75 \
-  --model anthropic/claude-opus-4-1 \
-  --model-role grader=anthropic/claude-sonnet-4-5 \
-  --epochs 3 --max-samples 1 --log-model-api --log-refusals
-
-# Native Codex CLI with the same task and Inspect plumbing.
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=codex -T config=blind -T time_limit_minutes=30 \
-  --model openai/gpt-5 \
-  --model-role grader=anthropic/claude-sonnet-4-5
-
-# Subscription-authenticated CLI (no agent API key/model is consumed by Inspect).
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T backend=subscription -T agent=claude \
-  -T subscription_model=claude-opus-5 \
-  -T config=blind -T time_limit_minutes=30 \
-  -T judge=anthropic/claude-sonnet-4-5 --max-samples 1
-
-# or fold runs already on disk into one eval, without spending model time
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
-
-uv run inspect view                        # browse the .eval logs
-
-# Export native reports for the existing report/grade tooling. This reads logs
-# through Inspect's Log API; it does not parse .eval files directly.
-uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
-
-# Run one explicit model/agent/config cell. On macOS this prevents sleep.
-scripts/run_inspect_matrix.sh --agent claude --config blind \
-  --model anthropic/claude-opus-4-1 --epochs 3
-```
-
-`-T agent=claude` runs Claude Code, `-T agent=codex` runs Codex CLI, and
-`-T agent=react` runs Inspect's model-neutral ReAct agent. Claude Code is the
-default. With `backend=inspect`, all three use Inspect's `--model`, provider
-prompt cache, scoped limits, and live logging. Every native harness receives a
-time note after each tool call; Claude Code and Codex receive it through their
-lifecycle hooks, while Inspect ReAct receives it in the wrapped tool result.
-The prompt also lets every harness call `time_left` on demand. Both mechanisms
-use the same scoped deadline. With `backend=subscription`, use
-`-T subscription_model=...`; this deliberately runs outside Inspect's model
-provider and then converts the recorded CLI events for the viewer.
-
-The config, time, and minimum-runtime dimensions are independent: use
-`-T config=blind|context`, `-T time_limit_minutes=N`, and optionally
-`-T min_runtime_fraction=F`. The fraction defaults to `0.75`: a normal finish
-before 75% of the configured budget resumes the same investigation, with a
-prompt asking the agent to verify evidence and improve `report.md` rather than
-idle. The exact fraction and earliest permitted finish are stated in the
-prompt. Set the fraction to `0` only for an ablation. Terminal refusals,
-failures, and hard limits are not resumed. Time-bearing legacy config names
-remain available to direct sandbox scripts but are not part of the Inspect
-interface. Subscription agents are told exactly N minutes; their container gets
-a five-minute shutdown/write grace, followed by a separate five-minute host
-recovery guard so transcript folding is not cut off. A Codex capacity failure
-before its first completed turn is relaunched at most twice.
-The `blind` config uses the provenance-recorded `blind-v2` prompt; `context`
-retains its own prompt. Prompt templates and config names are intentionally
-separate.
-
-`--epochs N` is Inspect's standard option for N independent replicates; the
-replicate number identifies a run and does not seed sampling. Use
-`--max-samples 1` to serialize epochs against a subscription-backed CLI.
-`messageboard_audit_bench_replay` reads `runs/`, which is
-gitignored — it only has anything to import on a machine that has run trials.
-
-`export_inspect_reports.py` is the bridge from native `.eval` logs to the
-report-artifact layout used by downstream graders. It exports only native
-`backend=inspect` samples by default. Passing `--backend all` includes imported
-subscription samples. Reports are grouped by the actual scaffold, so native and
-subscription Claude Code (or Codex CLI) runs can be analyzed together; backend
-remains on every index row. The two ReAct implementations stay separate.
-`run_inspect_matrix.sh` makes its API retries, request/attempt timeouts,
-sample/sandbox/API concurrency, sample retries, and raw API/refusal logging
-explicit. It defaults to at most two sample reruns after an error and uses
-`caffeinate` on macOS; it intentionally does not impose a disk-space floor.
-Muse models always run with an explicit `--max-connections 2`; the wrapper
-rejects a conflicting value. Other models default to 4.
-
-The round-3 prompt targets 2,500–3,000 words. Short, nonempty reports are
-accepted; reports up to 3,100 words pass the separate length score. The agent
-does not see that tolerance. After-tool checks report the word count when `report.md` changes;
-reads and edits to other files do not repeat it. A Claude Code or Codex Stop hook, or the native wrapper's
-post-hoc guard, can request one shortening pass when at least a minute remains.
-Subscription hooks implement the same policy. Missing, empty, and short reports
-are never used to force additional work; normal early completion is resumed only
-until the configured minimum runtime. Native log metadata records the configured
-fraction, minimum seconds, and whether the PostToolUse and Stop hooks fired.
-
-Provider refusals are retried at most twice through the same model. A terminal
-native refusal is recorded from Inspect's `content_filter` stop reason in
-sample metadata; no model fallback occurs. The batch runner independently
-allows at most two whole-sample retries for actual sample errors.
-
-Provider prompt caching is explicitly enabled on the native backend with
-Inspect's `cache_prompt=True`; Inspect's `.eval` usage records separate cache
-read and cache write tokens. Subscription/replay logs retain the CLI-reported
-cache counters. No converter can make an old external run into an Inspect SWE
-run—Inspect SWE is the live execution bridge—but the importer maps its complete
-trajectory into the same Inspect chat/tool representation used by the UI.
-Sample metadata records both `scaffold` and `backend`: Claude Code and Codex CLI
-can be grouped across API and subscription transports, while Inspect ReAct and
-the legacy subscription ReAct loop remain distinct scaffolds.
-
-The active blind prompt is `sandbox/prompts/blind-v2.txt`, taken from the saved
-Google Doc source recorded beside it. Conditions configure a target of
-2,500–3,000 words, a strict prompted maximum of 3,000, and a final acceptance
-maximum of **3,100**. Nonempty shorter reports are accepted. All Markdown counts
-as words split on whitespace. Native adapters supply remaining time on each
-model request or tool result and a word count when report content changes.
-If an agent finishes over 3,000 words, the native solver asks it to shorten the
-saved file, once when at least 60 seconds remain within the original deadline. Subscription hooks
-provide equivalent edit feedback and stop-time correction until the deadline.
-The host measures the saved report independently; `report_length` records
-acceptance, and report collection excludes rejected reports unless explicitly
-requested. A chat answer does not substitute for `report.md`.
-
-Native containers use `network_mode: none`, with no real provider credentials
-inside. A preflight records full JSONL readability, hashes, read-only data mount,
-visible work files, and network interfaces. Inspect's model bridge disables
-hosted browsing. Normal subscription execution preserves the built-in tools and uses the
-accepted restricted-proxy setup. Agent commands can access their credentials
-and permitted vendor endpoints; logs do not establish that communication was
-impossible. See [the isolation audit](docs/isolation-audit.md).
-
-Usage schema 3 distinguishes a reported zero reasoning-token count from an
-unavailable or partial count. Raw CLI logs remain necessary for historical
-runs; conversion cannot reconstruct data the CLI never emitted. Tool types,
-failures, refusal signals, potential parallel batches, and visible time
-reminders can be summarized with `scripts/audit_runs.py --runs runs --out audit.json`.
-See [trajectory findings](docs/trajectory-audit.md) and the
-[corpus discovery audit](docs/corpus-audit.md). Synthetic administrator names
-and the Cyrillic `е` are intentional corpus clues and remain unchanged.
-
-### Which scorer produced the headline numbers
-
-Two grading paths exist, and they are not the same rubric:
-
-- **`benchmark/rubrics/` — the 30-claim rubrics.** Every committed grade in
-  `benchmark/graded/` and every figure in the table above came from here, via
-  `grade_with_rubrics.py` with a GPT-5.6 Sol judge. Each claim was first checked
-  against the data by the feasibility pass, so non-derivable claims are excluded.
-  This is the benchmark's scoring.
-- **`messageboard_audit_bench/rubric.yaml` — the Inspect scorer's rubric.** A smaller,
-  LLM-seeded starter rubric: 12 weighted positive leaves (tagged derivable
-  yes/partly) plus 3 penalty leaves for specific over-claims, such as asserting
-  this is the same swarm that attacked Hugging Face. It has not been
-  human-validated. It exists so an `inspect eval` returns a score in one command.
-
-So Inspect is the run-and-inspect harness here, not the source of the reported
-results. Treat `rubric_scorer` output as indicative until `rubric.yaml` is
-validated the way the 30 claims were; `docs/design-notes.md` sketches the
-claim-precision and citation-support scorers meant to close that gap.
-
-### Official Inspect Evals register
-
-This repository follows the upstream packaging conventions for an externally
-managed Inspect eval: PEP 517 packaging, an `inspect_ai` entry point, exported
-`@task` functions, versioned task metadata, pinned asset checksums, and an
-end-to-end mock-model test. It is not yet listed in the official Inspect Evals
-register. Registration also requires an immutable dataset host, a public pinned
-code commit, and an arXiv paper. See
-[`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md) for
-the exact handoff and the source-asset provenance.
-
-## Notes on reproducibility
-
-- `data/` is a build output, not a source. `scripts/build_data.sh` fetches the public
-  dump and derives both variants deterministically; the committed
-  `data/SHA256SUMS.variants` must reproduce exactly.
-- Generated viewer HTML is gitignored — rebuild with `viewers/build_*.py`. The one
-  exception is `viewers/coverage_combined.html`, whose builder needs a rendered
-  collusion.wiki bundle that is not redistributed here.
-- `benchmark/graded_inputs/` holds byte-identical copies of the reports in `reports/`,
-  keyed to match their grade files, so every committed score can be traced to its input.
-- `benchmark/legacy_68claim/` is the superseded first-pass pipeline, kept for provenance.
+MIT — see [`LICENSE`](LICENSE). The licence covers the code and the benchmark material
+authored here (claims, feasibility notes, rubrics, prompts, tooling). It does not license
+the third-party content reproduced for research: the `corpus/` exports, the human
+investigators' report in `benchmark/`, and the model-generated reports in `reports/` and
+`baselines/`. `LICENSE` lists these explicitly.
