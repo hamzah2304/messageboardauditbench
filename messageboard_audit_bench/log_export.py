@@ -30,6 +30,11 @@ def _prompt_text(value: object) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
+        # A continuation sample's input is a whole prior conversation; the
+        # prompt it answers is the final user message (the follow-up request).
+        users = [item for item in value if getattr(item, "role", None) == "user"]
+        if users:
+            return str(getattr(users[-1], "text", users[-1].content))
         return "\n".join(str(getattr(item, "content", item)) for item in value)
     return str(value or "")
 
