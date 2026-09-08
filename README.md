@@ -26,6 +26,23 @@ Claims are only counted when the dump can support them. A separate feasibility p
 excluded, so a model is never penalised for missing something unknowable. Claims that
 flip between data variants (C21/C22/C28) carry a per-variant note.
 
+## Quick start
+
+Needs Python 3.11+, [uv](https://docs.astral.sh/uv/) and Docker. Full walk-through
+with credentials and troubleshooting: [`docs/getting-started.md`](docs/getting-started.md).
+
+```bash
+uv sync && scripts/build_data.sh && scripts/doctor.sh      # install, build data/, preflight
+
+CONFIG=blind-30 sandbox/docker/run_trial.sh claude claude-opus-5 1    # one trial -> runs/<run>/report.md
+
+scripts/collect_reports.py                                  # runs/ -> reports/
+scripts/stage_graded_inputs.py reports blind-30=my_round:mr
+python benchmark/rubrics/grade_with_rubrics.py --dir my_round   # grade it (needs OPENAI_API_KEY)
+```
+
+Or run the same trial through Inspect; see [Inspect integration](#inspect-integration).
+
 ## Headline result
 
 Round 2, blind prompt on the verbatim data, xhigh effort, mean recall across
@@ -150,6 +167,8 @@ docs/           design notes, data processing, handoff
 Two routes to the same task: the subscription scripts directly, or the
 first-class Inspect/Inspect SWE path (see [Inspect integration](#inspect-integration)).
 Both use the benchmark image, network-disabled workspace, prompt, and data.
+[`docs/getting-started.md`](docs/getting-started.md) walks through setup end to end;
+`scripts/doctor.sh` checks the prerequisites and prints the fix for anything missing.
 
 ```bash
 uv sync                        # or: pip install -e .
@@ -174,6 +193,8 @@ from a plain clone.
 
 ## Docs
 
+- [`docs/getting-started.md`](docs/getting-started.md) — fresh clone to graded report:
+  prerequisites, credentials per harness, smoke test, grading, troubleshooting.
 - [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) — every artifact, what
   produced it, and the full run history.
 - [`docs/ablations-and-baselines.html`](docs/ablations-and-baselines.html) — how we check
