@@ -24,7 +24,9 @@ from collections import defaultdict
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "viewers"))
 from paths import GRADED, VIEWERS, BENCH
+import figure_chrome as chrome
 from report_performance import strict, NAMES as REF_NAMES
 
 OUT = VIEWERS / "figures" / "combined_score.html"
@@ -133,56 +135,28 @@ def main():
               + (f"; moved: {', '.join(moved)}" if moved else "; ranking unchanged"))
 
 
-TEMPLATE = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Combined score — coverage and the TL;DR</title>
-<style>
-:root{--bg:#F4F3EE;--card:#FFF;--bd:#E0DDD4;--ink:#1A1A1A;--sec:#666;--mut:#999;
---acc:#C15F3C;--soft:#FDF2EC;--row:#FAFAF7;--grid:#EDEAE2;
---p-anthropic:#D97757;--p-openai:#1A1A1A;--p-google:#2E9E4F;--p-meta:#0668E1;
---p-moonshot:#C2185B;--p-zai:#00897B}
-*{box-sizing:border-box}
-body{margin:0 auto;max-width:1180px;padding:26px 30px 60px;background:var(--bg);color:var(--ink);
-font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px}
-h1{font-size:21px;color:var(--acc);margin:0 0 4px}
-h2{font-size:15px;color:var(--acc);margin:0 0 10px}
-.sub{color:var(--sec);margin:0 0 22px;line-height:1.55;max-width:78ch}
-.panel{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:18px 20px;margin-bottom:20px}
-.cap{color:var(--sec);font-size:12.5px;line-height:1.5;margin:10px 0 0;max-width:88ch}
-svg{display:block;width:100%;height:auto;overflow:visible}
-.axname{font-size:11px;fill:var(--sec)}
-.tick{font-size:10px;fill:var(--mut)}
-.mlab{font-size:10.5px;fill:var(--ink)}
-.gl{stroke:var(--grid);stroke-width:1}
-.legend{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0 0;font-size:12px;color:var(--sec);align-items:center}
-.legend span{display:inline-flex;align-items:center;gap:5px}
-.legend i{display:inline-block;width:9px;height:9px;border-radius:50%}
-table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
-th,td{padding:5px 7px;border-bottom:1px solid var(--bd);text-align:right}
-th:first-child,td:first-child{text-align:left;font-variant-numeric:normal}
-th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:600}
-tbody tr:hover{background:var(--row)}
-td.comb{font-weight:700;color:var(--acc)}
-td.up{color:#065F46}td.down{color:#991B1B}
-.tabs{display:flex;gap:5px;margin-bottom:12px}
-.tab{border:1px solid var(--bd);background:transparent;border-radius:6px;padding:4px 12px;font:inherit;
-font-size:12px;color:var(--sec);cursor:pointer}
-.tab.on{background:var(--acc);border-color:var(--acc);color:#fff}
-.note{font-size:12px;color:var(--sec);background:var(--soft);border:1px solid #F0D9CC;border-radius:6px;
-padding:9px 12px;line-height:1.5;margin-top:14px}
-</style></head>
-<body>
-<h1>Combined score</h1>
-<p class="sub" id="lede"></p>
-<div class="panel"><h2>The composite against general capability</h2><div id="fig1"></div>
-  <div class="legend" id="leg1"></div><p class="cap" id="cap1"></p></div>
-<div class="panel"><h2>What a report found, against what it led with</h2>
-  <div class="tabs" id="tabs"></div><div id="fig2"></div><p class="cap" id="cap2"></p></div>
-<div class="panel"><h2>Every number</h2><div id="tbl"></div><p class="cap" id="cap3"></p></div>
-<script type="application/json" id="data">__DATA__</script>
-<script>
-'use strict';
+COPY = ('<button class="csv" data-csv="combined">copy CSV</button>'
+        '<span>or benchmark/figures/combined_score.csv</span>')
+
+BODY = """<main>
+  <h1>Combined score</h1>
+  <p class="lede" id="lede"></p>
+__FIGS__
+  <details><summary>Caveats carried from the data file</summary><ul class="cav" id="cav"></ul></details>
+</main>"""
+
+FIGS = "\n\n".join([
+    chrome.figure(1, "The composite against general capability", "fig1",
+                  legend_id="leg1", tools=COPY, table_id=None),
+    chrome.figure(2, "What a report found, against what it led with", "fig2",
+                  read_id="read2", cap_id="cap2"),
+    chrome.figure(3, "Every number", "tbl", cap_id="cap3"),
+])
+# the budget switcher belongs above figure 2's panel
+FIGS = FIGS.replace('<div class="panel" id="fig2"></div>',
+                    '<div class="tools" id="tabs"></div>\n    <div class="panel" id="fig2"></div>')
+
+JS = r"""'use strict';
 const D = JSON.parse(document.getElementById('data').textContent);
 const NS = 'http://www.w3.org/2000/svg';
 const s = (t, a) => { const e = document.createElementNS(NS, t);
@@ -202,7 +176,7 @@ function place(svg, x, y, text, colour, taken) {
   if (Math.abs(ly - (y + 3.5)) > 4)
     svg.append(s('line', {x1: x + 2, y1: y, x2: x + 7, y2: ly - 3.5, stroke: colour,
       'stroke-width': .8, opacity: .45}));
-  const t = s('text', {x: x + 9, y: ly, class: 'mlab'});
+  const t = s('text', {x: x + 9, y: ly, class: 'lab'});
   t.textContent = text; svg.append(t);
 }
 /* hollow to solid as the budget grows: the same encoding headline Figure 1 uses */
@@ -227,12 +201,12 @@ function fig1() {
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
     'aria-label': 'combined score against the Epoch Capabilities Index'});
   for (let v = 0; v <= y1 + 1e-9; v += 0.1) {
-    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'gl'}));
-    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'tick', 'text-anchor': 'end'});
+    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'tick'}));
+    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'axis num', 'text-anchor': 'end'});
     t.textContent = v.toFixed(1); svg.append(t);
   }
   for (let v = Math.ceil(x0 / 5) * 5; v <= x1; v += 5) {
-    const t = s('text', {x: X(v), y: T + IH + 17, class: 'tick', 'text-anchor': 'middle'});
+    const t = s('text', {x: X(v), y: T + IH + 17, class: 'axis num', 'text-anchor': 'middle'});
     t.textContent = v; svg.append(t);
   }
   const ax = s('text', {x: L + IW / 2, y: H - 8, class: 'axname', 'text-anchor': 'middle'});
@@ -260,8 +234,8 @@ function fig1() {
   leg.replaceChildren();
   BUD.forEach(b => {
     const box = el('span'); const sv = s('svg', {width: 14, height: 14, style: 'vertical-align:-2px'});
-    sv.append(s('circle', {cx: 7, cy: 7, r: 5, fill: 'var(--sec)', 'fill-opacity': FILL[b],
-      stroke: 'var(--sec)', 'stroke-width': 2}));
+    sv.append(s('circle', {cx: 7, cy: 7, r: 5, fill: 'var(--ink2)', 'fill-opacity': FILL[b],
+      stroke: 'var(--ink2)', 'stroke-width': 2}));
     box.append(sv, document.createTextNode(' ' + b + ' min')); leg.append(box);
   });
   [...new Set(D.models.map(m => m.provider))].forEach(p => {
@@ -292,12 +266,12 @@ function fig2() {
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
     'aria-label': 'TL;DR score against finding coverage'});
   for (let v = Math.ceil(y0 * 20) / 20; v <= y1 + 1e-9; v += 0.05) {
-    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'gl'}));
-    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'tick', 'text-anchor': 'end'});
+    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'tick'}));
+    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'axis num', 'text-anchor': 'end'});
     t.textContent = v.toFixed(2); svg.append(t);
   }
   for (let v = Math.ceil(x0 * 20) / 20; v <= x1 + 1e-9; v += 0.05) {
-    const t = s('text', {x: X(v), y: T + IH + 17, class: 'tick', 'text-anchor': 'middle'});
+    const t = s('text', {x: X(v), y: T + IH + 17, class: 'axis num', 'text-anchor': 'middle'});
     t.textContent = v.toFixed(2); svg.append(t);
   }
   const ax = s('text', {x: L + IW / 2, y: H - 8, class: 'axname', 'text-anchor': 'middle'});
@@ -330,7 +304,7 @@ function fig2() {
 function tabs() {
   const box = document.getElementById('tabs'); box.replaceChildren();
   BUD.forEach(b => {
-    const t = el('button', 'tab' + (b === budSel ? ' on' : ''), b + ' min');
+    const t = el('button', (b === budSel ? 'on' : ''), b + ' min');
     t.onclick = () => { budSel = b; tabs(); fig2(); };
     box.append(t);
   });
@@ -377,15 +351,31 @@ function table() {
     + D.transform + ' — <b>tl;dr</b> is the holistic 0–1 grade of the summary alone, <b>comb</b> is '
     + D.weights.cov + ' x cov + ' + D.weights.tldr + ' x tl;dr. <b>rank</b> is the composite ranking at '
     + 'that budget; the arrow is how far the model moves from where finding coverage alone would put it.';
-  const note = el('div', 'note');
+  const note = el('div', 'cap');
   note.innerHTML = '<b>Caveats.</b> ' + D.caveats.join(' ');
   document.getElementById('tbl').append(note);
 }
+
+const CSV = {};
+function csv(name, cols, rows) {
+  CSV[name] = [cols.join(','), ...rows.map(r => r.map(v =>
+    /[",]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v).join(','))].join('\n');
+}
+csv('combined', ['model', 'provider', 'eci', 'budget_min', 'runs', 'coverage', 'tldr', 'combined'],
+    D.models.flatMap(m => BUD.filter(b => m.budgets[b]).map(b => [m.model, m.provider, m.eci, b,
+      m.budgets[b].n, m.budgets[b].cov.toFixed(4), m.budgets[b].tldr.toFixed(4),
+      m.budgets[b].comb.toFixed(4)])));
+document.querySelectorAll('button.csv').forEach(b => { b.onclick = () => {
+  navigator.clipboard.writeText(CSV[b.dataset.csv] || '').then(() => {
+    const was = b.textContent; b.textContent = 'copied';
+    setTimeout(() => { b.textContent = was; }, 1200); }).catch(() => {}); }; });
+const cav = document.getElementById('cav');
+if (cav) D.caveats.forEach(c => cav.append(el('li', null, c)));
 fig1(); tabs(); fig2(); table();
-</script>
-</body></html>
 """
 
+TEMPLATE = (chrome.shell("Combined score", BODY.replace("__FIGS__", FIGS))
+            + "<script>\n" + JS + "\n</script>\n</body></html>\n")
 
 if __name__ == "__main__":
     main()
