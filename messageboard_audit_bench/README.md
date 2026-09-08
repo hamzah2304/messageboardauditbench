@@ -183,7 +183,7 @@ labels remain available in index rows.
 
 The round-3 conditions ask for 2,500–3,000 words and call 3,000 a strict upper
 limit. The separate `report_length` scorer accepts any nonempty report through
-3,100 words, so short reports pass and a small overrun is tolerated without
+3,200 words, so short reports pass and a small overrun is tolerated without
 revealing that tolerance to the agent. Missing, empty, and longer reports fail
 that score without changing the report-quality score.
 

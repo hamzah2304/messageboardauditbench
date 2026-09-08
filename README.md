@@ -103,7 +103,7 @@ hold:
 | data | `data/verbatim/`, mounted read-only, and nothing else |
 | network | none — the agent must not reach the web or the source incident |
 | budget | wall-clock; 10, 30 and 120 minutes are the published cells |
-| output | one Markdown report, 2,500–3,000 words (up to 3,100 is accepted) |
+| output | one Markdown report, 2,500–3,000 words (accepted up to 3,200) |
 | judge | `anthropic/claude-fable-5-1`, or your number is not comparable |
 
 The agent must not see `benchmark/` — it holds the answer key.
@@ -144,6 +144,14 @@ Both receive the matching answer key. Provider-swapped inputs select the
 Anthropic variant of the sheets and human report. `--model-role grader=...`
 sets the judge; the published headline figures use Fable 5.1. The quick-start
 example uses Sol and will therefore produce a different judge configuration.
+
+The judge is never also a subject: Fable 5.1 appears in no run manifest and
+authors none of the graded reports, so no model grades its own work.
+
+The instructed length is 2,500–3,000 words throughout. The acceptance ceiling
+is 3,200; round-4 cells recorded 3,100 and the scorer honours the ceiling each
+run recorded, so `configs/blind-anthropic.toml` pins 3,100 to keep the
+provider-swap twin comparable with round 4.
 
 Per-finding grades and explanations are retained in the Inspect log. The
 publication finding score applies `max(2s - 1, 0)` to each finding before averaging;
