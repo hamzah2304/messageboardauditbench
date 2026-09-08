@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 620" width="1400" height="620" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1a1a1a"/>
+    </marker>
+    <style>
+      .box{fill:#f7f6f2;stroke:#1a1a1a;stroke-width:1.5;rx:10}
+      .t{font-size:17px;font-weight:600;fill:#1a1a1a}
+      .c{font-size:12.5px;fill:#6b6b6b}
+      .ln{stroke:#1a1a1a;stroke-width:1.5;fill:none}
+      .ico{stroke:#1a1a1a;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .blue{stroke:#1f3a93;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .arrow{stroke:#1a1a1a;stroke-width:1.5;fill:none;marker-end:url(#arr)}
+    </style>
+  </defs>
+  <rect width="1400" height="620" fill="#f7f6f2"/>
+
+  <!-- Box 1: dump (middle) -->
+  <rect class="box" x="60" y="245" width="210" height="130"/>
+  <g transform="translate(76,262)">
+    <rect class="ico" x="8" y="0" width="22" height="26" rx="2"/>
+    <rect class="ico" x="4" y="4" width="22" height="26" rx="2" fill="#f7f6f2"/>
+    <rect class="ico" x="0" y="8" width="22" height="26" rx="2" fill="#f7f6f2"/>
+  </g>
+  <text class="t" x="80" y="325">Public wiki dump</text>
+  <text class="c" x="80" y="347">14,591 edits by ~3,000 agents</text>
+
+  <!-- Box 2: human report (top) -->
+  <rect class="box" x="360" y="75" width="236" height="130"/>
+  <g transform="translate(376,92)">
+    <rect class="ico" x="0" y="0" width="24" height="32" rx="2"/>
+    <path class="ico" d="M6,9h12 M6,15h12 M6,21h8"/>
+  </g>
+  <text class="t" x="380" y="155">Human incident report</text>
+  <text class="c" x="380" y="177">written by the wiki's investigators</text>
+
+  <!-- Box 3: claims (top) -->
+  <rect class="box" x="670" y="75" width="236" height="130"/>
+  <g transform="translate(686,92)">
+    <path class="ico" d="M0,6l3,3l6,-6 M14,6h14 M0,18l3,3l6,-6 M14,18h14 M0,30l3,3l6,-6 M14,30h14"/>
+  </g>
+  <text class="t" x="690" y="155">30 ground-truth claims</text>
+  <text class="c" x="690" y="177">manually extracted from the report</text>
+
+  <!-- Box 4: agent (bottom) -->
+  <rect class="box" x="360" y="415" width="236" height="130"/>
+  <g transform="translate(376,428)">
+    <!-- deerstalker cap -->
+    <path class="blue" d="M2,16 Q18,-2 34,16"/>
+    <path class="blue" d="M-4,16 h44"/>
+    <path class="blue" d="M-4,16 l-4,4 M40,16 l4,4"/>
+    <!-- head -->
+    <rect class="blue" x="4" y="16" width="28" height="26" rx="6"/>
+    <circle class="blue" cx="13" cy="28" r="2.5"/>
+    <circle class="blue" cx="23" cy="28" r="2.5"/>
+    <path class="blue" d="M12,36 h12"/>
+    <!-- antenna -->
+    <path class="blue" d="M18,4 v-4"/><circle class="blue" cx="18" cy="-2" r="1.5"/>
+    <!-- magnifying glass -->
+    <circle class="blue" cx="44" cy="36" r="7"/>
+    <path class="blue" d="M49,41 l8,8"/>
+  </g>
+  <text class="t" x="380" y="495">Investigator agent</text>
+  <text class="c" x="380" y="517">no internet · fixed time budget</text>
+
+  <!-- blind prompt label under agent -->
+  <text class="c" x="478" y="580" text-anchor="middle" font-style="italic">blind prompt: "something unusual happened — investigate and write a report"</text>
+  <path class="arrow" d="M478,566 V547"/>
+
+  <!-- Box 5: agent report (bottom) -->
+  <rect class="box" x="670" y="415" width="236" height="130"/>
+  <g transform="translate(686,432)">
+    <rect class="ico" x="0" y="0" width="24" height="32" rx="2"/>
+    <path class="ico" d="M6,9h12 M6,15h12 M6,21h8"/>
+    <path class="ico" d="M22,26 l10,-10 l4,4 l-10,10 l-5,1 z"/>
+  </g>
+  <text class="t" x="690" y="495">Agent's incident report</text>
+  <text class="c" x="690" y="517">written from the data alone</text>
+
+  <!-- Box 6: grader (middle) -->
+  <rect class="box" x="1000" y="245" width="330" height="130"/>
+  <g transform="translate(1016,262)">
+    <path class="ico" d="M16,0 v34 M4,34 h24 M16,6 l-12,16 M16,6 l12,16"/>
+    <path class="ico" d="M-2,22 h12 a6,4 0 0 1 -12,0 z M22,22 h12 a6,4 0 0 1 -12,0 z"/>
+  </g>
+  <text class="t" x="1020" y="325">Grader</text>
+  <text class="c" x="1020" y="347">matches each report against the 30 claims</text>
+  <text class="c" x="1020" y="364">→ recall · precision · contradictions</text>
+
+  <!-- arrows -->
+  <!-- dump -> human report (up) -->
+  <path class="arrow" d="M270,280 H320 V140 H356"/>
+  <!-- dump -> agent (down) -->
+  <path class="arrow" d="M270,340 H320 V480 H356"/>
+  <!-- human report -> claims -->
+  <path class="arrow" d="M596,140 H666"/>
+  <!-- agent -> agent report -->
+  <path class="arrow" d="M596,480 H666"/>
+  <!-- claims -> grader -->
+  <path class="arrow" d="M906,140 H950 V280 H996"/>
+  <!-- agent report -> grader -->
+  <path class="arrow" d="M906,480 H950 V340 H996"/>
+</svg>

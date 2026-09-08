@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1780 900" font-family="Inter, Helvetica, Arial, sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0L10,5L0,10z" fill="#1a1a1a"/></marker>
+<style>
+.card{fill:#f7f6f2;stroke:#1a1a1a;stroke-width:1.5}
+.h{font-size:22px;font-weight:600;fill:#1a1a1a}
+.sub{font-size:14px;fill:#6b6b6b}
+.lab{font-size:11.5px;fill:#6b6b6b;letter-spacing:.08em;font-weight:600}
+.ln{stroke:#1a1a1a;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tl{stroke:#6b6b6b;stroke-width:1.5;stroke-linecap:round}
+.bl{stroke:#1f3a93;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.arrow{stroke:#1a1a1a;stroke-width:1.8;fill:none;marker-end:url(#arr)}
+.dash{stroke:#1a1a1a;stroke-width:1.3;fill:none;stroke-dasharray:4 4}
+.num{font-size:15px;font-weight:600;fill:#f7f6f2}
+</style></defs>
+<rect width="1780" height="900" fill="#f7f6f2"/>
+<text x="70" y="90" font-size="40" font-weight="600" fill="#1a1a1a">How the benchmark works</text>
+<text x="70" y="124" class="sub" font-size="16">An agent investigates a wiki dump blind; we score its report against claims from the human write-up.</text>
+<rect class="card" x="70" y="180" width="380" height="600" rx="22"/>
+<circle cx="110" cy="228" r="18" fill="#1a1a1a"/><text class="num" x="110" y="233" text-anchor="middle">1</text>
+<text class="h" x="140" y="235">Extract ground truth</text>
+<text class="sub" x="100" y="275">We read the human incident report and</text>
+<text class="sub" x="100" y="295">pulled out 30 checkable claims by hand.</text>
+<path class="ln" fill="#f7f6f2" d="M110,360 h122 l28,28 v172 h-150 z"/>
+<path class="ln" d="M232,360 v28 h28"/>
+<line class="tl" x1="132" y1="405" x2="208" y2="405"/>
+<rect x="126" y="414" width="118" height="16" rx="3" fill="#e4e2dc"/>
+<line class="tl" x1="132" y1="423" x2="238" y2="423"/>
+<line class="tl" x1="132" y1="441" x2="238" y2="441"/>
+<line class="tl" x1="132" y1="459" x2="208" y2="459"/>
+<rect x="126" y="468" width="118" height="16" rx="3" fill="#e4e2dc"/>
+<line class="tl" x1="132" y1="477" x2="238" y2="477"/>
+<line class="tl" x1="132" y1="495" x2="238" y2="495"/>
+<rect x="126" y="504" width="118" height="16" rx="3" fill="#e4e2dc"/>
+<line class="tl" x1="132" y1="513" x2="208" y2="513"/>
+<line class="tl" x1="132" y1="531" x2="238" y2="531"/>
+<rect x="300" y="403" width="110" height="40" rx="9" fill="#e4e2dc" stroke="#1a1a1a" stroke-width="1.2"/>
+<line class="tl" x1="318" y1="419" x2="392" y2="419"/><line class="tl" x1="318" y1="429" x2="370" y2="429"/>
+<path class="ln" stroke="#6b6b6b" d="M244,423 C270,423 275,423 300,423"/><circle cx="244" cy="423" r="3" fill="#6b6b6b"/>
+<rect x="300" y="457" width="110" height="40" rx="9" fill="#e4e2dc" stroke="#1a1a1a" stroke-width="1.2"/>
+<line class="tl" x1="318" y1="473" x2="392" y2="473"/><line class="tl" x1="318" y1="483" x2="370" y2="483"/>
+<path class="ln" stroke="#6b6b6b" d="M244,477 C270,477 275,477 300,477"/><circle cx="244" cy="477" r="3" fill="#6b6b6b"/>
+<rect x="300" y="493" width="110" height="40" rx="9" fill="#e4e2dc" stroke="#1a1a1a" stroke-width="1.2"/>
+<line class="tl" x1="318" y1="509" x2="392" y2="509"/><line class="tl" x1="318" y1="519" x2="370" y2="519"/>
+<path class="ln" stroke="#6b6b6b" d="M244,513 C270,513 275,513 300,513"/><circle cx="244" cy="513" r="3" fill="#6b6b6b"/>
+<text class="lab" x="185" y="600" text-anchor="middle">HUMAN REPORT</text><text class="lab" x="355" y="600" text-anchor="middle">30 CLAIMS</text>
+<text class="sub" x="100" y="700">Each claim is checked against the raw data,</text><text class="sub" x="100" y="720">so we grade against the dump, not the prose.</text>
+<rect class="card" x="500" y="180" width="380" height="600" rx="22"/>
+<circle cx="540" cy="228" r="18" fill="#1a1a1a"/><text class="num" x="540" y="233" text-anchor="middle">2</text>
+<text class="h" x="570" y="235">Agent investigates</text>
+<text class="sub" x="530" y="275">The agent gets the raw wiki dump and a</text>
+<text class="sub" x="530" y="295">blind prompt. No internet, fixed time budget.</text>
+<path class="ln" fill="#f7f6f2" d="M540,330 h300 a10,10 0 0 1 10,10 v58 a10,10 0 0 1 -10,10 h-210 l-22,20 v-20 h-68 a10,10 0 0 1 -10,-10 v-58 a10,10 0 0 1 10,-10 z"/>
+<text x="556" y="358" font-size="13.5" font-style="italic" fill="#1a1a1a">“Something unusual happened on this wiki.</text><text x="556" y="378" font-size="13.5" font-style="italic" fill="#1a1a1a">Investigate and write an incident report.”</text>
+<text class="lab" x="556" y="400">BLIND PROMPT</text>
+<g transform="translate(600,470) scale(2.2)">
+<path class="bl" d="M2,16 Q18,-2 34,16"/><path class="bl" d="M-6,16 h48"/><path class="bl" d="M-6,16 l-5,5 M42,16 l5,5"/>
+<rect class="bl" x="4" y="16" width="28" height="26" rx="6" fill="#dfe4f3"/>
+<circle cx="13" cy="28" r="2.6" fill="#1f3a93"/><circle cx="23" cy="28" r="2.6" fill="#1f3a93"/><path class="bl" d="M12,36 h12"/>
+<path class="bl" d="M18,5 v-6"/><circle cx="18" cy="-3" r="2" fill="#1f3a93"/>
+<circle class="bl" cx="46" cy="38" r="8" fill="#f7f6f2"/><path class="bl" d="M52,44 l9,9"/>
+</g>
+<rect class="ln" fill="#f7f6f2" x="576" y="636" width="70" height="88" rx="4"/>
+<rect class="ln" fill="#f7f6f2" x="568" y="628" width="70" height="88" rx="4"/>
+<rect class="ln" fill="#f7f6f2" x="560" y="620" width="70" height="88" rx="4"/>
+<line class="tl" x1="574" y1="640" x2="616" y2="640"/>
+<line class="tl" x1="574" y1="654" x2="616" y2="654"/>
+<line class="tl" x1="574" y1="668" x2="616" y2="668"/>
+<line class="tl" x1="574" y1="682" x2="608" y2="682"/>
+<text class="lab" x="595" y="740" text-anchor="middle">WIKI DUMP</text><text class="sub" x="595" y="758" text-anchor="middle" font-size="12">14,591 edits · ~3,000 agents</text>
+<rect x="690" y="640" width="118" height="32" rx="16" fill="#f7f6f2" stroke="#1a1a1a" stroke-width="1.3"/><text class="lab" x="749" y="660" text-anchor="middle" fill="#1a1a1a">NO INTERNET</text>
+<rect x="690" y="690" width="150" height="32" rx="16" fill="#f7f6f2" stroke="#1a1a1a" stroke-width="1.3"/><text class="lab" x="765" y="710" text-anchor="middle" fill="#1a1a1a">FIXED TIME BUDGET</text>
+<rect class="card" x="930" y="180" width="380" height="600" rx="22"/>
+<circle cx="970" cy="228" r="18" fill="#1a1a1a"/><text class="num" x="970" y="233" text-anchor="middle">3</text>
+<text class="h" x="1000" y="235">Agent writes a report</text>
+<text class="sub" x="960" y="275">Whatever it found, in its own words,</text>
+<text class="sub" x="960" y="295">citing the data it looked at.</text>
+<path class="ln" fill="#f7f6f2" d="M1010,360 h192 l28,28 v252 h-220 z"/>
+<path class="ln" d="M1202,360 v28 h28"/>
+<rect x="1026" y="396" width="188" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1032" y1="405" x2="1178" y2="405"/>
+<line class="tl" x1="1032" y1="423" x2="1208" y2="423"/>
+<rect x="1026" y="432" width="188" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1032" y1="441" x2="1208" y2="441"/>
+<rect x="1026" y="450" width="188" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1032" y1="459" x2="1178" y2="459"/>
+<line class="tl" x1="1032" y1="477" x2="1208" y2="477"/>
+<rect x="1026" y="486" width="188" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1032" y1="495" x2="1208" y2="495"/>
+<line class="tl" x1="1032" y1="513" x2="1178" y2="513"/>
+<line class="tl" x1="1032" y1="531" x2="1208" y2="531"/>
+<path class="bl" d="M1225,668 l40,-40 l14,14 l-40,40 l-18,4 z M1255,638 l14,14"/>
+<text class="lab" x="1120" y="690" text-anchor="middle">AGENT REPORT</text>
+<text class="sub" x="960" y="730">Passages are what the grader reads —</text><text class="sub" x="960" y="750">not the whole document at once.</text>
+<path class="arrow" d="M462,480 H492"/><path class="arrow" d="M892,480 H922"/><path class="arrow" d="M1322,480 H1352"/>
+<line x1="1340" y1="180" x2="1340" y2="780" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="3 5"/>
+<text class="h" x="1370" y="235">Grade</text>
+<text class="sub" x="1370" y="275">Does the report cover each claim,</text><text class="sub" x="1370" y="295">and does it say anything the data</text><text class="sub" x="1370" y="315">contradicts?</text>
+<rect x="1370" y="380" width="100" height="40" rx="9" fill="#e4e2dc" stroke="#1a1a1a" stroke-width="1.2"/>
+<line class="tl" x1="1388" y1="396" x2="1452" y2="396"/><line class="tl" x1="1388" y1="406" x2="1430" y2="406"/>
+<rect x="1370" y="460" width="100" height="40" rx="9" fill="#e4e2dc" stroke="#1a1a1a" stroke-width="1.2"/>
+<line class="tl" x1="1388" y1="476" x2="1452" y2="476"/><line class="tl" x1="1388" y1="486" x2="1430" y2="486"/>
+<rect x="1370" y="540" width="100" height="40" rx="9" fill="#e4e2dc" stroke="#1a1a1a" stroke-width="1.2"/>
+<line class="tl" x1="1388" y1="556" x2="1452" y2="556"/><line class="tl" x1="1388" y1="566" x2="1430" y2="566"/>
+<text class="lab" x="1420" y="620" text-anchor="middle">CLAIMS</text>
+<path class="ln" fill="#f7f6f2" d="M1530,350 h112 l28,28 v222 h-140 z"/>
+<path class="ln" d="M1642,350 v28 h28"/>
+<rect x="1546" y="386" width="108" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1552" y1="395" x2="1618" y2="395"/>
+<line class="tl" x1="1552" y1="413" x2="1648" y2="413"/>
+<rect x="1546" y="422" width="108" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1552" y1="431" x2="1648" y2="431"/>
+<line class="tl" x1="1552" y1="449" x2="1618" y2="449"/>
+<line class="tl" x1="1552" y1="467" x2="1648" y2="467"/>
+<rect x="1546" y="476" width="108" height="16" rx="3" fill="#dfe4f3"/>
+<line class="tl" x1="1552" y1="485" x2="1648" y2="485"/>
+<line class="tl" x1="1552" y1="503" x2="1618" y2="503"/>
+<line class="tl" x1="1552" y1="521" x2="1648" y2="521"/>
+<text class="lab" x="1600" y="630" text-anchor="middle">AGENT REPORT</text>
+<path class="dash" d="M1470,400 C1500,400 1500,395 1530,395"/>
+<circle cx="1500" cy="397.5" r="10" fill="#f7f6f2" stroke="#1a1a1a" stroke-width="1.4"/><path class="ln" d="M1496,397.5 l3,3 l6,-6"/>
+<path class="dash" d="M1470,480 C1500,480 1500,431 1530,431"/>
+<circle cx="1500" cy="455.5" r="10" fill="#f7f6f2" stroke="#1a1a1a" stroke-width="1.4"/><path class="ln" d="M1496,455.5 l3,3 l6,-6"/>
+<circle cx="1495" cy="560" r="10" fill="#f7f6f2" stroke="#1a1a1a" stroke-width="1.4"/><path class="ln" d="M1491,556 l8,8 M1499,556 l-8,8"/>
+<text class="sub" x="1420" y="700" font-size="12" text-anchor="middle">claims found → <tspan fill="#1a1a1a" font-weight="600">recall</tspan></text>
+<circle cx="1700" cy="485" r="10" fill="#f7f6f2" stroke="#1a1a1a" stroke-width="1.4"/><path class="ln" d="M1696,481 l8,8 M1694,481 l-8,8"/>
+<text class="sub" x="1620" y="700" font-size="12" text-anchor="middle">passages vs. data → <tspan fill="#1a1a1a" font-weight="600">precision</tspan></text>
+</svg>
