@@ -28,6 +28,10 @@ from paths import GRADED, VIEWERS, BENCH
 from report_performance import strict, NAMES as REF_NAMES
 
 OUT = VIEWERS / "figures" / "combined_score.html"
+# the numbers on their own, next to headline_eci.{json,csv}, so the composite can be read
+# and plotted without running this build
+DATA_JSON = BENCH / "figures" / "combined_score.json"
+DATA_CSV = BENCH / "figures" / "combined_score.csv"
 HEADLINE = BENCH / "figures" / "headline_eci.json"
 GDIR = GRADED / "judge_claude_fable_5_1"
 BUDGETS = [10, 30, 120]
@@ -102,7 +106,21 @@ def main():
             "eci_source": H["eci_source"], "n_reports": len(cov), "caveats": H["caveats"]}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False)))
-    print(f"wrote {OUT} — {len(models)} models over {len(cov)} reports, "
+    DATA_JSON.parent.mkdir(parents=True, exist_ok=True)
+    DATA_JSON.write_text(json.dumps(data, indent=1, ensure_ascii=False))
+    cols = ["model", "provider", "eci", "eci_exact", "budget_min", "n_runs", "n_fallback",
+            "coverage", "tldr", "combined"]
+    lines = [",".join(cols)]
+    for m in models:
+        for b in BUDGETS:
+            q = m["budgets"].get(str(b))
+            if not q:
+                continue
+            lines.append(",".join(str(x) for x in [
+                f'"{m["model"]}"', m["provider"], m["eci"], m["eci_exact"], b, q["n"],
+                q["n_fallback"], round(q["cov"], 4), round(q["tldr"], 4), round(q["comb"], 4)]))
+    DATA_CSV.write_text("\n".join(lines) + "\n")
+    print(f"wrote {OUT}, {DATA_JSON.name} and {DATA_CSV.name} — {len(models)} models over {len(cov)} reports, "
           f"combined = {W_COV:g}x coverage + {W_TLDR:g}x TL;DR")
     for b in BUDGETS:
         rank_cov = sorted((m for m in models if str(b) in m["budgets"]),
