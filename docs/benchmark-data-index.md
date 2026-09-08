@@ -144,8 +144,66 @@ range inside a hedge the claim itself carries. C02 no longer scores the
 training-versus-testing hedge.
 
 C21, C22 and C28 carry no data note on purpose: their gradeability flips between the
-stripped and verbatim variants, the notes describe the stripped dump, and every run used
-verbatim. Rendering them drove C22 to 0.000 across all 76 reports.
+stripped and verbatim variants, the notes describe the stripped dump, and every run graded
+on these 30-claim sheets used verbatim. Rendering them drove C22 to 0.000 across all 76
+reports. This does not carry over to the `v2` sheets or to the `verbatim_anthropic`
+grades below, which select an answer key per variant.
+
+## How `benchmark/graded/` is organised
+
+The layout carries three independent dimensions, and a path states all three. Grades from
+different judges or sheet modes are never comparable without regrading.
+
+- **Top level** — the original 30-claim recall and precision grades, judged by GPT-5.6
+  Sol. Prefixes: `bl` (seed baselines), `blind`/`context` (the first blind-vs-context
+  batch), `b20`/`b30` and `r2` (round 2), `r3b10`/`r3b30`/`r3b120` (round 3),
+  `r4b10` (round 4 at 10 minutes).
+- **`judge_<model>/`** — the same reports regraded by a different judge, kept apart so a
+  judge change never silently merges into a published number. `judge_claude_opus_5/` also
+  holds loose round-3 files at its top level.
+- **`judge_<model>/<sheet>/`** — the sheet mode: `v2` (38-finding coverage), `tldrh`
+  (holistic summary quality), `tldr` (its earlier form), `origin` (the one-question origin
+  probe).
+- **`<sheet>/variant_anthropic/`** — grades for reports run on `data/verbatim_anthropic`,
+  scored against the swapped answer key. Keeping them in their own subtree is what stops a
+  provider-swap grade being averaged into a verbatim number.
+- **`contradiction/`** — the contradiction pass, built by `rubrics/build_contradiction.py`.
+
+Prefixes name the round and budget: `r2`, `r3b{10,30,120}`, `r4b{10,30,120}`,
+`fu5kb{10,30,120}` and `fu5k` (followup), `psw{10,30}` (provider swap), `abl{10,30}a`
+(Anthropic-attribution ablation). The rest of a filename is harness, model and replicate,
+with `_served_<model>` recording a mid-run model switch.
+
+Counts move as collaborators export more cells, so treat the tracked files as the
+authority rather than any number written down here. `ls` the directory you intend to
+aggregate, and check `_index.jsonl` in the matching `graded_inputs/` folder for the run
+metadata behind each grade.
+
+## Rounds and experiments beyond round 3
+
+- **Round 4** — the `blind-v2` prompt on verbatim at 10, 30 and 120 minutes, three
+  replicates. Reports in `reports/round4/`, staged as `graded_inputs/round4_blind{10,30,120}/`.
+  Graded on the `v2` and `tldrh` sheets under both judge directories.
+- **Provider swap** — round 4's twin on `data/verbatim_anthropic`, testing whether a model
+  reports differently when the incident is attributed to its own provider. Reports in
+  `reports/provider_swap/`, staged as `graded_inputs/pswap_b{10,30}/`, graded under
+  `variant_anthropic/`. `experiments/provider_swap.toml` is the manifest.
+- **Followups** — a continuation with a longer report request. Reports in
+  `reports/followup-5k/` and `reports/followup-5k-min5/`, staged as `graded_inputs/fu5k*/`.
+  It adds both time and length, so it does not isolate report length on its own.
+- **Anthropic-attribution ablation** — staged as `graded_inputs/ablation_anthropic_b{10,30}/`.
+
+Raw agent transcripts are gitignored (`reports/**/transcript.jsonl`) because they are
+multi-MB and are not needed to reproduce a grade. One is committed deliberately as a
+worked example: `reports/round4/transcripts/codex_gpt-6-astra_r1_blind_120m/` holds the
+prompt, run metadata, and the full trajectory of a single 120-minute round-4 replicate,
+including Codex reasoning summaries. Read it to see what an agent actually does with the
+budget; nothing depends on it.
+
+[`experiments/ablations.md`](../experiments/ablations.md) holds the ablation inventory and
+the rebuild/grading commands. [`release-readiness.md`](release-readiness.md) records what
+still has to be reconciled before any of these are published as results — in particular,
+which swap revision each Anthropic batch actually consumed.
 
 ## Auditing the judge (`benchmark/audit/`)
 

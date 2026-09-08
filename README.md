@@ -292,9 +292,9 @@ worktrees, merging and shared run data are in [`AGENTS.md`](AGENTS.md).
 
 Checks: `uv run ruff check . && uv run pytest -q`.
 
-## Licence
+## License
 
-MIT — see [`LICENSE`](LICENSE). The licence covers the code and the benchmark material
+MIT — see [`LICENSE`](LICENSE). The license covers the code and the benchmark material
 authored here (claims, feasibility notes, rubrics, prompts, tooling). It does not license
 the third-party content reproduced for research: the `corpus/` exports, the human
 investigators' report in `benchmark/`, and the model-generated reports in `reports/` and

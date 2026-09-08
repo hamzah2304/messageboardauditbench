@@ -18,6 +18,18 @@ The build downloads the public archive and checks the generated datasets against
 committed checksums. A mismatch must be resolved before comparing new scores with
 published results. Do not rebuild the shared data while trials are reading it.
 
+If the upstream host is unreachable or has moved, the build does not depend on it.
+Any copy of `full-wiki-logs.zip` works, because the pinned SHA256 in
+`scripts/fetch_data.sh` is what establishes that a copy is the benchmark's dataset:
+
+```bash
+MBAB_DUMP_ARCHIVE=/path/to/full-wiki-logs.zip scripts/build_data.sh   # a local copy
+MBAB_DUMP_URL=https://example.org/full-wiki-logs.zip scripts/build_data.sh  # a mirror
+```
+
+Both are verified against the same digest, and a copy that does not match is
+rejected. `scripts/fetch_data.sh` prints these instructions on a failed download.
+
 The Python package needs the checkout's configs, sandbox and grading assets.
 A wheel installed by itself is insufficient: run from the checkout root or set
 `MESSAGEBOARD_AUDIT_BENCH_ROOT` to that checkout.

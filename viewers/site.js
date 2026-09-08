@@ -1,4 +1,4 @@
-/* Site behaviour: rail highlighting, carousels, TODO toggle. No dependencies. */
+/* Site behaviour: rail highlighting, carousels, draft-note toggle. No dependencies. */
 (function () {
   'use strict';
 
@@ -116,7 +116,11 @@
     setTimeout(fit, 300);
   }
 
-  /* ---- TODO visibility toggle (for the team; strip before publishing) ---- */
+  /* ---- draft-note toggle ----
+     Inherited from the captured collusion.wiki chrome (corpus/wiki_styles.css),
+     which marks the original investigators' own draft notes. Nothing in this
+     repository emits those elements, so the control stays hidden; it is kept so
+     our renderer does not diverge from the corpus stylesheet. ---- */
   function initTodoToggle() {
     var btn = document.querySelector('.todo-toggle');
     if (!btn) return;

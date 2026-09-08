@@ -9,14 +9,18 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.11"
+# Upper bounds are deliberate: this benchmark is meant to stay runnable and to
+# reproduce committed grades over a long window. inspect_ai is pre-1.0 and its
+# API moves within 0.3.x, and the provider SDKs make breaking major releases.
+# Widen a bound only together with a lockfile refresh and a full test run.
 dependencies = [
-    "inspect_ai>=0.3.263",
+    "inspect_ai>=0.3.263,<0.4",
     "inspect-swe>=0.2.70,<0.3",
-    "anthropic",
-    "openai",
-    "pyyaml>=6.0",
-    "markdown-it-py>=4.2.0",
-    "python-dotenv>=1.0",
+    "anthropic>=1.4,<2",
+    "openai>=3.8,<4",
+    "pyyaml>=6.0,<7",
+    "markdown-it-py>=4.2.0,<5",
+    "python-dotenv>=1.0,<2",
 ]
 
 [project.urls]
