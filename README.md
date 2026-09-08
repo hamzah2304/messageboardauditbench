@@ -148,6 +148,10 @@ example uses Sol and will therefore produce a different judge configuration.
 Per-finding grades and explanations are retained in the Inspect log. The
 publication finding score applies `max(2s - 1, 0)` to each finding before averaging;
 the headline score combines that with the holistic TLDR grade at weights 70/30.
+
+When a sheet fails to grade, the scorer records the failure and still emits a score
+over the sheets that survived. Any aggregate meant for publication has to read that
+failure metadata rather than the score alone.
 See [the evidence index](docs/benchmark-data-index.md) for source grades and
 human validation records. Alternative grading sheets remain available for
 compatibility and validation, but do not define the headline metric.

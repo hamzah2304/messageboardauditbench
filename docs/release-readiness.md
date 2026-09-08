@@ -27,6 +27,13 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
 
 1. Test setup and a graded eval in a separate fresh clone. Keep the old checkout
    until its private state is backed up and the fresh-clone test passes.
+   Done apart from the paid step: a clone of `main` into an empty directory ran
+   `uv sync --frozen`, `ruff check .`, the full suite (1,324 passing), `uv build`,
+   task discovery by package name, `scripts/doctor.sh`, and
+   `scripts/score_reports.py` over the shipped grades. `doctor.sh` correctly
+   reported the only two things missing from a bare machine, Docker and a built
+   `data/`. What remains needs credentials this check did not have: one graded
+   eval and one Docker trial.
 2. Preserve local historical input variants and legacy raw runs privately.
    An earlier audit found that the local Anthropic variant differed from the
    committed manifest. Rebuilding reproduced the committed hashes, but that
@@ -48,10 +55,11 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
    cells and model fallbacks. Inspect's raw sheet mean differs from the stricter
    per-finding publication transform.
 
-The sheet scorer records partial grader failures and emits a numeric score over
-surviving sheets. Publication aggregation must inspect that failure metadata.
-The wheel currently requires a checkout for runtime and grading assets, as
-explained in the setup instructions.
+This file is a release checklist and is meant to be deleted once the three
+checks above are done. Nothing durable should be recorded only here: the
+partial-grader-failure caveat now sits in the README's grading section, and the
+wheel's need for a checkout in the setup instructions. When it goes, remove the
+two links to it, in `README.md` and `docs/getting-started.md`.
 
 Official Inspect Evals registration is separate from a directly runnable task;
 see [the registration notes](inspect-evals-registration.md).
