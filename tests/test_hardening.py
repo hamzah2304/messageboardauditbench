@@ -51,7 +51,9 @@ def test_subscription_never_mounts_two_cli_credential_directories() -> None:
 
 def test_codex_capacity_retries_preserve_attempts_and_one_deadline() -> None:
     assert 'HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"' in RUN_TRIAL
-    assert '"${remaining}s" codex exec' in RUN_TRIAL
+    assert '"${remaining}s" codex "${CODEX_CMD[@]}"' in RUN_TRIAL
+    assert 'CODEX_CMD=(exec resume "$PARENT_THREAD_ID")' in RUN_TRIAL
+    assert 'CODEX_CMD=(exec -C /work)' in RUN_TRIAL
     assert '"$RUN/transcript.attempt$attempt.jsonl"' in RUN_TRIAL
     assert '"$RUN/stderr.attempt$attempt.log"' in RUN_TRIAL
     assert 'sleep_seconds=$((remaining < 30 ? remaining : 30))' in RUN_TRIAL

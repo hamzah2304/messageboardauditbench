@@ -17,6 +17,17 @@ from typing import Any
 
 from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
 
+# Continuation samples: which round-4 sample they resumed.
+PARENT_KEYS = (
+    "mode",
+    "parent_log",
+    "parent_epoch",
+    "parent_budget_min",
+    "parent_report_words",
+    "parent_run_id",
+    "parent_thread_id",
+)
+
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _NO_REPORT = "(no report written)"
 
@@ -30,6 +41,11 @@ def _prompt_text(value: object) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
+        # A continuation sample's input is a whole prior conversation; the
+        # prompt it answers is the final user message (the follow-up request).
+        users = [item for item in value if getattr(item, "role", None) == "user"]
+        if users:
+            return str(getattr(users[-1], "text", users[-1].content))
         return "\n".join(str(getattr(item, "content", item)) for item in value)
     return str(value or "")
 
@@ -156,6 +172,7 @@ def export_records(
             "config": config_name,
             "prompt_id": prompt_id,
             "budget_min": meta.get("budget_min"),
+            "mode": meta.get("mode"),
             "data_variant": variant,
             "effort": effort,
         }
@@ -201,6 +218,7 @@ def export_records(
                 "config": config_name,
                 "prompt_id": prompt_id,
                 "budget_min": meta.get("budget_min"),
+                **{k: meta.get(k) for k in PARENT_KEYS if k in meta},
                 "data_variant": variant,
                 "effort": effort,
                 "agent": meta.get("agent"),

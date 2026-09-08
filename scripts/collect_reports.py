@@ -68,7 +68,9 @@ def main() -> int:
         if rejected and not a.include_rejected:
             continue
         prompt_p = d / "work" / "prompt.txt"
-        if not prompt_p.exists():
+        # A continuation keeps the parent's prompt in work/; the follow-up message
+        # it was actually given is the run-level prompt.txt.
+        if not prompt_p.exists() or meta.get("mode") == "continuation":
             prompt_p = d / "prompt.txt"
         prompt = prompt_p.read_text() if prompt_p.exists() else ""
         p8 = hashlib.sha256(prompt.encode()).hexdigest()[:8] if prompt else "noprompt"
@@ -111,6 +113,7 @@ def main() -> int:
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
                                                   "wall_seconds", "cli_version", "prompt_sha256")},
                      "model_served": served, "model_fallback": meta.get("model_fallback"),
+                     **{k: meta.get(k) for k in ("mode", "parent_run_dir", "parent_run_id", "parent_thread_id", "parent_budget_min") if k in meta},
                      "report_rejected": rejected,
                      **length,
                      "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit_bench/usage.py)

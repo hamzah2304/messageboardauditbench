@@ -1,0 +1,18 @@
+# Follow-up condition: continue a finished trial's conversation and ask for a
+# longer report. Launched with RESUME_FROM=<parent run dir> (Codex) or through
+# the messageboard_audit_bench_continue Inspect task (ReAct). budget_min is the
+# extra time granted on top of the parent trial.
+name = "followup-5k"
+prompt = "followup-5k"
+budget_min = 10
+timeout_min = 15
+data_variant = "verbatim"
+effort = "xhigh"
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+# The agent is not held to a minimum working period on a continuation.
+min_runtime_fraction = 0
+
+report_min_words = 4500
+report_max_words = 5000
+report_accept_min_words = 0
+report_accept_max_words = 5300
