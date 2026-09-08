@@ -16,7 +16,8 @@ _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
 from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2] / "scripts"))
-from extract_tldr import extract as extract_tldr
+from extract_tldr import extract as extract_tldr  # noqa: F401  (used via core)
+from messageboard_audit_bench.grading import core
 from dotenv import load_dotenv
 load_dotenv(ENV_FILE)
 from openai import OpenAI
@@ -26,35 +27,28 @@ from openai import OpenAI
 # wrong (-1..0). They are graded separately and never blended — a thin report scores
 # well on contradiction precisely because it says little, and averaging the two would
 # hide that.
+#
+# The mode table, the prompt, the parsing, the arithmetic and the output path all live in
+# messageboard_audit_bench.grading.core, which the Inspect scorer imports too. This script
+# keeps its CLI, its thread pool and its provider clients; it no longer keeps its own
+# definition of what a grade is, so the two paths cannot drift.
 _R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv
                 else "tldrh" if "--tldrh" in sys.argv else "recall")
 MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall",
         "tldr": "tldr", "tldrh": "tldrh"}[_R]
-# sheet-file prefix, how many sheets, and the score range each rubric is scored on
-SHEET, N_SHEETS = {"recall": ("rubric", 6), "contradiction": ("contra", 6),
-                   "v2": ("v2", 8), "tldr": ("tldr", 1), "tldrh": ("tldrh", 1)}[MODE]
-LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0),
-          "v2": (0.0, 1.0), "tldr": (0.0, 1.0), "tldrh": (0.0, 1.0)}[MODE]
-# the two TL;DR rubrics score the summary alone, and each is a single sheet whose
-# rubric_id carries no sheet number
-TLDR_MODES = ("tldr", "tldrh")
+SPEC = core.MODES[MODE]
+LO, HI = SPEC.lo, SPEC.hi
 
-DEFAULT_MODEL = "gpt-5.6-sol"
+DEFAULT_MODEL = core.DEFAULT_JUDGE
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
 EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
 WORKERS = int(os.getenv("WORKERS", "12"))   # sheet calls in flight at once
 IS_ANTHROPIC = MODEL.startswith("claude")
 
 
-def _san(s):
-    return re.sub(r"[^0-9a-zA-Z]+", "_", s).strip("_")
+_san = core.sanitise
 
-
-# The default judge keeps writing to benchmark/graded/ (where every committed grade
-# lives); any other judge gets its own namespace so the two never collide.
-OUT_DIR = GRADED if MODEL == DEFAULT_MODEL else GRADED / f"judge_{_san(MODEL)}"
-if MODE != "recall":
-    OUT_DIR = OUT_DIR / MODE
+OUT_DIR = core.out_dir(MODEL, MODE)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 if IS_ANTHROPIC:
@@ -71,16 +65,11 @@ REPORTS = {
     "haiku": ("Claude Haiku 4.5", "haiku_audit.md"),
     "luna":  ("GPT-5.6 Luna",     "luna_audit.md"),
 }
-_SET = {"recall": "rubric", "contradiction": "rubric", "v2": "v2",
-        "tldr": "tldr", "tldrh": "tldrh"}[MODE]
-RUBRIC_SETS = [json.loads((RUBRICS / f"{_SET}_{i}.json").read_text()) for i in range(1, N_SHEETS + 1)]
-# Each rubric_N.md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
-# {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal).
-_PFX = {"v2": "V", "tldr": "TLDR", "tldrh": "TLDRH"}.get(MODE, "R")
-RUBRIC_MD = {(_PFX if MODE in TLDR_MODES else f"{_PFX}{i}"): (RUBRICS / f"{SHEET}_{i}.md").read_text()
-             for i in range(1, N_SHEETS + 1)}
-HUMAN_REPORT = (HUMAN_REPORT).read_text()
-SYS = "You are a careful grader. Follow the grading sheet exactly and output strict JSON only."
+# Each sheet's .md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
+# {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal); the .json is the
+# machine-readable claim set.
+RUBRIC_SETS, RUBRIC_MD = core.load_sheets(MODE)
+SYS = core.SYSTEM
 
 def sol(system, user, max_tok=16000):
     last = None
@@ -97,29 +86,8 @@ def sol(system, user, max_tok=16000):
             raise
     raise RuntimeError(f"all efforts failed: {last}")
 
-JSON_ONLY = ("\n\nIMPORTANT: return ONLY the JSON object itself — no prose before or "
-             "after it, and no markdown code fences.")
-
-
-def _extract_json(raw):
-    """Anthropic gives no response_format guarantee; strip fences/prose around the object."""
-    if not raw:
-        return None
-    s = raw.strip()
-    if s.startswith("```"):
-        s = re.sub(r"^```[a-zA-Z]*\s*", "", s)
-        s = re.sub(r"```\s*$", "", s).strip()
-    try:
-        return json.loads(s)
-    except Exception:
-        pass
-    i, j = s.find("{"), s.rfind("}")
-    if i != -1 and j > i:
-        try:
-            return json.loads(s[i:j + 1])
-        except Exception:
-            return None
-    return None
+JSON_ONLY = core.JSON_ONLY
+_extract_json = core.extract_json
 
 
 def claude(system, prefix, suffix, max_tok=32000):
@@ -139,49 +107,35 @@ def claude(system, prefix, suffix, max_tok=32000):
 
 
 def grade_one(report_md, rub):
-    if MODE in TLDR_MODES:     # the summary alone is what these rubrics judge
-        report_md, _how = extract_tldr(report_md)
-    tmpl = RUBRIC_MD[rub["rubric_id"]].replace("{{HUMAN_REPORT}}", HUMAN_REPORT)
+    """One sheet against one report. `core.build_prompt` decides what the judge sees.
+
+    The Anthropic path sends the prefix and suffix as two blocks so the sheet carries the
+    cache breakpoint; the OpenAI path concatenates them into one message. Either way the
+    bytes are the same, which is what tests/test_grading_prompt_parity.py pins down.
+    """
+    system, prefix, suffix = core.build_prompt(MODE, rub["rubric_id"], report_md, RUBRIC_MD)
     if IS_ANTHROPIC:
-        pre, _, post = tmpl.partition("{{MODEL_REPORT}}")
-        raw, eff = claude(SYS, pre, report_md + post)
+        raw, eff = claude(system, prefix, suffix)
         data = _extract_json(raw)
         if data is None:  # one retry, telling it to drop the wrapper
-            raw, eff = claude(SYS, pre, report_md + post + JSON_ONLY)
+            raw, eff = claude(system, prefix, suffix + JSON_ONLY)
             data = _extract_json(raw)
         if data is None:
             raise ValueError(f"unparseable JSON from {MODEL}: {raw[:200]!r}")
     else:
-        raw, eff = sol(SYS, tmpl.replace("{{MODEL_REPORT}}", report_md))
+        raw, eff = sol(system, prefix + suffix)
         data = json.loads(raw)
-    items = {x["id"]: x for x in data.get("items", []) if isinstance(x, dict) and "id" in x}
-    for x in items.values():
-        try: x["score"] = round(max(LO, min(HI, float(x.get("score", 0)))), 1)
-        except Exception: x["score"] = 0.0
-    return rub["rubric_id"], items, eff
+    return rub["rubric_id"], core.parse_items(data, LO, HI), eff
 
 def aggregate(key, title, per_claim, per_rubric):
-    total = round(sum(i["score"] for i in per_claim.values()), 2); mx = len(per_claim)
-    out = {"report": key, "title": title, "grader": MODEL, "rubric": MODE,
-           "total": total, "max": mx, "per_rubric": per_rubric, "scores": per_claim}
-    if MODE == "contradiction":
-        hit = [i for i in per_claim.values() if i["score"] < 0]
-        out["contradiction"] = round(total / mx, 3) if mx else 0
-        out["n_contradicted"] = len(hit)
-        out["worst"] = round(min([i["score"] for i in per_claim.values()] or [0]), 1)
-    else:
-        mode = {c["id"]: c.get("grading_mode", "recall_accuracy")
-                for r in RUBRIC_SETS for c in r["claims"]}
-        def mean(ids):
-            xs = [per_claim[i]["score"] for i in ids if i in per_claim]
-            return round(sum(xs) / len(xs), 3) if xs else 0.0
-        out["accuracy"] = round(total / mx, 3) if mx else 0
-        # tldrh returns one item keyed TLDRH, not per-claim ids, so there is nothing to
-        # split by grading mode; emitting the split would put two zeroes where a reader
-        # would expect scores.
-        if MODE != "tldrh":
-            out["by_mode"] = {m: mean([cid for cid in per_claim if mode.get(cid) == m])
-                              for m in ("recall_accuracy", "recall_calibrated")}
+    out = core.aggregate(key, title, MODEL, MODE, per_claim, per_rubric, RUBRIC_SETS)
+    if out["max"] == 0:
+        # Every call for this report failed (an auth or billing error hits all of them at
+        # once). Writing the file anyway records a total of 0 that is indistinguishable
+        # from a report that genuinely scored nothing, and the resume path then skips it
+        # forever.
+        print(f"[{key}] no claims came back — not writing a grade file", flush=True)
+        return out
     (OUT_DIR / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     return out
 
@@ -234,6 +188,8 @@ def main():
     rows = []
     for key, a in acc.items():
         out = aggregate(key, a["title"], a["per_claim"], a["per_rubric"])
+        if out["max"] == 0:      # nothing came back; there is no row to print or sort
+            continue
         rows.append((out.get("accuracy", out.get("contradiction")), key,
                      out["total"], out["max"], out.get("by_mode"), out.get("n_contradicted")))
     for v, key, total, mx, by_mode, nc in sorted(rows, reverse=True):
