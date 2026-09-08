@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ranks on both corpora</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>:root{--ground:#F6F6F2;--surface:#FFFFFF;--ink:#17181A;--ink2:#5F636A;--ink3:#8E939B;--line:#DEDFD9;--grid:#ECECE7;
+  --p-anthropic:#D97757;--p-openai:#1A1A1A;--p-google:#2E9E4F;--p-meta:#0668E1;--p-moonshot:#C2185B;--p-zai:#00897B;
+  --tip-bg:#22252B;--tip-ink:#F2F2EE}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#15171B;--surface:#1E2126;--ink:#ECEDE9;--ink2:#A6ABB3;--ink3:#7B8088;--line:#33373E;--grid:#272A30;
+  --p-openai:#F0F0EC;--p-anthropic:#E8906F;--p-google:#4DBF6C;--p-meta:#5B9BF0;--p-moonshot:#E0568A;--p-zai:#2FB8A6;--tip-bg:#F2F2EE;--tip-ink:#17181A}}
+:root[data-theme="dark"]{--ground:#15171B;--surface:#1E2126;--ink:#ECEDE9;--ink2:#A6ABB3;--ink3:#7B8088;--line:#33373E;--grid:#272A30;
+  --p-openai:#F0F0EC;--p-anthropic:#E8906F;--p-google:#4DBF6C;--p-meta:#5B9BF0;--p-moonshot:#E0568A;--p-zai:#2FB8A6;--tip-bg:#F2F2EE;--tip-ink:#17181A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.55 "Public Sans",system-ui,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:36px 28px 80px}
+h1{font:600 30px/1.15 "Source Serif 4",Georgia,serif;margin:0 0 6px;text-wrap:balance}
+.lede{color:var(--ink2);max-width:66ch;margin:0 0 36px}
+.fig{margin:0 0 44px}
+.eyebrow{font:500 11px/1 "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin:0 0 6px}
+h2{font:600 22px/1.2 "Source Serif 4",Georgia,serif;margin:0 0 6px;text-wrap:balance}
+.read{color:var(--ink2);max-width:70ch;margin:0 0 12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px 16px 10px}
+.cap{color:var(--ink3);font-size:12.5px;margin:8px 0 0;max-width:80ch}
+.cap b{color:var(--ink2);font-weight:600}
+svg{display:block;max-width:100%;overflow:visible}
+text{font-family:"Public Sans",system-ui,sans-serif}
+.num,.axis{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.axis{fill:var(--ink2);font-size:10.5px}.axname{fill:var(--ink2);font-size:11.5px}
+.tick{stroke:var(--grid);stroke-width:1}.axline{stroke:var(--line);stroke-width:1}
+.lab{fill:var(--ink);font-size:11.5px;cursor:grab;user-select:none}.lab.trunc{fill:var(--ink2)}
+.lab:active{cursor:grabbing}
+.leader{stroke:var(--ink3);stroke-width:.8;fill:none;opacity:.7}
+.hit{fill:transparent;cursor:pointer}
+.tools{display:flex;gap:8px;align-items:center;margin:8px 0 0;font-size:12px;color:var(--ink3)}
+button{font:500 12px "Public Sans",system-ui,sans-serif;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:3px 9px;cursor:pointer}
+button:hover{color:var(--ink)} button:focus-visible{outline:2px solid var(--p-meta);outline-offset:1px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (max-width:700px){.grid2{grid-template-columns:1fr}}
+.cell .sub2{font:11px "Public Sans",system-ui,sans-serif;color:var(--ink2);margin:0 0 4px}
+@media (max-width:820px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+.cell{padding:8px 8px 4px;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+.cell h3{margin:0;font:600 12.5px/1.2 "Public Sans",system-ui,sans-serif}
+.cell .m{font:11px "JetBrains Mono",monospace;color:var(--ink3);margin:1px 0 2px}
+#tip{position:fixed;pointer-events:none;background:var(--tip-bg);color:var(--tip-ink);padding:7px 10px;border-radius:5px;
+  font-size:12px;line-height:1.45;opacity:0;transition:opacity .08s;z-index:9;white-space:nowrap;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--ink2);font-weight:600}
+.tbl{overflow-x:auto}
+details{margin-top:10px}summary{cursor:pointer;color:var(--ink2);font-size:13px;font-weight:500}
+ul.cav{color:var(--ink2);font-size:13px;padding-left:18px;margin:6px 0;max-width:80ch}ul.cav li{margin:3px 0}
+@media (prefers-reduced-motion:reduce){#tip{transition:none}}
+
+/* additions used by the round-4 companion figures, in the same idiom */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin:8px 0 0;font-size:12px;color:var(--ink2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%}
+.hero{display:flex;gap:32px;flex-wrap:wrap;margin:0 0 30px}
+.hero div{min-width:150px}
+.hero b{display:block;font:600 26px/1.1 "JetBrains Mono",monospace;font-variant-numeric:tabular-nums;color:var(--ink)}
+.hero span{font-size:12px;color:var(--ink3)}
+td.d{font-weight:600}
+td.zero{color:var(--ink3)}
+</style></head><body>
+<main>
+  <h1>Where each model ranks, on both corpora</h1>
+  <p class="lede" id="lede"></p>
+  <div class="tools" id="tabs"></div>
+  <section class="fig">
+    <p class="eyebrow">Figure 1</p>
+    <h2>The same ranking, twice</h2>
+    <p class="read" id="read1"></p>
+    <div class="panel" id="fig1"></div>
+    <div class="legend" id="leg1"></div>
+    <div class="tools"><button class="csv" data-csv="ranks">copy CSV</button><span>or benchmark/figures/rank_compare.csv</span></div>
+    <p class="cap" id="cap1"></p>
+    <details><summary>Numbers</summary><div class="tbl" id="tbl1"></div></details>
+  </section>
+  <details><summary>How to read this</summary><ul class="cav" id="cav"></ul></details>
+</main>
+<div id="tip"></div>
+<script type="application/json" id="data">{"measures": {"origin": {"label": "origin probe", "note": "one question over the whole report, judged by claude-opus-5", "rows": [{"model": "Gemini 3.8 Flash", "group": "neutral", "std": 0.8444444444444444, "twin": 0.74, "n_std": 9, "n_twin": 5, "rank_std": 1, "rank_twin": 1}, {"model": "Opus 5", "group": "Anthropic", "std": 0.7333333333333333, "twin": 0.52, "n_std": 9, "n_twin": 5, "rank_std": 2, "rank_twin": 6}, {"model": "Opus 4.8", "group": "Anthropic", "std": 0.6222222222222222, "twin": 0.6, "n_std": 9, "n_twin": 5, "rank_std": 3, "rank_twin": 3}, {"model": "GLM 5.3", "group": "neutral", "std": 0.6, "twin": 0.44, "n_std": 9, "n_twin": 5, "rank_std": 4, "rank_twin": 7}, {"model": "Kimi K3", "group": "neutral", "std": 0.5125, "twin": 0.32, "n_std": 8, "n_twin": 5, "rank_std": 5, "rank_twin": 11}, {"model": "GPT-5.6 Sol", "group": "OpenAI", "std": 0.46111111111111114, "twin": 0.6666666666666666, "n_std": 18, "n_twin": 6, "rank_std": 6, "rank_twin": 2}, {"model": "Sonnet 5", "group": "Anthropic", "std": 0.4375, "twin": 0.5833333333333334, "n_std": 8, "n_twin": 6, "rank_std": 7, "rank_twin": 4}, {"model": "GPT-5.6 Terra", "group": "OpenAI", "std": 0.4222222222222222, "twin": 0.38333333333333336, "n_std": 9, "n_twin": 6, "rank_std": 8, "rank_twin": 8}, {"model": "Muse Spark 1.3", "group": "neutral", "std": 0.33333333333333337, "twin": 0.35000000000000003, "n_std": 9, "n_twin": 6, "rank_std": 9, "rank_twin": 10}, {"model": "Haiku 4.5", "group": "Anthropic", "std": 0.3, "twin": 0.575, "n_std": 6, "n_twin": 4, "rank_std": 10, "rank_twin": 5}, {"model": "GPT-6 Astra", "group": "OpenAI", "std": 0.28, "twin": 0.2833333333333333, "n_std": 10, "n_twin": 6, "rank_std": 11, "rank_twin": 12}, {"model": "GPT-5.6 Luna", "group": "OpenAI", "std": 0.26666666666666666, "twin": 0.35000000000000003, "n_std": 9, "n_twin": 6, "rank_std": 12, "rank_twin": 9}], "n_std": 113, "n_twin": 65}, "attribution": {"label": "attribution findings", "note": "the six recall findings that name an actor, strict", "rows": [{"model": "Gemini 3.8 Flash", "group": "neutral", "std": 0.45185185185185184, "twin": 0.3333333333333333, "n_std": 9, "n_twin": 3, "rank_std": 1, "rank_twin": 3}, {"model": "Opus 4.8", "group": "Anthropic", "std": 0.43703703703703706, "twin": 0.35555555555555557, "n_std": 9, "n_twin": 3, "rank_std": 2, "rank_twin": 1}, {"model": "Opus 5", "group": "Anthropic", "std": 0.4111111111111111, "twin": 0.31666666666666665, "n_std": 9, "n_twin": 4, "rank_std": 3, "rank_twin": 4}, {"model": "GLM 5.3", "group": "neutral", "std": 0.34814814814814815, "twin": 0.25555555555555554, "n_std": 9, "n_twin": 3, "rank_std": 4, "rank_twin": 7}, {"model": "Sonnet 5", "group": "Anthropic", "std": 0.2875, "twin": 0.3416666666666667, "n_std": 8, "n_twin": 4, "rank_std": 5, "rank_twin": 2}, {"model": "Kimi K3", "group": "neutral", "std": 0.2625, "twin": 0.3, "n_std": 8, "n_twin": 3, "rank_std": 6, "rank_twin": 5}, {"model": "Muse Spark 1.3", "group": "neutral", "std": 0.17037037037037037, "twin": 0.20833333333333334, "n_std": 9, "n_twin": 4, "rank_std": 7, "rank_twin": 9}, {"model": "Haiku 4.5", "group": "Anthropic", "std": 0.16666666666666666, "twin": 0.27499999999999997, "n_std": 6, "n_twin": 4, "rank_std": 8, "rank_twin": 6}, {"model": "GPT-5.6 Sol", "group": "OpenAI", "std": 0.14814814814814814, "twin": 0.22499999999999998, "n_std": 18, "n_twin": 4, "rank_std": 9, "rank_twin": 8}, {"model": "GPT-5.6 Terra", "group": "OpenAI", "std": 0.11481481481481481, "twin": 0.07499999999999998, "n_std": 9, "n_twin": 4, "rank_std": 10, "rank_twin": 10}, {"model": "GPT-6 Astra", "group": "OpenAI", "std": 0.03333333333333333, "twin": 0.05, "n_std": 10, "n_twin": 4, "rank_std": 11, "rank_twin": 11}, {"model": "GPT-5.6 Luna", "group": "OpenAI", "std": 0.007407407407407406, "twin": 0.008333333333333331, "n_std": 9, "n_twin": 4, "rank_std": 12, "rank_twin": 12}], "n_std": 113, "n_twin": 44}, "overall": {"label": "overall recall", "note": "all 38 findings, strict — the control", "rows": [{"model": "Opus 5", "group": "Anthropic", "std": 0.34269005847953216, "twin": 0.3105263157894737, "n_std": 9, "n_twin": 4, "rank_std": 1, "rank_twin": 1}, {"model": "GPT-6 Astra", "group": "OpenAI", "std": 0.3057894736842105, "twin": 0.26973684210526316, "n_std": 10, "n_twin": 4, "rank_std": 2, "rank_twin": 3}, {"model": "Gemini 3.8 Flash", "group": "neutral", "std": 0.3023391812865497, "twin": 0.2912280701754386, "n_std": 9, "n_twin": 3, "rank_std": 3, "rank_twin": 2}, {"model": "GPT-5.6 Sol", "group": "OpenAI", "std": 0.28538011695906434, "twin": 0.20921052631578949, "n_std": 18, "n_twin": 4, "rank_std": 4, "rank_twin": 6}, {"model": "GLM 5.3", "group": "neutral", "std": 0.28362573099415206, "twin": 0.17192982456140352, "n_std": 9, "n_twin": 3, "rank_std": 5, "rank_twin": 8}, {"model": "Opus 4.8", "group": "Anthropic", "std": 0.25087719298245614, "twin": 0.18070175438596492, "n_std": 9, "n_twin": 3, "rank_std": 6, "rank_twin": 7}, {"model": "Muse Spark 1.3", "group": "neutral", "std": 0.2304093567251462, "twin": 0.21842105263157896, "n_std": 9, "n_twin": 4, "rank_std": 7, "rank_twin": 4}, {"model": "GPT-5.6 Terra", "group": "OpenAI", "std": 0.21169590643274855, "twin": 0.1618421052631579, "n_std": 9, "n_twin": 4, "rank_std": 8, "rank_twin": 9}, {"model": "Kimi K3", "group": "neutral", "std": 0.1881578947368421, "twin": 0.21228070175438596, "n_std": 8, "n_twin": 3, "rank_std": 9, "rank_twin": 5}, {"model": "Sonnet 5", "group": "Anthropic", "std": 0.1723684210526316, "twin": 0.15789473684210528, "n_std": 8, "n_twin": 4, "rank_std": 10, "rank_twin": 10}, {"model": "GPT-5.6 Luna", "group": "OpenAI", "std": 0.10818713450292397, "twin": 0.07236842105263158, "n_std": 9, "n_twin": 4, "rank_std": 11, "rank_twin": 11}, {"model": "Haiku 4.5", "group": "Anthropic", "std": 0.03245614035087719, "twin": 0.05263157894736842, "n_std": 6, "n_twin": 4, "rank_std": 12, "rank_twin": 12}], "n_std": 113, "n_twin": 44}}, "judges": {"recall": "claude-fable-5-1", "probe": "claude-opus-5"}}</script>
+<script>
+
+'use strict';
+const D = JSON.parse(document.getElementById('data').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+const s = (t, a) => { const e = document.createElementNS(NS, t);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c;
+  if (x != null) e.textContent = x; return e; };
+/* group, not provider: the question is whether the lab being named is the model's own */
+const COL = {OpenAI: 'var(--p-openai)', Anthropic: 'var(--p-anthropic)', neutral: 'var(--p-google)'};
+let sel = 'origin';
+
+document.getElementById('lede').textContent =
+  'The twin corpus is the same task on the same data with one substitution: the lab the '
+  + 'evidence names becomes Anthropic instead of OpenAI. If reticence were loyalty, ranks '
+  + 'would move when the name changes — OpenAI models climbing, Anthropic models falling. '
+  + 'Recall is judged by ' + D.judges.recall + ', the probe by ' + D.judges.probe + '.';
+
+function fig() {
+  const M = D.measures[sel], rows = M.rows;
+  const W = 1040, H = 60 + rows.length * 30, L = 250, R = 250, T = 40;
+  const IH = H - T - 24, x0 = L, x1 = W - R;
+  const y = r => T + (r - 1) / Math.max(1, rows.length - 1) * IH;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'model ranks on the standard and swapped corpora'});
+  [[x0, 'data names OpenAI'], [x1, 'data names Anthropic']].forEach(([x, t]) => {
+    const h = s('text', {x, y: T - 18, class: 'axname', 'text-anchor': 'middle'});
+    h.textContent = t; svg.append(h);
+    svg.append(s('line', {x1: x, x2: x, y1: T - 8, y2: T + IH + 8, class: 'axline'}));
+  });
+  rows.forEach(r => {
+    const c = COL[r.group], ya = y(r.rank_std), yb = y(r.rank_twin);
+    const moved = r.rank_twin - r.rank_std;
+    svg.append(s('line', {x1: x0, y1: ya, x2: x1, y2: yb, stroke: c,
+      'stroke-width': moved ? 2 : 1, opacity: moved ? .85 : .35}));
+    [[x0, ya], [x1, yb]].forEach(([x, yy]) =>
+      svg.append(s('circle', {cx: x, cy: yy, r: 4.5, fill: c, stroke: 'var(--surface)',
+        'stroke-width': 1.5})));
+    const la = s('text', {x: x0 - 12, y: ya + 4, class: 'lab', 'text-anchor': 'end'});
+    la.textContent = `${r.rank_std}. ${r.model}  ${r.std.toFixed(2)}`; svg.append(la);
+    const lb = s('text', {x: x1 + 12, y: yb + 4, class: 'lab'});
+    lb.textContent = `${r.rank_twin}. ${r.model}  ${r.twin.toFixed(2)}`
+      + (moved ? `  (${moved > 0 ? '▼' : '▲'}${Math.abs(moved)})` : '');
+    svg.append(lb);
+  });
+  document.getElementById('fig1').replaceChildren(svg);
+  const leg = document.getElementById('leg1'); leg.replaceChildren();
+  Object.entries(COL).forEach(([g, c]) => {
+    const sp = el('span'); const i = el('i'); i.style.background = c;
+    sp.append(i, document.createTextNode(g + (g === 'neutral' ? ' (neither lab)' : ' models')));
+    leg.append(sp);
+  });
+  const moved = rows.filter(r => r.rank_std !== r.rank_twin).length;
+  document.getElementById('cap1').textContent =
+    `${M.label}: ${M.note}. Rank 1 is best. ${rows.length} models present on both corpora, `
+    + `${M.n_std} standard and ${M.n_twin} swapped reports. ${moved ? moved + ' models change rank' :
+       'no model changes rank'}; a flat line is a model the swap did not move. Faded lines `
+    + `did not move.`;
+  const t = el('table'), hd = el('tr');
+  ['model', 'group', 'standard', 'rank', 'twin', 'rank', 'move', 'runs'].forEach((h, i) =>
+    hd.append(el('th', i < 2 ? 'l' : '', h)));
+  const th = el('thead'); th.append(hd); t.append(th);
+  const tb = el('tbody');
+  rows.forEach(r => {
+    const tr = el('tr'), mv = r.rank_std - r.rank_twin;
+    tr.append(el('td', 'l', r.model), el('td', 'l', r.group),
+      el('td', 'num', r.std.toFixed(3)), el('td', 'num', '#' + r.rank_std),
+      el('td', 'num', r.twin.toFixed(3)), el('td', 'num', '#' + r.rank_twin),
+      el('td', 'num', mv === 0 ? '—' : (mv > 0 ? '+' : '') + mv),
+      el('td', 'num', `${r.n_std}/${r.n_twin}`));
+    tb.append(tr);
+  });
+  t.append(tb);
+  document.getElementById('tbl1').replaceChildren(t);
+  CSV.ranks = ['measure,model,group,score_standard,rank_standard,score_twin,rank_twin,n_standard,n_twin',
+    ...rows.map(r => [sel, r.model, r.group, r.std.toFixed(4), r.rank_std,
+      r.twin.toFixed(4), r.rank_twin, r.n_std, r.n_twin].join(','))].join('\n');
+}
+const CSV = {};
+function tabs() {
+  const box = document.getElementById('tabs'); box.replaceChildren();
+  Object.entries(D.measures).forEach(([k, m]) => {
+    const b = el('button', k === sel ? 'on' : '', m.label);
+    b.onclick = () => { sel = k; tabs(); fig(); };
+    box.append(b);
+  });
+  const c = el('button', 'csv', 'copy CSV'); c.dataset.csv = 'ranks';
+  c.onclick = () => navigator.clipboard.writeText(CSV.ranks || '').then(() => {
+    c.textContent = 'copied'; setTimeout(() => { c.textContent = 'copy CSV'; }, 1200); }).catch(() => {});
+  box.append(c, el('span', null, 'or benchmark/figures/rank_compare.csv'));
+}
+const cav = document.getElementById('cav');
+['A slope is one model’s rank on the standard corpus joined to its rank on the swapped '
+ + 'one. Loyalty predicts OpenAI models rise and Anthropic models fall; the observed lines '
+ + 'mostly stay flat.',
+ 'Ranks are over models present on both corpora, so a model missing from the twin is absent '
+ + 'from both columns rather than shifting everyone below it.',
+ 'The twin has fewer runs per model than the standard corpus, so a single run moves a twin '
+ + 'rank further than a standard one. The runs column gives both counts.',
+ 'Overall recall is the control: a model that simply writes worse reports on the swapped '
+ + 'data should move there too, not only on the attribution measures.'
+].forEach(t => cav.append(el('li', null, t)));
+tabs(); fig();
+
+</script>
+</body></html>
