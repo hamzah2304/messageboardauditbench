@@ -199,10 +199,11 @@ document.getElementById('lede').textContent =
   + 'Recall is judged by ' + D.judges.recall + ', the probe by ' + D.judges.probe + '.';
 
 /* --- Figure 1: the group means, both corpora --- */
-/* OpenAI wears its provider colour from the headline figures; the other group is eight
-   models from five providers, so it is deliberately neutral rather than borrowing one
-   provider's hue. Both bars are named underneath, so identity never rests on colour. */
-const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--ink2)'};
+/* Both groups take tokens from the post's provider palette rather than ink greys, so the
+   figure sits with the rest. OpenAI keeps the black it wears everywhere in the post. The
+   other group is eight models from five providers, so its green denotes the group, not
+   Google — which is why both bars are named on the axis and in the legend. */
+const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--p-google)'};
 function fig0() {
   const M = D.measures[sel], sp = M.split;
   const corpora = [['standard', 'standard setting'], ['twin', 'modified Anthropic setting']];
@@ -278,7 +279,7 @@ function fig0() {
     t.textContent = k + ' models'; svg.append(t);
     lx += 26 + (k.length + 7) * 6.4;
   });
-  svg.append(s('circle', {cx: lx + 4, cy: T - 21.5, r: 2.6, fill: 'var(--ink2)', opacity: .75}));
+  svg.append(s('circle', {cx: lx + 4, cy: T - 21.5, r: 2.6, fill: 'var(--ink3)', opacity: .75}));
   const dl = s('text', {x: lx + 12, y: T - 18, class: 'axis'});
   dl.textContent = 'one model'; svg.append(dl);
   document.getElementById('leg0').replaceChildren();
@@ -292,6 +293,7 @@ function fig0() {
     + `not outvote Haiku's six. Whiskers are 95% percentile intervals bootstrapped over `
     + `models — four in the OpenAI group and eight in the other — which is why they are wide. `
     + `Each dot is one model's own mean; hover for its name and run count. `
+    + `The green denotes the group, not Google: it holds eight models from five providers. `
     + `Standard setting: ${sp.standard['OpenAI'].runs} and ${sp.standard['non-OpenAI'].runs} runs. `
     + `Modified: ${sp.twin['OpenAI'].runs} and ${sp.twin['non-OpenAI'].runs}.`;
   const t = el('table'), hd = el('tr');
