@@ -56,12 +56,15 @@ def report_from_sample():
 def grade_reports(
     dir: str = "round4_blind120",  # noqa: A002 — the Inspect task parameter is named `dir`
     rubric: str = "v2",
+    judge: str = "openai/gpt-5.6-sol",
 ) -> Task:
     """Grade every staged report in `dir` against `rubric`.
 
     Args:
       dir: a folder under benchmark/graded_inputs/, or an absolute path.
       rubric: a key of `core.MODES`; "v2" and "tldrh" are the supported ones.
+      judge: Inspect model used to grade. As on the audit task, a ``grader``
+        model role supplied to Inspect takes precedence over this value.
     """
     folder = staged_dir(dir)
     rows = _index(folder)
@@ -90,11 +93,12 @@ def grade_reports(
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=sheet_scorer(rubric=rubric),
+        scorer=sheet_scorer(rubric=rubric, judge=judge),
         metadata={
             "benchmark": "MessageBoardAuditBench",
             "mode": "grading",
             "rubric": rubric,
+            "judge": judge,
             "staged_dir": folder.name,
         },
     )
