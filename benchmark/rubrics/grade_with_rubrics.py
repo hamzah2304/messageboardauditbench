@@ -161,6 +161,13 @@ def grade_one(report_md, rub):
     return rub["rubric_id"], items, eff
 
 def aggregate(key, title, per_claim, per_rubric):
+    # Every call for this report failed (an auth or billing error hits all of them at
+    # once). Writing the file anyway records a total of 0 that is indistinguishable from a
+    # report that genuinely scored nothing, and the resume path then skips it forever.
+    if not per_claim:
+        print(f"[{key}] no claims came back — not writing a grade file", flush=True)
+        return {"report": key, "total": None, "max": 0, "accuracy": None, "per_rubric": {}}
+
     total = round(sum(i["score"] for i in per_claim.values()), 2); mx = len(per_claim)
     out = {"report": key, "title": title, "grader": MODEL, "rubric": MODE,
            "total": total, "max": mx, "per_rubric": per_rubric, "scores": per_claim}
@@ -234,6 +241,8 @@ def main():
     rows = []
     for key, a in acc.items():
         out = aggregate(key, a["title"], a["per_claim"], a["per_rubric"])
+        if out["max"] == 0:      # nothing came back; there is no row to print or sort
+            continue
         rows.append((out.get("accuracy", out.get("contradiction")), key,
                      out["total"], out["max"], out.get("by_mode"), out.get("n_contradicted")))
     for v, key, total, mx, by_mode, nc in sorted(rows, reverse=True):
