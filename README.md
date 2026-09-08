@@ -191,6 +191,12 @@ python3 -m http.server 8765 --directory viewers
 All scripts resolve their inputs through `paths.py` at the repo root, so the repo works
 from a plain clone.
 
+## Working on it
+
+Task work happens in linked worktrees under `.worktrees/`, created with
+`scripts/worktree_add.sh <task>`; the primary checkout stays on `main`. The
+rules for worktrees, merging and shared run data are in [`AGENTS.md`](AGENTS.md).
+
 ## Docs
 
 - [`docs/getting-started.md`](docs/getting-started.md) — fresh clone to graded report:

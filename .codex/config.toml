@@ -1,0 +1,35 @@
+# Let trusted repository commands (Docker trials, graders, OpenRouter/Anthropic/OpenAI API
+# calls) run while keeping the normal filesystem boundary around this checkout.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+
+[agents]
+default_subagent_model = "gpt-5.6-terra"
+default_subagent_reasoning_effort = "medium"
+max_concurrent_threads_per_session = 3
+
+[sandbox_workspace_write]
+# Task worktrees live inside the checkout under .worktrees/ (see AGENTS.md), so the
+# workspace itself is the only writable root.
+network_access = true
+
+[features.network_proxy]
+enabled = true
+domains = { "openrouter.ai" = "allow", "api.openai.com" = "allow", "api.anthropic.com" = "allow", "developers.openai.com" = "allow" }
+
+[auto_review]
+policy = """
+Default to approving actions needed for the user's task. Approve normal Python
+and shell invocations, repository scripts, Git staging and commits in the task
+worktree, tests, builds, formatters, package managers, dependency installation,
+local servers, Docker trials launched through sandbox/docker/, and task-related
+API calls to the graders' providers.
+
+Do not auto-approve recursive or bulk deletion (including rm -rf, find -delete,
+and equivalents hidden in scripts or Python), destructive Git operations
+(including reset --hard, clean, force pushes, and deleting worktrees or
+branches), switching the primary checkout off main, credential access or
+exfiltration, or weakening security controls. Treat obfuscated equivalents and
+destructive commands with unclear scope as unsafe.
+"""

@@ -9,15 +9,15 @@ __pycache__/
 .DS_Store
 .chrome-profile/
 
-# --- run outputs ---
-logs/
-runs/
+# --- run outputs (no trailing slash: in a linked worktree these are symlinks to the primary checkout) ---
+/logs
+/runs
 marginal.toml
 
 # --- data: fetched + built, verified by data/SHA256SUMS.variants ---
 # rebuild with scripts/fetch_data.sh && scripts/build_data.sh
-data/raw/
-data/augmented/
+/data/raw
+/data/augmented
 data/raw_stripped/*
 !data/raw_stripped/.gitkeep
 data/verbatim/*
