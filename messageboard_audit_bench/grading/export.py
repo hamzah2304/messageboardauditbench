@@ -12,6 +12,7 @@ guard: a report whose every sheet failed must not be recorded as having scored z
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,14 @@ def grades_in(log: Any) -> list[dict]:
         for score in (sample.scores or {}).values():
             grade = (score.metadata or {}).get("grade")
             if grade and grade.get("max"):
+                # Staged files already have stable corpus keys. Fresh evals reuse
+                # sample IDs across models, epochs and reruns, so include the log.
+                if getattr(log, "eval", None) and not (sample.metadata or {}).get("staged_input"):
+                    identity = str(log.eval.eval_id)
+                    stamp = hashlib.sha256(identity.encode()).hexdigest()[:12]
+                    grade = {**grade, "report": core.sanitise(
+                        f"{grade['report']}_{stamp}_e{sample.epoch}"
+                    )}
                 out.append(grade)
     return out
 
@@ -33,8 +42,14 @@ def grades_in(log: Any) -> list[dict]:
 def export(log: Any, out_dir: Path | None = None, force: bool = False) -> list[Path]:
     """Write one graded_<key>.json per scored sample. Returns the paths written."""
     written = []
-    for grade in grades_in(log):
+    grades = grades_in(log)
+    groups = {(g["grader"], g["rubric"], g.get("rubric_variant")) for g in grades}
+    for grade in grades:
         target = out_dir or core.out_dir(grade["grader"], grade["rubric"], grade.get("rubric_variant"))
+        if out_dir and len(groups) > 1:
+            target = out_dir / core.sanitise(grade["grader"]) / grade["rubric"]
+            if grade.get("rubric_variant"):
+                target /= f"variant_{grade['rubric_variant']}"
         target.mkdir(parents=True, exist_ok=True)
         path = target / f"graded_{grade['report']}.json"
         if path.exists() and not force:

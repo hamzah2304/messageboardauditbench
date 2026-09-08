@@ -293,8 +293,15 @@ def export_graded_inputs(
             f"b{budget}__{_safe_name(row.get('agent'))}__{_safe_name(row.get('model'))}"
             f"__rep{row.get('replicate')}{served_tag}.md"
         )
+        if row.get("parent_budget_min") is not None:
+            name = name.removesuffix(".md") + f"__from{row['parent_budget_min']}m.md"
+        if row.get("parent_epoch") is not None:
+            name = name.removesuffix(".md") + f"__parent{row['parent_epoch']}.md"
         destination = folder / name
-        destination.write_text((reports_root / row["report"]).read_text())
+        content = (reports_root / row["report"]).read_text()
+        if destination.exists() and destination.read_text() != content:
+            raise ValueError(f"refusing to overwrite staged report {destination}")
+        destination.write_text(content)
         written.append(destination)
         by_dir.setdefault(folder, []).append({**row, "graded_input": name})
     for folder, folder_rows in by_dir.items():

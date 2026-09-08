@@ -1,6 +1,6 @@
 """Inspect task for MessageBoardAuditBench.
 
-Two entry points:
+Three entry points:
 
   * `messageboard_audit_bench` runs fresh trials. The default ``inspect``
     backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt
@@ -18,7 +18,7 @@ Two entry points:
     its eval log: the stored conversation is the prefill, the report it wrote
     is put back in the sandbox, and a follow-up message asks for more.
       inspect eval messageboard_audit_bench/messageboard_audit_bench_continue \
-        -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epoch=1
+        -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epochs=1
 
 View any result with:  inspect view
 """
@@ -64,7 +64,7 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "6-B"
+EVAL_VERSION = "7-A"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CONFIGS = ("blind", "context")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
@@ -192,16 +192,17 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
 
 
 def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) -> list:
-    """The always-on scorers, plus the rubric judge when a run asks for it.
-
-    The sheet judge follows the data: a run on verbatim_anthropic is graded against the
-    swapped sheets and answer key (core.variant_for_data)."""
-    scorers = [rubric_scorer(judge=judge), process_metrics(), report_length()]
-    if rubric:
-        scorers.insert(
-            0, sheet_scorer(rubric=rubric, judge=judge, variant=variant_for_data(data_variant))
-        )
-    return scorers
+    """Benchmark sheets plus diagnostic scores; legacy grading is explicit."""
+    scorers = [process_metrics(), report_length()]
+    if rubric == "legacy":
+        return [rubric_scorer(judge=judge), *scorers]
+    modes = [mode.strip() for mode in (rubric or "").split(",") if mode.strip()]
+    if len(modes) != len(set(modes)):
+        raise ValueError("rubric must not contain duplicate modes")
+    return [
+        sheet_scorer(rubric=mode, judge=judge, variant=variant_for_data(data_variant))
+        for mode in modes
+    ] + scorers
 
 
 @task
@@ -213,8 +214,9 @@ def messageboard_audit_bench(
     allow_networked_subscription: bool = True,
     time_limit_minutes: int | None = None,
     min_runtime_fraction: float = 0.75,
-    judge: str = "anthropic/claude-sonnet-5",
-    rubric: str | None = None,
+    judge: str = "openai/gpt-5.6-sol",
+    rubric: str | None = "v2,tldrh",
+    data_variant: str | None = None,
 ) -> Task:
     """Run one sandboxed message-board audit.
 
@@ -233,13 +235,17 @@ def messageboard_audit_bench(
             ``0`` to disable this continuation policy for an ablation.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
-        rubric: When set (``v2`` or ``tldrh``), also grade the report against
-            that rubric's sheets inline. Off by default: it is eight judge
-            calls per sample, and grading is normally a separate pass over
-            staged reports (``grade_reports``), so a run does not silently pay
-            for it.
+        rubric: Comma-separated sheet modes; defaults to coverage (``v2``)
+            and summary quality (``tldrh``). Use Inspect's ``--no-score`` to
+            defer grading, or ``legacy`` for the old starter rubric.
+        data_variant: Override the config's dataset, including
+            ``verbatim_anthropic`` for the provider attribution ablation.
     """
     cfg = _load_config(config)
+    if data_variant is not None:
+        if data_variant not in {"verbatim", "verbatim_anthropic", "raw_stripped"}:
+            raise ValueError(f"unsupported data_variant {data_variant!r}")
+        cfg = {**cfg, "data_variant": data_variant}
     if agent not in _SUPPORTED_AGENTS:
         raise ValueError(
             f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
@@ -365,7 +371,8 @@ def messageboard_audit_bench(
 def messageboard_audit_bench_replay(
     runs_glob: str = "*",
     include_failed: bool = True,
-    judge: str = "anthropic/claude-sonnet-5",
+    judge: str = "openai/gpt-5.6-sol",
+    rubric: str | None = "v2,tldrh",
 ) -> Task:
     """Import local run artifacts into Inspect without rerunning agents."""
     samples = []
@@ -395,7 +402,7 @@ def messageboard_audit_bench_replay(
     return Task(
         dataset=samples,
         solver=replay(),
-        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
+        scorer=_scorers(judge, rubric),
         version=EVAL_VERSION,
         metadata={"benchmark": "MessageBoardAuditBench", "mode": "replay"},
     )
@@ -406,10 +413,9 @@ def _load_followup_config(config_name: str) -> dict:
     repo = repo_root()
     if not _CONFIG_NAME.fullmatch(config_name):
         raise ValueError(f"invalid config name {config_name!r}")
+    if config_name not in {"followup-5k", "followup-5k-min5"}:
+        raise ValueError(f"not a continuation config: {config_name!r}")
     path = repo / "configs" / f"{config_name}.toml"
-    if not path.is_file():
-        raise RuntimeError(f"config file is missing: {path}")
-
     import tomllib
 
     cfg = tomllib.loads(path.read_text())
@@ -422,7 +428,8 @@ def messageboard_audit_bench_continue(
     parent_log: str,
     parent_epochs: str = "all",
     config: str = "followup-5k",
-    judge: str = "anthropic/claude-sonnet-5",
+    judge: str = "openai/gpt-5.6-sol",
+    rubric: str | None = "v2,tldrh",
 ) -> Task:
     """Continue finished ReAct samples with a follow-up request.
 
@@ -439,11 +446,12 @@ def messageboard_audit_bench_continue(
         config: Continuation config from ``configs/``; its ``budget_min`` is
             the extra time and its prompt is the follow-up message.
         judge: Inspect model used to grade the report.
+        rubric: Comma-separated sheet modes, as on the fresh task.
     """
     cfg = _load_followup_config(config)
     log = read_eval_log(parent_log)
     if log.eval.task_args.get("agent") != "react" or (
-        log.eval.task_args.get("backend") != "inspect"
+        log.eval.task_args.get("backend", "inspect") != "inspect"
     ):
         raise ValueError(
             "continuation supports react samples run on the inspect backend"
@@ -456,6 +464,14 @@ def messageboard_audit_bench_continue(
     parents = [s for s in log.samples or [] if wanted is None or s.epoch in wanted]
     if not parents:
         raise ValueError(f"no epochs {parent_epochs} in {parent_log}")
+    variants = {parent.metadata.get("data_variant", cfg["data_variant"]) for parent in parents}
+    if len(variants) != 1:
+        raise ValueError("continuation parents must use the same data variant")
+    cfg = {**cfg, "data_variant": variants.pop()}
+    if len({parent.epoch for parent in parents}) != len(parents):
+        raise ValueError("continuation requires one parent sample per epoch")
+    if wanted is not None and wanted != {parent.epoch for parent in parents}:
+        raise ValueError(f"some requested epochs are missing from {parent_log}")
     budget_min = _time_limit(int(cfg["budget_min"]))
     runtime_fraction = _min_runtime_fraction(cfg.get("min_runtime_fraction", 0))
     minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
@@ -510,7 +526,7 @@ def messageboard_audit_bench_continue(
             min_runtime_fraction=runtime_fraction,
             seed_reports=reports,
         ),
-        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
+        scorer=_scorers(judge, rubric, cfg["data_variant"]),
         config=GenerateConfig(cache_prompt=True, reasoning_effort=cfg["effort"]),
         model=log.eval.model,
         sandbox=_inspect_sandbox(cfg["data_variant"]),

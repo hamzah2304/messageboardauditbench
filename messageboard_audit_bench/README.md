@@ -9,7 +9,7 @@ that can be explored with `inspect view`.
 
 | file | role |
 |---|---|
-| `task.py` | two tasks: `messageboard_audit_bench` (run fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
+| `task.py` | fresh, replay and ReAct continuation tasks |
 | `native.py` | runs Claude Code and Codex through Inspect SWE, or Inspect's built-in ReAct agent, then collects `report.md` |
 | `solver.py` | `subscription_agent` launches `sandbox/docker/run_trial.sh`; `replay` imports a finished run |
 | `transcripts.py` | loss-aware conversion of subscription and historical CLI events into Inspect messages + tool calls |
@@ -106,7 +106,7 @@ call and report-length feedback only when the file is over the strict maximum.
 Inspect ReAct appends the same feedback directly to its tool results. The
 `post_tool_hook_fired` and `stop_hook_fired` metadata fields make this auditable
 in Inspect logs.
-`-T judge=anthropic/claude-sonnet-5` picks the judge;
+`-T judge=openai/gpt-5.6-sol` picks the default judge;
 an Inspect `grader` model role takes precedence when one is supplied.
 
 ## Run with a subscription CLI
@@ -191,15 +191,15 @@ If a native agent stops with an over-3,000-word report and at least a minute
 remains, the wrapper resumes the same Claude Code, Codex CLI, or ReAct session
 once with a request to shorten it. Subscription hooks likewise request shortening only for
 overlong reports and allow the next stop. Post-tool feedback supplies the word
-count after every saved report edit, including short and within-range drafts. No mechanism forces an early-stopping
-agent to keep investigating or expand a short report. `report_length` in the
+count after every saved report edit, including short and within-range drafts. Normal early finishes resume until the configured minimum runtime; the
+length check itself does not force expansion of a short report. `report_length` in the
 sandbox reports the current whitespace-based count on demand.
 
 ## Notes / next steps
 
-- The judge is only as good as `rubric.yaml`; expand and human-validate it, then
-  add the claim-precision and citation-support scorers described in
-  `../docs/design-notes.md`.
+- Current tasks default to the existing `v2` and `tldrh` sheet graders.
+  `rubric.yaml` is available only through `-T rubric=legacy`.
+  See [setup and ablation commands](../docs/getting-started.md).
 - Comparing Claude-in-Claude-Code against GPT-in-Codex is a *system* comparison,
   not a bare-model one. `-T agent=react --model=<inspect model>` runs Inspect's
   standard ReAct agent for a more model-centred comparison.

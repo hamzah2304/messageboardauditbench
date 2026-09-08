@@ -32,16 +32,22 @@ Needs Python 3.11+, [uv](https://docs.astral.sh/uv/) and Docker. Full walk-throu
 with credentials and troubleshooting: [`docs/getting-started.md`](docs/getting-started.md).
 
 ```bash
-uv sync && scripts/build_data.sh && scripts/doctor.sh      # install, build data/, preflight
-
-CONFIG=blind-30 sandbox/docker/run_trial.sh claude claude-opus-5 1    # one trial -> runs/<run>/report.md
-
-scripts/collect_reports.py                                  # runs/ -> reports/
-scripts/stage_graded_inputs.py reports blind-30=my_round:mr
-python benchmark/rubrics/grade_with_rubrics.py --dir my_round   # grade it (needs OPENAI_API_KEY)
+uv sync --frozen
+scripts/build_data.sh
+# Set OPENAI_API_KEY for this example's agent and grader.
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=blind -T time_limit_minutes=30 \
+  --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
+uv run inspect view
 ```
 
-Or run the same trial through Inspect; see [Inspect integration](#inspect-integration).
+The eval runs the finding (`v2`) and summary (`tldrh`) graders inline by default.
+Use `--no-score` to defer grading. The [setup guide](docs/getting-started.md)
+also covers provider-attribution and followup ablations.
+
+The tables below preserve earlier rounds and scoring definitions. They are not
+an up-to-date summary of the blog's round-4 results; see the
+[release audit](docs/release-readiness.md) for what remains to reconcile.
 
 ## Headline result
 
@@ -230,12 +236,12 @@ CLI, but imports that CLI's event stream after the run.
 
 | file | role |
 |---|---|
-| `task.py` | two tasks: `messageboard_audit_bench` (fresh trials) and `messageboard_audit_bench_replay` (import runs already on disk) |
+| `task.py` | fresh, replay, and ReAct continuation tasks |
 | `native.py` | runs Claude Code/Codex through Inspect SWE, or Inspect's ReAct agent, and collects `report.md` |
 | `solver.py` | `subscription_agent` launches the subscription runner; `replay` imports a finished run |
 | `transcripts.py` | loss-aware conversion of subscription/historical CLI events into Inspect messages and tool calls |
 | `scorer.py` | report-quality, process, and report-length scorers |
-| `rubric.yaml` | the rubric that scorer grades against |
+| `grading/` | current finding and summary sheet scorers; `rubric.yaml` is the optional legacy rubric |
 
 ```bash
 uv sync                                    # installs Inspect and this package
@@ -291,7 +297,7 @@ provider and then converts the recorded CLI events for the viewer.
 
 The config, time, and minimum-runtime dimensions are independent: use
 `-T config=blind|context`, `-T time_limit_minutes=N`, and optionally
-`-T min_runtime_fraction=F`. The fraction defaults to `0.75`: a normal finish
+`-T min_runtime_fraction=F`. Add `-T data_variant=verbatim_anthropic` for the provider-attribution ablation; the sheet grader selects the matching answer key. The fraction defaults to `0.75`: a normal finish
 before 75% of the configured budget resumes the same investigation, with a
 prompt asking the agent to verify evidence and improve `report.md` rather than
 idle. The exact fraction and earliest permitted finish are stated in the
