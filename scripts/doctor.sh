@@ -16,9 +16,12 @@ bad()  { printf '  MISSING %s\n' "$*"; fail=1; }
 if [ -f .env ]; then set -a; . ./.env 2>/dev/null; set +a; fi
 
 echo "tools"
-if command -v python3 >/dev/null && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)'; then
-  ok "python3 $(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
-else bad "python3 >= 3.11"; fi
+# uv may supply the project's Python even when the system Python is older.
+project_python=python3
+[ ! -x .venv/bin/python ] || project_python=.venv/bin/python
+if command -v "$project_python" >/dev/null && "$project_python" -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)'; then
+  ok "Python $("$project_python" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))') ($project_python)"
+else bad "Python >= 3.11: run uv sync to create the project environment"; fi
 if command -v uv >/dev/null; then ok "uv $(uv --version | awk '{print $2}')"; else bad "uv: https://docs.astral.sh/uv/getting-started/installation/"; fi
 if [ -d .venv ] && uv run --no-sync python -c 'import inspect_ai, messageboard_audit_bench' 2>/dev/null; then
   ok "package installed (inspect_ai + messageboard_audit_bench importable)"
