@@ -197,7 +197,7 @@ function fig3() {
   ay.textContent = 'mean change in strict recall'; svg.append(ay);
 
   rows.forEach((r, i) => {
-    const cx = L + band * (i + 0.5), bw = Math.min(band - 22, 52);
+    const cx = L + band * (i + 0.5), bw = Math.min(band * 0.82, 100);
     const top = Y(Math.max(r.delta, 0)), bot = Y(Math.min(r.delta, 0));
     /* a 4px rounded end sits at the value; the bar is anchored to the zero line */
     svg.append(s('rect', {x: cx - bw / 2, y: top, width: bw, height: Math.max(bot - top, 1),
