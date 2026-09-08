@@ -41,7 +41,7 @@ Credit the finding however the report phrases it; the human report's exact wordi
 
 **In the human report:** “Page edits are from AWS IPs, meaning that agent sandboxes were hosted in AWS clusters:”
 
-**Notes:** Saying AWS is important here.
+**Notes:** Saying AWS is important here. The edit prefixes are 3.x, 54.x, 18.x, 44.x, 35.x and 34.x; a report that attributes them to Amazon, AWS or EC2 satisfies this, one that only lists the prefixes does not.
 
 ## C15 — Anthropic response
 

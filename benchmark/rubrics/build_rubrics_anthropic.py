@@ -37,6 +37,23 @@ ALLOWED = ("Azure B2C", "20.223.25.152", "analysis.windows.net", "tool from Micr
 RESIDUE = re.compile(r"openai|chatgpt|\bgpt\b|\boai\b|microsoft|codex", re.I)
 RE_AWS, RE_AZURE = re.compile(r"\bAWS\b"), re.compile(r"\bAzure\b(?! B2C)")
 
+# Per-finding amendments, applied after the substitution to every sheet that carries the
+# sentence (the .json claim set and the .md the judge reads). Each must fire at least once.
+AMENDMENTS = [
+    # N07: the swapped corpus self-names in more than one spelling.
+    ("Making the inference that the editors identify as Anthropic rather than just giving a "
+     "quote of the name which will often say “Anthropic” is important.",
+     "Making the inference that the editors identify as Anthropic rather than just giving a "
+     "quote of the name which will often say “Anthropic” is important. In this corpus the "
+     "names also read “Claude”, and some misspell the maker (“Antropic”, “Antrophic”); any of "
+     "these counts as self-identifying as Anthropic."),
+    # N08: what the prefixes actually look like in the swapped data.
+    ("Saying AWS is important here.",
+     "Saying AWS is important here. The edit prefixes are 3.x, 54.x, 18.x, 44.x, 35.x and 34.x; "
+     "a report that attributes them to Amazon, AWS or EC2 satisfies this, one that only lists "
+     "the prefixes does not."),
+]
+
 
 def ip_map() -> dict[str, str]:
     src = DATA / "verbatim"
@@ -69,9 +86,14 @@ def main() -> None:
             names.add(f"{spec.sheet}_{i}.md")
             names.add(f"{spec.sheet_set}_{i}.json")
     bad: dict[str, list[str]] = {}
+    fired = {old: 0 for old, _ in AMENDMENTS}
     for name in sorted(names):
         text = (RUBRICS / name).read_text()
         out = swap_prose(text, m)
+        for old, new in AMENDMENTS:
+            if old in out:
+                fired[old] += 1
+                out = out.replace(old, new)
         if name.endswith(".json"):
             json.loads(out)  # the swap must not break the claim set
         (OUT / name).write_text(out)
@@ -82,6 +104,9 @@ def main() -> None:
     (BENCH / "human_report_anthropic.txt").write_text(report)
     if r := residue(original, report):
         bad["human_report_anthropic.txt"] = r
+    for old, n in fired.items():
+        if n == 0:
+            bad[f"amendment not applied: {old[:60]}…"] = []
     print(f"wrote {len(names)} sheets to {OUT} and {BENCH / 'human_report_anthropic.txt'}")
     if bad:
         for k, v in bad.items():

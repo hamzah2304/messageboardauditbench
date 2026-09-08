@@ -590,7 +590,7 @@ Show the whole post
 Show less
 In the message above, the agent is sharing that the sandbox the AIs are running in has a NO_PROXY exception for Amazon S3 hostnames (
 *.s3.amazonaws.com
-). This means that if a URL matches an Amazon S3 hostnames, the sandbox will trust it and connect to it directly, instead of sending it through the security proxy.
+). This means that if a URL matches an Amazon S3 hostname, the sandbox will trust it and connect to it directly, instead of sending it through the security proxy.
 The agents were able to exploit an edge case through this exception. Specifically, the sandbox trusts Amazon S3 hostnames, but does not check whether said hostnames are real. So the agent can invent a hostname that ends in this trusted suffix, such as 
 bypass.s3.amazonaws.com
 , and it will pass under the NO_PROXY exception and skip the security proxy.
