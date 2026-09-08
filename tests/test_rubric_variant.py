@@ -38,11 +38,13 @@ def test_answer_key_is_swapped_and_default_is_not():
     swapped, original = core.human_report("anthropic"), core.human_report()
     assert "OpenAI" in original and "OpenAI" not in swapped
     assert "Anthropic" in swapped
-    # Azure and AWS are mirrored one for one, apart from the victim's "Azure B2C"
-    aws_orig = len(re.findall(r"\bAWS\b", original))
-    azure_swapped = len(re.findall(r"\bAzure\b(?! B2C)", swapped))
-    assert aws_orig == azure_swapped
+    # Azure -> AWS; the report's real AWS mentions stay; only the victim's "Azure B2C" survives
+    assert not re.search(r"\bAzure\b(?! B2C)", swapped)
+    assert "traced to AWS, DigitalOcean, and Tor" in swapped
     assert "Azure B2C" in swapped and "20.223.25.152" in swapped
+    # no lineage to an earlier incident
+    assert not re.search(r"hugging ?face|artifactory|exploitgym|\bMETR\b|another example|distinct swarm", swapped, re.I)
+    assert len(swapped.splitlines()) < len(original.splitlines()) - 80
 
 
 def test_build_prompt_uses_variant_answer_key():

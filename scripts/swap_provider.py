@@ -141,9 +141,8 @@ def swap_text(s: str) -> str:
 
 # --- Prose (human report, grading sheets). The data rules above, plus the things a human
 #     writes about the maker that never occur in the dump: the cloud provider by name, the
-#     fetch-tool user agent, product names, the legal entity. Azure and AWS are mirrored
-#     (Azure -> AWS, AWS -> Azure), matching the ip16 remap, which sends the Azure blocks to
-#     AWS ranges and leaves the dump's few real AWS prefixes where they were. "Azure B2C" is
+#     fetch-tool user agent, product names, the legal entity. Azure -> AWS; the report's few
+#     real AWS mentions stay AWS, as the dump's few real AWS prefixes did. "Azure B2C" is
 #     the victim's signup system and stays, as it does in the data.
 PROSE_FIRST = [  # applied before the data rules, longest and most specific first
     (re.compile(r"Azure B2C"), "\x00B2C\x00"),
@@ -152,10 +151,9 @@ PROSE_FIRST = [  # applied before the data rules, longest and most specific firs
     (re.compile(r"Azure Blob Storage hostnames"), "Amazon S3 hostnames"),
     (re.compile(r"Azure Blob Storage hostname"), "Amazon S3 hostname"),
     (re.compile(r"Azure Blob Storage"), "Amazon S3"),
-    (re.compile(r"\bAWS\b"), "\x00AZ\x00"),
+    (re.compile(r"Azure and AWS ranges"), "AWS ranges"),
     (re.compile(r"\bAzure\b"), "AWS"),
     (re.compile(r"\bazure\b"), "aws"),
-    (re.compile(r"\x00AZ\x00"), "Azure"),
     (re.compile(r"\x00B2C\x00"), "Azure B2C"),
     (re.compile(r"OpenAI OpCo, LLC"), "Anthropic, PBC"),
     (re.compile(r"Codex cloud VMs through the Codex app"), "Claude Code cloud sandboxes through the Claude app"),
