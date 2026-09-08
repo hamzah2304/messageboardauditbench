@@ -12,7 +12,7 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
 - Provider-swapped inputs select the matching answer key; continuation tasks
   preserve parent variants and validate the selected epochs.
 - Exports distinguish logs, epochs, rubric variants, and continuation parents.
-- The snapshot passes lint and 1,303 tests. Each retained grade is reaggregated
+- The snapshot passes lint and 1,324 tests. Each retained grade is reaggregated
   and checked against its stored result. The test count is lower than before
   cleanup because historical grade files no longer generate test cases.
 - The headline, combined-score, and followup figure builders succeed using only
@@ -28,27 +28,43 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
 Three things, each with the action first. When all three are done, delete this
 file — the last section says how.
 
-### 1. Run one graded eval and one Docker trial from a fresh clone — assigned
+### 1. Run a graded Docker eval from a fresh clone — passed
 
-On a machine with provider credentials and Docker running:
+Verified on 2026-09-08 in the separate `messageboardauditbench-clean` clone at
+`11ff63c`, using the existing local `.env` and Docker installation:
 
 ```sh
-git clone https://github.com/hamzah2304/messageboardauditbench fresh && cd fresh
-uv sync --frozen && scripts/build_data.sh && scripts/doctor.sh
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T config=blind -T time_limit_minutes=10 \
-  --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
+uv sync --frozen
+scripts/build_data.sh --verify
+uv run --env-file .env inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=blind -T time_limit_minutes=5 -T min_runtime_fraction=0 \
+  --model openrouter/openai/gpt-5.6-sol \
+  --model-role grader=openrouter/openai/gpt-5.6-sol \
+  --epochs 1 --max-samples 1 --max-connections 2 --max-retries 2 \
+  --log-dir logs/release-smoke
 ```
 
-That single command covers both: it builds the Docker sandbox and grades the
-report it produces. Keep the old checkout until this passes and item 2 is done.
+The eval completed in 8 minutes 38 seconds with a 2,535-word report. All eight
+`v2` finding sheets and the one `tldrh` summary sheet graded successfully;
+both failure dictionaries were empty, with no eval or sample error. Raw Inspect
+scores were 0.405 and 0.800. This is a setup test, not a publication result.
+The log records matching dataset hashes and `network_none` isolation.
 
-Everything that does not need credentials has already been checked from a clone
-of `main` into an empty directory: `uv sync --frozen`, `ruff check .`, the full
-suite (1,324 passing), `uv build`, task discovery by package name,
-`scripts/doctor.sh`, and `scripts/score_reports.py` over the shipped grades.
-`doctor.sh` correctly named the only two things missing on a bare machine,
-Docker and an unbuilt `data/`.
+The local log in that clone is
+`logs/release-smoke/2026-09-08T22-10-08-00-00_messageboard-audit-bench_XvvPsZ2zudQdQeXkKcTzCN.eval`.
+It is not part of the published log release. An initial one-minute attempt
+completed all grading calls but produced no report, so it did not count as a
+passing end-to-end test.
+
+`uv sync --frozen`, data checksum verification, lint, and all 1,324 tests passed
+in this clone. The smoke reused cached Docker image layers; it does not verify
+an uncached image download. `doctor.sh --verify` also passed after pulling
+`881d0a5`, which fixes the preflight to check the project's Python rather than
+reject a working uv setup because the system Python is older.
+
+The earlier empty-directory check also passed `uv build`, task discovery by
+package name, and `scripts/score_reports.py` over the shipped grades.
+Keep the old checkout until item 2 is done.
 
 ### 2. Copy the historical inputs and legacy runs off that machine — open
 
