@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Per-report performance under the auditor's strict transform, max(2s - 1, 0).
 
-    scripts/report_performance.py benchmark/graded/judge_claude_opus_5/v2
+    scripts/report_performance.py benchmark/graded/judge_claude_fable_5_1/v2
 
 The rubric scores a point 0 to 1 for how completely the report covers it. Averaging
 those raw gives half credit to a report that only gestures at every point. The
