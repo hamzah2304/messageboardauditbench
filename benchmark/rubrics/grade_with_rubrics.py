@@ -26,13 +26,18 @@ from openai import OpenAI
 # wrong (-1..0). They are graded separately and never blended — a thin report scores
 # well on contradiction precisely because it says little, and averaging the two would
 # hide that.
-_R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv else "recall")
-MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall", "tldr": "tldr"}[_R]
+_R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv
+                else "tldrh" if "--tldrh" in sys.argv else "recall")
+MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall",
+        "tldr": "tldr", "tldrh": "tldrh"}[_R]
 # sheet-file prefix, how many sheets, and the score range each rubric is scored on
 SHEET, N_SHEETS = {"recall": ("rubric", 6), "contradiction": ("contra", 6),
-                   "v2": ("v2", 8), "tldr": ("tldr", 1)}[MODE]
+                   "v2": ("v2", 8), "tldr": ("tldr", 1), "tldrh": ("tldrh", 1)}[MODE]
 LO, HI = {"recall": (0.0, 1.0), "contradiction": (-1.0, 0.0),
-          "v2": (0.0, 1.0), "tldr": (0.0, 1.0)}[MODE]
+          "v2": (0.0, 1.0), "tldr": (0.0, 1.0), "tldrh": (0.0, 1.0)}[MODE]
+# the two TL;DR rubrics score the summary alone, and each is a single sheet whose
+# rubric_id carries no sheet number
+TLDR_MODES = ("tldr", "tldrh")
 
 DEFAULT_MODEL = "gpt-5.6-sol"
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
@@ -66,12 +71,13 @@ REPORTS = {
     "haiku": ("Claude Haiku 4.5", "haiku_audit.md"),
     "luna":  ("GPT-5.6 Luna",     "luna_audit.md"),
 }
-_SET = {"recall": "rubric", "contradiction": "rubric", "v2": "v2", "tldr": "tldr"}[MODE]
+_SET = {"recall": "rubric", "contradiction": "rubric", "v2": "v2",
+        "tldr": "tldr", "tldrh": "tldrh"}[MODE]
 RUBRIC_SETS = [json.loads((RUBRICS / f"{_SET}_{i}.json").read_text()) for i in range(1, N_SHEETS + 1)]
 # Each rubric_N.md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
 # {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal).
-_PFX = {"v2": "V", "tldr": "TLDR"}.get(MODE, "R")
-RUBRIC_MD = {(_PFX if MODE == "tldr" else f"{_PFX}{i}"): (RUBRICS / f"{SHEET}_{i}.md").read_text()
+_PFX = {"v2": "V", "tldr": "TLDR", "tldrh": "TLDRH"}.get(MODE, "R")
+RUBRIC_MD = {(_PFX if MODE in TLDR_MODES else f"{_PFX}{i}"): (RUBRICS / f"{SHEET}_{i}.md").read_text()
              for i in range(1, N_SHEETS + 1)}
 HUMAN_REPORT = (HUMAN_REPORT).read_text()
 SYS = "You are a careful grader. Follow the grading sheet exactly and output strict JSON only."
@@ -133,7 +139,7 @@ def claude(system, prefix, suffix, max_tok=32000):
 
 
 def grade_one(report_md, rub):
-    if MODE == "tldr":     # the summary alone is what this rubric judges
+    if MODE in TLDR_MODES:     # the summary alone is what these rubrics judge
         report_md, _how = extract_tldr(report_md)
     tmpl = RUBRIC_MD[rub["rubric_id"]].replace("{{HUMAN_REPORT}}", HUMAN_REPORT)
     if IS_ANTHROPIC:
@@ -170,8 +176,12 @@ def aggregate(key, title, per_claim, per_rubric):
             xs = [per_claim[i]["score"] for i in ids if i in per_claim]
             return round(sum(xs) / len(xs), 3) if xs else 0.0
         out["accuracy"] = round(total / mx, 3) if mx else 0
-        out["by_mode"] = {m: mean([cid for cid in per_claim if mode.get(cid) == m])
-                          for m in ("recall_accuracy", "recall_calibrated")}
+        # tldrh returns one item keyed TLDRH, not per-claim ids, so there is nothing to
+        # split by grading mode; emitting the split would put two zeroes where a reader
+        # would expect scores.
+        if MODE != "tldrh":
+            out["by_mode"] = {m: mean([cid for cid in per_claim if mode.get(cid) == m])
+                              for m in ("recall_accuracy", "recall_calibrated")}
     (OUT_DIR / f"graded_{key}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     return out
 
@@ -192,7 +202,7 @@ def resolve_reports(args):
     return [(k, ROOT / REPORTS[k][1], REPORTS[k][0]) for k in keys]
 
 def main():
-    args = [a for a in sys.argv[1:] if a not in ("--force", "--contra", "--v2")]
+    args = [a for a in sys.argv[1:] if a not in ("--force", "--contra", "--v2", "--tldrh")]
     reports = resolve_reports(args)
     if "--force" not in sys.argv[1:]:  # skip reports already graded (fill gaps only)
         reports = [r for r in reports if not (OUT_DIR / f"graded_{r[0]}.json").exists()]
