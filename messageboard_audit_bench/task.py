@@ -456,7 +456,10 @@ def messageboard_audit_bench_continue(
         samples.append(
             Sample(
                 input=messages,
-                id=f"react:inspect:{config}:{budget_min}m:e{parent.epoch}",
+                id=(
+                    f"react:inspect:{config}:{budget_min}m:"
+                    f"from{parent.metadata.get('budget_min')}m:e{parent.epoch}"
+                ),
                 metadata=_continuation_sample_metadata(
                     cfg,
                     config,

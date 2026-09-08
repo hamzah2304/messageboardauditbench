@@ -68,6 +68,7 @@ if [ -n "$RESUME_FROM" ]; then
   [ -n "$PARENT_THREAD_ID" ] || { echo "no thread.started in $RESUME_FROM/transcript.jsonl" >&2; exit 2; }
   [ -n "$(find "$RESUME_FROM/codex_sessions" -name "rollout-*${PARENT_THREAD_ID}*.jsonl" 2>/dev/null)" ] || { echo "no rollout for $PARENT_THREAD_ID under $RESUME_FROM/codex_sessions" >&2; exit 2; }
   PARENT_RUN_ID="$(jq -r '.run_id // ""' "$RESUME_FROM/meta.json")"
+  PARENT_BUDGET_MIN="$(jq -r '.budget_min // 0' "$RESUME_FROM/meta.json")"
   # The workspace as the agent left it, minus the data mount point, the harness's own
   # state file and the final-message capture the model never saw.
   (cd "$RESUME_FROM/work" && tar cf - --exclude=./data --exclude=./.mbab-runtime-policy.json --exclude=./final_message.md .) | (cd "$RUN/work" && tar xf -)
@@ -242,8 +243,8 @@ cat > "$RUN/meta.json" <<JSON
 JSON
 if [ -n "$RESUME_FROM" ]; then
   META_TMP="$RUN/meta.resume.json"
-  jq --arg parent "$RESUME_FROM" --arg parent_id "$PARENT_RUN_ID" --arg thread "$PARENT_THREAD_ID" \
-     '. + {mode: "continuation", parent_run_dir: $parent, parent_run_id: $parent_id, parent_thread_id: $thread, prompt_path: "prompt.txt"}' \
+  jq --arg parent "$RESUME_FROM" --arg parent_id "$PARENT_RUN_ID" --arg thread "$PARENT_THREAD_ID" --argjson parent_budget "$PARENT_BUDGET_MIN" \
+     '. + {mode: "continuation", parent_run_dir: $parent, parent_run_id: $parent_id, parent_thread_id: $thread, parent_budget_min: $parent_budget, prompt_path: "prompt.txt"}' \
      "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 fi
 
