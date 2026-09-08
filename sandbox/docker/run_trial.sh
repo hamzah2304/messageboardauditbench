@@ -37,6 +37,9 @@ EFFORT="${EFFORT:-$CFG_EFFORT}"
 DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
+# In a worktree the data files are symlinks to the primary checkout; bind-mount the real
+# directory, or the container sees dangling links to host paths.
+DATA_DIR="$(python3 -c 'import os,sys; print(os.path.dirname(os.path.realpath(sys.argv[1])))' "$DATA_DIR/revisions.jsonl")"
 
 # Always ask Docker to build: layer caching makes unchanged launches cheap and
 # ensures the recorded image contains this worktree's exact helper scripts.
