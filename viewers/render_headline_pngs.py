@@ -18,7 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIG = ROOT / "viewers" / "figures"
 SRC = FIG / "headline_figures.html"
 MD = FIG / "results_figures.md"
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+from browser_executable import find_chromium
 WIDTH = 1000          # cost figures
 WIDTH_INDEX = 800     # index figures, whose plot is narrower
 SCALE = 2
@@ -72,7 +72,7 @@ def page_for(fid: str, html: str) -> str:
 
 
 def chrome(*args: str) -> str:
-    cmd = [CHROME, "--headless=new", "--hide-scrollbars", "--disable-gpu", "--virtual-time-budget=6000", *args]
+    cmd = [find_chromium(), "--headless=new", "--hide-scrollbars", "--disable-gpu", "--virtual-time-budget=6000", *args]
     return subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120).stdout
 
 

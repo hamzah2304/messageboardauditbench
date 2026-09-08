@@ -4,7 +4,7 @@
 #   scripts/doctor.sh            # everything except data checksums
 #   scripts/doctor.sh --verify   # also verify data/ against data/SHA256SUMS.variants (~10 s)
 #
-# Exit 1 if a hard requirement (Python, uv, Docker, disk, data) is missing; credentials and
+# Exit 1 if a hard requirement (Python, uv, Docker, data) is missing; credentials and
 # judge keys are reported but only fail the harness you try to run without them.
 set -u
 cd "$(dirname "$0")/.." || exit 1
@@ -33,9 +33,6 @@ else
   if docker image inspect "${IMAGE:-mbab-sandbox}" >/dev/null 2>&1; then ok "image ${IMAGE:-mbab-sandbox} built"
   else warn "image ${IMAGE:-mbab-sandbox} not built yet; the first run_trial.sh builds it (a few minutes)"; fi
 fi
-FREE_GB=$(( $(df -Pk "$ROOT" | awk 'NR==2{print $4}') / 1048576 ))
-if [ "$FREE_GB" -ge "${MIN_FREE_GB:-10}" ]; then ok "${FREE_GB} GB free disk"
-else bad "${FREE_GB} GB free; run_trial.sh refuses below MIN_FREE_GB=${MIN_FREE_GB:-10}"; fi
 
 echo "data"
 if [ -f data/raw_stripped/revisions.jsonl ] && [ -d data/verbatim ] && [ -f data/verbatim_anthropic/revisions.jsonl ]; then
@@ -58,8 +55,8 @@ elif [ -n "${OPENROUTER_API_KEY:-}" ]; then ok "react: OPENROUTER_API_KEY in env
 else warn "react: none.  export OPENROUTER_API_KEY or write runs/.openrouter_key"; fi
 
 echo "judge keys"
-[ -n "${OPENAI_API_KEY:-}" ] && ok "OPENAI_API_KEY (30-claim grader, default judge gpt-5.6-sol)" || warn "OPENAI_API_KEY not set; benchmark/rubrics/grade_with_rubrics.py needs it (env or .env)"
-[ -n "${ANTHROPIC_API_KEY:-}" ] && ok "ANTHROPIC_API_KEY (Inspect rubric_scorer default judge)" || warn "ANTHROPIC_API_KEY not set; Inspect scoring needs it, or pass -T judge=openai/..."
+[ -n "${OPENAI_API_KEY:-}" ] && ok "OPENAI_API_KEY (direct OpenAI models; default grader gpt-5.6-sol)" || warn "OPENAI_API_KEY not set; select a grader route with available credentials"
+[ -n "${ANTHROPIC_API_KEY:-}" ] && ok "ANTHROPIC_API_KEY (direct Anthropic models)" || warn "ANTHROPIC_API_KEY not set; needed only for direct Anthropic API calls"
 
 echo
 if [ "$fail" = 0 ]; then echo "ready. Smoke test:  CONFIG=blind BUDGET_MIN=3 TIMEOUT=6m sandbox/docker/run_trial.sh <agent> <model> 1"

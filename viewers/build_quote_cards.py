@@ -27,7 +27,7 @@ HERE = Path(__file__).resolve().parent
 FIG = HERE / "figures"
 OUT = FIG / "quote_cards"
 SPEC = FIG / "quote_cards.json"
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+from browser_executable import find_chromium
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;1,400&display=swap');
@@ -246,7 +246,7 @@ def page(inner: str, width: int) -> str:
 
 
 def chrome(*args: str) -> str:
-    cmd = [CHROME, "--headless=new", "--hide-scrollbars", "--disable-gpu",
+    cmd = [find_chromium(), "--headless=new", "--hide-scrollbars", "--disable-gpu",
            "--virtual-time-budget=4000", *args]
     return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
 

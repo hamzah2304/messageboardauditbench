@@ -1,7 +1,7 @@
 # Getting started
 
 Run the benchmark from a checkout with Python 3.11+, [uv](https://docs.astral.sh/uv/),
-and Docker running. Keep at least 20 GB free before launching a batch.
+and Docker running.
 
 ## Install and verify the data
 
@@ -33,6 +33,23 @@ rejected. `scripts/fetch_data.sh` prints these instructions on a failed download
 The Python package needs the checkout's configs, sandbox and grading assets.
 A wheel installed by itself is insufficient: run from the checkout root or set
 `MESSAGEBOARD_AUDIT_BENCH_ROOT` to that checkout.
+
+## Credentials and Docker access
+
+Copy `.env.example` to `.env` and fill in the credentials for your chosen agent
+and grader. Load that file explicitly when running Inspect:
+
+```bash
+uv run --env-file .env inspect eval ...
+```
+
+Run this command from a terminal or agent execution environment that can reach
+Docker (`docker info`). An agent's restricted execution environment may lack
+Docker access, and a Docker-enabled process may not inherit the same environment
+variables. Loading `.env` in that process makes the credentials available there;
+it does not grant Docker access. The matrix launcher loads `.env` when present.
+A Claude subscription token authenticates subscription runs; it does not replace
+an API key for native Inspect models or grading.
 
 ## Run and grade through Inspect
 
@@ -123,3 +140,22 @@ Subscription trial setup, credentials and the direct Docker runner are described
 in [`sandbox/README.md`](../sandbox/README.md). Import existing subscription
 runs with `messageboard_audit_bench/messageboard_audit_bench_replay`; this spends
 judge tokens but does not rerun the agents.
+
+## Historical experiment launcher
+
+`scripts/run_round4.py` reproduces the publication matrix, rather than a single
+smoke test. Selecting only `--time-limit-minutes 10` selects 13 systems and 39
+samples. The historical manifest defers grading (`score_during_generation = false`);
+the normal `inspect eval` task above runs both graders by default.
+
+To inspect a one-sample subset without launching it:
+
+```bash
+uv run scripts/run_round4.py --system react-gpt-5-6-sol --time-limit-minutes 10 --epochs 1
+```
+
+The launcher prints its grading policy and commands; `--execute` is required to
+launch them. Use the normal Inspect command for a small graded setup test.
+
+Figure rendering finds Chrome/Chromium on `PATH` or in standard installation
+locations. Set `CHROME_BIN` to an executable path to override discovery.

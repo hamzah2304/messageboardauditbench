@@ -21,13 +21,13 @@ Run shape:
   --time-limit-minutes N        agent budget (default: 20)
   --min-runtime-fraction F      minimum fraction before completion (default: 0.75; 0 disables)
   --epochs N                    independent replicates (default: 1)
-  --judge MODEL                 grader model (default: anthropic/claude-sonnet-5)
+  --judge MODEL                 grader model (default: openai/gpt-5.6-sol)
   --logs DIR                    Inspect log directory (default: logs)
 
 Operational limits (all explicit in the resulting command):
   --max-samples N               default: 1
   --max-sandboxes N             default: 1
-  --max-connections N           default: 4 (Muse requires and defaults to 2)
+  --max-connections N           default: 4 (Muse defaults to 2; overridable)
   --max-retries N               API retries per request (default: 5)
   --request-timeout N           total API request timeout seconds (default: 900)
   --attempt-timeout N           timeout for each API attempt (default: 600)
@@ -37,7 +37,7 @@ Operational limits (all explicit in the resulting command):
   --                            pass remaining arguments directly to inspect eval
 
 On macOS, the process is wrapped in caffeinate -dimsu to prevent sleep from
-freezing Docker containers. There is deliberately no disk-space floor check.
+freezing Docker containers.
 EOF
 }
 
@@ -49,7 +49,7 @@ subscription_model=""
 time_limit_minutes=20
 min_runtime_fraction=0.75
 epochs=1
-judge="anthropic/claude-sonnet-5"
+judge="openai/gpt-5.6-sol"
 logs=logs
 max_samples=1
 max_sandboxes=1
@@ -89,16 +89,14 @@ fi
 selected_model="${model:-$subscription_model}"
 case "$selected_model" in
   *[Mm][Uu][Ss][Ee]*)
-    if [[ -n "$max_connections" && "$max_connections" != 2 ]]; then
-      echo "Muse requires --max-connections 2" >&2
-      exit 2
-    fi
-    max_connections=2
+    max_connections="${max_connections:-2}"
     ;;
   *) max_connections="${max_connections:-4}" ;;
 esac
 
-cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench
+uv_cmd=(uv run)
+[[ ! -f .env ]] || uv_cmd+=(--env-file .env)
+cmd=("${uv_cmd[@]}" inspect eval messageboard_audit_bench/messageboard_audit_bench
   -T "backend=$backend" -T "agent=$agent" -T "config=$config"
   -T "time_limit_minutes=$time_limit_minutes" -T "min_runtime_fraction=$min_runtime_fraction" -T "judge=$judge"
   --epochs "$epochs" --max-samples "$max_samples" --max-sandboxes "$max_sandboxes"

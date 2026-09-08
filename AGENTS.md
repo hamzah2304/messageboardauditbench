@@ -6,7 +6,7 @@ tools follow the same agreement.
 
 ## Worktrees
 
-- The primary checkout (`~/Dev/messageboardauditbench`) stays on `main`. Never
+- The primary checkout stays on `main`. Never
   switch it to a task branch. Small, stable edits may be made directly on
   `main`; anything substantive, multi-file, or likely to overlap with someone
   else's work goes in a task branch and linked worktree.
@@ -56,8 +56,6 @@ tools follow the same agreement.
 ## Runs and results
 
 - `runs/` and `data/` are gitignored and exist only in the primary checkout.
-  Keep at least 20 GB free before launching a batch; a full disk has corrupted
-  Docker mid-batch before.
 - Never edit a script that a running trial is executing in place (the shell
   reads it incrementally); write a copy and `mv` it over.
 - Reports and grades that feed the README numbers are tracked under

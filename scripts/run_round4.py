@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dotenv import dotenv_values
 from inspect_ai.log import read_eval_log
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,8 +72,8 @@ def expand_jobs(manifest: dict[str, Any]) -> list[Job]:
         if agent not in {"claude", "codex", "react"}:
             raise ValueError(f"{row['id']}: unsupported agent {agent!r}")
         max_connections = row["max_connections"]
-        if "muse" in row["model"].lower() and max_connections != 2:
-            raise ValueError(f"{row['id']}: Muse requires max_connections = 2")
+        if type(max_connections) is not int or max_connections <= 0:
+            raise ValueError(f"{row['id']}: max_connections must be a positive integer")
         budgets = row.get("time_limits_minutes", default_budgets)
         epochs = row.get("epochs", default_epochs)
         if any(type(value) is not int or value <= 0 for value in budgets):
@@ -231,6 +232,7 @@ def run_job(
 
 def readiness(jobs: list[Job]) -> list[str]:
     problems: list[str] = []
+    env = execution_env()
     if shutil.which("docker") is None:
         problems.append("docker is not installed")
     if not all(
@@ -248,7 +250,8 @@ def readiness(jobs: list[Job]) -> list[str]:
         copied_login = ROOT / "runs" / ".claude-home" / ".credentials.json"
         host_login = Path.home() / ".claude" / ".credentials.json"
         if (
-            not token.is_file()
+            not env.get("CLAUDE_CODE_OAUTH_TOKEN")
+            and not token.is_file()
             and not copied_login.is_file()
             and not host_login.is_file()
         ):
@@ -262,7 +265,7 @@ def readiness(jobs: list[Job]) -> list[str]:
     )
     if (
         any(job.agent == "react" for job in jobs)
-        and not os.environ.get("OPENROUTER_API_KEY")
+        and not env.get("OPENROUTER_API_KEY")
         and not saved_openrouter_key
     ):
         problems.append("OPENROUTER_API_KEY is missing")
@@ -270,8 +273,9 @@ def readiness(jobs: list[Job]) -> list[str]:
 
 
 def execution_env() -> dict[str, str]:
-    """Load the gitignored OpenRouter key for native Inspect without printing it."""
-    env = dict(os.environ)
+    """Load local credentials without printing them; inherited environment wins."""
+    env = {key: value for key, value in dotenv_values(ROOT / ".env").items() if value}
+    env.update(os.environ)
     key_file = ROOT / "runs" / ".openrouter_key"
     if not env.get("OPENROUTER_API_KEY") and key_file.is_file():
         key = key_file.read_text().strip()
@@ -280,9 +284,11 @@ def execution_env() -> dict[str, str]:
     return env
 
 
-def summary(jobs: list[Job]) -> str:
-    samples = sum(job.epochs for job in jobs)
-    nominal_minutes = sum(job.epochs * job.budget_minutes for job in jobs)
+def summary(jobs: list[Job], epochs: int | None = None) -> str:
+    samples = sum(epochs if epochs is not None else job.epochs for job in jobs)
+    nominal_minutes = sum(
+        (epochs if epochs is not None else job.epochs) * job.budget_minutes for job in jobs
+    )
     return (
         f"{len(jobs)} jobs, {samples} samples, "
         f"{nominal_minutes / 60:g} nominal agent-hours"
@@ -357,7 +363,13 @@ def main() -> int:
             parser.error(f"--{name.replace('_', '-')} must be positive")
 
     jobs = ordered_longest_first(jobs)
-    print(f"{manifest['name']}: {summary(jobs)}")
+    print(f"{manifest['name']}: {summary(jobs, args.epochs)}")
+    grading = (
+        "inline"
+        if manifest.get("score_during_generation", False)
+        else "deferred (--no-score); use the normal Inspect task for inline grading"
+    )
+    print(f"Grading: {grading}")
     for job in jobs:
         print(
             shlex.join(

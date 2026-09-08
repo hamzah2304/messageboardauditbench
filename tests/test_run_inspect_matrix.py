@@ -58,11 +58,11 @@ def test_subscription_muse_gets_same_explicit_limit() -> None:
     assert "--max-connections 2" in result.stdout
 
 
-def test_muse_rejects_conflicting_connection_limit() -> None:
+def test_muse_accepts_explicit_connection_limit() -> None:
     result = _dry_run("anthropic/claude-muse-5", "--max-connections", "4")
 
-    assert result.returncode == 2
-    assert "Muse requires --max-connections 2" in result.stderr
+    assert result.returncode == 0
+    assert "--max-connections 4" in result.stdout
 
 
 def test_other_models_keep_four_connection_default() -> None:

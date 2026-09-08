@@ -114,3 +114,31 @@ def test_multiple_budgets_are_selected_longest_first() -> None:
 
     assert len(ordered) == 8
     assert [job.budget_minutes for job in ordered] == [120] * 4 + [30] * 4
+
+
+def test_epoch_override_changes_plan_summary() -> None:
+    jobs = select_jobs(expand_jobs(load_manifest()), "all", None, 10)
+    assert summary(jobs, epochs=1) == "13 jobs, 13 samples, 2.16667 nominal agent-hours"
+
+
+def test_model_concurrency_is_configurable() -> None:
+    manifest = load_manifest()
+    next(row for row in manifest["systems"] if "muse" in row["model"])["max_connections"] = 3
+    assert next(job for job in expand_jobs(manifest) if "muse" in job.model).max_connections == 3
+
+
+def test_readiness_accepts_env_file_oauth(monkeypatch, tmp_path) -> None:
+    from scripts import run_round4
+
+    monkeypatch.setattr(run_round4, "ROOT", tmp_path)
+    monkeypatch.setattr(run_round4.shutil, "which", lambda _: "/bin/docker")
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    (tmp_path / ".env").write_text("CLAUDE_CODE_OAUTH_TOKEN=test-only-token\n")
+    data = tmp_path / "data/verbatim"
+    data.mkdir(parents=True)
+    for name in ("events", "labels", "pages", "revisions"):
+        (data / f"{name}.jsonl").write_text("{}\n")
+    jobs = select_jobs(expand_jobs(load_manifest()), "claude", "claude-opus-5", 10)
+    assert run_round4.readiness(jobs) == []
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "environment-takes-precedence")
+    assert run_round4.execution_env()["CLAUDE_CODE_OAUTH_TOKEN"] == "environment-takes-precedence"
