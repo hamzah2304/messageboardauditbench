@@ -17,6 +17,7 @@ CONFIG="${CONFIG:-followup-5k}"
 OUT="$ROOT/logs/$CONFIG"; mkdir -p "$OUT"
 DRY=0; [ "${1:-}" = --dry-run ] && DRY=1
 ONLY="${ONLY:-}"   # ONLY=codex or ONLY=react restricts the launch to one harness
+MATCH="${MATCH:-.}" # extended regex a job's model/system name must match
 
 # Codex: parent run dir (epoch 1 of each system's 120-minute cell) and its CLI model.
 CODEX_JOBS=(
@@ -29,18 +30,22 @@ CODEX_JOBS=(
 REACT_JOBS=(
   "react-gemini-3-8-flash 1 4"
   "react-muse-spark-1-3   1 2"
-  "react-kimi-k3          2 4"
+  "react-kimi-k3          3 4"   # epoch 2's history (385k tokens) exceeds the provider's 262k context
   "react-glm-5-3          1 4"
 )
 
-if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -s "$ROOT/runs/.openrouter_key" ]; then
-  export OPENROUTER_API_KEY="$(tr -d '[:space:]' < "$ROOT/runs/.openrouter_key")"
-fi
+# Same key file convention as run_trial.sh's ReAct path: per-model file first, generic file second.
+openrouter_key_for() {
+  local f="$ROOT/runs/.openrouter_key.${1//\//_}"
+  [ -s "$f" ] || f="$ROOT/runs/.openrouter_key"
+  [ -s "$f" ] && tr -d '[:space:]' < "$f"
+}
 unset VIRTUAL_ENV
 pids=()
 for job in "${CODEX_JOBS[@]}"; do
   [ -z "$ONLY" ] || [ "$ONLY" = codex ] || continue
   read -r model parent <<< "$job"
+  grep -Eq "$MATCH" <<< "$model" || continue
   cmd=(env CONFIG="$CONFIG" RESUME_FROM="$ROUND4/runs/$parent" "$ROOT/sandbox/docker/run_trial.sh" codex "$model" 1)
   printf 'codex %s: ' "$model"; printf '%q ' "${cmd[@]}"; echo
   (( DRY )) || { "${cmd[@]}" > "$OUT/codex_$model.out" 2>&1 & pids+=($!); }
@@ -48,14 +53,18 @@ done
 for job in "${REACT_JOBS[@]}"; do
   [ -z "$ONLY" ] || [ "$ONLY" = react ] || continue
   read -r system epoch conns <<< "$job"
+  grep -Eq "$MATCH" <<< "$system" || continue
   log="$(ls "$ROUND4/logs/round4/$system/120m/"*.eval | tail -1)"
+  model="$(uv run python -c 'import sys; from inspect_ai.log import read_eval_log; print(read_eval_log(sys.argv[1], header_only=True).eval.model)' "$log")"
+  key="${OPENROUTER_API_KEY:-$(openrouter_key_for "${model#openrouter/}")}"
+  [ -n "$key" ] || { echo "no OpenRouter key for $model" >&2; exit 1; }
   cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_continue
        -T "parent_log=$log" -T "parent_epoch=$epoch" -T "config=$CONFIG"
        --max-samples 1 --max-sandboxes 1 --max-connections "$conns" --max-retries 5
        --timeout 900 --attempt-timeout 600 --retry-on-error=2 --log-model-api --log-refusals
        --log-dir "$OUT/$system")
   printf 'react %s: ' "$system"; printf '%q ' "${cmd[@]}"; echo
-  (( DRY )) || { (cd "$ROOT" && "${cmd[@]}") > "$OUT/$system.out" 2>&1 & pids+=($!); }
+  (( DRY )) || { (cd "$ROOT" && OPENROUTER_API_KEY="$key" "${cmd[@]}") > "$OUT/$system.out" 2>&1 & pids+=($!); }
 done
 (( DRY )) && exit 0
 rc=0
