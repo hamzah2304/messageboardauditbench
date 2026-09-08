@@ -16,7 +16,7 @@ source paths, data variant and available parent identifiers.
 
 These are archive counts from the initial cleanup, not completed comparison
 cells. Subsequent provider-swap runs are exported separately under
-`reports/provider-swap/`; see `experiments/provider_swap.toml` for the current
+`reports/provider_swap/`; see `experiments/provider_swap.toml` for the current
 Inspect reproduction plan. Consult the tracked indexes and grades for current
 completion counts. The current followup figure uses 78 matched finding-grade
 pairs. The early followup sets are exploratory; partial runs and model fallbacks
