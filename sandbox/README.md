@@ -12,7 +12,7 @@ no view of anything but the data.
 
 Everything lives in `sandbox/docker/`. The earlier permissions-based sandbox
 (Linux user + iptables) that produced the first baselines was removed on
-2026-09-05; `docs/HANDOFF.md` §4 records why.
+2026-09-05; the pre-cleanup Git tag preserves its historical design notes.
 
 There are two orchestrators. The default Inspect task uses the same image and
 data in a network-disabled Inspect Docker sandbox; Claude Code and Codex obtain

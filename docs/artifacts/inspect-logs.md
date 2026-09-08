@@ -22,8 +22,9 @@ fallback metadata. Report-index entries map published reports to source log
 basenames and epochs. Existing indexes can contain obsolete absolute local paths;
 use the basename to locate the corresponding downloaded log.
 
-Finalized error and cancelled logs are retained for transparency. Logs still
-marked `started` at packaging time are excluded and listed in the manifest.
+Finalized error and cancelled logs are retained for transparency. One partial log marked `started` is retained because its completed samples
+are referenced by the results; four other unfinished logs are excluded and
+listed in the manifest.
 Do not average every archived sample: use the tracked report indexes, grades,
 and figure builders to reproduce the published selection. Historical runs often
 used `--no-score`; their grades are stored separately under `benchmark/graded/`.

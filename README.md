@@ -45,23 +45,30 @@ The eval runs the finding (`v2`) and summary (`tldrh`) graders inline; `--no-sco
 them. Every script resolves its inputs through `paths.py`, so the repo works from a plain
 clone.
 
-## Results
+## Publication snapshot
 
-Measured results are reported in the accompanying write-up, not here, so this README stays
-a description of the benchmark rather than a snapshot that goes stale every round. The
-public results definition is not yet frozen — see item 3 of
-[`docs/release-readiness.md`](docs/release-readiness.md) before quoting any number from
-this repository.
+This checkout contains the round-4 benchmark and the followup and provider-swap
+ablations used for the blog. Earlier rounds, seed baselines, prototype results,
+and superseded design notes are available in Git history at
+[`inspect-logs-2026-09-08`](https://github.com/hamzah2304/messageboardauditbench/tree/inspect-logs-2026-09-08).
 
-The grades themselves are tracked: `benchmark/graded/` holds every committed per-claim and
-per-finding grade, `benchmark/graded_inputs/` the byte-identical report each one came from,
-and `reports/` the full corpus with run metadata.
-[`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) maps all of it;
-`viewers/build_*.py` renders it as browsable HTML.
+The headline score is **70% finding coverage and 30% holistic TLDR assessment**.
+Finding coverage is the mean of `max(2s - 1, 0)` across the 38 findings; the TLDR
+score is graded separately. The Inspect logs expose the component scores. The
+headline figures combine them using `viewers/build_headline_figures.py` and
+`benchmark/figures/combined_score.json`.
 
-`scripts/report_performance.py <graded-dir>` aggregates a directory, applying the figures'
-stricter `max(2s - 1, 0)` transform per finding — **not** the raw mean the Inspect sheet
-scorer reports.
+Start with:
+
+- [Results figures](viewers/figures/results_figures.md), with the plot sources and captions.
+- [Evidence index](docs/benchmark-data-index.md), linking the current reports, grades,
+  rubric-validation evidence, and ablations.
+- [Inspect log downloads](docs/artifacts/inspect-logs.md), with checksums and a manifest
+  linking the archived logs to reported samples.
+
+The figures generally show three runs per model and budget. Missing samples and
+model fallbacks are recorded in the figure data and report indexes; do not treat
+all archived runs as headline samples or an Opus fallback as a single-model result.
 
 ## Layout
 
@@ -75,39 +82,30 @@ scripts/        data build/fetch, grading, report collection, analysis
 configs/        trial conditions (budget, prompt, data variant, effort)
 experiments/    manifests and notes for the multi-cell rounds and ablations
 reports/        the model report corpus, by benchmark config
-baselines/      early trial runs (meta + report; transcripts are gitignored)
 viewers/        build_*.py -> browsable HTML for every artifact
-corpus/         captured collusion.wiki pages and site chrome
 data/           gitignored; rebuilt and checksum-verified by scripts/build_data.sh
-docs/           design notes, data processing, audits, handoff
+docs/           setup, data processing, audits, and publication evidence
 tests/          pytest suite for the task package and tooling
 ```
 
 ## How grading works
 
-Three sheets exist and they are not the same instrument. Which one produced a score
-matters more than the score.
+The default task runs two independent graders over the submitted report:
 
-- **`v2` finding sheets + `tldrh` summary sheet — the current scoring.** The Inspect tasks
-  default to `-T rubric=v2,tldrh`, judged by `openai/gpt-5.6-sol` unless an Inspect
-  `grader` model role overrides it. The scorers live in
-  `messageboard_audit_bench/grading/`; per-finding credit and judge explanations land in
-  the eval log.
-- **`benchmark/rubrics/` — the 30-claim rubrics.** The earlier scoring, and the source of
-  the historical grades in `benchmark/graded/`. Each claim was first checked against the
-  data by a feasibility pass, so non-derivable claims were excluded and a model was never
-  penalised for missing something unknowable.
-- **`messageboard_audit_bench/rubric.yaml` — the legacy starter rubric.** Small,
-  LLM-seeded, never human-validated. No longer a default; reach it with `-T rubric=legacy`.
+- `v2`: eight sheets covering 38 findings extracted from the human investigation.
+- `tldrh`: a holistic assessment of the report's summary against the human account.
 
-Two consequences. Grade sets are **not comparable across sheet versions** without
-regrading, so read any historical grade with its recorded grading version. And the sheet
-scorer emits a numeric score even when a grader partially fails, so any aggregation meant
-for publication has to check its failure metadata.
+Both receive the matching answer key. Provider-swapped inputs select the
+Anthropic variant of the sheets and human report. `--model-role grader=...`
+sets the judge; the published headline figures use Fable 5.1. The quick-start
+example uses Sol and will therefore produce a different judge configuration.
 
-[`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) records how the 30-claim
-sheets were revised after a judge audit, and why C21, C22 and C28 deliberately carry no
-data note.
+Per-finding grades and explanations are retained in the Inspect log. The
+publication finding score applies `max(2s - 1, 0)` to each finding before averaging;
+the headline score combines that with the holistic TLDR grade at weights 70/30.
+See [the evidence index](docs/benchmark-data-index.md) for source grades and
+human validation records. Alternative grading sheets remain available for
+compatibility and validation, but do not define the headline metric.
 
 ## Inspect integration
 
@@ -176,8 +174,6 @@ unchanged.
 - [`docs/ablations-and-baselines.html`](docs/ablations-and-baselines.html) — how we check
   the benchmark measures investigation rather than summarisation;
   [`experiments/ablations.md`](experiments/ablations.md) is the archive inventory.
-- [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
-  design rationale and operational notes.
 
 ## Working on it
 
@@ -194,4 +190,4 @@ Maintainers: task work happens in linked worktrees under `.worktrees/`; the rule
 MIT — see [`LICENSE`](LICENSE). It covers the code and the benchmark material authored
 here. It does not license the third-party content reproduced for research: the captured
 collusion.wiki pages in `corpus/`, the human investigators' report in `benchmark/`, and the
-model-generated reports in `reports/` and `baselines/`.
+model-generated reports in `reports/` and historical baseline reports.

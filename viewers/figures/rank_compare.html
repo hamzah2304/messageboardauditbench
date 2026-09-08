@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Ranks on both corpora</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>:root{--ground:#F6F6F2;--surface:#FFFFFF;--ink:#17181A;--ink2:#5F636A;--ink3:#8E939B;--line:#DEDFD9;--grid:#ECECE7;
@@ -111,10 +111,11 @@ document.getElementById('lede').textContent =
   + 'Recall is judged by ' + D.judges.recall + ', the probe by ' + D.judges.probe + '.';
 
 /* --- Figure 1: the group means, both corpora --- */
-/* OpenAI wears its provider colour from the headline figures; the other group is eight
-   models from five providers, so it is deliberately neutral rather than borrowing one
-   provider's hue. Both bars are named underneath, so identity never rests on colour. */
-const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--ink2)'};
+/* Both groups take tokens from the post's provider palette rather than ink greys, so the
+   figure sits with the rest. OpenAI keeps the black it wears everywhere in the post. The
+   other group is eight models from five providers, so its green denotes the group, not
+   Google — which is why both bars are named on the axis and in the legend. */
+const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--p-google)'};
 function fig0() {
   const M = D.measures[sel], sp = M.split;
   const corpora = [['standard', 'standard setting'], ['twin', 'modified Anthropic setting']];
@@ -158,6 +159,14 @@ function fig0() {
         placed.push({y: Y(pt.mean), dx});
         const c = s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 2.6, fill: SIDE[k],
           opacity: .75});
+        /* Sol is the one model with a directional effect across the two settings, so it
+           is named rather than left to a hover */
+        if (pt.model === 'GPT-5.6 Sol') {
+          svg.append(s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 4.6, fill: 'none',
+            stroke: SIDE[k], 'stroke-width': 1.2}));
+          const lb = s('text', {x: mx + dx + 9, y: Y(pt.mean) + 3.5, class: 'lab'});
+          lb.textContent = '5.6 Sol'; svg.append(lb);
+        }
         c.append(s('title'));
         c.lastChild.textContent = `${pt.model}: ${pt.mean.toFixed(2)} over ${pt.n} run${pt.n > 1 ? 's' : ''}`;
         svg.append(c);
@@ -190,7 +199,7 @@ function fig0() {
     t.textContent = k + ' models'; svg.append(t);
     lx += 26 + (k.length + 7) * 6.4;
   });
-  svg.append(s('circle', {cx: lx + 4, cy: T - 21.5, r: 2.6, fill: 'var(--ink2)', opacity: .75}));
+  svg.append(s('circle', {cx: lx + 4, cy: T - 21.5, r: 2.6, fill: 'var(--ink3)', opacity: .75}));
   const dl = s('text', {x: lx + 12, y: T - 18, class: 'axis'});
   dl.textContent = 'one model'; svg.append(dl);
   document.getElementById('leg0').replaceChildren();
@@ -204,6 +213,7 @@ function fig0() {
     + `not outvote Haiku's six. Whiskers are 95% percentile intervals bootstrapped over `
     + `models — four in the OpenAI group and eight in the other — which is why they are wide. `
     + `Each dot is one model's own mean; hover for its name and run count. `
+    + `The green denotes the group, not Google: it holds eight models from five providers. `
     + `Standard setting: ${sp.standard['OpenAI'].runs} and ${sp.standard['non-OpenAI'].runs} runs. `
     + `Modified: ${sp.twin['OpenAI'].runs} and ${sp.twin['non-OpenAI'].runs}.`;
   const t = el('table'), hd = el('tr');
