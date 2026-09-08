@@ -135,8 +135,7 @@ loopback that only forwards to vendor API hosts. Network isolation held. But:
 
 1. **The agent could read the answer key.** `agentbox` has read access to the
    whole checkout: `docs/design-notes.md`, `messageboard_audit_bench/rubric.yaml`,
-   previous runs' `report.md`, Inspect logs, and, on this repo, the Discord
-   export archives of the human investigation. Nothing stopped an agent from
+   previous runs' `report.md`, and Inspect logs. Nothing stopped an agent from
    `ls ..`. The baselines happen to be clean; the next one might not be.
 2. **`meta.json` sat inside the run dir.** Opus ran `cat ../meta.json` and saw
    its own model id and a path containing `raw_stripped`. Small tell that the

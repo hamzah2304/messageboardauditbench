@@ -112,7 +112,7 @@ tbody td:first-child{white-space:normal}}
 <p>The third is the real test of the recall/precision combination. The fourth matters because the calibration metric is the most novel thing here and currently the least tested.</p>
 <hr>
 <h2>7. Contamination is a lifecycle problem, not one baseline</h2>
-<p>collusion.wiki, the source report, the investigation Discord and at least two GitHub repositories are public. Models released from here on may have trained on the findings. The benchmark therefore has a half-life, and it needs monitoring rather than a single check.</p>
+<p>collusion.wiki, the source report and at least two GitHub repositories are public. Models released from here on may have trained on the findings. The benchmark therefore has a half-life, and it needs monitoring rather than a single check.</p>
 <ul><li>Run <strong>no corpus per model</strong>, not once — it is a per-model property.</li><li><strong>Record each evaluated model's training cutoff</strong> alongside its score.</li><li><strong>Watch no-corpus score against model release date.</strong> A rising line is contamination, not capability. This is the cleanest available signal and costs one extra condition per model.</li><li>If the dump is ever published, <strong>embed canary strings</strong> so future contamination is detectable.</li><li>Keep a <strong>held-out slice</strong> of claims that are never published, as a contamination control.</li></ul>
 <hr>
 <h2>8. External comparators</h2>

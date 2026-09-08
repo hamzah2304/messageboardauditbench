@@ -96,15 +96,15 @@ def main():
     probe = lambda S: S["ORIGIN"]["score"]                            # noqa: E731
 
     measures = {
-        "origin": {"label": "origin probe",
+        "origin": {"label": "origin probe", "axis": "AI lab attribution surfaced",
                    "note": f"one question over the whole report, judged by {PROBE_JUDGE}",
                    "std": scan(f"{P}/graded_r4b*.json", 1, probe),
                    "twin": scan(f"{P}/variant_anthropic/graded_psw*.json", 1, probe)},
-        "attribution": {"label": "attribution findings",
+        "attribution": {"label": "attribution findings", "axis": "AI lab attribution coverage",
                         "note": "the six recall findings that name an actor, strict",
                         "std": scan(f"{R}/graded_r4b*.json", 38, six),
                         "twin": scan(f"{R}/variant_anthropic/graded_psw*.json", 38, six)},
-        "overall": {"label": "overall recall",
+        "overall": {"label": "overall recall", "axis": "overall finding coverage",
                     "note": "all 38 findings, strict — the control",
                     "std": scan(f"{R}/graded_r4b*.json", 38, allf),
                     "twin": scan(f"{R}/variant_anthropic/graded_psw*.json", 38, allf)},
@@ -130,9 +130,14 @@ def main():
                 lo, hi = boot_ci(list(per.values()))
                 out[side] = {"mean": st.mean(st.mean(v) for v in per.values()),
                              "lo": lo, "hi": hi, "models": len(sel),
-                             "runs": sum(len(v) for v in per.values())}
+                             "runs": sum(len(v) for v in per.values()),
+                             # one point per model, so the bar's spread is visible and a
+                             # single model carrying the group cannot hide inside the mean
+                             "points": sorted(({"model": mo, "mean": st.mean(v), "n": len(v)}
+                                               for mo, v in per.items()),
+                                              key=lambda d: -d["mean"])}
             return out
-        data["measures"][key] = {"label": m["label"], "note": m["note"], "rows": rows,
+        data["measures"][key] = {"label": m["label"], "axis": m["axis"], "note": m["note"], "rows": rows,
                                  "n_std": sum(r["n_std"] for r in rows),
                                  "n_twin": sum(r["n_twin"] for r in rows),
                                  "split": {"standard": split("std", "std"),
@@ -194,12 +199,15 @@ document.getElementById('lede').textContent =
   + 'Recall is judged by ' + D.judges.recall + ', the probe by ' + D.judges.probe + '.';
 
 /* --- Figure 1: the group means, both corpora --- */
-const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--p-google)'};
+/* OpenAI wears its provider colour from the headline figures; the other group is eight
+   models from five providers, so it is deliberately neutral rather than borrowing one
+   provider's hue. Both bars are named underneath, so identity never rests on colour. */
+const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--ink2)'};
 function fig0() {
   const M = D.measures[sel], sp = M.split;
   const corpora = [['standard', 'standard setting'], ['twin', 'modified Anthropic setting']];
   const sides = ['OpenAI', 'non-OpenAI'];
-  const W = 1040, H = 372, L = 66, R = 20, T = 26, B = 78;
+  const W = 1040, H = 372, L = 66, R = 20, T = 40, B = 62;
   const IW = W - L - R, IH = H - T - B;
   const all = corpora.flatMap(([c]) => sides.flatMap(k => [sp[c][k].mean, sp[c][k].lo, sp[c][k].hi]))
                      .filter(v => v != null);
@@ -214,13 +222,13 @@ function fig0() {
     t.textContent = v.toFixed(2); svg.append(t);
   }
   svg.append(s('line', {x1: L, x2: L + IW, y1: Y(0), y2: Y(0), class: 'axline'}));
-  const band = IW / corpora.length, bw = Math.min(band * 0.3, 96);
+  const band = IW / corpora.length, bw = Math.min(band * 0.2, 62);
   corpora.forEach(([c, label], i) => {
     const cx = L + band * (i + 0.5);
     sides.forEach((k, j) => {
-      const q = sp[c][k], x = cx + (j === 0 ? -bw - 6 : 6);
+      const q = sp[c][k], x = cx + (j === 0 ? -bw - 14 : 14);
       svg.append(s('rect', {x, y: Y(q.mean), width: bw, height: Math.max(Y(0) - Y(q.mean), 1),
-        fill: SIDE[k], 'fill-opacity': .85, rx: 4}));
+        fill: SIDE[k], 'fill-opacity': .3, stroke: SIDE[k], 'stroke-width': 1.4, rx: 4}));
       const mx = x + bw / 2;
       if (q.lo != null) {
         svg.append(s('line', {x1: mx, x2: mx, y1: Y(q.lo), y2: Y(q.hi), stroke: 'var(--ink)',
@@ -228,35 +236,64 @@ function fig0() {
         [q.lo, q.hi].forEach(v => svg.append(s('line', {x1: mx - 5, x2: mx + 5, y1: Y(v), y2: Y(v),
           stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55})));
       }
-      const t = s('text', {x: mx, y: Y(q.mean) - 7, class: 'lab num', 'text-anchor': 'middle',
+      /* one dot per model, nudged apart only when two would overlap, so a reader can see
+         whether the bar is a consensus or one model dragging the rest */
+      const placed = [];
+      (q.points || []).forEach(pt => {
+        let dx = 0;
+        while (placed.some(v => Math.abs(v.y - Y(pt.mean)) < 7 && Math.abs(v.dx - dx) < 9))
+          dx = dx <= 0 ? -dx + 9 : -dx;
+        placed.push({y: Y(pt.mean), dx});
+        const c = s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 2.6, fill: SIDE[k],
+          opacity: .75});
+        c.append(s('title'));
+        c.lastChild.textContent = `${pt.model}: ${pt.mean.toFixed(2)} over ${pt.n} run${pt.n > 1 ? 's' : ''}`;
+        svg.append(c);
+      });
+      /* the mean sits inside the bar where there is room: above it, it lands in the middle
+         of the dot cloud and the whisker, and no amount of halo makes that tidy */
+      svg.append(s('line', {x1: x, x2: x + bw, y1: Y(q.mean), y2: Y(q.mean),
+        stroke: SIDE[k], 'stroke-width': 2.2}));
+      const t = s('text', {x: mx, y: Y(q.mean) - 10, class: 'lab num', 'text-anchor': 'middle',
         stroke: 'var(--surface)', 'stroke-width': 3, 'paint-order': 'stroke',
         'stroke-linejoin': 'round'});
-      t.textContent = q.mean.toFixed(3); svg.append(t);
-      /* two lines: at this bar width one line of "N models · N runs" overlaps its neighbour */
-      [`${q.runs} runs`, `${q.models} models`].forEach((txt, r) => {
-        const n = s('text', {x: mx, y: Y(0) + 15 + r * 12, class: 'axis', 'text-anchor': 'middle'});
-        n.textContent = txt; svg.append(n);
-      });
+      t.textContent = q.mean.toFixed(2); svg.append(t);
+      /* the bar is 62px and "non-OpenAI models" is twice that; the legend carries the
+         full names, so the axis carries the short ones */
+      const n = s('text', {x: mx, y: Y(0) + 16, class: 'axis', 'text-anchor': 'middle'});
+      n.textContent = k; svg.append(n);
     });
-    const lb = s('text', {x: cx, y: Y(0) + 48, class: 'axname', 'text-anchor': 'middle'});
+    const lb = s('text', {x: cx, y: Y(0) + 38, class: 'axname', 'text-anchor': 'middle'});
     lb.textContent = label; svg.append(lb);
   });
   const ay = s('text', {x: 16, y: T + IH / 2, class: 'axname', 'text-anchor': 'middle',
     transform: `rotate(-90 16 ${T + IH / 2})`});
-  ay.textContent = M.label + (sel === 'origin' ? ' (raw 0-1)' : ' (strict)'); svg.append(ay);
+  ay.textContent = M.axis + (sel === 'origin' ? ' (raw 0-1)' : ' (strict)'); svg.append(ay);
   document.getElementById('fig0').replaceChildren(svg);
-  const leg = document.getElementById('leg0'); leg.replaceChildren();
-  sides.forEach(k => { const q = el('span'); const i = el('i'); i.style.background = SIDE[k];
-    q.append(i, document.createTextNode(k + ' models')); leg.append(q); });
+  let lx = L + 6;
+  sides.forEach(k => {
+    svg.append(s('rect', {x: lx, y: T - 26, width: 9, height: 9, fill: SIDE[k],
+      'fill-opacity': .3, stroke: SIDE[k], 'stroke-width': 1.4, rx: 2}));
+    const t = s('text', {x: lx + 14, y: T - 18, class: 'axis'});
+    t.textContent = k + ' models'; svg.append(t);
+    lx += 26 + (k.length + 7) * 6.4;
+  });
+  svg.append(s('circle', {cx: lx + 4, cy: T - 21.5, r: 2.6, fill: 'var(--ink2)', opacity: .75}));
+  const dl = s('text', {x: lx + 12, y: T - 18, class: 'axis'});
+  dl.textContent = 'one model'; svg.append(dl);
+  document.getElementById('leg0').replaceChildren();
   const d1 = sp.standard['OpenAI'].mean - sp.standard['non-OpenAI'].mean;
   const d2 = sp.twin['OpenAI'].mean - sp.twin['non-OpenAI'].mean;
   document.getElementById('read0').textContent =
-    `Gap of ${d1.toFixed(3)} in the standard setting, ${d2.toFixed(3)} in the modified `
+    `Gap of ${d1.toFixed(2)} in the standard setting, ${d2.toFixed(2)} in the modified `
     + `Anthropic setting. If the deficit were loyalty it would close on the right.`;
   document.getElementById('cap0').textContent =
     `${M.label}: ${M.note}. Each model contributes once, so Sol's eighteen standard runs do `
     + `not outvote Haiku's six. Whiskers are 95% percentile intervals bootstrapped over `
-    + `models — four in the OpenAI group and eight in the other — which is why they are wide.`;
+    + `models — four in the OpenAI group and eight in the other — which is why they are wide. `
+    + `Each dot is one model's own mean; hover for its name and run count. `
+    + `Standard setting: ${sp.standard['OpenAI'].runs} and ${sp.standard['non-OpenAI'].runs} runs. `
+    + `Modified: ${sp.twin['OpenAI'].runs} and ${sp.twin['non-OpenAI'].runs}.`;
   const t = el('table'), hd = el('tr');
   ['corpus', 'group', 'mean', '95% CI', 'models', 'runs'].forEach((h, i) =>
     hd.append(el('th', i < 2 ? 'l' : '', h)));
@@ -264,8 +301,8 @@ function fig0() {
   const tb = el('tbody');
   corpora.forEach(([c, label]) => sides.forEach(k => {
     const q = sp[c][k], tr = el('tr');
-    tr.append(el('td', 'l', label), el('td', 'l', k), el('td', 'num', q.mean.toFixed(3)),
-      el('td', 'num', q.lo == null ? '—' : `${q.lo.toFixed(3)}, ${q.hi.toFixed(3)}`),
+    tr.append(el('td', 'l', label), el('td', 'l', k), el('td', 'num', q.mean.toFixed(2)),
+      el('td', 'num', q.lo == null ? '—' : `${q.lo.toFixed(2)}, ${q.hi.toFixed(2)}`),
       el('td', 'num', q.models), el('td', 'num', q.runs));
     tb.append(tr);
   }));
@@ -320,8 +357,8 @@ function fig() {
   rows.forEach(r => {
     const tr = el('tr'), mv = r.rank_std - r.rank_twin;
     tr.append(el('td', 'l', r.model), el('td', 'l', r.group),
-      el('td', 'num', r.std.toFixed(3)), el('td', 'num', '#' + r.rank_std),
-      el('td', 'num', r.twin.toFixed(3)), el('td', 'num', '#' + r.rank_twin),
+      el('td', 'num', r.std.toFixed(2)), el('td', 'num', '#' + r.rank_std),
+      el('td', 'num', r.twin.toFixed(2)), el('td', 'num', '#' + r.rank_twin),
       el('td', 'num', mv === 0 ? '—' : (mv > 0 ? '+' : '') + mv),
       el('td', 'num', `${r.n_std}/${r.n_twin}`));
     tb.append(tr);

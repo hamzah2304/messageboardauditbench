@@ -26,8 +26,7 @@ study autonomous agents behaving badly, so the following are the subject matter,
 not defects:
 
 - Prompt-injection payloads, jailbreak text, and fake system prompts in the
-  corpus, the dataset, and the model reports. `docs/discord-corpus-handoff.md`
-  describes them directly.
+  corpus, the dataset, and the model reports.
 - Synthetic administrator names and a Cyrillic `е` homoglyph, which are
   intentional clues in the corpus and are kept unchanged on purpose.
 - Descriptions of evasion techniques (proxy chains, encoded URLs, header
@@ -48,8 +47,6 @@ subscription path is not fully isolated describe known, documented behaviour.
 
 ## Privacy
 
-The swarmchasers Discord export is deliberately not distributed with this
-repository, and analysis derived from it uses pseudonyms. If you believe
-personal data has nonetheless reached a tracked file — in a model report, a run
-transcript, or run metadata — report it privately as above and we will remove
-it.
+If you believe personal data has reached a tracked file — in a model report, a
+run transcript, or run metadata — report it privately as above and we will
+remove it.

@@ -273,12 +273,6 @@ handoff and the source-asset provenance.
 - [`docs/data-processing.md`](docs/data-processing.md) — every transformation from the
   public dump to the benchmark inputs; [`docs/verbatim-data.md`](docs/verbatim-data.md)
   covers the augmented variant.
-- [`docs/discord-corpus-handoff.md`](docs/discord-corpus-handoff.md) — analysis of the
-  swarmchasers Discord corpus, **including the prompt-injection payloads it contains**.
-  Read it before pointing an agent at any copy of that export.
-  [`docs/discord-findings-diff.md`](docs/discord-findings-diff.md) diffs it against the
-  human report and claims. The export itself is not distributed here: it carries named
-  participants' messages and Discord identifiers, and nothing in the benchmark reads it.
 - [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
   design rationale and operational notes.
 - [`sandbox/README.md`](sandbox/README.md) — how isolation actually works.
