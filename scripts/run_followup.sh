@@ -6,7 +6,8 @@
 #   scripts/run_followup.sh --dry-run  # print the commands
 #
 # Codex trials resume through `RESUME_FROM=<parent run dir> run_trial.sh` (native CLI resume).
-# ReAct trials continue through the messageboard_audit_bench_continue Inspect task.
+# ReAct trials continue through the messageboard_audit_bench_continue Inspect task, unscored
+# like round 4 (reports are graded afterwards by the rubric scripts).
 # Claude Code round-4 runs kept no session store and are not continued here.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -61,7 +62,7 @@ for job in "${REACT_JOBS[@]}"; do
   cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_continue
        -T "parent_log=$log" -T "parent_epoch=$epoch" -T "config=$CONFIG"
        --max-samples 1 --max-sandboxes 1 --max-connections "$conns" --max-retries 5
-       --timeout 900 --attempt-timeout 600 --retry-on-error=2 --log-model-api --log-refusals
+       --timeout 900 --attempt-timeout 600 --retry-on-error=2 --log-model-api --log-refusals --no-score
        --log-dir "$OUT/$system")
   printf 'react %s: ' "$system"; printf '%q ' "${cmd[@]}"; echo
   (( DRY )) || { (cd "$ROOT" && OPENROUTER_API_KEY="$key" "${cmd[@]}") > "$OUT/$system.out" 2>&1 & pids+=($!); }
