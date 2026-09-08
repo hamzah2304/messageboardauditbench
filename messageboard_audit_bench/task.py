@@ -153,6 +153,13 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
     """Build the standard Inspect Docker sandbox with read-only benchmark data."""
     repo = repo_root().resolve()
     data_dir = (repo / "data" / data_variant).resolve()
+    # A task worktree holds per-file symlinks to the primary checkout's data.
+    # A bind mount cannot follow those, so mount the directory they resolve to.
+    targets = {p.resolve().parent for p in data_dir.glob("*.jsonl") if p.is_symlink()}
+    if len(targets) == 1:
+        data_dir = targets.pop()
+    elif targets:
+        raise RuntimeError(f"data/{data_variant} symlinks point at several directories")
     return SandboxEnvironmentSpec(
         type="isolated-docker",
         config=ComposeConfig(

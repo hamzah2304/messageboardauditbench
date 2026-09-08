@@ -16,6 +16,7 @@ ROUND4="${ROUND4:-$ROOT/.worktrees/inspect-eval}"   # where round 4's logs/ and 
 CONFIG="${CONFIG:-followup-5k}"
 OUT="$ROOT/logs/$CONFIG"; mkdir -p "$OUT"
 DRY=0; [ "${1:-}" = --dry-run ] && DRY=1
+ONLY="${ONLY:-}"   # ONLY=codex or ONLY=react restricts the launch to one harness
 
 # Codex: parent run dir (epoch 1 of each system's 120-minute cell) and its CLI model.
 CODEX_JOBS=(
@@ -38,12 +39,14 @@ fi
 unset VIRTUAL_ENV
 pids=()
 for job in "${CODEX_JOBS[@]}"; do
+  [ -z "$ONLY" ] || [ "$ONLY" = codex ] || continue
   read -r model parent <<< "$job"
   cmd=(env CONFIG="$CONFIG" RESUME_FROM="$ROUND4/runs/$parent" "$ROOT/sandbox/docker/run_trial.sh" codex "$model" 1)
   printf 'codex %s: ' "$model"; printf '%q ' "${cmd[@]}"; echo
   (( DRY )) || { "${cmd[@]}" > "$OUT/codex_$model.out" 2>&1 & pids+=($!); }
 done
 for job in "${REACT_JOBS[@]}"; do
+  [ -z "$ONLY" ] || [ "$ONLY" = react ] || continue
   read -r system epoch conns <<< "$job"
   log="$(ls "$ROUND4/logs/round4/$system/120m/"*.eval | tail -1)"
   cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_continue
