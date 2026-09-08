@@ -7,16 +7,19 @@ source paths, data variant and available parent identifiers.
 
 | Experiment | Staged folder in `benchmark/graded_inputs/` | Reports |
 |---|---|---:|
-| Anthropic attribution, 10 minutes | `ablation_anthropic10` | 7 |
-| Anthropic attribution, 30 minutes | `ablation_anthropic30` | 24 |
-| Longer followup, Codex | `followup_5k_codex` | 4 |
-| Longer followup, ReAct | `followup_5k_react` | 4 |
-| Longer followup with 5-minute minimum, Codex | `followup_5k_min5_codex` | 36 |
-| Longer followup with 5-minute minimum, ReAct | `followup_5k_min5_react` | 43 |
+| Anthropic attribution, 10 minutes | `ablation_anthropic_b10` | 7 |
+| Anthropic attribution, 30 minutes | `ablation_anthropic_b30` | 24 |
+| Exploratory longer followup | `fu5k` | 8 |
+| Five-minute minimum, 10-minute parents | `fu5k_min5_b10` | 26 |
+| Five-minute minimum, 30-minute parents | `fu5k_min5_b30` | 27 |
+| Five-minute minimum, 120-minute parents | `fu5k_min5_b120` | 26 |
 
 These are archive counts, not completed comparison cells. The early followup
 sets are exploratory; partial runs and model fallbacks retain their source
-labels. No grades were generated during release cleanup. The local Anthropic
+labels. The followup archive includes 79 finding-grade files and 86 summary-grade
+files; the figure uses 70 complete matched finding-grade pairs. The Anthropic
+10-minute cohort has 3 finding grades and 7 summary grades; its 30-minute cohort
+is ungraded. No new judge calls were made during release cleanup. The local Anthropic
 data did not match the current manifest; reconcile the version used by each
 historical batch before interpreting a provider-attribution comparison.
 
@@ -26,19 +29,20 @@ Run from the repository root:
 
 ```bash
 uv run python scripts/stage_graded_inputs.py reports \
-  blind-10-anthropic=ablation_anthropic10:ant10 \
-  blind-30-anthropic=ablation_anthropic30:ant30
-uv run python scripts/stage_graded_inputs.py reports/followup-5k/codex \
-  followup-5k=followup_5k_codex:fu5k
-uv run python scripts/stage_graded_inputs.py reports/followup-5k/react \
-  followup-5k=followup_5k_react:fu5k
-uv run python scripts/stage_graded_inputs.py reports/followup-5k-min5/codex \
-  followup-5k-min5=followup_5k_min5_codex:fu5km5
-uv run python scripts/stage_graded_inputs.py reports/followup-5k-min5/react \
-  followup-5k-min5=followup_5k_min5_react:fu5km5
+  blind-10-anthropic=ablation_anthropic_b10:abl10a \
+  blind-30-anthropic=ablation_anthropic_b30:abl30a
+for harness in codex react; do
+  uv run python scripts/stage_graded_inputs.py reports/followup-5k/$harness \
+    followup-5k=fu5k:fu5k
+  uv run python scripts/stage_graded_inputs.py reports/followup-5k-min5/$harness \
+    'followup-5k-min5^10=fu5k_min5_b10:fu5kb10' \
+    'followup-5k-min5^30=fu5k_min5_b30:fu5kb30' \
+    'followup-5k-min5^120=fu5k_min5_b120:fu5kb120'
+done
 ```
 
-Followup filenames distinguish the parent's budget and, for ReAct, parent epoch.
+Followup prefixes distinguish the parent's budget, and replicate keys use the
+parent epoch when available.
 An Inspect continuation creates one sample per parent epoch, so its own
 `replicate=1` does not uniquely identify the original replicate.
 
@@ -48,7 +52,7 @@ Choose the same judge as the comparison's baseline; for example:
 
 ```bash
 uv run inspect eval messageboard_audit_bench/grade_reports \
-  -T dir=ablation_anthropic30 -T rubric=v2 \
+  -T dir=ablation_anthropic_b30 -T rubric=v2 \
   --model-role grader=anthropic/claude-fable-5-1
 uv run python scripts/export_grades.py logs/GRADING_LOG.eval
 ```
@@ -63,3 +67,7 @@ Inspect ablations. Historical launch plans remain in `provider_swap_*.txt` and
 `scripts/run_followup.sh`. Those plans use the historical prompts and, for
 Codex followups, subscription session files; they cannot be reproduced from
 tracked reports alone.
+
+The [followup figure](../viewers/figures/followup_5k.html) compares longer reports
+after ten additional minutes, including a five-minute minimum working period.
+It cannot isolate the effect of report length from the effect of extra time.

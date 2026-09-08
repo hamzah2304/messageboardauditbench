@@ -16,15 +16,12 @@ and no hints about what it will be graded on. The whole thing is packaged as an
 [Inspect](https://inspect.aisi.org.uk/) eval — see
 [Inspect integration](#inspect-integration).
 
-Its report is then graded on two axes against **30 claims** drawn from the human audit:
-
-- **Recall** — of the claims the data can actually support, how many did it find?
-- **Precision** — a 1–10 judge score counting assertions that contradict the human report.
-
-Claims are only counted when the dump can support them. A separate feasibility pass
-(`benchmark/feasibility/`) checked all 30 against the data; the non-derivable ones are
-excluded, so a model is never penalised for missing something unknowable. Claims that
-flip between data variants (C21/C22/C28) carry a per-variant note.
+The current Inspect task grades the report with the benchmark's **38-finding
+sheets** (`v2`) and a separate **summary-quality sheet** (`tldrh`). Per-finding
+credit and judge explanations are saved in the eval log. Historical rounds below
+used earlier 30-claim rubrics and should be read with their recorded grading
+version. The figure pipeline applies a stricter transform to the per-finding
+scores; it is not the raw mean shown by the Inspect sheet scorer.
 
 ## Quick start
 

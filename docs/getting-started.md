@@ -47,8 +47,8 @@ default, followed by process and length diagnostics. The two rubric scores and
 per-finding grades appear in the `.eval` log. The judge defaults to
 `openai/gpt-5.6-sol`; `--model-role grader=...` overrides it. Reproducing a
 published comparison requires its recorded judge, prompts and data version.
-The sheet mean is not the thresholded finding-coverage statistic used by the
-blog figures; that statistic is computed downstream from the per-finding grades.
+The sheet mean differs from the figures' strict score: they transform each
+finding credit `s` to `max(2s - 1, 0)` before averaging.
 
 To select one rubric use `-T rubric=v2` or `-T rubric=tldrh`; comma-separated
 modes run together. `-T rubric=legacy` selects the older starter rubric only.

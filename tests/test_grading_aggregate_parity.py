@@ -60,6 +60,7 @@ def test_only_the_seed_baselines_predate_the_mode_conversion() -> None:
         rebuilt = core.aggregate(
             recorded["report"], recorded.get("title", ""), recorded.get("grader", ""),
             recorded.get("rubric", "recall"), recorded["scores"], recorded.get("per_rubric", {}),
+            variant=recorded.get("rubric_variant"),
         )
         if rebuilt.get("by_mode") != recorded["by_mode"]:
             unreproducible.append(path.name)
@@ -89,6 +90,7 @@ def test_recorded_grade_reaggregates_identically(path: Path) -> None:
         mode=mode,
         per_claim=recorded["scores"],
         per_rubric=recorded.get("per_rubric", {}),
+        variant=recorded.get("rubric_variant"),
     )
 
     for field in DERIVED:

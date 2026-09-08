@@ -29,7 +29,9 @@ establish that the blog's historical comparisons are ready to publish.
 The pre-change checkout passed lint and 1,064 tests. Added regression checks run
 both default graders through Inspect with canned model responses, exercise
 Anthropic variant selection, parent validation, and export collision handling.
-A Docker smoke ran the public ReAct task with a mock agent writing `report.md`
+The integrated release branch passes lint and all 1,249 tests, including the
+new remote grade corpus. A Docker smoke ran the public ReAct task with a mock
+agent writing `report.md`
 and both mock graders completing in the same `.eval` log. This checks the
 sandbox-to-report-to-grader path without paid calls. It does not validate live
 provider behavior or re-test the Claude Code and Codex model bridges.
@@ -56,16 +58,25 @@ It was not overwritten during this audit.
 2. **Finish ablation grading and matched comparisons.** The archive contains
    7 provider-swap reports at 10 minutes and 24 at 30 minutes; no 120-minute
    provider-swap reports appear in the root report index. Followup counts are
-   8 exploratory reports and 79 with the five-minute minimum. No exported
-   Anthropic-variant grades were present. Grade the staged cohorts with the
-   baseline's judge, check partial/refusal/fallback labels, and compare by
+   8 exploratory reports and 79 with the five-minute minimum. The newly fetched
+   collaborator commit supplies 79 finding-grade files, 86 summary-grade files,
+   and a figure using 70 complete matched pairs. The remote also supplies 3
+   finding-grade files and 7 summary-grade files for the 10-minute Anthropic
+   cohort; the 30-minute cohort remains ungraded. Finish the missing grades
+   with the baseline's judge,
+   check partial/refusal/fallback labels, and compare by
    parent budget and model actually served. Do not treat archive counts as
-   complete planned cells.
+   complete planned cells. The followup figure's prose has been corrected: the
+   treatment adds ten minutes and a longer report request, so it does not
+   isolate report length. Its numerical results were preserved.
 3. **Freeze one public results definition.** The README still leads with rounds
    2 and 3 and their old recall scores. The working blog draft describes round-4
-   thresholded finding coverage. The default Inspect sheet score is a mean of
-   per-finding credit; the plotted coverage threshold is a separate downstream
-   calculation. Regenerate the final README numbers and figures from the chosen
+   finding coverage. The default Inspect sheet score is a mean of
+   per-finding credit; the figures apply `max(2s - 1, 0)` to each finding before
+   averaging.
+   That is not a binary fraction of findings scoring above 0.5; the blog draft
+   currently describes it as one. Regenerate the final README numbers and
+   figures from the chosen
    tracked grades and commit them together with the figure code.
 4. **Resolve the existing dirty checkout.** Figure code, draft prose, human TL;DR
    scores, plots, extra report exports and an additional provider-swap plan were
