@@ -136,7 +136,7 @@ def grade_one(report_md, rub):
     return rub["rubric_id"], core.parse_items(data, LO, HI), eff
 
 def aggregate(key, title, per_claim, per_rubric):
-    out = core.aggregate(key, title, MODEL, MODE, per_claim, per_rubric, RUBRIC_SETS)
+    out = core.aggregate(key, title, MODEL, MODE, per_claim, per_rubric, RUBRIC_SETS, VARIANT)
     if out["max"] == 0:
         # Every call for this report failed (an auth or billing error hits all of them at
         # once). Writing the file anyway records a total of 0 that is indistinguishable

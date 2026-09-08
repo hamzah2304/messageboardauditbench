@@ -99,6 +99,14 @@ def variant_for_data(data_variant: str | None) -> str | None:
     return VARIANT_FOR_DATA.get(data_variant or "")
 
 
+def variant_version(variant: str | None) -> str | None:
+    """The version the variant's builder stamped into VERSION.json, or None for the default."""
+    if not variant:
+        return None
+    path = _rubrics_dir(variant) / "VERSION.json"
+    return json.loads(path.read_text())["version"] if path.is_file() else "unversioned"
+
+
 def _check_variant(variant: str | None) -> None:
     if variant not in VARIANTS:
         raise ValueError(f"unknown rubric variant {variant!r}; expected one of {VARIANTS}")
@@ -219,8 +227,12 @@ def aggregate(
     per_claim: dict[str, dict],
     per_rubric: dict[str, dict],
     sets: list[dict] | None = None,
+    variant: str | None = None,
 ) -> dict[str, Any]:
     """The graded_<key>.json body. Returns max=0 when nothing came back.
+
+    With a rubric variant the body also records which variant and version graded it, so a
+    grade against the swapped answer key can never be mistaken for one against the real one.
 
     A report whose every call failed — an auth or billing error hits all of them at once —
     must not be recorded as having scored zero. Callers check `max` and skip writing.
@@ -240,6 +252,9 @@ def aggregate(
         "per_rubric": per_rubric,
         "scores": per_claim,
     }
+    if variant:
+        out["rubric_variant"] = variant
+        out["rubric_variant_version"] = variant_version(variant)
     if mode == "contradiction":
         out["contradiction"] = round(total / count, 3) if count else 0
         out["n_contradicted"] = len([i for i in per_claim.values() if i["score"] < 0])
@@ -251,7 +266,7 @@ def aggregate(
     # by grading mode; emitting the split would put two zeroes where a reader expects scores.
     if mode != "tldrh":
         if sets is None:
-            sets, _ = load_sheets(mode)
+            sets, _ = load_sheets(mode, variant)
         grading_mode = {
             c["id"]: c.get("grading_mode", "recall_accuracy")
             for s in sets

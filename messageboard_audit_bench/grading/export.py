@@ -34,7 +34,7 @@ def export(log: Any, out_dir: Path | None = None, force: bool = False) -> list[P
     """Write one graded_<key>.json per scored sample. Returns the paths written."""
     written = []
     for grade in grades_in(log):
-        target = out_dir or core.out_dir(grade["grader"], grade["rubric"])
+        target = out_dir or core.out_dir(grade["grader"], grade["rubric"], grade.get("rubric_variant"))
         target.mkdir(parents=True, exist_ok=True)
         path = target / f"graded_{grade['report']}.json"
         if path.exists() and not force:

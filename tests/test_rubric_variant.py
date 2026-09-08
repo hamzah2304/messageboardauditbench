@@ -58,3 +58,14 @@ def test_build_prompt_uses_variant_answer_key():
 def test_out_dir_separates_variants():
     assert core.out_dir("gpt-5.6-sol", "v2", "anthropic").name == "variant_anthropic"
     assert core.out_dir("gpt-5.6-sol", "v2").name == "v2"
+
+
+def test_variant_version_and_aggregate_stamp():
+    assert core.variant_version(None) is None
+    assert core.variant_version("anthropic") not in (None, "unversioned")
+    per = {"N07": {"id": "N07", "score": 1.0}}
+    out = core.aggregate("k", "t", "gpt-5.6-sol", "v2", per, {"V2": {"score": 1.0, "max": 1}}, None, "anthropic")
+    assert out["rubric_variant"] == "anthropic"
+    assert out["rubric_variant_version"] == core.variant_version("anthropic")
+    plain = core.aggregate("k", "t", "gpt-5.6-sol", "v2", per, {"V2": {"score": 1.0, "max": 1}})
+    assert "rubric_variant" not in plain

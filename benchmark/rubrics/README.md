@@ -24,3 +24,19 @@ Grading principles (from team review):
   sheet carries a variant note. Grade against whichever variant the run used.
 
 Headline metric (`grade_with_rubrics.py`): `recall_derivable - 0.5 * overclaim_rate`.
+
+## Provider-swap variant (`anthropic/`)
+
+`data/verbatim_anthropic` (built by `scripts/swap_provider.py`) re-attributes the agents'
+maker from OpenAI to Anthropic and their hosting from Azure to AWS. Reports written
+against it are graded with the sheets in `anthropic/` and the answer key
+`benchmark/human_report_anthropic.txt`, both built by `build_rubrics_anthropic.py`:
+every sheet and the report go through the same substitution as the data, plus the
+prose-only rules (cloud provider, product names, legal entity), and the answer key is
+redacted of everything tying the incident to the earlier Artifactory / Hugging Face
+swarm. Claim ids, grading modes and the scale are unchanged. `anthropic/VERSION.json`
+records the version and the hashes of every input; each grade file records
+`rubric_variant` and `rubric_variant_version`, and files under `variant_anthropic/`.
+
+- Standalone: `python benchmark/rubrics/grade_with_rubrics.py --v2 --variant anthropic --dir <round>`
+- Inspect: the sheet scorer picks the variant from the run's `data_variant`.

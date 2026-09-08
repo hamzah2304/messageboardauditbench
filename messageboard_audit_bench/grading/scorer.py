@@ -144,7 +144,7 @@ def sheet_scorer(
 
         # recorded bare, the way every existing grade file records it
         out = core.aggregate(
-            key, title, core.judge_name(str(model)), rubric, per_claim, per_rubric, sets
+            key, title, core.judge_name(str(model)), rubric, per_claim, per_rubric, sets, variant
         )
         if out["max"] == 0:
             return Score.unscored(
