@@ -1,9 +1,15 @@
-# Benchmark conditions for one trial. Systems (agent, model, seed) are chosen at launch.
+# Named benchmark config. These time fields are direct-runner defaults.
 name = "blind-120"
-prompt = "blind"                 # sandbox/prompts/<prompt>.txt; {{BUDGET_MIN}} is filled in
-budget_min = 120               # what the prompt tells the agent
-timeout_min = 125            # hard kill of the container
-data_variant = "verbatim"     # data/<variant>; "verbatim" is the other built variant
-effort = "xhigh"              # reasoning effort passed to every scaffold
-# Claude Code tools withheld from the agent (web access, subagents, skills, scheduling).
+prompt = "blind-v2"
+budget_min = 120
+timeout_min = 125
+data_variant = "verbatim"
+effort = "xhigh"
 claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+
+# Prompt target and strict upper limit. Scoring tolerates a 100-word overrun;
+# short nonempty reports remain valid.
+report_min_words = 2500
+report_max_words = 3000
+report_accept_min_words = 0
+report_accept_max_words = 3200
