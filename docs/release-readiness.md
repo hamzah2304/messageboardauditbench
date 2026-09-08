@@ -33,8 +33,13 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
    `scripts/score_reports.py` over the shipped grades. `doctor.sh` correctly
    reported the only two things missing from a bare machine, Docker and a built
    `data/`. What remains needs credentials this check did not have: one graded
-   eval and one Docker trial.
+   eval and one Docker trial. Those are assigned.
 2. Preserve local historical input variants and legacy raw runs privately.
+   The `inspect-logs-2026-09-08` release does not close this: it publishes the
+   native Inspect `.eval` logs for round 4, the provider swap and both followup
+   cohorts, which is the retained corpus. The historical `data/` variant builds
+   and the legacy subscription `runs/` transcripts are gitignored, local, and
+   covered by neither that release nor Git.
    An earlier audit found that the local Anthropic variant differed from the
    committed manifest. Rebuilding reproduced the committed hashes, but that
    does not establish which bytes every historical batch consumed. For the
@@ -51,9 +56,11 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
    `data/SHA256SUMS.variants`, so a run states for itself whether it read the
    manifest's data. Rebuild the local variant before any further
    Anthropic-setting trial.
-3. Confirm the blog uses the current 70/30 combined score and labels incomplete
-   cells and model fallbacks. Inspect's raw sheet mean differs from the stricter
-   per-finding publication transform.
+3. ~~Confirm the blog uses the current 70/30 combined score~~ — confirmed by
+   the maintainers; the post states the 70/30 headline, and the README and
+   `scripts/score_reports.py` define and compute it. Still check that the post
+   labels incomplete cells and model fallbacks, and do not let Inspect's raw
+   sheet mean stand in for the stricter per-finding publication transform.
 
 This file is a release checklist and is meant to be deleted once the three
 checks above are done. Nothing durable should be recorded only here: the
