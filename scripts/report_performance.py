@@ -29,6 +29,11 @@ NAMES = {"gpt_5_6_sol": "GPT-5.6 Sol", "openai_gpt_5_6_sol": "GPT-5.6 Sol",
          "claude_fable_5_1": "Fable 5.1"}
 
 
+# The published headline weights. Defined here beside the transform they are applied
+# to, so the figure builders and scripts/score_reports.py cannot drift apart on either.
+W_COV, W_TLDR = 0.7, 0.3
+
+
 def strict(s):
     return max(2 * s - 1, 0.0)
 

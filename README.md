@@ -88,6 +88,51 @@ docs/           setup, data processing, audits, and publication evidence
 tests/          pytest suite for the task package and tooling
 ```
 
+## Evaluate your own agent
+
+The `-T agent=` harnesses are `claude`, `codex` and `react`, and there is no plugin
+point for a fourth. To evaluate a scaffold that is not one of those, run it yourself
+against the same conditions and grade the report it writes.
+
+**The conditions.** A trial is comparable to the published cells only if all of these
+hold:
+
+| | |
+|---|---|
+| prompt | `sandbox/prompts/blind-v2.txt`, verbatim |
+| data | `data/verbatim/`, mounted read-only, and nothing else |
+| network | none — the agent must not reach the web or the source incident |
+| budget | wall-clock; 10, 30 and 120 minutes are the published cells |
+| output | one Markdown report, 2,500–3,000 words (up to 3,100 is accepted) |
+| judge | `anthropic/claude-fable-5-1`, or your number is not comparable |
+
+The agent must not see `benchmark/` — it holds the answer key.
+
+**Grade it.** Put the reports in a folder as `.md` files, one per run; any absolute path
+works and no index file is needed.
+
+```bash
+# both sheets, into an Inspect log each
+uv run inspect eval messageboard_audit_bench/grade_reports \
+  -T dir=/abs/path/to/my-reports -T rubric=v2 \
+  --model-role grader=anthropic/claude-fable-5-1
+uv run inspect eval messageboard_audit_bench/grade_reports \
+  -T dir=/abs/path/to/my-reports -T rubric=tldrh \
+  --model-role grader=anthropic/claude-fable-5-1
+
+# file the grades where the tooling reads them
+uv run python scripts/export_grades.py logs/<the-v2-run>.eval
+uv run python scripts/export_grades.py logs/<the-tldrh-run>.eval
+
+# the headline score, per report and averaged
+uv run python scripts/score_reports.py benchmark/graded/judge_claude_fable_5_1
+```
+
+`score_reports.py` prints the headline beside the raw mean and the above-half fraction,
+because those are the two numbers most easily mistaken for it. It reproduces the
+published composite exactly for the project's own runs. `--json` gives machine-readable
+output; `--v2` and `--tldrh` take the two grade directories separately.
+
 ## How grading works
 
 The default task runs two independent graders over the submitted report:
