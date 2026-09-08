@@ -98,8 +98,29 @@ def main():
          for cid, v in claim_delta.items()),
         key=lambda d: -d["delta"])
 
+    import random
+    def ci(values, n=10000, seed=5):
+        """Percentile CI over a model's own runs. Few runs each, so the interval is wide —
+        which is the point: it stops a two-run model looking as settled as a ten-run one."""
+        if len(values) < 2:
+            return None, None
+        rnd = random.Random(seed)
+        means = sorted(st.mean(rnd.choices(values, k=len(values))) for _ in range(n))
+        return means[int(0.025 * n)], means[int(0.975 * n)]
+
+    by_model = defaultdict(list)
+    for r in pairs:
+        by_model[r["model"]].append(r["long"] - r["short"])
+    model_delta = []
+    for mo, ds in by_model.items():
+        lo, hi = ci(ds)
+        model_delta.append({"model": mo, "n": len(ds), "delta": st.mean(ds),
+                            "lo": lo, "hi": hi,
+                            "up": sum(1 for d in ds if d > 0), "down": sum(1 for d in ds if d < 0)})
+    model_delta.sort(key=lambda m: -m["delta"])
+
     models = sorted({p["model"] for p in points})
-    data = {"points": points, "deltas": deltas, "pairs": pairs,
+    data = {"points": points, "deltas": deltas, "pairs": pairs, "model_delta": model_delta,
             "models": models, "colours": {m: PALETTE[i % len(PALETTE)] for i, m in enumerate(models)},
             "fill": {str(k): v for k, v in FILL.items()},
             "n_pairs": len(pairs), "n_claims": len(deltas),
@@ -113,6 +134,8 @@ def main():
     o = data["overall"]
     print(f"wrote {OUT} — {len(pairs)} matched pairs, {len(points)} model-budget cells")
     print(f"  {o['short']:.3f} -> {o['long']:.3f}  ({o['up']} up, {o['flat']} flat, {o['down']} down)")
+    print("  by model: " + ", ".join(f"{m['model']} {m['delta']:+.3f}" for m in model_delta[:3])
+          + f" ... {model_delta[-1]['model']} {model_delta[-1]['delta']:+.3f}")
     print(f"  biggest claim gains: " + ", ".join(f"{d['id']} {d['delta']:+.3f}" for d in deltas[:4]))
     print(f"  unmoved: " + ", ".join(d["id"] for d in deltas if abs(d["delta"]) < 0.005))
 TEMPLATE = r"""<!doctype html>
@@ -156,6 +179,8 @@ td.zero{color:var(--mut);font-weight:400}
 <div class="hero" id="hero"></div>
 <div class="panel"><h2>The short report against the long one</h2><div id="fig1"></div>
   <div class="legend" id="leg1"></div><p class="cap" id="cap1"></p></div>
+<div class="panel"><h2>Average change in recall, by model</h2><div id="fig3"></div>
+  <p class="cap" id="cap3"></p></div>
 <div class="panel"><h2>Which findings the extra length surfaced</h2><div id="fig2"></div>
   <p class="cap" id="cap2"></p></div>
 <div class="panel"><h2>Every finding</h2><div id="tbl2"></div></div>
@@ -290,6 +315,54 @@ function fig2() {
     + `agents were (N09, N10), and why the activity stopped (N38) — sit flat at the bottom.`;
 }
 
+/* ---------- Figure 3: average delta per model ---------- */
+function fig3() {
+  const rows = D.model_delta;
+  const W = 1080, H = 330, L = 150, R = 120, T = 16, B = 46;
+  const IW = W - L - R, IH = H - T - B, bandH = IH / rows.length;
+  const lo = Math.min(0, ...rows.map(r => r.lo == null ? r.delta : r.lo)) - 0.005;
+  const hi = Math.max(...rows.map(r => r.hi == null ? r.delta : r.hi)) + 0.005;
+  const X = v => L + (v - lo) / (hi - lo) * IW;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'average change in recall per model'});
+  for (let v = Math.ceil(lo / 0.02) * 0.02; v <= hi + 1e-9; v += 0.02) {
+    svg.append(s('line', {x1: X(v), x2: X(v), y1: T, y2: T + IH, class: 'gl'}));
+    const t = s('text', {x: X(v), y: T + IH + 17, class: 'tick', 'text-anchor': 'middle'});
+    t.textContent = (v > 0 ? '+' : '') + v.toFixed(2); svg.append(t);
+  }
+  svg.append(s('line', {x1: X(0), x2: X(0), y1: T, y2: T + IH, stroke: 'var(--sec)',
+    'stroke-width': 1, opacity: .5}));
+  rows.forEach((r, i) => {
+    const y = T + i * bandH, h = Math.min(bandH - 8, 22);
+    const cy = y + bandH / 2;
+    const x0 = X(Math.min(0, r.delta)), w = Math.abs(X(r.delta) - X(0));
+    svg.append(s('rect', {x: x0, y: cy - h / 2, width: Math.max(w, 0.5), height: h,
+      fill: col(r.model), 'fill-opacity': .85, rx: 3}));
+    if (r.lo != null) {   /* 95% percentile interval over that model's own runs */
+      svg.append(s('line', {x1: X(r.lo), x2: X(r.hi), y1: cy, y2: cy,
+        stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55}));
+      [r.lo, r.hi].forEach(v => svg.append(s('line', {x1: X(v), x2: X(v),
+        y1: cy - 4, y2: cy + 4, stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55})));
+    }
+    const nm = s('text', {x: L - 10, y: cy + 4, class: 'mlab', 'text-anchor': 'end'});
+    nm.textContent = r.model; svg.append(nm);
+    const lab = s('text', {x: X(Math.max(r.delta, r.hi == null ? r.delta : r.hi)) + 8,
+      y: cy + 4, class: 'mlab'});
+    lab.textContent = `${r.delta >= 0 ? '+' : ''}${r.delta.toFixed(3)}  ·  ${r.up}/${r.n} up`;
+    svg.append(lab);
+  });
+  const ax = s('text', {x: L + IW / 2, y: H - 6, class: 'axname', 'text-anchor': 'middle'});
+  ax.textContent = 'mean change in strict recall, long report minus short'; svg.append(ax);
+  document.getElementById('fig3').replaceChildren(svg);
+  document.getElementById('cap3').textContent =
+    `One bar per model: the mean of (long - short) over that model's own matched pairs, so each `
+    + `model is its own control. Whiskers are a 95% percentile interval bootstrapped over those `
+    + `pairs — wide, because no model has more than ${Math.max(...rows.map(r => r.n))} of them. `
+    + `Seven of the eight intervals exclude zero, but only Astra's sits clear of the rest; the `
+    + `others are a cluster around +0.02 that these sample sizes cannot separate. Kimi K3's `
+    + `spans zero — six pairs, one of which swings hard.`;
+}
+
 /* ---------- tables ---------- */
 function tables() {
   const t2 = el('table'), h2 = el('tr');
@@ -326,7 +399,7 @@ function tables() {
   });
   t1.append(b1); document.getElementById('tbl1').replaceChildren(t1);
 }
-fig1(); fig2(); tables();
+fig1(); fig3(); fig2(); tables();
 </script>
 </body></html>
 """
