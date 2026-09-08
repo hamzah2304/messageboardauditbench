@@ -31,7 +31,13 @@ import re
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
-from inspect_ai.model import ChatMessageSystem, ChatMessageUser, GenerateConfig
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+    GenerateConfig,
+)
 from inspect_ai.util import (
     ComposeBuild,
     ComposeConfig,
@@ -449,7 +455,7 @@ def messageboard_audit_bench_continue(
                 f"parent epoch {parent.epoch} has no report to continue from"
             )
         reports[parent.epoch] = report
-        history = list(parent.messages)
+        history = _close_dangling_tool_calls(list(parent.messages))
         if history and isinstance(history[0], ChatMessageSystem):
             history = history[1:]
         messages = [*history, ChatMessageUser(content=followup)]
@@ -508,6 +514,36 @@ def messageboard_audit_bench_continue(
             "report_accept_max_words": acceptance_limits(cfg)[1],
         },
     )
+
+
+UNANSWERED_TOOL_CALL = (
+    "This tool call was not executed: the session was stopped at its time limit."
+)
+
+
+def _close_dangling_tool_calls(messages: list) -> list:
+    """Answer tool calls the parent never got results for.
+
+    A trial stopped at its time limit can end on an assistant turn whose tool
+    calls were never run. OpenAI-style providers reject a conversation that
+    continues past such a turn, so each unanswered call gets a tool result
+    saying what happened, in the position its result would have taken.
+    """
+    answered = {m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)}
+    closed: list = []
+    for message in messages:
+        closed.append(message)
+        if isinstance(message, ChatMessageAssistant):
+            for call in message.tool_calls or []:
+                if call.id not in answered:
+                    closed.append(
+                        ChatMessageTool(
+                            content=UNANSWERED_TOOL_CALL,
+                            tool_call_id=call.id,
+                            function=call.function,
+                        )
+                    )
+    return closed
 
 
 def _continuation_sample_metadata(
