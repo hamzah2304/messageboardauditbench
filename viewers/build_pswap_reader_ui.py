@@ -219,6 +219,10 @@ PAGE = """<!doctype html>
   <h1>Provider-swap reports</h1>
   <span class="note">the data is identical except OpenAI&rarr;Anthropic and Azure&rarr;AWS</span>
   <span class="sp"></span>
+  <span class="note">sort</span>
+  <button class="tab" id="s-overall">overall</button>
+  <button class="tab" id="s-attrib">attribution</button>
+  <button class="tab" id="s-flat">flat</button>
   <button class="tab" id="wording">show original wording</button>
   <span class="note" id="stat"></span>
 </header>
@@ -248,7 +252,7 @@ const fileURL = p => '/file?p=' + encodeURIComponent(p);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c;
   if (x != null) e.textContent = x; return e; };
 let D = null, sel = null, selClaim = null, cache = {}, cur = null;
-let filters = new Set(), showOriginal = false;
+let filters = new Set(), showOriginal = false, sortBy = 'overall';
 
 const TRANS = {'’': "'", '‘': "'", '“': '"', '”': '"',
                '—': '-', '–': '-', ' ': ' '};
@@ -336,7 +340,17 @@ function highlight(quote) {
 
 /* --- sidebar --- */
 function visible() {
-  return D.reports.filter(r => !filters.size || filters.has(r.group));
+  const rows = D.reports.filter(r => !filters.size || filters.has(r.group));
+  /* Grouping is the page's argument, so it survives every sort except the flat one:
+     comparing an OpenAI report with an Anthropic one is the whole point, and a list that
+     interleaves them silently is easy to misread. */
+  const by = {overall: r => -r.overall, attrib: r => -r.attrib,
+              flat: r => -r.overall, model: r => 0}[sortBy];
+  return rows.sort((a, b) => {
+    if (sortBy !== 'flat' && a.group !== b.group) return a.group < b.group ? -1 : 1;
+    const d = by(a) - by(b);
+    return d || (a.model < b.model ? -1 : a.model > b.model ? 1 : a.budget - b.budget);
+  });
 }
 function paintChips() {
   const box = document.getElementById('chips'); box.replaceChildren();
@@ -350,11 +364,17 @@ function paintChips() {
 function paintList() {
   const box = document.getElementById('list'); box.replaceChildren();
   let group = null;
+  const flat = sortBy === 'flat';
   visible().forEach(r => {
-    if (r.group !== group) { group = r.group; box.append(el('div', 'ghd', group)); }
+    if (!flat && r.group !== group) { group = r.group; box.append(el('div', 'ghd', group)); }
     const it = el('div', 'item' + (sel === r.key ? ' sel' : ''));
-    it.append(el('span', 'm', r.model), el('span', 's', r.attrib.toFixed(2)),
-              el('span', 'b', `${r.budget}m · ${r.agent} · overall ${r.overall.toFixed(2)}`));
+    /* the sorted-on number leads; the other rides in the sub-line */
+    const lead = sortBy === 'attrib' ? r.attrib : r.overall;
+    const other = sortBy === 'attrib' ? `overall ${r.overall.toFixed(2)}`
+                                      : `attribution ${r.attrib.toFixed(2)}`;
+    it.append(el('span', 'm', r.model), el('span', 's', lead.toFixed(2)),
+              el('span', 'b', `${r.budget}m · ${r.agent} · ${other}`
+                              + (flat ? ' · ' + r.group : '')));
     it.onclick = () => { sel = r.key; paintList(); open(r); };
     box.append(it);
   });
@@ -422,8 +442,17 @@ async function boot() {
     document.getElementById('wording').classList.toggle('on', showOriginal);
     paintClaims();
   };
-  paintChips(); paintList();
-  if (D.reports.length) { sel = D.reports[0].key; paintList(); open(D.reports[0]); }
+  const sorts = {overall: 's-overall', attrib: 's-attrib', flat: 's-flat'};
+  function setSort(k) {
+    sortBy = k;
+    for (const [v, id] of Object.entries(sorts))
+      document.getElementById(id).classList.toggle('on', v === k);
+    paintList();
+  }
+  for (const [v, id] of Object.entries(sorts)) document.getElementById(id).onclick = () => setSort(v);
+  paintChips(); setSort('overall');
+  const first = visible()[0];
+  if (first) { sel = first.key; paintList(); open(first); }
   addEventListener('keydown', ev => {
     if (ev.target.tagName === 'INPUT') return;
     const rows = visible(); const i = rows.findIndex(r => r.key === sel);
