@@ -34,6 +34,7 @@ from inspect_ai.util import (
 
 from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
+from messageboard_audit_bench.grading.scorer import sheet_scorer
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
@@ -169,6 +170,14 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
     )
 
 
+def _scorers(judge: str, rubric: str | None) -> list:
+    """The always-on scorers, plus the rubric judge when a run asks for it."""
+    scorers = [rubric_scorer(judge=judge), process_metrics(), report_length()]
+    if rubric:
+        scorers.insert(0, sheet_scorer(rubric=rubric, judge=judge))
+    return scorers
+
+
 @task
 def messageboard_audit_bench(
     agent: str = "claude",
@@ -179,6 +188,7 @@ def messageboard_audit_bench(
     time_limit_minutes: int | None = None,
     min_runtime_fraction: float = 0.75,
     judge: str = "anthropic/claude-sonnet-5",
+    rubric: str | None = None,
 ) -> Task:
     """Run one sandboxed message-board audit.
 
@@ -197,6 +207,11 @@ def messageboard_audit_bench(
             ``0`` to disable this continuation policy for an ablation.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
+        rubric: When set (``v2`` or ``tldrh``), also grade the report against
+            that rubric's sheets inline. Off by default: it is eight judge
+            calls per sample, and grading is normally a separate pass over
+            staged reports (``grade_reports``), so a run does not silently pay
+            for it.
     """
     cfg = _load_config(config)
     if agent not in _SUPPORTED_AGENTS:
@@ -285,7 +300,7 @@ def messageboard_audit_bench(
     return Task(
         dataset=[sample],
         solver=selected_solver,
-        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
+        scorer=_scorers(judge, rubric),
         config=generate_config,
         # Subscription calls occur outside Inspect's model provider. Supplying
         # the no-cost mock model keeps Inspect from requiring an unrelated
