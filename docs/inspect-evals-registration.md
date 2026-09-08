@@ -23,7 +23,7 @@ are covered:
 
 - `pyproject.toml` provides PEP 517 packaging and declares `inspect_ai`.
 - The package has an `inspect_ai` entry point and exports the `@task` functions.
-- The task has a stable sample ID, version `6-B`, and run metadata.
+- The task has a stable sample ID, version `7-A`, and run metadata.
 - The source archive and generated variants are checked against committed
   SHA-256 digests, so upstream drift fails loudly.
 - Unit tests cover task construction, native trajectory collection, transcript
@@ -81,7 +81,8 @@ these steps after review:
    - a source URL of the form
      `https://github.com/hamzah2304/messageboardauditbench/blob/<commit>/messageboard_audit_bench/task.py#L<task-line>`;
    - any additional GitHub maintainers.
-5. Review the bot-generated metadata-only register PR. The register entry lives
+5. Upload complete eval logs for two models as required by the current register
+   guide, then review the bot-generated metadata-only register PR. The register entry lives
    in `UKGovernmentBEIS/inspect_evals`; this repository remains the pinned
    upstream implementation.
 

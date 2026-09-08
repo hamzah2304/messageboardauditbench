@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Build viewers/figures/followup_5k.html — what another 2,000 words buys.
+"""Build viewers/figures/followup_5k.html — longer reports with ten more minutes.
 
 Every model was handed back its own 2,500-3,000 word report and asked to expand it to
-4,500-5,000, with the data unchanged and no extra investigation time. So each follow-up
-has a natural control: the run it came from. That makes this a within-run before/after
-rather than a comparison between models, and it isolates length from everything else.
+4,500-5,000, with the data unchanged and ten additional minutes. The plotted min5
+condition requires at least five more minutes of work. Each follow-up is matched to
+its parent run, but the comparison combines more time with a longer report request;
+it does not isolate report length.
 
 Three panels:
   1. recall on the short report against recall on the long one, one mark per
      model-and-budget cell, with the line of no change. Points below it lost ground.
-  2. the 38 findings ranked by how much the extra length surfaced them.
+  2. the 38 findings ranked by how much the followup surfaced them.
   3. the numbers.
 
 Scores are Fable 5.1 on the v2 sheets, strict-transformed — max(2s - 1, 0) then the mean
@@ -212,7 +213,7 @@ COPY = ('<button class="csv" data-csv="%s">copy CSV</button>'
         '<span>or benchmark/figures/followup_5k.csv</span>')
 
 BODY = """<main>
-  <h1>What another 2,000 words buys</h1>
+  <h1>Longer reports with ten more minutes</h1>
   <p class="lede" id="lede"></p>
   <div class="hero" id="hero"></div>
 __FIGS__
@@ -227,7 +228,7 @@ FIGS = "\n\n".join([
                   table_id="tbl3", tools=COPY % "models"),
     chrome.figure(3, "Astra&rsquo;s gains are mechanism, not attribution", "fig4",
                   legend_id="leg4", table_id="tbl4", tools=COPY % "clusters"),
-    chrome.figure(4, "What the extra length surfaced, finding by finding", "fig2",
+    chrome.figure(4, "What the followup surfaced, finding by finding", "fig2",
                   table_id="tbl2", tools=COPY % "findings"),
 ])
 
@@ -247,7 +248,7 @@ const gcol = g => g === D.groups[0] ? col(D.groups[0]) : 'var(--ink3)';
 const o = D.overall;
 document.getElementById('lede').textContent =
   `Each model was handed back its own 2,500–3,000 word report and asked to expand it to 4,500–5,000, `
-  + `with the data unchanged and no extra investigation time. Every follow-up is therefore matched to `
+  + `with the data unchanged and ten additional minutes (at least five minutes of work). This combines more time with a longer report request. Every follow-up is matched to `
   + `the run it came from: ${D.n_pairs} pairs. Scores are Fable 5.1 on the 38 findings, strict.`;
 [["+" + (o.long - o.short).toFixed(3), "mean change in recall"],
  [o.short.toFixed(3) + " → " + o.long.toFixed(3), "short report → long report"],
@@ -325,7 +326,7 @@ function fig1() {
   document.getElementById('cap1').textContent =
     `One mark per model and time budget; hollow to solid is 10, 30 and 120 minutes. Colour is the `
     + `model and every mark is labelled, so identity never rests on colour alone. The dashed line is `
-    + `no change — a mark above it gained recall from the extra length. Both axes are the strict score `
+    + `no change — a mark above it gained recall after the followup. Both axes are the strict score `
     + `over the 38 findings.`;
 }
 
@@ -337,7 +338,7 @@ function fig2() {
   const hi = Math.max(...rows.map(r => r.delta), 0.02);
   const X = v => L + v / hi * IW;
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
-    'aria-label': 'findings ranked by how much the extra length surfaced them'});
+    'aria-label': 'findings ranked by how much the followup surfaced them'});
   for (let v = 0; v <= hi + 1e-9; v += 0.02) {
     svg.append(s('line', {x1: X(v), x2: X(v), y1: T, y2: T + rows.length * rowH, class: 'tick'}));
     const t = s('text', {x: X(v), y: H - B + 18, class: 'axis num', 'text-anchor': 'middle'});
@@ -362,7 +363,7 @@ function fig2() {
   document.getElementById('fig2').replaceChildren(svg);
   document.getElementById('cap2').textContent =
     `All ${D.n_claims} findings, ranked. Faded bars are findings that moved by less than 0.005, `
-    + `three of them fractionally negative (-0.003, one run each). What the extra length added was `
+    + `three of them fractionally negative (-0.003, one run each). The followup gains were concentrated in `
     + `task structure and mechanism. What it did not move is as clear: the inferences — who the `
     + `agents were (N09, N10), and why the activity stopped (N38) — sit flat at the bottom.`;
 }
@@ -561,7 +562,7 @@ function tables() {
 fig1(); fig3(); fig4(); fig2(); tables(); wireCopy();
 """
 
-TEMPLATE = (chrome.shell("What another 2,000 words buys", BODY.replace("__FIGS__", FIGS))
+TEMPLATE = (chrome.shell("Longer reports with ten more minutes", BODY.replace("__FIGS__", FIGS))
             + "<script>\n" + JS + "\n</script>\n</body></html>\n")
 
 if __name__ == "__main__":

@@ -115,9 +115,11 @@ def sheet_scorer(
     """
     if rubric not in core.MODES:
         raise ValueError(f"unknown rubric {rubric!r}; expected one of {sorted(core.MODES)}")
-    sets, templates = core.load_sheets(rubric, variant)
+    core.load_sheets(rubric, variant)  # Validate assets before launching an agent.
 
     async def score(state: TaskState, target: Target) -> Score:
+        selected_variant = variant or core.variant_for_data(state.metadata.get("data_variant"))
+        sets, templates = core.load_sheets(rubric, selected_variant)
         model = get_model(judge, role="grader")
         report_md = state.output.completion if state.output else ""
         key = str(state.sample_id)
@@ -130,7 +132,7 @@ def sheet_scorer(
             rubric_id = spec["rubric_id"]
             try:
                 items, effort = await grade_sheet(
-                    model, rubric, rubric_id, report_md, templates, variant
+                    model, rubric, rubric_id, report_md, templates, selected_variant
                 )
             except Exception as exc:  # noqa: BLE001 — recorded, not raised: other sheets stand
                 failures[rubric_id] = f"{type(exc).__name__}: {exc}"[:300]
@@ -144,7 +146,7 @@ def sheet_scorer(
 
         # recorded bare, the way every existing grade file records it
         out = core.aggregate(
-            key, title, core.judge_name(str(model)), rubric, per_claim, per_rubric, sets, variant
+            key, title, core.judge_name(str(model)), rubric, per_claim, per_rubric, sets, selected_variant
         )
         if out["max"] == 0:
             return Score.unscored(
@@ -162,7 +164,7 @@ def sheet_scorer(
                 f"{len(per_rubric)}/{len(sets)} sheets graded by {model}"
                 + (f"; failed: {', '.join(failures)}" if failures else "")
             ),
-            metadata={"grade": out, "failures": failures, "variant": variant},
+            metadata={"grade": out, "failures": failures, "variant": selected_variant},
         )
 
     return score

@@ -6,8 +6,7 @@ dataset is a staged report folder — `benchmark/graded_inputs/<dir>/`, produced
 ids are the same sanitised stems the grade filenames have always used, so a run of this
 task exports over the existing corpus rather than beside it.
 
-Grading stays a separate deliberate pass rather than something every agent run pays for,
-which is also why `sheet_scorer` is opt-in on the main task.
+This task also supports a separate grading pass over exported historical reports.
 """
 
 from __future__ import annotations
@@ -57,12 +56,15 @@ def grade_reports(
     dir: str = "round4_blind120",  # noqa: A002 — the Inspect task parameter is named `dir`
     rubric: str = "v2",
     judge: str = "openai/gpt-5.6-sol",
+    variant: str | None = None,
 ) -> Task:
     """Grade every staged report in `dir` against `rubric`.
 
     Args:
       dir: a folder under benchmark/graded_inputs/, or an absolute path.
-      rubric: a key of `core.MODES`; "v2" and "tldrh" are the supported ones.
+      rubric: a key of `core.MODES`, such as "v2" or "tldrh".
+      variant: explicit rubric variant for reports without an index; indexed
+        reports otherwise select their variant from data_variant per sample.
       judge: Inspect model used to grade. As on the audit task, a ``grader``
         model role supplied to Inspect takes precedence over this value.
     """
@@ -85,6 +87,7 @@ def grade_reports(
                     "agent": row.get("agent"),
                     "scaffold": row.get("scaffold"),
                     "replicate": row.get("replicate"),
+                    "data_variant": row.get("data_variant"),
                 },
             )
         )
@@ -93,7 +96,8 @@ def grade_reports(
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=sheet_scorer(rubric=rubric, judge=judge),
+        scorer=sheet_scorer(rubric=rubric, judge=judge, variant=variant),
+        model="mockllm/model",
         metadata={
             "benchmark": "MessageBoardAuditBench",
             "mode": "grading",

@@ -17,7 +17,7 @@ from messageboard_audit_bench.task import messageboard_audit_bench as build_task
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", config="blind")
 
-    assert task.version == EVAL_VERSION == "6-B"
+    assert task.version == EVAL_VERSION == "7-A"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
