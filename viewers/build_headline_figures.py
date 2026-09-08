@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Build viewers/figures/headline_figures.html: the round-4 headline figures on one page.
 
-  1. Strict performance against the Epoch Capabilities Index, one column per model, three
-     marks per column for the 10-, 30- and 120-minute budgets.
-  2. Performance against time budget, one panel per model.
-  3. Performance against cost per run, one polyline per model across its budgets.
+  Six main figures: three measures (combined score, finding coverage, holistic TL;DR score),
+  each against the Artificial Analysis index (one column per model, three marks per column for
+  the 10-, 30- and 120-minute budgets) and against cost per run (one polyline per model).
+  Combined = 0.7 x finding coverage (strict v2) + 0.3 x holistic TL;DR (tldrh), the same
+  composite build_combined_figure.py publishes; the build aborts if the two disagree.
+  Supplementary: coverage against the Epoch index, against time budget per model, and the
+  harness comparison.
 
 Sources (all settled on main, cross-checked here):
   benchmark/figures/headline_eci.json               index, fallbacks, caveats, per-budget means
   benchmark/graded/judge_claude_fable_5_1/v2/       per-report grades (Fable 5.1, v2 rubric, 38 points)
+  benchmark/graded/judge_claude_fable_5_1/tldrh/    per-report holistic TL;DR grade (Fable 5.1, one 0-1 score)
   benchmark/graded_inputs/round4_blind*/_index.jsonl  per-report token usage, joined by graded filename
   benchmark/prices.json                             list prices, USD per million tokens (OpenRouter, 2026-09-07)
 The strict transform max(2s - 1, 0) is imported from scripts/report_performance.py. The build
@@ -29,8 +33,12 @@ from report_performance import strict, NAMES as REF_NAMES
 OUT = VIEWERS / "figures" / "headline_figures.html"
 LABELS = VIEWERS / "figures" / "headline_labels.json"
 HEADLINE = BENCH / "figures" / "headline_eci.json"
+AA_FILE = BENCH / "aa_index.json"
 PRICES = BENCH / "prices.json"
 GDIR = GRADED / "judge_claude_fable_5_1" / "v2"
+TDIR = GRADED / "judge_claude_fable_5_1" / "tldrh"      # the holistic TL;DR grade, one 0-1 score per report
+COMBINED = BENCH / "figures" / "combined_score.json"   # Hasan's 70/30 composite, cross-checked against ours
+W_COV, W_TLDR = 0.7, 0.3
 BUDGETS = [10, 30, 120]
 PRIMARY = "codex"       # a model run under more than one harness is shown under this one in figures 1-3
 NAMES = dict(REF_NAMES); NAMES.setdefault("openai_gpt_6_astra", "GPT-6 Astra")
@@ -77,12 +85,17 @@ def main():
     runs = defaultdict(lambda: defaultdict(list))      # model -> budget -> runs (this model's own)
     served = defaultdict(lambda: defaultdict(list))    # model -> budget -> runs served by another model
     ratios = []
-    for p in sorted(GDIR.glob("graded_*.json")):
+    for p in sorted(GDIR.glob("graded_r4b*.json")):   # round 4 only; other rounds share the directory
         m = RX.search(p.name)
         if not m:
             raise SystemExit(f"filename does not parse: {p.name}")
         g = json.loads(p.read_text())
         vals = [v["score"] for v in g["scores"].values()]
+        tp = TDIR / p.name
+        if not tp.exists():
+            raise SystemExit(f"no holistic TL;DR grade for {p.name}; grade with tldrh before building")
+        tldr = float(json.loads(tp.read_text())["total"])
+        sc = st.mean(strict(v) for v in vals)
         stem = p.stem[len("graded_"):]
         row = uidx.get(stem)
         if row is None:
@@ -92,7 +105,8 @@ def main():
         cost, nocache = cost_of(u, price)
         if u.get("cost_usd"):
             ratios.append(cost / u["cost_usd"])
-        rec = {"harness": m.group(3), "rep": int(m.group(5)), "strict": st.mean(strict(v) for v in vals),
+        rec = {"harness": m.group(3), "rep": int(m.group(5)), "strict": sc, "tldr": tldr,
+               "comb": W_COV * sc + W_TLDR * tldr,
                "raw": st.mean(vals), "cost": cost, "cost_nocache": nocache,
                "wall_min": round(row["wall_seconds"] / 60, 1),
                "tokens": {k: u.get(k) for k in ("input_tokens", "input_tokens_uncached", "cache_read_tokens",
@@ -119,7 +133,8 @@ def main():
                 rs = [r for r in rs if r["harness"] == PRIMARY]
             if rs:
                 mean = st.mean(r["strict"] for r in rs)
-                buds[str(b)] = {"mean": mean, "n_fallback": len(rs) - len(own), "cost": st.mean(r["cost"] for r in rs),
+                buds[str(b)] = {"mean": mean, "mean_tldr": st.mean(r["tldr"] for r in rs), "mean_comb": st.mean(r["comb"] for r in rs),
+                                "n_fallback": len(rs) - len(own), "cost": st.mean(r["cost"] for r in rs),
                                 "cost_nocache": st.mean(r["cost_nocache"] for r in rs),
                                 "runs": sorted(rs, key=lambda r: r["strict"])}
         top = max(int(b) for b in buds)
@@ -138,14 +153,26 @@ def main():
             for b in BUDGETS:
                 rs = [r for r in runs[name].get(b, []) if r["harness"] == h]
                 if rs:
-                    buds[str(b)] = {"mean": st.mean(r["strict"] for r in rs), "cost": st.mean(r["cost"] for r in rs),
+                    buds[str(b)] = {"mean": st.mean(r["strict"] for r in rs), "mean_tldr": st.mean(r["tldr"] for r in rs),
+                                    "mean_comb": st.mean(r["comb"] for r in rs), "cost": st.mean(r["cost"] for r in rs),
                                     "cost_nocache": st.mean(r["cost_nocache"] for r in rs), "runs": sorted(rs, key=lambda r: r["strict"])}
             series.append({"model": name, "harness": h, "provider": M["provider"], "fallback": M["fallback"],
                            "multi": len({r["harness"] for b in runs[name] for r in runs[name][b]}) > 1, "budgets": buds})
+    if COMBINED.exists():   # the composite must agree with the one build_combined_figure.py publishes
+        C = {(m["model"], b): q for m in json.loads(COMBINED.read_text())["models"] for b, q in m["budgets"].items()}
+        for M in models:
+            for b, q in M["budgets"].items():
+                c = C.get((M["model"], b))
+                if c and abs(c["comb"] - q["mean_comb"]) > 1e-3:
+                    raise SystemExit(f"{M['model']} at {b} min: combined {q['mean_comb']:.4f} here, {c['comb']:.4f} in {COMBINED.name}")
+    aa = json.loads(AA_FILE.read_text())
+    for M in models:
+        a = aa["models"].get(M["model"])
+        M["aa"] = a["aa"] if a else None; M["aa_variant"] = a["variant"] if a else None; M["aa_exact"] = a["exact"] if a else None
     labels = json.loads(LABELS.read_text()) if LABELS.exists() else {}
     data = {"models": models, "series": [x for x in series if x["multi"]], "primary": PRIMARY, "caveats": H["caveats"], "judge": H["judge"], "rubric": H["rubric"],
             "transform": H["transform"], "eci_source": H["eci_source"], "eci_checked": "2026-09-07",
-            "prices": prices, "labels": labels,
+            "prices": prices, "labels": labels, "aa_source": aa["source"], "weights": {"cov": W_COV, "tldr": W_TLDR},
             "cost_check": {"n": len(ratios), "median_ratio": st.median(ratios) if ratios else None}}
     OUT.write_text(TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     n = sum(len(b["runs"]) for m in models for b in m["budgets"].values())
@@ -205,26 +232,102 @@ th,td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white
 th:first-child,td:first-child{text-align:left}th{color:var(--ink2);font-weight:600}
 .tbl{overflow-x:auto}
 details{margin-top:10px}summary{cursor:pointer;color:var(--ink2);font-size:13px;font-weight:500}
+h2.group{font-size:18px;margin:8px 0 4px;padding-top:18px;border-top:1px solid var(--line)}
+details.supp{margin-top:24px}details.supp>summary{font-size:15px;padding:8px 0}details.supp .fig{margin-top:24px}
 ul.cav{color:var(--ink2);font-size:13px;padding-left:18px;margin:6px 0;max-width:80ch}ul.cav li{margin:3px 0}
 @media (prefers-reduced-motion:reduce){#tip{transition:none}}
 </style></head><body>
 <main>
   <h1>Round 4: capability, time and cost</h1>
   <p class="lede" id="lede"></p>
+  <div class="tools" style="margin:-24px 0 28px"><button id="copyall">copy all label positions</button><span>every figure at once, as headline_labels.json</span></div>
 
+  <h2 class="group">Combined score</h2>
+  <p class="read" id="groupC"></p>
   <section class="fig">
     <p class="eyebrow">Figure 1</p>
     <h2>General capability barely predicts performance inside the frontier</h2>
-    <p class="read" id="read1"></p>
-    <div class="panel" id="fig1"></div>
-    <div class="tools"><button id="align1">align columns</button><button id="copy1">copy label positions</button><button id="reset1">reset labels</button><span>drag a label to move it</span></div>
-    <p class="cap" id="cap1"></p>
-    <details><summary>Notes and sources</summary><p class="cap" id="notes1"></p></details>
-    <details><summary>Numbers</summary><div class="tbl" id="tbl1"></div></details>
+    <p class="read" id="readC1"></p>
+    <div class="panel" id="figC1"></div>
+    <div class="tools"><button id="alignC1">align columns</button><button id="copyC1">copy label positions</button><button id="resetC1">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capC1"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesC1"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblC1"></div></details>
   </section>
 
   <section class="fig">
     <p class="eyebrow">Figure 2</p>
+    <h2>Combined score against what a run costs</h2>
+    <p class="read" id="readC2"></p>
+    <div class="panel" id="figC2"></div>
+    <div class="tools"><button id="alignC2">align columns</button><button id="copyC2">copy label positions</button><button id="resetC2">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capC2"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesC2"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblC2"></div></details>
+  </section>
+
+  <h2 class="group">Finding coverage alone</h2>
+  <p class="read" id="groupS"></p>
+  <section class="fig">
+    <p class="eyebrow">Figure 3</p>
+    <h2>Finding coverage against the Artificial Analysis index</h2>
+    <p class="read" id="readS1"></p>
+    <div class="panel" id="figS1"></div>
+    <div class="tools"><button id="alignS1">align columns</button><button id="copyS1">copy label positions</button><button id="resetS1">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capS1"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesS1"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblS1"></div></details>
+  </section>
+
+  <section class="fig">
+    <p class="eyebrow">Figure 4</p>
+    <h2>Finding coverage against cost</h2>
+    <p class="read" id="readS2"></p>
+    <div class="panel" id="figS2"></div>
+    <div class="tools"><button id="alignS2">align columns</button><button id="copyS2">copy label positions</button><button id="resetS2">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capS2"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesS2"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblS2"></div></details>
+  </section>
+
+  <h2 class="group">Holistic TL;DR score alone</h2>
+  <p class="read" id="groupT"></p>
+  <section class="fig">
+    <p class="eyebrow">Figure 5</p>
+    <h2>TL;DR score against the Artificial Analysis index</h2>
+    <p class="read" id="readT1"></p>
+    <div class="panel" id="figT1"></div>
+    <div class="tools"><button id="alignT1">align columns</button><button id="copyT1">copy label positions</button><button id="resetT1">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capT1"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesT1"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblT1"></div></details>
+  </section>
+
+  <section class="fig">
+    <p class="eyebrow">Figure 6</p>
+    <h2>TL;DR score against cost</h2>
+    <p class="read" id="readT2"></p>
+    <div class="panel" id="figT2"></div>
+    <div class="tools"><button id="alignT2">align columns</button><button id="copyT2">copy label positions</button><button id="resetT2">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capT2"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesT2"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblT2"></div></details>
+  </section>
+
+  <details class="supp"><summary>Supplementary: Epoch index, time budget and harness (finding coverage)</summary>
+  <section class="fig">
+    <p class="eyebrow">Figure S1</p>
+    <h2>Finding coverage against the Epoch Capabilities Index</h2>
+    <p class="read" id="readE"></p>
+    <div class="panel" id="figE"></div>
+    <div class="tools"><button id="alignE">align columns</button><button id="copyE">copy label positions</button><button id="resetE">reset labels</button><span>drag a label to move it</span></div>
+    <p class="cap" id="capE"></p>
+    <details><summary>Notes and sources</summary><p class="cap" id="notesE"></p></details>
+    <details><summary>Numbers</summary><div class="tbl" id="tblE"></div></details>
+  </section>
+
+  <section class="fig">
+    <p class="eyebrow">Figure S2</p>
     <h2>Every model climbs with time; none has levelled off at two hours</h2>
     <p class="read" id="read2"></p>
     <div class="grid" id="fig2"></div>
@@ -232,23 +335,13 @@ ul.cav{color:var(--ink2);font-size:13px;padding-left:18px;margin:6px 0;max-width
   </section>
 
   <section class="fig">
-    <p class="eyebrow">Figure 3</p>
-    <h2>Performance against what a run costs</h2>
-    <p class="read" id="read3"></p>
-    <div class="panel" id="fig3"></div>
-    <div class="tools"><button id="align3">align columns</button><button id="copy3">copy label positions</button><button id="reset3">reset labels</button><span>drag a label to move it</span></div>
-    <p class="cap" id="cap3"></p>
-    <details><summary>Notes and sources</summary><p class="cap" id="notes3"></p></details>
-    <details><summary>Numbers</summary><div class="tbl" id="tbl3"></div></details>
-  </section>
-
-  <section class="fig">
-    <p class="eyebrow">Figure 4</p>
+    <p class="eyebrow">Figure S3</p>
     <h2>Same model, two harnesses</h2>
     <p class="read" id="read4"></p>
     <div class="grid2" id="fig4"></div>
     <p class="cap" id="cap4"></p>
   </section>
+  </details>
 
   <details><summary>Caveats carried from the data file</summary><ul class="cav" id="cav"></ul></details>
 </main>
@@ -258,6 +351,14 @@ ul.cav{color:var(--ink2);font-size:13px;padding-left:18px;margin:6px 0;max-width
 'use strict';
 const D = JSON.parse(document.getElementById('data').textContent), NS = 'http://www.w3.org/2000/svg';
 const BUD = [10, 30, 120];
+/* the three y-axis measures; `mean` is the per-budget field, `key` the per-run field, `suffix` keys the saved label positions */
+const MET = {
+  comb:   {key: 'comb',   mean: 'mean_comb', suffix: '_comb', label: 'combined score',   short: 'combined'},
+  strict: {key: 'strict', mean: 'mean',      suffix: '',      label: 'finding coverage', short: 'coverage'},
+  tldr:   {key: 'tldr',   mean: 'mean_tldr', suffix: '_tldr', label: 'TL;DR score',      short: 'TL;DR'},
+};
+const WC = D.weights.cov, WT = D.weights.tldr;
+const LAYERS = {};   /* figure key -> current label offsets; "copy all" gathers them into one headline_labels.json */
 const fmt = v => v.toFixed(3), usd = v => v >= 100 ? '$' + v.toFixed(0) : v >= 10 ? '$' + v.toFixed(1) : '$' + v.toFixed(2);
 const kfmt = n => n == null ? '—' : n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'k' : String(n);
 const s = (t, a) => { const x = document.createElementNS(NS, t); for (const k in a) x.setAttribute(k, a[k]); return x; };
@@ -304,7 +405,7 @@ function providerLegend(svg, x0, y0) {
 function tipFor(m) {
   let h = `<b>${m.model}</b> · ${PNAME[m.provider]} · index ${m.eci.toFixed(2)}` + (m.eci_exact ? '' : ` <i>(score of ${m.eci_model})</i>`);
   BUD.forEach(b => { const q = m.budgets[b]; if (!q) return;
-    h += `<br>${b} min: <b>${fmt(q.mean)}</b>, ${q.runs.length} run${q.runs.length > 1 ? 's' : ''} (${q.runs.map(r => fmt(r.strict)).join(' · ')}), mean ${usd(q.cost)}`; });
+    h += `<br>${b} min: combined <b>${fmt(q.mean_comb)}</b> = ${WC} × coverage ${fmt(q.mean)} + ${WT} × TL;DR ${fmt(q.mean_tldr)}; ${q.runs.length} run${q.runs.length > 1 ? 's' : ''}, mean ${usd(q.cost)}`; });
   Object.entries(m.fallback).forEach(([b, f]) => { h += `<br><i>${b} min: ${f.n} of ${f.of} runs finished by ${f.to} after a refusal, counted</i>`; });
   return h;
 }
@@ -392,6 +493,7 @@ function labelLayer(svg, items, key, bounds) {
     });
   });
   items.forEach(place);
+  LAYERS[key] = () => { const out = {}; items.forEach(it => { out[it.id] = [Math.round(it.dx), Math.round(it.dy)]; }); return out; };
   return {
     copy: () => { const out = {}; items.forEach(it => { out[it.id] = [Math.round(it.dx), Math.round(it.dy)]; });
       navigator.clipboard.writeText(JSON.stringify({[key]: out}, null, 1)).catch(() => {}); },
@@ -417,37 +519,39 @@ function labelLayer(svg, items, key, bounds) {
 
 document.getElementById('lede').textContent =
   `Twelve models on the round-4 blind prompt at 10, 30 and 120 minutes, graded by ${D.judge} on the ${D.rubric} rubric. `
-  + 'Score is the strict transform: each rubric point scored s in [0, 1] becomes max(2s − 1, 0), so anything at or below the midpoint counts as nothing, then the mean over points. '
-  + `${D.models.filter(m => m.multi).map(m => m.model).join(' and ')} ran under both Codex CLI and the ReAct scaffold; Figures 1 to 3 show their ${HN[D.primary]} runs and Figure 4 compares the two. Runs in which Claude Code switched to a fallback model after a safeguard refusal stay with the model that was asked for, marked †.`;
+  + 'Finding coverage is the strict transform: each rubric point scored s in [0, 1] becomes max(2s − 1, 0), so anything at or below the midpoint counts as nothing, then the mean over points. '
+  + `The headline measure is the combined score, ${WC} × finding coverage + ${WT} × holistic TL;DR score; Figures 3 to 6 show each part alone on the same axes. `
+  + `${D.models.filter(m => m.multi).map(m => m.model).join(' and ')} ran under both Codex CLI and the ReAct scaffold; the main figures show their ${HN[D.primary]} runs and Figure S3 compares the two. Runs in which Claude Code switched to a fallback model after a safeguard refusal stay with the model that was asked for, marked †.`;
 
-/* ================= Figure 1: index against strict score ================= */
-(function () {
-  const M = D.models.slice().sort((a, b) => a.eci - b.eci);
+/* ================= Figures 1 and 1b: a capability index against strict score ================= */
+function capabilityFigure(o) {
+  const M = D.models.filter(m => m[o.key] != null).map(m => Object.assign({}, m)).sort((a, b) => a[o.key] - b[o.key]);
+  const K = o.key, mt = MET[o.metric || 'strict'];
   /* a broken x scale: stretches of index with nothing in them are compressed to a fixed gap,
      marked on the axis, so one outlier does not hand 40% of the width to empty space */
   const GAPMIN = 6, GAPPX = 26, PAD = 1.2;
-  const segs = []; let cur = [M[0].eci - PAD, M[0].eci + PAD];
-  M.slice(1).forEach(m => { if (m.eci - cur[1] > GAPMIN) { segs.push(cur); cur = [m.eci - PAD, m.eci + PAD]; } else cur[1] = m.eci + PAD; });
+  const segs = []; let cur = [M[0][K] - PAD, M[0][K] + PAD];
+  M.slice(1).forEach(m => { if (m[K] - cur[1] > GAPMIN) { segs.push(cur); cur = [m[K] - PAD, m[K] + PAD]; } else cur[1] = m[K] + PAD; });
   segs.push(cur);
   const GUT = 150;                               /* label gutters either side of the plot */
-  const W = 980, Hh = 520, L = 54 + GUT, R = 24 + GUT, T = 16, B = 46, IW = W - L - R, IH = Hh - T - B;
+  const W = 860, Hh = 520, L = 54 + GUT, R = 24 + GUT, T = 16, AXB = o.axisSub ? 58 : 46, B = AXB + 44, IW = W - L - R, IH = Hh - T - B;
   const span = segs.reduce((a, g) => a + g[1] - g[0], 0), pxPerUnit = (IW - GAPPX * (segs.length - 1)) / span;
   const segX0 = []; let acc = L; segs.forEach(g => { segX0.push(acc); acc += (g[1] - g[0]) * pxPerUnit + GAPPX; });
   const x = v => { for (let i = 0; i < segs.length; i++) if (v <= segs[i][1] + 1e-9 || i === segs.length - 1) return segX0[i] + (v - segs[i][0]) * pxPerUnit; };
-  const ys = M.flatMap(m => Object.values(m.budgets).flatMap(q => q.runs.map(r => r.strict)));
+  const ys = M.flatMap(m => Object.values(m.budgets).flatMap(q => q.runs.map(r => r[mt.key])));
   const Y1 = Math.ceil((Math.max(...ys) + 0.03) * 10) / 10;
   const y = v => T + IH - v / Y1 * IH;
-  const svg = s('svg', {viewBox: `0 0 ${W} ${Hh}`, width: '100%', role: 'img', 'aria-label': 'Strict score at three budgets against the Epoch Capabilities Index'});
+  const svg = s('svg', {viewBox: `0 0 ${W} ${Hh}`, width: '100%', role: 'img', 'aria-label': mt.label + ' at three budgets against ' + o.axis});
   for (let t = 0; t <= Y1 + 1e-9; t += 0.1) {
     svg.append(s('line', {x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'tick'}));
-    const lb = s('text', {x: L - 8, y: y(t) + 3.5, 'text-anchor': 'end', class: 'axis'}); lb.textContent = t.toFixed(1); svg.append(lb);
+    const lb = s('text', {x: L - 8, y: y(t) + 3.5, 'text-anchor': 'end', class: 'axis'}); lb.textContent = Math.round(t * 100) + '%'; svg.append(lb);
   }
   segs.forEach((g, i) => {
     let ticks = []; for (let v = Math.ceil(g[0] / 5) * 5; v <= g[1]; v += 5) ticks.push(v);
     if (!ticks.length) ticks = [Math.round((g[0] + g[1]) / 2)];   /* a narrow segment still gets one labelled tick */
     ticks.forEach(v => {
       svg.append(s('line', {x1: x(v), x2: x(v), y1: T, y2: T + IH, class: 'tick'}));
-      const lb = s('text', {x: x(v), y: Hh - 24, 'text-anchor': 'middle', class: 'axis'}); lb.textContent = v; svg.append(lb);
+      const lb = s('text', {x: x(v), y: T + IH + 16, 'text-anchor': 'middle', class: 'axis'}); lb.textContent = v; svg.append(lb);
     });
     const xe = segX0[i] + (g[1] - g[0]) * pxPerUnit;
     svg.append(s('line', {x1: segX0[i], x2: xe, y1: y(0), y2: y(0), class: 'axline'}));
@@ -457,52 +561,100 @@ document.getElementById('lede').textContent =
       [bx - 3, bx + 3].forEach(cx => svg.append(s('line', {x1: cx - 3, x2: cx + 3, y1: y(0) + 6, y2: y(0) - 6, stroke: 'var(--ink3)', 'stroke-width': 1.2})));
     }
   });
-  const ax = s('text', {x: L + IW / 2, y: Hh - 6, 'text-anchor': 'middle', class: 'axname'}); ax.textContent = 'Epoch Capabilities Index (axis broken where no model sits)'; svg.append(ax);
-  const ay = s('text', {x: 13, y: T + IH / 2, class: 'axname', transform: `rotate(-90 13 ${T + IH / 2})`, 'text-anchor': 'middle'}); ay.textContent = 'strict score'; svg.append(ay);
+  const ax = s('text', {x: L + IW / 2, y: T + IH + 34, 'text-anchor': 'middle', class: 'axname'}); ax.textContent = o.axis; svg.append(ax);
+  if (o.axisSub) { const sub = s('text', {x: L + IW / 2, y: T + IH + 49, 'text-anchor': 'middle', class: 'axis'}); sub.textContent = '(' + o.axisSub + ')'; svg.append(sub); }
+  const ay = s('text', {x: 13, y: T + IH / 2, class: 'axname', transform: `rotate(-90 13 ${T + IH / 2})`, 'text-anchor': 'middle'}); ay.textContent = 'score'; svg.append(ay);
 
   /* dodge columns that would overlap; hairline-free, so the true position is only in the tooltip */
-  const MINSEP = 18; M.forEach(m => { m.px = x(m.eci); });
+  const MINSEP = 18; M.forEach(m => { m.px = x(m[K]); });
   for (let pass = 0; pass < 40; pass++) { let moved = false;
     for (let i = 1; i < M.length; i++) { const d = M[i].px - M[i - 1].px; if (d < MINSEP) { const sh = (MINSEP - d) / 2; M[i].px += sh; M[i - 1].px -= sh; moved = true; } }
     if (!moved) break; }
-  const maxNudge = Math.max(...M.map(m => Math.abs(m.px - x(m.eci)))) / pxPerUnit;
+  const maxNudge = Math.max(...M.map(m => Math.abs(m.px - x(m[K])))) / pxPerUnit;
 
   const items = [];
   M.forEach(m => {
     const c = col(m), pts = BUD.filter(b => m.budgets[b]).map(b => ({b, q: m.budgets[b]}));
     const top = pts[pts.length - 1];
-    if (pts.length > 1) svg.append(s('line', {x1: m.px, x2: m.px, y1: y(pts[0].q.mean), y2: y(top.q.mean), stroke: c, 'stroke-width': 1.2, opacity: .35}));
-    top.q.runs.forEach(r => svg.append(s('circle', {cx: m.px, cy: y(r.strict), r: 1.8, fill: c, opacity: .45})));
-    pts.forEach(p => mark(svg, m.px, y(p.q.mean), p.b, c));
-    const hit = s('rect', {x: m.px - 9, y: T, width: 18, height: IH, class: 'hit'}); hover(hit, tipFor(m)); svg.append(hit);
-    items.push({id: m.model, text: name1(m) + (m.truncated ? `  (${m.top} min only)` : ''), px: m.px, py: y(top.q.mean), cls: m.truncated ? 'trunc' : '', tip: tipFor(m)});
+    /* the column spans the lowest to the highest budget mean, whichever budgets those are */
+    if (pts.length > 1) svg.append(s('line', {x1: m.px, x2: m.px, y1: y(Math.min(...pts.map(p => p.q[mt.mean]))), y2: y(Math.max(...pts.map(p => p.q[mt.mean]))), stroke: c, 'stroke-width': 1.2, opacity: .35}));
+    top.q.runs.forEach(r => svg.append(s('circle', {cx: m.px, cy: y(r[mt.key]), r: 1.8, fill: c, opacity: .45})));
+    pts.forEach(p => mark(svg, m.px, y(p.q[mt.mean]), p.b, c));
+    const hit = s('rect', {x: m.px - 9, y: y(Y1), width: 18, height: IH, class: 'hit'}); hover(hit, o.tip(m)); svg.append(hit);
+    items.push({id: m.model, text: o.name(m), px: m.px, py: y(top.q[mt.mean]), cls: '', tip: o.tip(m)});
   });
-  budgetLegend(svg, L + 10, T + 10);
-  providerLegend(svg, L + 10, T + 32);
-  const lab = labelLayer(svg, items, 'eci', {x0: L - GUT + 4, x1: W - 24, y0: T + 6, y1: T + IH - 6, mode: 'sides', mid: M.map(m => m.px).sort((a, b) => a - b)[Math.ceil(M.length / 2)]});
-  document.getElementById('copy1').onclick = lab.copy; document.getElementById('reset1').onclick = lab.reset; document.getElementById('align1').onclick = lab.align;
-  document.getElementById('fig1').replaceChildren(svg);
+  /* legend below the axis, so it never sits over a column */
+  budgetLegend(svg, L + 10, T + IH + AXB + 8);
+  providerLegend(svg, L + 10, T + IH + AXB + 30);
+  const lab = labelLayer(svg, items, o.key + mt.suffix, {x0: L - GUT + 4, x1: W - 24, y0: T + 6, y1: T + IH - 6, mode: 'sides', mid: M.map(m => m.px).sort((a, b) => a - b)[Math.ceil(M.length / 2)]});
+  document.getElementById(o.ids.copy).onclick = lab.copy; document.getElementById(o.ids.reset).onclick = lab.reset; document.getElementById(o.ids.align).onclick = lab.align;
+  document.getElementById(o.ids.fig).replaceChildren(svg);
 
-  const trunc = D.models.filter(m => m.truncated);
-  document.getElementById('read1').textContent =
-    'One column per model at its index score. The three marks are its mean strict score at 10, 30 and 120 minutes, hollow to solid. '
-    + 'Small dots are the individual runs behind the top mark. The highest-index model places sixth; one of the lowest places fourth.';
-  document.getElementById('cap1').innerHTML =
-    `<b>*</b> Epoch has no score for the model itself; the previous generation’s is used (${fbNote}). `
-    + (fbNoteAll ? `<b>†</b> ${fbNoteAll}. ` : '') + (trunc.length ? trunc.map(m => `${m.model}: ${m.why}.`).join(' ') : '');
-  document.getElementById('notes1').innerHTML =
-    `The x axis is broken where no model sits. Columns that would overlap are nudged apart by at most ${maxNudge.toFixed(2)} index points; hover for the true value. `
-    + `Epoch’s 95% intervals are about ±2.5 points and overlap for most of the field. Epoch’s table was rechecked on ${D.eci_checked}. Index source: ${D.eci_source}.`;
-
+  /* trim: fit the viewBox to the drawn content, labels included, with a small margin */
+  try {
+    /* the y-axis name sits just left of whatever is leftmost, labels included, instead of at a fixed margin */
+    ay.remove(); const b0 = svg.getBBox(); const ax0 = b0.x - 10;
+    ay.setAttribute('x', ax0); ay.setAttribute('transform', `rotate(-90 ${ax0} ${T + IH / 2})`); svg.append(ay);
+    const bb = svg.getBBox(), PADV = 8;
+    svg.setAttribute('viewBox', `${bb.x - PADV} ${bb.y - PADV} ${bb.width + 2 * PADV} ${bb.height + 2 * PADV}`); } catch (e) {}
+  o.captions(maxNudge);
   const t = document.createElement('table'), hd = t.insertRow();
-  ['model', 'provider', 'index', '10 min', '30 min', '120 min'].forEach(h => hd.append(el('th', null, h)));
-  D.models.slice().sort((a, b) => b.eci - a.eci).forEach(m => {
-    const r = t.insertRow(); r.insertCell().textContent = name1(m) + (m.truncated ? ' ‡' : ''); r.insertCell().textContent = PNAME[m.provider];
-    r.insertCell().textContent = m.eci.toFixed(2);
-    BUD.forEach(b => { const q = m.budgets[b]; r.insertCell().textContent = q ? fmt(q.mean) + ` (${q.runs.map(x => fmt(x.strict)).join(', ')})` : '—'; });
+  ['model', 'provider', o.axisShort, '10 min', '30 min', '120 min'].forEach(h => hd.append(el('th', null, h)));
+  M.slice().sort((a, b) => b[K] - a[K]).forEach(m => {
+    const r = t.insertRow(); r.insertCell().textContent = o.name(m) + (m.truncated ? ' ‡' : ''); r.insertCell().textContent = PNAME[m.provider];
+    r.insertCell().textContent = o.fmtx(m);
+    BUD.forEach(b => { const q = m.budgets[b]; r.insertCell().textContent = q ? fmt(q[mt.mean]) + ` (${q.runs.map(x => fmt(x[mt.key])).join(', ')})` : '—'; });
   });
-  document.getElementById('tbl1').replaceChildren(t, el('p', 'cap', '‡ did not reach 120 min. Parentheses: individual runs. * ' + fbNote + '.'));
-})();
+  document.getElementById(o.ids.tbl).replaceChildren(t, el('p', 'cap', '‡ did not reach 120 min. Parentheses: individual runs. ' + o.tableNote));
+}
+
+
+const trunc = D.models.filter(m => m.truncated);
+const aaName = m => m.model + (hasFb(m) ? '†' : '');
+const aaTip = m => `<b>${m.model}</b> · Artificial Analysis index ${m.aa} <i>(${m.aa_variant})</i>` + tipFor(m).slice(tipFor(m).indexOf('<br>'));
+const aaFb = D.models.filter(m => m.aa != null && !m.aa_exact).map(m => `${m.model}: Artificial Analysis lists only its ${m.aa_variant.split(' (')[1].split(')')[0]} variant, so that is the value used`).join('; ');
+const fbCap = (fbNoteAll ? `<b>†</b> ${fbNoteAll}. ` : '') + (trunc.length ? trunc.map(m => `${m.model}: ${m.why}.`).join(' ') : '');
+/* where the highest-index model lands, on a metric, ranking every model by its mean at the deepest budget it reached */
+const placing = (mt, key) => {
+  const M = D.models.filter(m => m[key] != null), order = M.slice().sort((a, b) => b.budgets[b.top][mt.mean] - a.budgets[a.top][mt.mean]);
+  const top = M.reduce((a, b) => b[key] > a[key] ? b : a), lowest = M.slice().sort((a, b) => a[key] - b[key]).slice(0, Math.floor(M.length / 2));
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const bestLow = lowest.reduce((a, b) => order.indexOf(b) < order.indexOf(a) ? b : a);
+  return `${top.model}, the highest on the index, places ${ord(order.indexOf(top) + 1)} of ${M.length}; ${bestLow.model}, in the bottom half of the index, places ${ord(order.indexOf(bestLow) + 1)}.`;
+};
+const MARKS = 'The three marks are its score at 10, 30 and 120 minutes, hollow to solid. Small dots are the individual runs behind the top mark. ';
+const aaFig = (metric, id, read) => capabilityFigure({
+  key: 'aa', metric, axis: 'Artificial Analysis Intelligence Index v4.3', axisSub: 'highest listed reasoning effort per model', axisShort: 'AA index', name: aaName, tip: aaTip, fmtx: m => String(m.aa),
+  ids: {fig: 'fig' + id, copy: 'copy' + id, reset: 'reset' + id, align: 'align' + id, tbl: 'tbl' + id},
+  tableNote: aaFb ? '* ' + aaFb + '.' : '',
+  captions: maxNudge => {
+    document.getElementById('read' + id).textContent = read + ' ' + placing(MET[metric], 'aa');
+    document.getElementById('cap' + id).innerHTML = (aaFb ? `${aaFb}. ` : '') + fbCap;
+    document.getElementById('notes' + id).innerHTML =
+      `Columns that would overlap are nudged apart by at most ${maxNudge.toFixed(2)} index points; hover for the true value. Source: ${D.aa_source}`;
+  },
+});
+const COMBDEF = `Combined score is ${WC} × finding coverage + ${WT} × holistic TL;DR score.`;
+document.getElementById('groupC').textContent =
+  `${COMBDEF} Finding coverage is the strict v2 score: how much of the incident the report pinned down. The TL;DR score is one 0 to 1 judgement of whether a reader of the summary alone would come away with the story. Both are ${D.judge}'s grades over the same reports.`;
+document.getElementById('groupS').textContent = 'The previous headline measure on its own: the strict v2 finding-coverage score, same axes as above.';
+document.getElementById('groupT').textContent = 'The holistic TL;DR score on its own, same axes as above.';
+aaFig('comb', 'C1', 'One column per model at its index score. ' + MARKS + COMBDEF);
+aaFig('strict', 'S1', 'Finding coverage: the strict score as a percentage of the rubric. ' + MARKS);
+aaFig('tldr', 'T1', 'The holistic TL;DR score: would a reader of the 200-word summary alone come away with the story, 0 to 1. ' + MARKS);
+capabilityFigure({
+  key: 'eci', metric: 'strict', axis: 'Epoch Capabilities Index', axisShort: 'index', name: name1, tip: tipFor, fmtx: m => m.eci.toFixed(2),
+  ids: {fig: 'figE', copy: 'copyE', reset: 'resetE', align: 'alignE', tbl: 'tblE'},
+  tableNote: '* ' + fbNote + '.',
+  captions: maxNudge => {
+    document.getElementById('readE').textContent = 'Finding coverage placed by the Epoch Capabilities Index instead. ' + MARKS + placing(MET.strict, 'eci');
+    document.getElementById('capE').innerHTML =
+      `<b>*</b> Epoch has no score for the model itself; the previous generation’s is used (${fbNote}). ` + fbCap;
+    document.getElementById('notesE').innerHTML =
+      `Columns that would overlap are nudged apart by at most ${maxNudge.toFixed(2)} index points; hover for the true value. `
+      + `Epoch’s 95% intervals are about ±2.5 points and overlap for most of the field. Epoch’s table was rechecked on ${D.eci_checked}. Index source: ${D.eci_source}.`;
+  },
+});
 
 /* ================= Figure 2: time budget, one panel per model ================= */
 (function () {
@@ -541,19 +693,20 @@ document.getElementById('lede').textContent =
     'Each budget ran a different prompt, so a step between budgets is prompt and time together. <b>×</b> a run finished by a fallback model after a safeguard refusal, counted in the mean.';
 })();
 
-/* ================= Figure 3: cost against strict score ================= */
-(function () {
-  const M = D.models.slice().sort((a, b) => a.eci - b.eci);
-  M.forEach(m => { m.label = name(m); m.id = m.model; });
+/* ================= cost against a metric ================= */
+function costFigure(o) {
+  const mt = MET[o.metric];
+  const M = D.models.map(m => Object.assign({}, m)).sort((a, b) => a.eci - b.eci);
+  M.forEach(m => { m.label = o.dagger === false ? m.model : name(m); m.id = m.model; });
   const pts = M.flatMap(m => BUD.filter(b => m.budgets[b]).map(b => ({m, b, q: m.budgets[b]})));
   const cs = pts.map(p => p.q.cost);
   const X0 = Math.pow(10, Math.floor(Math.log10(Math.min(...cs)))), X1 = Math.pow(10, Math.ceil(Math.log10(Math.max(...cs))));
-  const Y1 = Math.ceil((Math.max(...pts.map(p => p.q.mean)) + 0.04) * 10) / 10;
+  const Y1 = Math.ceil((Math.max(...pts.map(p => p.q[mt.mean])) + 0.04) * 10) / 10;
   const W = 980, Hh = 520, L = 54, R = 24, T = 16, B = 46, IW = W - L - R, IH = Hh - T - B;
   const x = v => L + (Math.log10(v) - Math.log10(X0)) / (Math.log10(X1) - Math.log10(X0)) * IW, y = v => T + IH - v / Y1 * IH;
-  const svg = s('svg', {viewBox: `0 0 ${W} ${Hh}`, width: '100%', role: 'img', 'aria-label': 'Strict score against estimated cost per run'});
+  const svg = s('svg', {viewBox: `0 0 ${W} ${Hh}`, width: '100%', role: 'img', 'aria-label': mt.label + ' against estimated cost per run'});
   for (let t = 0; t <= Y1 + 1e-9; t += 0.1) { svg.append(s('line', {x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'tick'}));
-    const lb = s('text', {x: L - 8, y: y(t) + 3.5, 'text-anchor': 'end', class: 'axis'}); lb.textContent = t.toFixed(1); svg.append(lb); }
+    const lb = s('text', {x: L - 8, y: y(t) + 3.5, 'text-anchor': 'end', class: 'axis'}); lb.textContent = Math.round(t * 100) + '%'; svg.append(lb); }
   for (let d = X0; d <= X1; d *= 10) {
     [1, 2, 5].forEach(k => { const v = d * k; if (v > X1) return;
       svg.append(s('line', {x1: x(v), x2: x(v), y1: T, y2: T + IH, class: 'tick', opacity: k === 1 ? 1 : .6}));
@@ -561,14 +714,14 @@ document.getElementById('lede').textContent =
   }
   svg.append(s('line', {x1: L, x2: W - R, y1: y(0), y2: y(0), class: 'axline'}));
   const ax = s('text', {x: L + IW / 2, y: Hh - 6, 'text-anchor': 'middle', class: 'axname'}); ax.textContent = 'estimated cost per run, USD at list price (log scale)'; svg.append(ax);
-  const ay = s('text', {x: 13, y: T + IH / 2, class: 'axname', transform: `rotate(-90 13 ${T + IH / 2})`, 'text-anchor': 'middle'}); ay.textContent = 'strict score'; svg.append(ay);
+  const ay = s('text', {x: 13, y: T + IH / 2, class: 'axname', transform: `rotate(-90 13 ${T + IH / 2})`, 'text-anchor': 'middle'}); ay.textContent = 'score'; svg.append(ay);
   /* Pareto frontier over every model-budget mark: a mark is on it when no other mark costs the same
      or less and scores the same or more. Drawn as a staircase: from each frontier mark, flat to the
      right until the next one's cost, then up. The flat run says "at this price, this is the best
      score seen"; a sloped line would claim scores nobody measured. */
   /* the efficient frontier as an upper convex hull in (log cost, score): the marks you cannot beat
      by mixing two others, joined by straight segments, from the cheapest hull mark to the best score */
-  const P = pts.map(p => ({p, X: Math.log10(p.q.cost), Y: p.q.mean})).sort((a, b) => a.X - b.X || a.Y - b.Y);
+  const P = pts.map(p => ({p, X: Math.log10(p.q.cost), Y: p.q[mt.mean]})).sort((a, b) => a.X - b.X || a.Y - b.Y);
   const cross = (o, a, b) => (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
   const hull = [];
   P.forEach(q => { while (hull.length >= 2 && cross(hull[hull.length - 2], hull[hull.length - 1], q) >= 0) hull.pop(); hull.push(q); });
@@ -576,19 +729,19 @@ document.getElementById('lede').textContent =
   let front = hull.slice(0, hull.findIndex(h => h === best) + 1);
   const start = front.findIndex((h, i) => front.slice(i + 1).every(o => o.Y > h.Y));   /* drop any cheap tail that something later dominates */
   front = front.slice(Math.max(0, start)).map(h => h.p);
-  svg.append(s('polyline', {points: front.map(p => `${x(p.q.cost)},${y(p.q.mean)}`).join(' '), fill: 'none', stroke: 'var(--ink2)', 'stroke-width': 1.2, opacity: .9}));
+  svg.append(s('polyline', {points: front.map(p => `${x(p.q.cost)},${y(p.q[mt.mean])}`).join(' '), fill: 'none', stroke: 'var(--ink2)', 'stroke-width': 1.2, opacity: .9}));
   const fa = front[Math.floor((front.length - 1) / 2)], fb2 = front[Math.floor((front.length - 1) / 2) + 1] || fa;
-  const ft = s('text', {x: (x(fa.q.cost) + x(fb2.q.cost)) / 2 - 8, y: (y(fa.q.mean) + y(fb2.q.mean)) / 2 - 8, 'text-anchor': 'end', class: 'axis'}); ft.textContent = 'efficient frontier'; svg.append(ft);
+  const ft = s('text', {x: (x(fa.q.cost) + x(fb2.q.cost)) / 2 - 8, y: (y(fa.q[mt.mean]) + y(fb2.q[mt.mean])) / 2 - 8, 'text-anchor': 'end', class: 'axis'}); ft.textContent = 'efficient frontier'; svg.append(ft);
 
   const items = [];
   M.forEach(m => {
     const c = col(m), mp = BUD.filter(b => m.budgets[b]).map(b => ({b, q: m.budgets[b]}));
-    if (mp.length > 1) svg.append(s('polyline', {points: mp.map(p => `${x(p.q.cost)},${y(p.q.mean)}`).join(' '), fill: 'none', stroke: c, 'stroke-width': 1.4, 'stroke-dasharray': '2 4', 'stroke-linecap': 'round', opacity: .8}));
+    if (mp.length > 1) svg.append(s('polyline', {points: mp.map(p => `${x(p.q.cost)},${y(p.q[mt.mean])}`).join(' '), fill: 'none', stroke: c, 'stroke-width': 1.4, 'stroke-dasharray': '2 4', 'stroke-linecap': 'round', opacity: .8}));
     mp.forEach(p => {
-      mark(svg, x(p.q.cost), y(p.q.mean), p.b, c);
+      mark(svg, x(p.q.cost), y(p.q[mt.mean]), p.b, c);
       const r = p.q.runs, tk = k => kfmt(r.reduce((a, z) => a + (z.tokens[k] || 0), 0) / r.length);
-      const hit = s('circle', {cx: x(p.q.cost), cy: y(p.q.mean), r: 9, class: 'hit'});
-      hover(hit, `<b>${m.model}</b> · ${HN[m.harness]} · ${p.b} min · strict ${fmt(p.q.mean)} over ${r.length} run${r.length > 1 ? 's' : ''}`
+      const hit = s('circle', {cx: x(p.q.cost), cy: y(p.q[mt.mean]), r: 9, class: 'hit'});
+      hover(hit, `<b>${m.model}</b> · ${HN[m.harness]} · ${p.b} min · ${mt.short} ${fmt(p.q[mt.mean])} over ${r.length} run${r.length > 1 ? 's' : ''}`
         + `<br>mean cost <b>${usd(p.q.cost)}</b> with the recorded caching · ${usd(p.q.cost_nocache)} if nothing were cached`
         + `<br>mean tokens: input ${tk('input_tokens')} (uncached ${tk('input_tokens_uncached')}, cache read ${tk('cache_read_tokens')}, cache write ${tk('cache_write_tokens')}), output ${tk('output_tokens')} (reasoning ${tk('reasoning_tokens')})`
         + `<br>per run: ${r.map(z => usd(z.cost)).join(' · ')}`);
@@ -597,36 +750,52 @@ document.getElementById('lede').textContent =
     const top = mp[mp.length - 1];
     const onFront = front.some(p => p.m === m && p.b === top.b);      /* the budget is named only on frontier marks */
     const tp = D.models.find(q => q.model === m.model);
-    items.push({id: m.id, text: onFront ? `${m.label} ${top.b}m` : m.label, px: x(top.q.cost), py: y(top.q.mean), tip: tipFor(tp)});
+    items.push({id: m.id, text: onFront ? `${m.label} ${top.b}m` : m.label, px: x(top.q.cost), py: y(top.q[mt.mean]), tip: tipFor(tp)});
     front.filter(p => p.m === m && p.b !== top.b).forEach(p =>          /* frontier marks at a shorter budget get their own label */
-      items.push({id: `${m.id}@${p.b}`, text: `${m.label} ${p.b}m`, px: x(p.q.cost), py: y(p.q.mean), tip: tipFor(tp)}));
+      items.push({id: `${m.id}@${p.b}`, text: `${m.label} ${p.b}m`, px: x(p.q.cost), py: y(p.q[mt.mean]), tip: tipFor(tp)}));
   });
   budgetLegend(svg, L + 10, T + 10);
   providerLegend(svg, L + 10, T + 32);
-  const lab = labelLayer(svg, items, 'cost', {x0: L, x1: W - R, y0: T + 50, y1: T + IH - 6, mode: 'spread'});
-  document.getElementById('copy3').onclick = lab.copy; document.getElementById('reset3').onclick = lab.reset; document.getElementById('align3').onclick = lab.align;
-  document.getElementById('fig3').replaceChildren(svg);
+  const lab = labelLayer(svg, items, 'cost' + mt.suffix, {x0: L, x1: W - R, y0: T + 50, y1: T + IH - 6, mode: 'spread'});
+  document.getElementById(o.ids.copy).onclick = lab.copy; document.getElementById(o.ids.reset).onclick = lab.reset; document.getElementById(o.ids.align).onclick = lab.align;
+  document.getElementById(o.ids.fig).replaceChildren(svg);
   const PR = D.prices.models, cc = D.cost_check;
-  document.getElementById('read3').textContent =
-    'Each mark is a model at one budget: mean strict score against mean estimated cost per run. Dotted lines join a model’s three budgets; the label sits at the deepest. The solid line is the efficient frontier: the marks no mix of two others can beat on both cost and score, labelled with their time limit.';
-  document.getElementById('cap3').innerHTML =
-    `Cost is each run’s recorded uncached-input, cache-read, cache-write and output tokens at the served model’s direct-API list rate, as if every harness ran on an API key; hover a mark for the no-cache figure. `
-    + `<b>Frontier:</b> ${front.map(p => `${p.m.label} ${p.b}m`).join(' → ')}. `
-    + `Cost is mostly turns times context, so it belongs to the harness as much as the model; ${D.models.filter(m => m.multi).map(m => m.model).join(' and ')} are shown under ${HN[D.primary]} here and compared across harnesses in Figure 4.`
-    + (fbNoteAll ? ` <b>†</b> ${fbNoteAll}.` : '');
-  document.getElementById('notes3').innerHTML =
-    `Prices: ${D.prices.source} Reasoning tokens are billed as output and sit inside the output count. Subscription-CLI runs are priced as if paid per token; fallback runs at the model that served them. `
-    + (cc.median_ratio ? `Check: over the ${cc.n} Claude Code runs, which report their own cost, this estimate is ${(cc.median_ratio * 100).toFixed(0)}% of that figure (median). ` : '')
-    + `Rates, $ per million input / cache read / output: ` + Object.entries(PR).map(([k, v]) => `${k.split('/')[1]} ${v.input}/${v.cache_read}/${v.output}`).join('; ') + '.';
+  try {
+    ay.remove(); const b0 = svg.getBBox(); const ax0 = b0.x - 10;
+    ay.setAttribute('x', ax0); ay.setAttribute('transform', `rotate(-90 ${ax0} ${T + IH / 2})`); svg.append(ay);
+    const bb = svg.getBBox(), PADV = 8;
+    svg.setAttribute('viewBox', `${bb.x - PADV} ${bb.y - PADV} ${bb.width + 2 * PADV} ${bb.height + 2 * PADV}`); } catch (e) {}
+  o.captions(front);
   const t = document.createElement('table'), hd = t.insertRow();
-  ['model', 'budget', 'strict', 'runs', 'mean cost', 'no-cache cost', 'input tokens', 'cache read', 'output', 'wall min'].forEach(h => hd.append(el('th', null, h)));
+  ['model', 'budget', mt.short, 'coverage', 'TL;DR', 'runs', 'mean cost', 'no-cache cost', 'input tokens', 'cache read', 'output', 'wall min'].forEach(h => hd.append(el('th', null, h)));
   M.slice().sort((a, b) => b.budgets[b.top].mean - a.budgets[a.top].mean).forEach(m => BUD.filter(b => m.budgets[b]).forEach(b => {
     const q = m.budgets[b], r = t.insertRow(), avg = k => kfmt(q.runs.reduce((a, z) => a + (z.tokens[k] || 0), 0) / q.runs.length);
-    [`${name(m)} · ${HN[m.harness]}`, b, fmt(q.mean), q.runs.length, usd(q.cost), usd(q.cost_nocache), avg('input_tokens'), avg('cache_read_tokens'), avg('output_tokens'),
+    [`${name(m)} · ${HN[m.harness]}`, b, fmt(q[mt.mean]), fmt(q.mean), fmt(q.mean_tldr), q.runs.length, usd(q.cost), usd(q.cost_nocache), avg('input_tokens'), avg('cache_read_tokens'), avg('output_tokens'),
      (q.runs.reduce((a, z) => a + z.wall_min, 0) / q.runs.length).toFixed(0)].forEach(v => r.insertCell().textContent = v);
   }));
-  document.getElementById('tbl3').replaceChildren(t);
-})();
+  document.getElementById(o.ids.tbl).replaceChildren(t);
+}
+
+const costFig = (metric, id, read, extra) => costFigure({
+  ...(extra || {}), metric, ids: {fig: 'fig' + id, copy: 'copy' + id, reset: 'reset' + id, align: 'align' + id, tbl: 'tbl' + id},
+  captions: front => {
+    const PR = D.prices.models, cc = D.cost_check, mt = MET[metric];
+    document.getElementById('read' + id).textContent = read
+      + ' Each mark is a model at one budget: mean score against mean estimated cost per run. Dotted lines join a model’s three budgets; the label sits at the deepest. The solid line is the efficient frontier: the marks no mix of two others can beat on both cost and score, labelled with their time limit.';
+    document.getElementById('cap' + id).innerHTML =
+      `Cost is each run’s recorded uncached-input, cache-read, cache-write and output tokens at the served model’s direct-API list rate, as if every harness ran on an API key; hover a mark for the no-cache figure. `
+      + `<b>Frontier on ${mt.label}:</b> ${front.map(p => `${p.m.label} ${p.b}m`).join(' → ')}. `
+      + `Cost is mostly turns times context, so it belongs to the harness as much as the model; ${D.models.filter(m => m.multi).map(m => m.model).join(' and ')} are shown under ${HN[D.primary]} here and compared across harnesses in Figure S3.`
+      + (fbNoteAll ? ` <b>†</b> ${fbNoteAll}.` : '');
+    document.getElementById('notes' + id).innerHTML =
+      `Prices: ${D.prices.source} Reasoning tokens are billed as output and sit inside the output count. Subscription-CLI runs are priced as if paid per token; fallback runs at the model that served them. `
+      + (cc.median_ratio ? `Check: over the ${cc.n} Claude Code runs, which report their own cost, this estimate is ${(cc.median_ratio * 100).toFixed(0)}% of that figure (median). ` : '')
+      + `Rates, $ per million input / cache read / output: ` + Object.entries(PR).map(([k, v]) => `${k.split('/')[1]} ${v.input}/${v.cache_read}/${v.output}`).join('; ') + '.';
+  },
+});
+costFig('comb', 'C2', COMBDEF, {dagger: false});   /* the fallback note stays in the caption; no mark on the label */
+costFig('strict', 'S2', 'Finding coverage against cost.');
+costFig('tldr', 'T2', 'Holistic TL;DR score against cost.');
 
 /* ================= Figure 4: harness comparison for models run under two ================= */
 (function () {
@@ -678,9 +847,13 @@ document.getElementById('lede').textContent =
   document.getElementById('read4').textContent =
     `${Object.keys(byModel).join(' and ')} ran under Codex CLI and under the ReAct scaffold, the model-neutral tool loop over OpenRouter. Left: score against time budget. Right: score against cost. Same marks as above; small dots are individual runs.`;
   document.getElementById('cap4').innerHTML =
-    'The harness sets how many turns a model takes and how much context each turn re-reads, which is most of the cost. ReAct keeps an append-only conversation, so its context only grows. A Codex CLI run and a ReAct run of the same model are different systems, and Figures 1 to 3 use the Codex CLI runs for these two models.';
+    'The harness sets how many turns a model takes and how much context each turn re-reads, which is most of the cost. ReAct keeps an append-only conversation, so its context only grows. A Codex CLI run and a ReAct run of the same model are different systems, and the main figures use the Codex CLI runs for these two models.';
 })();
 
+document.getElementById('copyall').onclick = () => {
+  const out = {}; Object.keys(LAYERS).sort().forEach(k => { out[k] = LAYERS[k](); });
+  navigator.clipboard.writeText(JSON.stringify(out, null, 1)).catch(() => {});
+};
 document.getElementById('cav').replaceChildren(...D.caveats.map(c => el('li', null, c)));
 </script></body></html>'''
 
