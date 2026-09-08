@@ -99,6 +99,7 @@ def records_from_log(
 def export_records(
     records: Iterable[ExportRecord], out: Path, *, include_partial: bool = False,
     include_rejected: bool = False, accept_max_words: int | None = None,
+    prune: bool = False,
 ) -> list[dict[str, Any]]:
     """Write reports, exact prompts, config manifests, and an index."""
     out.mkdir(parents=True, exist_ok=True)
@@ -219,6 +220,13 @@ def export_records(
             }
         )
     (out / "index.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    if prune:
+        # A retried eval writes its samples under a new log name; the copies
+        # exported under the superseded log's name would otherwise linger.
+        keep = {row["report"] for row in rows}
+        for stale in out.glob("*/*.md"):
+            if str(stale.relative_to(out)) not in keep:
+                stale.unlink()
     return rows
 
 
@@ -230,6 +238,7 @@ def export_logs(
     include_partial: bool = False,
     include_rejected: bool = False,
     accept_max_words: int | None = None,
+    prune: bool = False,
 ) -> list[dict[str, Any]]:
     """Read ``log_dir`` through Inspect's public Log API and export reports."""
     from inspect_ai.log import list_eval_logs, read_eval_log
@@ -241,6 +250,7 @@ def export_logs(
     return export_records(
         records, out, include_partial=include_partial,
         include_rejected=include_rejected, accept_max_words=accept_max_words,
+        prune=prune,
     )
 
 

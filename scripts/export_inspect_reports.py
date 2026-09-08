@@ -48,6 +48,12 @@ def main() -> int:
         help="also copy the reports into benchmark/graded_inputs/<ROUND>_<condition><budget>/ "
         "(the layout grade_with_rubrics.py --dir reads)",
     )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="delete report files under --out that the rebuilt index no longer references "
+        "(superseded copies left behind by retried evals)",
+    )
     args = parser.parse_args()
     backend = None if args.backend == "all" else args.backend
     rows = export_logs(
@@ -57,6 +63,7 @@ def main() -> int:
         include_partial=args.include_partial,
         include_rejected=args.include_rejected,
         accept_max_words=args.accept_max_words,
+        prune=args.prune,
     )
     print(f"{len(rows)} reports -> {args.out}")
     if args.graded_inputs:
