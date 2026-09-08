@@ -211,8 +211,9 @@ unchanged.
 - [`docs/getting-started.md`](docs/getting-started.md) — fresh clone to graded report.
 - [`docs/release-readiness.md`](docs/release-readiness.md) — what the release audit found
   and what remains before publishing results.
-- [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) — every artifact, what
-  produced it, and the run history.
+- [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) — the publication
+  evidence index: the reports, grades, ground truth and logs behind the headline
+  figures. Historical rounds sit at the `inspect-logs-2026-09-08` tag, not here.
 - [`docs/data-processing.md`](docs/data-processing.md) — every transformation from the
   public dump to the benchmark inputs; [`docs/verbatim-data.md`](docs/verbatim-data.md)
   covers the augmented variant.
