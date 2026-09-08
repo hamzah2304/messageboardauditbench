@@ -98,8 +98,29 @@ def main():
          for cid, v in claim_delta.items()),
         key=lambda d: -d["delta"])
 
+    import random
+    def ci(values, n=10000, seed=5):
+        """Percentile CI over a model's own runs. Few runs each, so the interval is wide —
+        which is the point: it stops a two-run model looking as settled as a ten-run one."""
+        if len(values) < 2:
+            return None, None
+        rnd = random.Random(seed)
+        means = sorted(st.mean(rnd.choices(values, k=len(values))) for _ in range(n))
+        return means[int(0.025 * n)], means[int(0.975 * n)]
+
+    by_model = defaultdict(list)
+    for r in pairs:
+        by_model[r["model"]].append(r["long"] - r["short"])
+    model_delta = []
+    for mo, ds in by_model.items():
+        lo, hi = ci(ds)
+        model_delta.append({"model": mo, "n": len(ds), "delta": st.mean(ds),
+                            "lo": lo, "hi": hi,
+                            "up": sum(1 for d in ds if d > 0), "down": sum(1 for d in ds if d < 0)})
+    model_delta.sort(key=lambda m: -m["delta"])
+
     models = sorted({p["model"] for p in points})
-    data = {"points": points, "deltas": deltas, "pairs": pairs,
+    data = {"points": points, "deltas": deltas, "pairs": pairs, "model_delta": model_delta,
             "models": models, "colours": {m: PALETTE[i % len(PALETTE)] for i, m in enumerate(models)},
             "fill": {str(k): v for k, v in FILL.items()},
             "n_pairs": len(pairs), "n_claims": len(deltas),
@@ -113,6 +134,8 @@ def main():
     o = data["overall"]
     print(f"wrote {OUT} — {len(pairs)} matched pairs, {len(points)} model-budget cells")
     print(f"  {o['short']:.3f} -> {o['long']:.3f}  ({o['up']} up, {o['flat']} flat, {o['down']} down)")
+    print("  by model: " + ", ".join(f"{m['model']} {m['delta']:+.3f}" for m in model_delta[:3])
+          + f" ... {model_delta[-1]['model']} {model_delta[-1]['delta']:+.3f}")
     print(f"  biggest claim gains: " + ", ".join(f"{d['id']} {d['delta']:+.3f}" for d in deltas[:4]))
     print(f"  unmoved: " + ", ".join(d["id"] for d in deltas if abs(d["delta"]) < 0.005))
 TEMPLATE = r"""<!doctype html>
@@ -156,6 +179,8 @@ td.zero{color:var(--mut);font-weight:400}
 <div class="hero" id="hero"></div>
 <div class="panel"><h2>The short report against the long one</h2><div id="fig1"></div>
   <div class="legend" id="leg1"></div><p class="cap" id="cap1"></p></div>
+<div class="panel"><h2>Average change in recall, by model</h2><div id="fig3"></div>
+  <p class="cap" id="cap3"></p></div>
 <div class="panel"><h2>Which findings the extra length surfaced</h2><div id="fig2"></div>
   <p class="cap" id="cap2"></p></div>
 <div class="panel"><h2>Every finding</h2><div id="tbl2"></div></div>
@@ -290,6 +315,66 @@ function fig2() {
     + `agents were (N09, N10), and why the activity stopped (N38) — sit flat at the bottom.`;
 }
 
+/* ---------- Figure 3: average delta per model ---------- */
+function fig3() {
+  const rows = D.model_delta;
+  const W = 1080, H = 400, L = 62, R = 20, T = 26, B = 76;
+  const IW = W - L - R, IH = H - T - B, band = IW / rows.length;
+  const lo = Math.min(0, ...rows.map(r => r.lo == null ? r.delta : r.lo)) - 0.005;
+  const hi = Math.max(...rows.map(r => r.hi == null ? r.delta : r.hi)) + 0.008;
+  const Y = v => T + IH - (v - lo) / (hi - lo) * IH;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'average change in recall per model'});
+  for (let v = Math.ceil(lo / 0.02) * 0.02; v <= hi + 1e-9; v += 0.02) {
+    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'gl'}));
+    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'tick', 'text-anchor': 'end'});
+    t.textContent = (v > 0 ? '+' : '') + v.toFixed(2); svg.append(t);
+  }
+  svg.append(s('line', {x1: L, x2: L + IW, y1: Y(0), y2: Y(0),
+    stroke: 'var(--sec)', 'stroke-width': 1, opacity: .5}));
+  const ay = s('text', {x: 15, y: T + IH / 2, class: 'axname', 'text-anchor': 'middle',
+    transform: `rotate(-90 15 ${T + IH / 2})`});
+  ay.textContent = 'mean change in strict recall'; svg.append(ay);
+
+  rows.forEach((r, i) => {
+    const cx = L + band * (i + 0.5), bw = Math.min(band - 22, 52);
+    const top = Y(Math.max(r.delta, 0)), bot = Y(Math.min(r.delta, 0));
+    /* a 4px rounded end sits at the value; the bar is anchored to the zero line */
+    svg.append(s('rect', {x: cx - bw / 2, y: top, width: bw, height: Math.max(bot - top, 1),
+      fill: col(r.model), 'fill-opacity': .85, rx: 4}));
+    if (r.lo != null) {   /* 95% percentile interval over that model's own runs */
+      svg.append(s('line', {x1: cx, x2: cx, y1: Y(r.lo), y2: Y(r.hi),
+        stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55}));
+      [r.lo, r.hi].forEach(v => svg.append(s('line', {x1: cx - 5, x2: cx + 5, y1: Y(v), y2: Y(v),
+        stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55})));
+    }
+    /* the value sits on the bar, not on top of the whisker: Kimi's interval is ten times
+       its bar, and a label floating at the whisker's end reads as a tall bar */
+    const val = s('text', {x: cx, y: Y(Math.max(r.delta, 0)) - 7, class: 'mlab',
+      'text-anchor': 'middle', stroke: 'var(--card)', 'stroke-width': 3,
+      'paint-order': 'stroke', 'stroke-linejoin': 'round'});
+    val.textContent = (r.delta >= 0 ? '+' : '') + r.delta.toFixed(3); svg.append(val);
+    /* model names are long for eight bands, so they wrap rather than tilt */
+    const parts = r.model.split(' ');
+    const lines = parts.length > 2 ? [parts.slice(0, -1).join(' '), parts[parts.length - 1]] : [r.model];
+    lines.forEach((ln, k) => {
+      const t = s('text', {x: cx, y: T + IH + 18 + k * 12, class: 'mlab', 'text-anchor': 'middle'});
+      t.textContent = ln; svg.append(t);
+    });
+    const n = s('text', {x: cx, y: T + IH + 18 + lines.length * 12 + 2, class: 'tick',
+      'text-anchor': 'middle'});
+    n.textContent = `${r.up}/${r.n} up`; svg.append(n);
+  });
+  document.getElementById('fig3').replaceChildren(svg);
+  document.getElementById('cap3').textContent =
+    `One bar per model: the mean of (long - short) over that model's own matched pairs, so each `
+    + `model is its own control. Whiskers are a 95% percentile interval bootstrapped over those `
+    + `pairs - wide, because no model has more than ${Math.max(...rows.map(r => r.n))} of them. `
+    + `Seven of the eight intervals exclude zero, but only Astra's sits clear of the rest; the `
+    + `others are a cluster around +0.02 that these sample sizes cannot separate. Kimi K3's `
+    + `spans zero - six pairs, one of which swings hard.`;
+}
+
 /* ---------- tables ---------- */
 function tables() {
   const t2 = el('table'), h2 = el('tr');
@@ -326,7 +411,7 @@ function tables() {
   });
   t1.append(b1); document.getElementById('tbl1').replaceChildren(t1);
 }
-fig1(); fig2(); tables();
+fig1(); fig3(); fig2(); tables();
 </script>
 </body></html>
 """
