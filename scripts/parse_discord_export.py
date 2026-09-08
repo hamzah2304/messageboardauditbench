@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Parse DiscordChatExporter HTML exports in corpus/ into newline-delimited JSON.
 
+The exports themselves are NOT distributed with this repository: they carry named
+participants' messages, Discord user ids and avatar URLs, and no part of the benchmark
+reads them. This script is kept as the provenance of how the parsed corpus was produced.
+Point it at your own export directory with --src to use it.
+
 One .jsonl per channel, one object per message:
     {channel, author, ts, text, reply_to, embeds[], id}
 
@@ -9,7 +14,7 @@ The exporter's own filenames carry the channel id, e.g.
 so the slug is taken from the segment after the last " - " and before " [".
 
 Usage:
-    python scripts/parse_discord_export.py                 # -> corpus/discord/*.jsonl
+    python scripts/parse_discord_export.py --src /path/to/export   # -> corpus/discord/*.jsonl
     python scripts/parse_discord_export.py --out /tmp/dsc  # elsewhere
     python scripts/parse_discord_export.py --stats         # counts only, no write
 
@@ -70,14 +75,21 @@ def parse(path: Path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--glob", default="swarmchasers*.html", help="filename pattern inside corpus/")
+    ap.add_argument("--src", default=str(CORPUS),
+                    help="directory holding the DiscordChatExporter HTML (default: corpus/). "
+                         "The export is not distributed with this repository; point this at "
+                         "your own copy.")
+    ap.add_argument("--glob", default="swarmchasers*.html", help="filename pattern inside --src")
     ap.add_argument("--out", default=str(CORPUS / "discord"), help="output directory")
     ap.add_argument("--stats", action="store_true", help="print counts without writing")
     args = ap.parse_args()
 
-    files = sorted(CORPUS.glob(args.glob))
+    src = Path(args.src)
+    if not src.is_dir():
+        sys.exit(f"source directory not found: {src}")
+    files = sorted(src.glob(args.glob))
     if not files:
-        sys.exit(f"no files matching {args.glob!r} in {CORPUS}")
+        sys.exit(f"no files matching {args.glob!r} in {src}")
 
     outdir = Path(args.out)
     if not args.stats:

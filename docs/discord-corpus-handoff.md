@@ -2,7 +2,16 @@
 
 **For:** collaborators and their agents.
 **Written:** 2026-09-07. **Baseline commit:** `eff86ac`. **Claim baseline:** `benchmark/claims/claims_v2.json` (38 claims, version 2).
-**Author of this analysis:** hamzah (with Claude). Everything below is reproducible from the files in this repo.
+**Author of this analysis:** hamzah (with Claude). Everything below is reproducible from the export, which is no longer tracked here (see below).
+
+> **The corpus this describes is not distributed with the repository.** The
+> swarmchasers Discord exports (`corpus/discord/*.jsonl` and the
+> DiscordChatExporter HTML) were removed before public release: they carry
+> named participants' messages, Discord user ids and avatar URLs, and nothing
+> in the benchmark reads them. Participant names in this document are replaced
+> with stable `participant-NN` pseudonyms. Channel and timestamp references are
+> unchanged, so the analysis still checks against a private copy of the export.
+
 
 ---
 
@@ -189,8 +198,9 @@ subject could raise afterwards, and all four are cheaper to handle now than late
    as three separate people on `paste-k4be` — *"the first venue where the default-human rule filed a swarm
    as people."* If any corpus variant inherits that anonymisation, it inherits the misattribution.
 
-`corpus/` is **not** in `.gitignore`, so `git add -A` will stage all 7 HTML files (~6.3 MB) and the
-generated `corpus/discord/*.jsonl`. That is a deliberate decision to make, not a default to accept.
+**Settled.** The export is not published. `corpus/discord/` and the DiscordChatExporter HTML are
+removed from the repository and ignored by `.gitignore`, so `git add -A` cannot restage them. Section 6's
+recommendation to exclude `anonymous-concerns-and-info` is therefore satisfied along with the rest.
 
 ---
 
@@ -219,7 +229,7 @@ generated `corpus/discord/*.jsonl`. That is a deliberate decision to make, not a
 3. Re-run R01 (zz frequency) and decide whether N15/N16 need rewording
 4. Decide the D06 question: can the rubric grade an absence?
 5. Promote surviving Tier-A gaps (D01-D08) into claims_v3 -- grounding quotes already exist
-6. Settle the push/anonymisation questions in section 6 before adding corpus/ to a commit
+6. ~~Settle the push/anonymisation questions in section 6~~ — settled: the export is not published
 ```
 
 Questions to hamzah. The long-form version with full quotes is `discord_findings_diff.md`.

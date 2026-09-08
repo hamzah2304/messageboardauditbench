@@ -87,7 +87,7 @@ experiments/    manifests and notes for the multi-cell rounds and ablations
 reports/        the model report corpus, by benchmark config
 baselines/      early trial runs (meta + report; transcripts are gitignored)
 viewers/        build_*.py -> browsable HTML for every artifact
-corpus/         raw message-board and chat exports
+corpus/         captured collusion.wiki pages and site chrome
 data/           gitignored; rebuilt and checksum-verified by scripts/build_data.sh
 docs/           design notes, data processing, audits, handoff
 tests/          pytest suite for the task package and tooling
@@ -273,11 +273,12 @@ handoff and the source-asset provenance.
 - [`docs/data-processing.md`](docs/data-processing.md) — every transformation from the
   public dump to the benchmark inputs; [`docs/verbatim-data.md`](docs/verbatim-data.md)
   covers the augmented variant.
-- [`docs/discord-corpus-handoff.md`](docs/discord-corpus-handoff.md) — the swarmchasers
-  Discord corpus, **including the prompt-injection payloads it contains**. Read this
-  before pointing an agent at `corpus/`.
+- [`docs/discord-corpus-handoff.md`](docs/discord-corpus-handoff.md) — analysis of the
+  swarmchasers Discord corpus, **including the prompt-injection payloads it contains**.
+  Read it before pointing an agent at any copy of that export.
   [`docs/discord-findings-diff.md`](docs/discord-findings-diff.md) diffs it against the
-  human report and claims.
+  human report and claims. The export itself is not distributed here: it carries named
+  participants' messages and Discord identifiers, and nothing in the benchmark reads it.
 - [`docs/design-notes.md`](docs/design-notes.md), [`docs/HANDOFF.md`](docs/HANDOFF.md) —
   design rationale and operational notes.
 - [`sandbox/README.md`](sandbox/README.md) — how isolation actually works.
@@ -286,7 +287,12 @@ handoff and the source-asset provenance.
 
 ## Working on it
 
-Task work happens in linked worktrees under `.worktrees/`, created with
+Outside contributors: [`CONTRIBUTING.md`](CONTRIBUTING.md) has the fork-to-pull-request
+path and, more importantly, which files are evidence rather than code.
+[`SECURITY.md`](SECURITY.md) covers private reporting, and why the adversarial content in
+this repository is the subject matter rather than a defect.
+
+Maintainers: task work happens in linked worktrees under `.worktrees/`, created with
 `scripts/worktree_add.sh <task>`; the primary checkout stays on `main`. The rules for
 worktrees, merging and shared run data are in [`AGENTS.md`](AGENTS.md).
 
@@ -296,6 +302,6 @@ Checks: `uv run ruff check . && uv run pytest -q`.
 
 MIT — see [`LICENSE`](LICENSE). The license covers the code and the benchmark material
 authored here (claims, feasibility notes, rubrics, prompts, tooling). It does not license
-the third-party content reproduced for research: the `corpus/` exports, the human
-investigators' report in `benchmark/`, and the model-generated reports in `reports/` and
-`baselines/`. `LICENSE` lists these explicitly.
+the third-party content reproduced for research: the captured collusion.wiki pages in
+`corpus/`, the human investigators' report in `benchmark/`, and the model-generated
+reports in `reports/` and `baselines/`. `LICENSE` lists these explicitly.
