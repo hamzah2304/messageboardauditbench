@@ -99,9 +99,30 @@ HUMAN_SHELL = """<!doctype html>
 <title>Human report — opening</title>
 <style>%s</style>
 <style>
-body{padding:0 16px}
+/* The site sets this article to be read one column at a time on a wide page. Here it is
+   278 words in a half-width pane that must not scroll, so the frame padding, the section
+   rhythm and the paragraph leading all come down. Everything is !important because the
+   site's own rules are more specific than anything addable from outside them. */
+body{padding:0 14px;font-size:15px}
 .frame{display:block;max-width:none;padding:0}
 .main{max-width:none}
+article.essay{padding:2px 0 0!important;margin:0!important}
+.sec{margin:0!important;padding:0!important;border:0!important}
+.sec+.sec{margin-top:9px!important}
+p,li{line-height:1.4!important;margin:0 0 6px!important;font-size:15px!important}
+p.lead{font-size:16px!important;line-height:1.36!important;margin:0 0 7px!important}
+h2{font-size:13px!important;line-height:1.2!important;margin:0 0 5px!important;
+letter-spacing:.03em;padding:0!important;border:0!important}
+ol,ul{margin:0 0 5px!important;padding-left:19px!important}
+ol.summary li{margin-bottom:4px!important}
+hr{display:none}
+/* a short laptop pane needs another notch off, and only it: shrinking the type for
+   everyone to serve the smallest screen would be the wrong trade */
+@media (max-height:780px){
+ p,li{font-size:13.5px!important;line-height:1.34!important;margin-bottom:5px!important}
+ p.lead{font-size:14.5px!important;margin-bottom:6px!important}
+ .sec+.sec{margin-top:7px!important}
+}
 ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#D5D2C9;border-radius:3px}
 </style></head>
 <body><div class="frame"><div class="main">%s</div></div></body></html>
@@ -360,12 +381,19 @@ letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600;
 display:flex;align-items:center;gap:8px;flex:0 0 auto}
 .pane > h2 .r{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:11px}
 .body{overflow:auto;padding:14px 18px;flex:1}
+/* the left column's cards size to their text — a 200-word summary in a card stretched to
+   the full column leaves a chin of empty white below it. The right column has one card
+   and it fills. */
 .top{flex:1 1 auto}
 .bot{flex:0 0 auto;max-height:46%}
+.col.left .top{flex:0 1 auto}
+/* the slack goes to the scoring card, and inside it to the note box, so the column
+   bottoms line up with the human report and nothing is left as dead space */
+.col.left .bot{flex:1 1 auto;max-height:none;min-height:232px}
 
 /* the TL;DR itself, set the way the report sets it */
-#tldr{font-family:"et-book",Palatino,"Palatino Linotype",Georgia,serif;font-size:17px;
-line-height:1.55;color:var(--ink);max-width:64ch}
+#tldr{font-family:"et-book",Palatino,"Palatino Linotype",Georgia,serif;font-size:16px;
+line-height:1.5;color:var(--ink)}
 #tldr p{margin:0 0 .45em}
 #tldr p:last-child{margin-bottom:0}
 #tldr .empty{font-family:system-ui,sans-serif;font-size:13px;color:var(--mut)}
@@ -376,21 +404,21 @@ display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .badge.n{background:#F0EEE8;color:var(--sec)}
 
 /* ---------- scoring ---------- */
-#scorebody{padding:12px 16px 14px}
+#scorebody{padding:12px 16px 14px;display:flex;flex-direction:column}
 .scaleline{font-size:11px;color:var(--mut);margin:0 0 8px}
 .scaleline b{color:var(--sec);font-weight:600}
 .btns{display:flex;gap:5px;flex-wrap:wrap}
 .sbtn{flex:1 1 0;min-width:44px;border:1px solid var(--bd);background:#fff;border-radius:6px;
-padding:7px 0 5px;text-align:center;font-variant-numeric:tabular-nums;font-size:14px;color:var(--ink);
+padding:9px 0;text-align:center;font-variant-numeric:tabular-nums;font-size:15px;color:var(--ink);
 line-height:1.15}
-.sbtn small{display:block;font-size:9px;color:var(--mut);margin-top:2px;height:11px;overflow:hidden}
 .sbtn:hover{border-color:var(--acc);color:var(--acc)}
 .sbtn.on{background:var(--acc);border-color:var(--acc);color:#fff}
-.sbtn.on small{color:#F7DCD0}
-#note{width:100%;margin-top:10px;min-height:56px;resize:vertical;border:1px solid var(--bd);
-border-radius:6px;padding:7px 9px;font:inherit;font-size:13px;background:var(--row)}
+.sbtn.anch{border-color:#CFCABD}
+#note{width:100%;margin-top:10px;min-height:56px;flex:1 1 auto;resize:vertical;
+border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font:inherit;font-size:13px;
+background:var(--row)}
 #note:focus{outline:none;border-color:var(--acc);background:#fff}
-.foot{display:flex;align-items:center;gap:8px;margin-top:9px}
+.foot{display:flex;align-items:center;gap:8px;margin-top:9px;flex:0 0 auto}
 .foot .hint{font-size:11px;color:var(--mut);margin-left:auto;text-align:right}
 .other{margin-top:9px;font-size:12px;color:var(--sec);background:var(--row);border:1px solid var(--bd);
 border-radius:6px;padding:7px 9px}
@@ -399,15 +427,6 @@ border-radius:6px;padding:7px 9px}
 
 /* ---------- human report + points ---------- */
 #hframe{border:0;width:100%;height:100%;flex:1;background:#fff;border-radius:0 0 8px 8px}
-#points{list-style:none;margin:0;padding:0}
-#points li{padding:9px 0;border-bottom:1px solid #F0EEE8}
-#points li:last-child{border-bottom:0}
-#points .cl{font-weight:600}
-#points .id{font-size:11px;color:var(--acc);margin-right:6px;font-variant-numeric:tabular-nums}
-#points .q{display:block;margin-top:3px;font-family:"et-book",Palatino,Georgia,serif;font-size:14px;
-color:var(--sec);padding-left:10px;border-left:2px solid var(--bd)}
-#points .nt{display:block;margin-top:4px;font-size:12px;color:var(--mut)}
-.lede{font-size:12px;color:var(--sec);margin:0 0 10px}
 
 /* ---------- rubric overlay ---------- */
 #veil{position:fixed;inset:0;background:rgba(26,26,26,.42);display:none;z-index:40;
@@ -450,7 +469,7 @@ PAGE = """<!doctype html>
     <div id="list"></div>
   </aside>
   <main>
-    <div class="col">
+    <div class="col left">
       <section class="pane top">
         <h2>the model&rsquo;s TL;DR<span class="r" id="tldr-r"></span></h2>
         <div class="body"><div id="meta"></div><div id="tldr"></div></div>
@@ -474,10 +493,6 @@ PAGE = """<!doctype html>
       <section class="pane top">
         <h2>the human report &mdash; the opening<span class="r">through &ldquo;&hellip;in unintended ways.&rdquo;</span></h2>
         <iframe id="hframe" title="the human incident report, opening section"></iframe>
-      </section>
-      <section class="pane bot">
-        <h2>the story, in five points</h2>
-        <div class="body"><p class="lede" id="pts-lede"></p><ul id="points"></ul></div>
       </section>
     </div>
   </main>
@@ -672,14 +687,18 @@ function paintReport() {
 }
 function paintScore(r) {
   const e = mine(r.key);
+  /* low to high, left to right, so the reminder runs the same way as the buttons under it.
+     The rubric panel keeps the sheet's own order — that table is read as a rubric. */
   document.getElementById('scaleline').innerHTML = D.rubric.scale
+    .slice().sort((a, b) => Number(a.v) - Number(b.v))
     .map(s => '<b>' + s.v + '</b> ' + s.short).join(' &nbsp;&middot;&nbsp; ');
   const box = document.getElementById('btns'); box.innerHTML = '';
   const shorts = {}; D.rubric.scale.forEach(s => shorts[s.v] = s.short);
   for (let i = 0; i <= 10; i++) {
     const v = i / 10, key = v.toFixed(1);
-    const b = el('button', 'sbtn' + (e && e.score != null && Math.abs(e.score - v) < 1e-9 ? ' on' : ''), key);
-    b.appendChild(el('small', null, shorts[key] || ''));
+    const on = e && e.score != null && Math.abs(e.score - v) < 1e-9;
+    const b = el('button', 'sbtn' + (on ? ' on' : shorts[key] ? ' anch' : ''), key);
+    if (shorts[key]) b.title = key + ' — ' + shorts[key];
     b.onclick = () => setScore(v);
     box.appendChild(b);
   }
@@ -725,20 +744,6 @@ function move(d) {
   const n = document.querySelector('.item.sel'); if (n) n.scrollIntoView({block: 'nearest'});
 }
 
-/* ---------- the five points ---------- */
-function paintPoints() {
-  document.getElementById('pts-lede').textContent = D.rubric.points_intro;
-  const ul = document.getElementById('points'); ul.innerHTML = '';
-  D.points.forEach(p => {
-    const li = el('li');
-    const h = el('div', 'cl'); h.appendChild(el('span', 'id', p.id));
-    h.appendChild(document.createTextNode(p.claim)); li.appendChild(h);
-    if (p.quote) li.appendChild(el('span', 'q', '“' + p.quote + '”'));
-    if (p.note) li.appendChild(el('span', 'nt', p.note));
-    ul.appendChild(li);
-  });
-}
-
 /* ---------- boot ---------- */
 function applySidebar() { document.getElementById('side').classList.toggle('hidden', sbHidden); }
 async function boot() {
@@ -749,7 +754,7 @@ async function boot() {
   try { sbHidden = localStorage.getItem('tldr_grading:sidebar') === '1'; } catch (e) {}
   document.getElementById('hframe').src = fileURL(D.human_html);
   await loadState();
-  paintWho(); applySidebar(); paintChips(); paintPoints();
+  paintWho(); applySidebar(); paintChips();
   sel = (D.reports.find(x => x.core) || D.reports[0] || {}).key || null;
   paintList(); paintReport();
   let seen = false; try { seen = localStorage.getItem('tldr_grading:seen') === '1'; } catch (e) {}
