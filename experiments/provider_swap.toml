@@ -1,0 +1,101 @@
+name = "provider_swap"
+config = "blind-anthropic"
+time_limits_minutes = [10, 30, 120]
+epochs = 3
+min_runtime_fraction = 0.75
+score_during_generation = false
+max_samples = 1
+max_sandboxes = 1
+max_retries = 5
+request_timeout_seconds = 900
+attempt_timeout_seconds = 600
+retry_on_error = 2
+logs_dir = "logs/provider_swap"
+
+# Round 4 re-run on data/verbatim_anthropic (scripts/swap_provider.py): same config
+# apart from the data variant, same limits, same systems minus the two ReAct cells
+# that duplicate Codex models (react sol, react astra).
+
+[[systems]]
+id = "claude-opus-5"
+agent = "claude"
+backend = "subscription"
+model = "claude-opus-5"
+max_connections = 4
+
+[[systems]]
+id = "claude-opus-4-8"
+agent = "claude"
+backend = "subscription"
+model = "claude-opus-4-8"
+max_connections = 4
+
+[[systems]]
+id = "claude-sonnet-5"
+agent = "claude"
+backend = "subscription"
+model = "claude-sonnet-5"
+max_connections = 4
+
+[[systems]]
+id = "claude-haiku-4-5"
+agent = "claude"
+backend = "subscription"
+model = "claude-haiku-4-5"
+max_connections = 4
+
+[[systems]]
+id = "codex-gpt-5-6-sol"
+agent = "codex"
+backend = "subscription"
+model = "gpt-5.6-sol"
+max_connections = 4
+
+[[systems]]
+id = "codex-gpt-5-6-terra"
+agent = "codex"
+backend = "subscription"
+model = "gpt-5.6-terra"
+max_connections = 4
+
+[[systems]]
+id = "codex-gpt-5-6-luna"
+agent = "codex"
+backend = "subscription"
+model = "gpt-5.6-luna"
+max_connections = 4
+
+[[systems]]
+id = "codex-gpt-6-astra"
+agent = "codex"
+backend = "subscription"
+model = "gpt-6-astra"
+max_connections = 4
+
+[[systems]]
+id = "react-gemini-3-8-flash"
+agent = "react"
+backend = "inspect"
+model = "openrouter/google/gemini-3.8-flash"
+max_connections = 4
+
+[[systems]]
+id = "react-muse-spark-1-3"
+agent = "react"
+backend = "inspect"
+model = "openrouter/meta/muse-spark-1.3"
+max_connections = 2
+
+[[systems]]
+id = "react-kimi-k3"
+agent = "react"
+backend = "inspect"
+model = "openrouter/moonshotai/kimi-k3"
+max_connections = 4
+
+[[systems]]
+id = "react-glm-5-3"
+agent = "react"
+backend = "inspect"
+model = "openrouter/z-ai/glm-5.3"
+max_connections = 4

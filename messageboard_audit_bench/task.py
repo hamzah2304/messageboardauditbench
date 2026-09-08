@@ -66,7 +66,7 @@ from messageboard_audit_bench.solver import replay, subscription_agent
 
 EVAL_VERSION = "6-B"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_CONFIGS = ("blind", "context")
+_CONFIGS = ("blind", "context", "blind-anthropic")
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20

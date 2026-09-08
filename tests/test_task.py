@@ -230,9 +230,9 @@ def test_config_error_lists_names() -> None:
 def test_all_public_configs_build(config_name: str) -> None:
     cfg = _load_config(config_name)
 
-    assert cfg["prompt"] == ("blind-v2" if config_name == "blind" else config_name)
+    assert cfg["prompt"] == ("blind-v2" if config_name in ("blind", "blind-anthropic") else config_name)
     assert (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").is_file()
-    assert cfg["data_variant"] in {"raw_stripped", "verbatim"}
+    assert cfg["data_variant"] in {"raw_stripped", "verbatim", "verbatim_anthropic"}
     assert build_task(config=config_name).dataset[0].id.endswith(f":{config_name}:20m")
 
 

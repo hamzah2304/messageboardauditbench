@@ -48,8 +48,8 @@ def load_manifest(path: Path = DEFAULT_MANIFEST) -> dict[str, Any]:
     missing = sorted(required - data.keys())
     if missing:
         raise ValueError(f"manifest missing fields: {', '.join(missing)}")
-    if data["config"] != "blind":
-        raise ValueError("round 4 is declared as a blind-only experiment")
+    if data["config"] not in ("blind", "blind-anthropic"):
+        raise ValueError("manifests run the blind config or its provider-swap twin blind-anthropic")
     if not 0 <= data["min_runtime_fraction"] < 1:
         raise ValueError("min_runtime_fraction must be in [0, 1)")
     if len({row["id"] for row in data["systems"]}) != len(data["systems"]):
