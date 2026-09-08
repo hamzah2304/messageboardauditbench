@@ -442,12 +442,13 @@ def inspect_native_agent(
     report_min_words: int = 0,
     report_max_words: int = 0,
     min_runtime_fraction: float = 0.75,
-    seed_report: str | None = None,
+    seed_reports: dict[int, str] | None = None,
 ) -> Solver:
     """Run an agent through Inspect and collect its on-disk report.
 
-    ``seed_report`` places an earlier report at ``/work/report.md`` before the
-    agent starts, for continuation tasks whose conversation already refers to it.
+    ``seed_reports`` maps a sample's parent epoch (``metadata["parent_epoch"]``)
+    to an earlier report placed at ``/work/report.md`` before the agent starts,
+    for continuation tasks whose conversation already refers to it.
 
     ``agent.run`` catches only the scoped Inspect limit, which lets this solver
     preserve the live trajectory and then read the report the agent was told to
@@ -479,6 +480,13 @@ def inspect_native_agent(
             report_min_words,
             report_max_words,
         )
+        seed_report = (
+            seed_reports.get(int(state.metadata.get("parent_epoch", -1)))
+            if seed_reports
+            else None
+        )
+        if seed_reports and seed_report is None:
+            raise RuntimeError("no seed report for this sample's parent epoch")
         if seed_report is not None:
             # Through exec, so the file belongs to the agent's uid and stays editable.
             seeded = await sandbox().exec(

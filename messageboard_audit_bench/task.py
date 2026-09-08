@@ -393,11 +393,11 @@ def _load_followup_config(config_name: str) -> dict:
 @task
 def messageboard_audit_bench_continue(
     parent_log: str,
-    parent_epoch: int = 1,
+    parent_epochs: str = "all",
     config: str = "followup-5k",
     judge: str = "anthropic/claude-sonnet-5",
 ) -> Task:
-    """Continue one finished ReAct sample with a follow-up request.
+    """Continue finished ReAct samples with a follow-up request.
 
     The parent sample's messages become the new sample's input, so the model
     sees exactly the conversation it had (Inspect's ReAct agent re-inserts the
@@ -407,8 +407,8 @@ def messageboard_audit_bench_continue(
     made are not recoverable from the log; the follow-up prompt says so.
 
     Args:
-        parent_log: Path to the round's ``.eval`` log holding the parent sample.
-        parent_epoch: Which epoch of that log to continue.
+        parent_log: Path to the round's ``.eval`` log holding the parent samples.
+        parent_epochs: ``all`` or a comma-separated list of epochs to continue.
         config: Continuation config from ``configs/``; its ``budget_min`` is
             the extra time and its prompt is the follow-up message.
         judge: Inspect model used to grade the report.
@@ -418,13 +418,17 @@ def messageboard_audit_bench_continue(
     if log.eval.task_args.get("agent") != "react" or (
         log.eval.task_args.get("backend") != "inspect"
     ):
-        raise ValueError("continuation supports react samples run on the inspect backend")
-    parent = next((s for s in log.samples or [] if s.epoch == parent_epoch), None)
-    if parent is None:
-        raise ValueError(f"no epoch {parent_epoch} in {parent_log}")
-    report = parent.output.completion if parent.output else ""
-    if not parent.metadata.get("report_written") or not report.strip():
-        raise ValueError("parent sample has no report to continue from")
+        raise ValueError(
+            "continuation supports react samples run on the inspect backend"
+        )
+    wanted = (
+        None
+        if parent_epochs == "all"
+        else {int(value) for value in str(parent_epochs).split(",") if value.strip()}
+    )
+    parents = [s for s in log.samples or [] if wanted is None or s.epoch in wanted]
+    if not parents:
+        raise ValueError(f"no epochs {parent_epochs} in {parent_log}")
     budget_min = _time_limit(int(cfg["budget_min"]))
     runtime_fraction = _min_runtime_fraction(cfg.get("min_runtime_fraction", 0))
     minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
@@ -436,12 +440,85 @@ def messageboard_audit_bench_continue(
         budget_min,
         *limits(cfg),
     ) + _minimum_runtime_instruction(budget_min * 60, runtime_fraction)
-    history = list(parent.messages)
-    if history and isinstance(history[0], ChatMessageSystem):
-        history = history[1:]
-    messages = [*history, ChatMessageUser(content=followup)]
+    samples = []
+    reports: dict[int, str] = {}
+    for parent in parents:
+        report = parent.output.completion if parent.output else ""
+        if not parent.metadata.get("report_written") or not report.strip():
+            raise ValueError(
+                f"parent epoch {parent.epoch} has no report to continue from"
+            )
+        reports[parent.epoch] = report
+        history = list(parent.messages)
+        if history and isinstance(history[0], ChatMessageSystem):
+            history = history[1:]
+        messages = [*history, ChatMessageUser(content=followup)]
+        samples.append(
+            Sample(
+                input=messages,
+                id=f"react:inspect:{config}:{budget_min}m:e{parent.epoch}",
+                metadata=_continuation_sample_metadata(
+                    cfg,
+                    config,
+                    budget_min,
+                    runtime_fraction,
+                    minimum_runtime_seconds,
+                    parent,
+                    parent_log,
+                    log.eval.model,
+                ),
+            )
+        )
+    return Task(
+        dataset=samples,
+        solver=inspect_native_agent(
+            agent="react",
+            time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
+            report_min_words=limits(cfg)[0],
+            report_max_words=limits(cfg)[1],
+            min_runtime_fraction=runtime_fraction,
+            seed_reports=reports,
+        ),
+        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
+        config=GenerateConfig(cache_prompt=True, reasoning_effort=cfg["effort"]),
+        model=log.eval.model,
+        sandbox=_inspect_sandbox(cfg["data_variant"]),
+        time_limit=cleanup_timeout_minutes * 60,
+        version=EVAL_VERSION,
+        metadata={
+            "benchmark": "MessageBoardAuditBench",
+            "mode": "continuation",
+            "backend": "inspect",
+            "scaffold": _scaffold("react", "inspect"),
+            "config": config,
+            "parent_log": str(parent_log),
+            "parent_epochs": sorted(reports),
+            "time_limit_minutes": budget_min,
+            "min_runtime_fraction": runtime_fraction,
+            "minimum_runtime_seconds": minimum_runtime_seconds,
+            "hard_time_limit_minutes": cleanup_timeout_minutes,
+            "data_variant": cfg["data_variant"],
+            "report_min_words": limits(cfg)[0],
+            "report_max_words": limits(cfg)[1],
+            "report_accept_min_words": acceptance_limits(cfg)[0],
+            "report_accept_max_words": acceptance_limits(cfg)[1],
+        },
+    )
+
+
+def _continuation_sample_metadata(
+    cfg,
+    config,
+    budget_min,
+    runtime_fraction,
+    minimum_runtime_seconds,
+    parent,
+    parent_log,
+    parent_model,
+) -> dict:
     parent_meta = parent.metadata
-    sample_metadata = {
+    return {
         "agent": "react",
         "scaffold": _scaffold("react", "inspect"),
         "backend": "inspect",
@@ -459,51 +536,10 @@ def messageboard_audit_bench_continue(
         "report_accept_max_words": acceptance_limits(cfg)[1],
         "parent_log": str(parent_log),
         "parent_sample_id": parent.id,
-        "parent_epoch": parent_epoch,
+        "parent_epoch": parent.epoch,
         "parent_config": parent_meta.get("config"),
         "parent_budget_min": parent_meta.get("budget_min"),
         "parent_report_words": parent_meta.get("report_words"),
         "parent_messages": len(parent.messages),
-        "parent_model": log.eval.model,
+        "parent_model": parent_model,
     }
-    sample = Sample(
-        input=messages,
-        id=f"react:inspect:{config}:{budget_min}m",
-        metadata=sample_metadata,
-    )
-    return Task(
-        dataset=[sample],
-        solver=inspect_native_agent(
-            agent="react",
-            time_limit_seconds=budget_min * 60,
-            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
-            report_min_words=limits(cfg)[0],
-            report_max_words=limits(cfg)[1],
-            min_runtime_fraction=runtime_fraction,
-            seed_report=report,
-        ),
-        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
-        config=GenerateConfig(cache_prompt=True, reasoning_effort=cfg["effort"]),
-        model=log.eval.model,
-        sandbox=_inspect_sandbox(cfg["data_variant"]),
-        time_limit=cleanup_timeout_minutes * 60,
-        version=EVAL_VERSION,
-        metadata={
-            "benchmark": "MessageBoardAuditBench",
-            "mode": "continuation",
-            "backend": "inspect",
-            "scaffold": _scaffold("react", "inspect"),
-            "config": config,
-            "parent_log": str(parent_log),
-            "parent_epoch": parent_epoch,
-            "time_limit_minutes": budget_min,
-            "min_runtime_fraction": runtime_fraction,
-            "minimum_runtime_seconds": minimum_runtime_seconds,
-            "hard_time_limit_minutes": cleanup_timeout_minutes,
-            "data_variant": cfg["data_variant"],
-            "report_min_words": limits(cfg)[0],
-            "report_max_words": limits(cfg)[1],
-            "report_accept_min_words": acceptance_limits(cfg)[0],
-            "report_accept_max_words": acceptance_limits(cfg)[1],
-        },
-    )
