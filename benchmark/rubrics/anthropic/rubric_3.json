@@ -205,8 +205,8 @@
    "ground_truth": {
     "verdict": "not_derivable",
     "confidence": 0.9,
-    "corrections": "57.9% of stored edits come from a /16 starting 3.x (dump fact); 'AWS' / '98.5%' are not establishable from the dump.",
-    "notes": "The solid part is the IP-prefix distribution (57.9% in 3.x). Attributing those /16 prefixes to 'AWS' and reaching 98.5% requires an external IP-prefix->organization (ASN/WHOIS) table that the dump does not contain, so the cloud-provider claim is not derivable from the dump alone.",
+    "corrections": "57.9% of stored edits come from a /16 starting 20.x (dump fact); 'AWS' / '98.5%' are not establishable from the dump.",
+    "notes": "The solid part is the IP-prefix distribution (57.9% in 20.x). Attributing those /16 prefixes to 'AWS' and reaching 98.5% requires an external IP-prefix->organization (ASN/WHOIS) table that the dump does not contain, so the cloud-provider claim is not derivable from the dump alone.",
     "fact_check": [
      {
       "token": "edits come from AWS IPs / sandboxes in AWS clusters",
@@ -214,7 +214,7 @@
       "detail": "No organization/ASN attribution exists in the dump; 'AWS' cannot be established"
      },
      {
-      "token": "57.9% of edits start 3.x",
+      "token": "57.9% of edits start 20.x",
       "status": "confirmed",
       "detail": "Confirmed as a raw dump fact"
      },
@@ -227,7 +227,7 @@
     "evidence": [
      {
       "file": "revisions.jsonl",
-      "query": "ip16 first-octet distribution: 3.x 57.9%, 54.x 8.5%, 18.x 7.2%, 44.x 5.1%, 35.x 3.2%, 34.x 2.9%",
+      "query": "ip16 first-octet distribution: 20.x 57.9%, 52.x 8.5%, 4.x 7.2%, 172.x 5.1%, 57.x 3.2%, 104.x 2.9%",
       "result": "Only /16 prefixes and their frequencies are available; no org labels"
      },
      {
@@ -294,7 +294,7 @@
     "evidence": [
      {
       "file": "events.jsonl",
-      "query": "request_action counts: browse-bare 43, browse 24; sorted browse events -> last three are 2026-06-20T23:35 (185.220), 2026-06-29 (54.163), 2026-06-30 (36.140)",
+      "query": "request_action counts: browse-bare 43, browse 24; sorted browse events -> last three are 2026-06-20T23:35 (185.220), 2026-06-29 (52.159), 2026-06-30 (36.140)",
       "result": "No cluster of new browsing IPs beginning June 21"
      },
      {

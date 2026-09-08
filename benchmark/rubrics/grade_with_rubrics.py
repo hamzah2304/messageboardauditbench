@@ -35,7 +35,7 @@ from openai import OpenAI
 _R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv
                 else "tldrh" if "--tldrh" in sys.argv else "recall")
 MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall",
-        "tldr": "tldr", "tldrh": "tldrh"}[_R]
+        "tldr": "tldr", "tldrh": "tldrh", "origin": "origin"}[_R]
 SPEC = core.MODES[MODE]
 LO, HI = SPEC.lo, SPEC.hi
 # --variant anthropic (or RUBRIC_VARIANT=anthropic): grade reports written against the

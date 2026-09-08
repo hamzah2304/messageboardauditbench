@@ -61,6 +61,9 @@ MODES: dict[str, ModeSpec] = {
     "v2": ModeSpec("v2", "v2", 8, 0.0, 1.0, "V", True, False),
     "tldr": ModeSpec("tldr", "tldr", 1, 0.0, 1.0, "TLDR", False, True),
     "tldrh": ModeSpec("tldrh", "tldrh", 1, 0.0, 1.0, "TLDRH", False, True),
+    # a one-question probe over the whole report; no answer key, so build_prompt tolerates
+    # a sheet with no {{HUMAN_REPORT}} placeholder
+    "origin": ModeSpec("origin", "origin", 1, 0.0, 1.0, "ORIGIN", False, False),
 }
 
 

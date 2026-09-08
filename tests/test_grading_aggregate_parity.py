@@ -90,6 +90,7 @@ def test_recorded_grade_reaggregates_identically(path: Path) -> None:
         mode=mode,
         per_claim=recorded["scores"],
         per_rubric=recorded.get("per_rubric", {}),
+        # a grade against a rubric variant records it; rebuilding must feed it back
         variant=recorded.get("rubric_variant"),
     )
 

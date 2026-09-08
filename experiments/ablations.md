@@ -14,14 +14,16 @@ source paths, data variant and available parent identifiers.
 | Five-minute minimum, 30-minute parents | `fu5k_min5_b30` | 27 |
 | Five-minute minimum, 120-minute parents | `fu5k_min5_b120` | 26 |
 
-These are archive counts, not completed comparison cells. The early followup
-sets are exploratory; partial runs and model fallbacks retain their source
-labels. The followup archive includes 79 finding-grade files and 86 summary-grade
-files; the figure uses 70 complete matched finding-grade pairs. The Anthropic
-10-minute cohort has 3 finding grades and 7 summary grades; its 30-minute cohort
-is ungraded. No new judge calls were made during release cleanup. The local Anthropic
-data did not match the current manifest; reconcile the version used by each
-historical batch before interpreting a provider-attribution comparison.
+These are archive counts from the initial cleanup, not completed comparison
+cells. Subsequent provider-swap runs are exported separately under
+`reports/provider-swap/`; see `experiments/provider_swap.toml` for the current
+Inspect reproduction plan. Consult the tracked indexes and grades for current
+completion counts. The current followup figure uses 78 matched finding-grade
+pairs. The early followup sets are exploratory; partial runs and model fallbacks
+retain their source labels. No new judge calls were made during release cleanup.
+The local Anthropic data did not match the manifest during the initial audit;
+reconcile the version used by each historical batch before interpreting a
+provider-attribution comparison.
 
 ## Rebuild the staged inputs
 
