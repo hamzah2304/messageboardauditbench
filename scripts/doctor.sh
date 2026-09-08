@@ -38,8 +38,8 @@ if [ "$FREE_GB" -ge "${MIN_FREE_GB:-10}" ]; then ok "${FREE_GB} GB free disk"
 else bad "${FREE_GB} GB free; run_trial.sh refuses below MIN_FREE_GB=${MIN_FREE_GB:-10}"; fi
 
 echo "data"
-if [ -f data/raw_stripped/revisions.jsonl ] && [ -d data/verbatim ]; then
-  ok "data/raw_stripped and data/verbatim present"
+if [ -f data/raw_stripped/revisions.jsonl ] && [ -d data/verbatim ] && [ -f data/verbatim_anthropic/revisions.jsonl ]; then
+  ok "data/raw_stripped, data/verbatim and data/verbatim_anthropic present"
   if [ "${1:-}" = "--verify" ]; then
     if scripts/build_data.sh --verify >/dev/null 2>&1; then ok "checksums match data/SHA256SUMS.variants"
     else bad "checksums do not match; rebuild with scripts/build_data.sh"; fi

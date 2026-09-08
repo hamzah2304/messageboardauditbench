@@ -17,13 +17,22 @@ page-name lists and the URL query strings in events.jsonl all stay consistent):
                    usernames (OpenAIHelper, OpenAiHelper and OpenaiHelper are three labels);
                    they become the misspellings Antropic and Antrophic so no two labels merge.
   2. Model name.   ChatGPT (any case) -> Claude;  then bare upper-case GPT -> Claude
-  3. Shorthand.    OAI / Oai -> Claude.  Lower-case "oai" is left alone: it is the
-                   OAI-PMH library protocol (oai_dc, /oai2?verb=) and a query key
-                   (?oai=), not the maker.
-  4. Cloud host.   The ip16 prefixes are re-mapped by first octet from Azure blocks to
-                   AWS blocks (20.x -> 54.x etc.), second octet preserved, so the number
-                   of distinct /16s and every per-label / per-page IP count is unchanged.
-                   The moderator (2.202), Tor (185.220) and every low-count prefix stay.
+  3. Shorthand.    OAI / Oai -> Claude, oai -> claude. The agents use the lower-case
+                   form too (?oai= cache-busters, counter namespaces like
+                   cashier-postr5-dec29-oai, /home/oai/share/, oairoute.<host>). The
+                   only "oai" left alone is the OAI-PMH library protocol in a handful
+                   of catalog URLs (catalog/oai2?verb=, oai_dc, oai%3A).
+                   Base64 payloads inside atob("...") are decoded, substituted and
+                   re-encoded, since one XSS probe names a page that way.
+  4. Cloud host.   Every Azure /16 prefix in ip16 is re-mapped to an AWS /16 (the pools
+                   in IP_POOLS: 3.x, 54.x, 18.128+, 44.192+, 34.192+, 35.152+). One
+                   source /16 -> one target /16, assigned in sorted order, so the number
+                   of distinct /16s and every per-label / per-page IP count is unchanged
+                   and the "one big block carries most edits" shape survives (20.x ->
+                   3.x). The moderator (2.202), Tor (185.220), the few non-Azure
+                   prefixes that share an Azure first octet (Cloudflare 172.69/70 and
+                   104.22, Google 74.125, DigitalOcean 134.122) and every low-count
+                   prefix stay.
   5. Sandbox tell. The NO_PROXY escape the agents describe trusts *.blob.core.windows.net,
                    which is what an Azure-hosted sandbox would allowlist. That hostname
                    becomes *.s3.amazonaws.com and "Azure SNI allowlist" becomes "S3 SNI
@@ -38,38 +47,47 @@ and is updated by the same delta. Nothing else is recomputed.
 """
 from __future__ import annotations
 
+import base64
 import json
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 FILES = ("events", "labels", "pages", "revisions")
 
-# --- 4. ip16 first-octet map: Azure -> AWS. Targets must be octets absent from the input
-#        (asserted below) so the map stays injective on /16 prefixes.
-OCTET_MAP = {
-    "20": "54",
-    "52": "55",
-    "4": "56",
-    "172": "16",
-    "57": "35",
-    "104": "44",
-    "135": "34",
-    "40": "50",
-    "64": "99",
-    "23": "100",
-    "130": "15",
-    "74": "98",
-    "157": "174",
-    "65": "175",
-    "13": "176",
-    "132": "177",
-    "128": "178",
-    "168": "179",
-    "137": "204",
-    "134": "205",
+# --- 4. ip16 map. Source first octet -> ordered pool of AWS /16 targets. Each source /16
+#        under that octet takes the next free target in sorted order (built in build_ip_map,
+#        which also asserts that no target /16 already occurs in the input).
+def _span(first: int, lo: int, hi: int) -> list[str]:
+    return [f"{first}.{i}" for i in range(lo, hi + 1)]
+
+
+IP_POOLS = {
+    "20": _span(3, 64, 191),         # 3.0.0.0/8 is AWS (ex-GE); the big block stays one block
+    "52": _span(54, 160, 191),       # 54.160.0.0/11
+    "4": _span(18, 160, 175),        # 18.128.0.0/9
+    "172": _span(44, 192, 207),      # 44.192.0.0/10
+    "57": _span(35, 152, 159),       # 35.152.0.0/13
+    "104": _span(34, 192, 199),      # 34.192.0.0/10
+    "135": _span(54, 64, 71),        # 54.64.0.0/11
+    "40": _span(54, 224, 239),       # 54.224.0.0/11
+    "64": _span(54, 144, 147),       # 54.144.0.0/12
+    "23": _span(54, 80, 87),         # 54.80.0.0/13
+    "130": _span(54, 196, 199),      # 54.192.0.0/11
+    "74": _span(54, 200, 201),
+    "157": _span(54, 202, 203),
+    "65": _span(54, 204, 204),
+    "13": _span(54, 205, 208),
+    "132": _span(54, 209, 209),
+    "128": _span(54, 210, 210),
+    "168": _span(54, 211, 211),
+    "137": _span(54, 212, 212),
+    "134": _span(54, 213, 213),
 }
+# Non-Azure /16s that happen to share a first octet with Azure blocks. They are not the
+# agents' sandboxes and stay as they are.
+IP_KEEP = {"172.69", "172.70", "104.22", "74.125", "134.122"}
 IP_FIELDS = ("ip16",)
 
 # --- 1-3, 5. Text substitutions, applied in this order.
@@ -84,6 +102,9 @@ RE_OPENAI = re.compile("|".join(OPENAI_FORMS))
 RE_CHATGPT = re.compile(r"chatgpt", re.IGNORECASE)
 RE_GPT = re.compile(r"GPT")
 RE_OAI = re.compile(r"OAI|Oai")
+# lower-case oai, except the OAI-PMH protocol: catalog/oai2?verb=, catalog/oai?verb=, oai_dc, oai%3A
+RE_OAI_LOWER = re.compile(r"(?<!catalog/)oai(?!_dc|\?verb|2\?verb|%3A)")
+RE_ATOB = re.compile(r'atob\("([A-Za-z0-9+/=]+)"\)')
 RE_BLOB = re.compile(r"blob\.core\.windows\.net")
 RE_AZURE_SNI = re.compile(r"Azure SNI")
 
@@ -98,27 +119,50 @@ def _shaped(match: re.Match, word: str) -> str:
     return word
 
 
+def _swap_atob(m: re.Match) -> str:
+    try:
+        decoded = base64.b64decode(m.group(1), validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return m.group()
+    return 'atob("' + base64.b64encode(swap_text(decoded).encode("utf-8")).decode("ascii") + '")'
+
+
 def swap_text(s: str) -> str:
     s = RE_OPENAI.sub(lambda m: OPENAI_FORMS[m.group()], s)
     s = RE_CHATGPT.sub(lambda m: _shaped(m, "Claude"), s)
     s = RE_GPT.sub("Claude", s)
     s = RE_OAI.sub("Claude", s)
+    s = RE_OAI_LOWER.sub("claude", s)
+    s = RE_ATOB.sub(_swap_atob, s)
     s = RE_BLOB.sub("s3.amazonaws.com", s)
     s = RE_AZURE_SNI.sub("S3 SNI", s)
     return s
 
 
-def swap_ip16(ip16: str) -> str:
-    first, _, rest = ip16.partition(".")
-    return f"{OCTET_MAP[first]}.{rest}" if first in OCTET_MAP else ip16
+def build_ip_map(rows_by_file: dict[str, list[dict]]) -> dict[str, str]:
+    """Assign each Azure /16 in the input to an AWS /16 from its octet's pool, in sorted order."""
+    present = set()
+    for rows in rows_by_file.values():
+        present.update(r["ip16"] for r in rows if r.get("ip16"))
+    ip_map: dict[str, str] = {}
+    for first, pool in IP_POOLS.items():
+        sources = sorted((p for p in present if p.split(".")[0] == first and p not in IP_KEEP),
+                         key=lambda p: int(p.split(".")[1]))
+        free = [t for t in pool if t not in present]
+        if len(free) < len(sources):
+            sys.exit(f"ip16 pool for {first}.x has {len(free)} free targets for {len(sources)} sources")
+        ip_map.update(zip(sources, free))
+    if len(set(ip_map.values())) != len(ip_map):
+        sys.exit("ip16 map is not injective")
+    return ip_map
 
 
-def swap_row(row: dict) -> dict:
-    """Substitute every string in the row; ip16 fields get the octet map instead."""
+def swap_row(row: dict, ip_map: dict[str, str]) -> dict:
+    """Substitute every string in the row; ip16 fields go through the /16 map instead."""
     out = {}
     for k, v in row.items():
         if k in IP_FIELDS:
-            out[k] = swap_ip16(v) if isinstance(v, str) else v
+            out[k] = ip_map.get(v, v) if isinstance(v, str) else v
         else:
             out[k] = swap_value(v)
     return out
@@ -144,26 +188,11 @@ def write(p: Path, rows: list[dict]) -> None:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
-def check_octet_map(rows_by_file: dict[str, list[dict]]) -> None:
-    present = Counter()
-    for rows in rows_by_file.values():
-        for r in rows:
-            ip = r.get("ip16")
-            if ip:
-                present[ip.split(".")[0]] += 1
-    unmapped = {o for o in present if o not in OCTET_MAP}
-    clash = unmapped & set(OCTET_MAP.values())
-    if clash:
-        sys.exit(f"octet map targets collide with unmapped input octets: {sorted(clash)}")
-    if len(set(OCTET_MAP.values())) != len(OCTET_MAP):
-        sys.exit("octet map is not injective")
-
-
 def main(src: Path, dst: Path) -> None:
     rows_by_file = {f: read(src / f"{f}.jsonl") for f in FILES}
-    check_octet_map(rows_by_file)
+    ip_map = build_ip_map(rows_by_file)
 
-    out = {f: [swap_row(r) for r in rows] for f, rows in rows_by_file.items()}
+    out = {f: [swap_row(r, ip_map) for r in rows] for f, rows in rows_by_file.items()}
 
     # Derived length fields: adjust by exactly the delta the substitutions introduced.
     page_delta: dict[str, int] = defaultdict(int)
@@ -197,12 +226,13 @@ def main(src: Path, dst: Path) -> None:
         "chatgpt": len(re.findall(r"chatgpt", blob, re.I)),
         "GPT": len(re.findall(r"GPT", blob)),
         "OAI/Oai": len(re.findall(r"OAI|Oai", blob)),
+        "oai (protocol only expected)": len(re.findall(r"oai", blob)),
         "blob.core.windows.net": blob.count("blob.core.windows.net"),
         "Azure": blob.count("Azure"),
         "ip16 20.x (revisions)": sum(r["ip16"].startswith("20.") for r in out["revisions"]),
     }
     n_changed = sum(o != n for f in FILES for o, n in zip(rows_by_file[f], out[f]))
-    print(f"wrote {dst}: {n_changed} rows changed; residue {residue}")
+    print(f"wrote {dst}: {n_changed} rows changed; {len(ip_map)} /16 prefixes remapped; residue {residue}")
 
 
 if __name__ == "__main__":
