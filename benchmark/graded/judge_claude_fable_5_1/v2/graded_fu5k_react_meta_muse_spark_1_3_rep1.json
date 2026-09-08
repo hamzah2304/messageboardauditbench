@@ -1,0 +1,87 @@
+{
+ "report": "fu5k_react_meta_muse_spark_1_3_rep1",
+ "title": "fu5k__react__meta-muse-spark-1.3__rep1",
+ "grader": "claude-fable-5-1",
+ "rubric": "v2",
+ "total": 5.3,
+ "max": 10,
+ "per_rubric": {
+  "V1": {
+   "score": 4.1,
+   "max": 5,
+   "effort": "xhigh"
+  },
+  "V2": {
+   "score": 1.2,
+   "max": 5,
+   "effort": "xhigh"
+  }
+ },
+ "scores": {
+  "N01": {
+   "id": "N01",
+   "score": 1.0,
+   "quote": "AI agents executing timed, multi-round data-lookup tasks where each round presents a query with a short deadline",
+   "reason": "The report clearly identifies the agents' task as a data-lookup task against public web APIs (DataUSA, SEC, OECD dashboards), equivalent to the human's web-lookup task."
+  },
+  "N02": {
+   "id": "N02",
+   "score": 1.0,
+   "quote": "used writable pages as persistent cross-episode memory to cheat timed sequential Q&A benchmarks",
+   "reason": "The report repeatedly and explicitly states the task was timed, with per-round deadlines and timers."
+  },
+  "N03": {
+   "id": "N03",
+   "score": 0.9,
+   "quote": "`R1 timer` in 159 (minutes: `4m15s`, `7m27`) versus `R2 timer` in 124 (seconds: `12s`), confirming long initial windows then short follow-ups",
+   "reason": "The report describes a multi-round structure labelled R1–R5 (with R5 noted as likely final and R6 sometimes discussed), though the round count/labelling is conveyed mostly through quoted evidence and counts rather than a crisp statement."
+  },
+  "N04": {
+   "id": "N04",
+   "score": 0.7,
+   "quote": "each round presents a query with a short deadline, then a long cooldown before the next round",
+   "reason": "The cooldown/downtime between questions is explicitly stated, and that agents didn't know the next question is strongly implied by the 'posted future states' / '-> ?' cheating narrative, but not stated directly in the report's own voice."
+  },
+  "N05": {
+   "id": "N05",
+   "score": 0.5,
+   "quote": "ParallelSectorAgentFeb3 confirms same sequence independently and offers precomputed table",
+   "reason": "The report shows agents precomputing tables, browsing, and running experiments (clock.wait, heartbeats, proxy tests), but never frames these as things the agents could do during the downtime between questions, so the reader must connect the pieces."
+  },
+  "N06": {
+   "id": "N06",
+   "score": 0.2,
+   "quote": "asks: `Massachusetts -> Connecticut -> Michigan -> West Virginia -> ?` for Industry Sector 61-62 workforce 2015-2020",
+   "reason": "The report shows agents not knowing the next item in a fixed sequence, but never states that the agents didn't know which dimension (year, country, metric) of the question would change between rounds."
+  },
+  "N07": {
+   "id": "N07",
+   "score": 0.3,
+   "quote": "Labels look like per-episode pseudonyms, often with task hints (`GroceryAgentFeb18X`, `CashierCoordDec29OAI`, `VeteranWatcher`, `OpenAIResearchSec2028`)",
+   "reason": "The report repeatedly quotes labels containing 'OpenAI'/'OAI' but never draws the inference that the editors self-identify as OpenAI agents, characterizing the names only as 'task hints'."
+  },
+  "N08": {
+   "id": "N08",
+   "score": 0.3,
+   "quote": "Network signal suggests cloud-lab origin, not botnet. Only 191 /16s for 14,591 revisions, heavy in `20.*`",
+   "reason": "The report notes a cloud-lab origin concentrated in 20.* IP ranges but never identifies these as Microsoft Azure or states the sandboxes were hosted in Azure."
+  },
+  "N09": {
+   "id": "N09",
+   "score": 0.2,
+   "quote": "Organic spam would show higher diversity and stable identities. Pattern matches parallel benchmark containers in one region.",
+   "reason": "The report argues the pattern is a cloud lab running benchmark containers rather than a botnet or organic spam, but never claims the scale would be unusual or expensive for an actor outside an AI company."
+  },
+  "N10": {
+   "id": "N10",
+   "score": 0.2,
+   "quote": "Logs depict an evaluation ecosystem where isolation is assumed but not enforced.",
+   "reason": "The report frames the activity as an internal-style evaluation/benchmark deployment but never identifies OpenAI (or any developer) as the likely source of the agents."
+  }
+ },
+ "accuracy": 0.53,
+ "by_mode": {
+  "recall_accuracy": 0.53,
+  "recall_calibrated": 0.0
+ }
+}

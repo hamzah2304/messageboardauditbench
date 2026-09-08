@@ -30,13 +30,20 @@ def main():
         from_git, raw = raw.split(":", 1)
     src = Path(raw) if Path(raw).is_absolute() else ROOT / raw
     # <config>=<dir>:<prefix>, or <config>@<budget>=<dir>:<prefix> where a round runs
-    # several budgets under one config name and they must not share a directory
+    # several budgets under one config name and they must not share a directory.
+    # <config>^<budget> selects on parent_budget_min instead: a follow-up turn runs at one
+    # budget of its own but continues a run from another, and it is the parent's budget
+    # that the follow-up has to be compared against.
     specs = {}
     for a in sys.argv[2:]:
         sel, rest = a.split("=", 1)
         out, prefix = rest.split(":", 1)
-        cfg, _, budget = sel.partition("@")
-        specs[(cfg, int(budget) if budget else None)] = (out, prefix)
+        if "^" in sel:
+            cfg, _, budget = sel.partition("^")
+            specs[(cfg, int(budget), "parent")] = (out, prefix)
+        else:
+            cfg, _, budget = sel.partition("@")
+            specs[(cfg, int(budget) if budget else None, "own")] = (out, prefix)
     def read(rel):
         if from_git:
             return subprocess.run(["git", "show", f"{from_git}:{raw}/{rel}"], cwd=ROOT,
@@ -46,13 +53,19 @@ def main():
     rows = [json.loads(l) for l in read("index.jsonl").decode().splitlines() if l.strip()]
     staged: dict[Path, dict] = {}
     for r in rows:
-        key = (r["config"], r.get("budget_min"))
-        spec = specs.get(key) or specs.get((r["config"], None))
+        spec = (specs.get((r["config"], r.get("parent_budget_min"), "parent"))
+                or specs.get((r["config"], r.get("budget_min"), "own"))
+                or specs.get((r["config"], None, "own")))
         if spec is None:
             continue
         out, prefix = spec
         model = str(r["model"]).replace("/", "-")
-        name = f"{prefix}__{r['agent']}__{model}__rep{r['replicate']}"
+        # A follow-up expands one specific earlier run. parent_epoch identifies which, and
+        # replicate does not: a harness that ran the three follow-ups as three epochs of one
+        # sample records replicate 1 for all of them, so keying on it would collide nine
+        # files onto one name.
+        rep = r.get("parent_epoch", r["replicate"])
+        name = f"{prefix}__{r['agent']}__{model}__rep{rep}"
         # some rounds record model_served even when nothing switched; only a real
         # fallback belongs in the name
         served = r.get("model_served")
@@ -81,11 +94,26 @@ def main():
         dest.write_bytes(data)
         r["graded_input"] = dest.name
         staged[dest] = r
-    for (cfg, _b), (out, prefix) in specs.items():
+    for (cfg, _b, _kind), (out, prefix) in specs.items():
         d = GRADED_INPUTS / out
-        sel = sorted(((p.name, r) for p, r in staged.items() if p.parent == d), key=lambda x: x[0])
-        (d / "_index.jsonl").write_text("".join(json.dumps(dict(r, graded_input=n)) + "\n" for n, r in sel))
-        print(f"{cfg} -> {out}/ ({prefix}__*): {len(sel)} reports")
+        # Merge rather than replace. One staged directory can be filled by several
+        # invocations — a config split across harnesses, each with its own index.jsonl —
+        # and rewriting the file each time would leave an index describing a fraction of
+        # the reports beside it, which is worse than no index at all.
+        rows = {}
+        idx = d / "_index.jsonl"
+        if idx.exists():
+            for line in idx.read_text().splitlines():
+                if line.strip():
+                    prev = json.loads(line)
+                    rows[prev["graded_input"]] = prev
+        for path, r in staged.items():
+            if path.parent == d:
+                rows[path.name] = dict(r, graded_input=path.name)
+        rows = {k: rows[k] for k in sorted(rows) if (d / k).exists()}
+        idx.write_text("".join(json.dumps(r) + "\n" for r in rows.values()))
+        n_new = sum(1 for path in staged if path.parent == d)
+        print(f"{cfg} -> {out}/ ({prefix}__*): {n_new} reports staged, {len(rows)} in the index")
 
 
 if __name__ == "__main__":
