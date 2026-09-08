@@ -113,7 +113,7 @@ def main() -> int:
                      **{k: meta.get(k) for k in ("agent", "model", "effort", "run_id", "timeout", "exit_code",
                                                   "wall_seconds", "cli_version", "prompt_sha256")},
                      "model_served": served, "model_fallback": meta.get("model_fallback"),
-                     **{k: meta.get(k) for k in ("mode", "parent_run_dir", "parent_run_id", "parent_thread_id") if k in meta},
+                     **{k: meta.get(k) for k in ("mode", "parent_run_dir", "parent_run_id", "parent_thread_id", "parent_budget_min") if k in meta},
                      "report_rejected": rejected,
                      **length,
                      "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit_bench/usage.py)

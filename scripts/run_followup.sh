@@ -41,7 +41,7 @@ REACT_SYSTEMS=(
 )
 # Replicates that cannot be continued: kimi's 120-minute epoch 2 history (385k tokens)
 # exceeds the 262k context of the provider OpenRouter routes it to.
-skip_epochs() { case "$1" in react-kimi-k3) echo 2 ;; *) echo "" ;; esac; }
+skip_epochs() { case "$1:$PARENT_BUDGET" in react-kimi-k3:120) echo 2 ;; *) echo "" ;; esac; }
 
 # Same key file convention as run_trial.sh's ReAct path: per-model file first, generic file second.
 openrouter_key_for() {
@@ -50,7 +50,21 @@ openrouter_key_for() {
   [ -s "$f" ] && tr -d '[:space:]' < "$f"
 }
 unset VIRTUAL_ENV
-latest_log() { ls "$ROUND4/logs/round4/$1/${PARENT_BUDGET}m/"*.eval | tail -1; }
+# The newest log at that budget that holds finished samples (a retried cell can leave
+# a newer, cancelled, empty log beside the real one).
+latest_log() {
+  uv run python - "$ROUND4/logs/round4/$1/${PARENT_BUDGET}m" <<'PY'
+import sys
+from pathlib import Path
+from inspect_ai.log import read_eval_log
+folder = Path(sys.argv[1])
+for path in sorted(folder.glob("*.eval"), reverse=True) if folder.is_dir() else []:
+    log = read_eval_log(str(path))
+    if any(s.metadata.get("report_written") for s in log.samples or []):
+        print(path)
+        break
+PY
+}
 # "<epoch> <run dir basename> <cli model>" per finished parent sample of a subscription log.
 parent_runs() {
   uv run python - "$1" <<'PY'
@@ -75,15 +89,18 @@ for entry in "${CODEX_SYSTEMS[@]}"; do
   read -r system model <<< "$entry"
   grep -Eq "$MATCH" <<< "$system" || continue
   log="$(latest_log "$system")"
+  [ -n "$log" ] || { echo "codex $system: no finished ${PARENT_BUDGET}m log, skipped"; continue; }
   cmds=()
   while read -r epoch run cli_model; do
     epoch_wanted "$epoch" "$system" || continue
     [ -d "$ROUND4/runs/$run" ] || { echo "missing parent run dir $run" >&2; exit 1; }
     cmds+=("CONFIG=$CONFIG RESUME_FROM=$ROUND4/runs/$run $ROOT/sandbox/docker/run_trial.sh codex $model $epoch")
   done < <(parent_runs "$log")
-  printf 'codex %s: %d replicate(s)\n' "$system" "${#cmds[@]}"; printf '  %s\n' "${cmds[@]}"
+  printf 'codex %s: %d replicate(s)\n' "$system" "${#cmds[@]}"
+  [ "${#cmds[@]}" -gt 0 ] || continue
+  printf '  %s\n' "${cmds[@]}"
   (( DRY )) || {
-    ( for c in "${cmds[@]}"; do echo "== $c"; eval "env $c"; done ) > "$OUT/$system.out" 2>&1 & pids+=($!)
+    ( for c in "${cmds[@]}"; do echo "== $c"; eval "env $c"; done ) > "$OUT/${system}_from${PARENT_BUDGET}m.out" 2>&1 & pids+=($!)
   }
 done
 for entry in "${REACT_SYSTEMS[@]}"; do
@@ -91,6 +108,7 @@ for entry in "${REACT_SYSTEMS[@]}"; do
   read -r system conns <<< "$entry"
   grep -Eq "$MATCH" <<< "$system" || continue
   log="$(latest_log "$system")"
+  [ -n "$log" ] || { echo "react $system: no finished ${PARENT_BUDGET}m log, skipped"; continue; }
   model="$(uv run python -c 'import sys; from inspect_ai.log import read_eval_log; print(read_eval_log(sys.argv[1], header_only=True).eval.model)' "$log")"
   epochs="$EPOCHS"
   if [ -n "$(skip_epochs "$system")" ]; then
@@ -104,12 +122,12 @@ for entry in "${REACT_SYSTEMS[@]}"; do
        -T "parent_log=$log" -T "parent_epochs=$epochs" -T "config=$CONFIG"
        --max-samples 1 --max-sandboxes 1 --max-connections "$conns" --max-retries 5
        --timeout 900 --attempt-timeout 600 --retry-on-error=2 --log-model-api --log-refusals --no-score
-       --log-dir "$OUT/$system")
+       --log-dir "$OUT/$system/from${PARENT_BUDGET}m")
   printf 'react %s (%s, epochs %s): ' "$system" "$model" "$epochs"; printf '%q ' "${cmd[@]}"; echo
-  (( DRY )) || { (cd "$ROOT" && OPENROUTER_API_KEY="$key" "${cmd[@]}") > "$OUT/$system.out" 2>&1 & pids+=($!); }
+  (( DRY )) || { (cd "$ROOT" && OPENROUTER_API_KEY="$key" "${cmd[@]}") > "$OUT/${system}_from${PARENT_BUDGET}m.out" 2>&1 & pids+=($!); }
 done
 (( DRY )) && exit 0
 rc=0
 for pid in "${pids[@]}"; do wait "$pid" || rc=1; done
-echo "all follow-up jobs finished (rc=$rc); outputs under $OUT"
+echo "all follow-up jobs finished (rc=$rc, parents ${PARENT_BUDGET}m); outputs under $OUT"
 exit $rc

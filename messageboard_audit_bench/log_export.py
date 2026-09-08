@@ -17,6 +17,17 @@ from typing import Any
 
 from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
 
+# Continuation samples: which round-4 sample they resumed.
+PARENT_KEYS = (
+    "mode",
+    "parent_log",
+    "parent_epoch",
+    "parent_budget_min",
+    "parent_report_words",
+    "parent_run_id",
+    "parent_thread_id",
+)
+
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _NO_REPORT = "(no report written)"
 
@@ -161,6 +172,7 @@ def export_records(
             "config": config_name,
             "prompt_id": prompt_id,
             "budget_min": meta.get("budget_min"),
+            **{k: meta.get(k) for k in PARENT_KEYS if k in meta},
             "data_variant": variant,
             "effort": effort,
         }
@@ -206,6 +218,7 @@ def export_records(
                 "config": config_name,
                 "prompt_id": prompt_id,
                 "budget_min": meta.get("budget_min"),
+                **{k: meta.get(k) for k in PARENT_KEYS if k in meta},
                 "data_variant": variant,
                 "effort": effort,
                 "agent": meta.get("agent"),
