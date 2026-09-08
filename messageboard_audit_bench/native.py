@@ -463,8 +463,12 @@ def inspect_native_agent(
         transcript()._log_model_api = True
         state.metadata["logging_policy"] = "all_provider_exposed_fields"
         config_name = str(state.metadata.get("config", "unknown"))
+        data_variant = state.metadata.get("data_variant")
         try:
-            state.metadata["host_provenance"] = host_provenance(config_name)
+            state.metadata["host_provenance"] = host_provenance(
+                config_name,
+                data_variant=str(data_variant) if data_variant else None,
+            )
         except Exception as exc:
             state.metadata["host_provenance_error"] = f"{type(exc).__name__}: {exc}"[
                 :500

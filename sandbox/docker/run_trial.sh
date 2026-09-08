@@ -227,6 +227,22 @@ else
 fi
 CLI_VERSION_SHA256="$(shasum -a 256 "$RUN/cli.version.txt" | cut -c1-64)"
 
+# Dataset identity. data/ is a gitignored build output that can be older than the
+# code committed beside it, so a run record naming only the variant cannot establish
+# which build of a derived variant the trial consumed. Hash what is actually mounted
+# and check it against the committed manifest. The project interpreter is preferred
+# because the record is produced by the package; if neither can import it the run
+# still proceeds and says so rather than recording a digest it did not compute.
+DATA_PROVENANCE='{"data_manifest_status":"unavailable_interpreter"}'
+DP_PY="$ROOT/.venv/bin/python"
+[ -x "$DP_PY" ] || DP_PY=python3
+DP_OUT="$(cd "$ROOT" && "$DP_PY" - "$VARIANT" "$DATA_DIR" 2>/dev/null <<'PYPROV'
+import json, sys
+from messageboard_audit_bench.provenance import data_provenance
+print(json.dumps(data_provenance(sys.argv[1], data_dir=sys.argv[2])))
+PYPROV
+)" && [ -n "$DP_OUT" ] && DATA_PROVENANCE="$DP_OUT"
+
 cat > "$RUN/meta.json" <<JSON
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
  "isolation":"subscription_allowlisted_provider_proxy","allow_networked_subscription":true,"accepted_isolation_tradeoff":"subscription credentials and the vendor endpoint are available to the normal CLI agent container; direct egress remains blocked and the proxy permits only its provider hosts",
@@ -238,6 +254,8 @@ cat > "$RUN/meta.json" <<JSON
  "git_commit":"$GIT_COMMIT_SHA","git_dirty_patch_path":"git.dirty.patch","git_dirty_patch_sha256":"$GIT_DIRTY_DIFF_SHA256","code_snapshot_path":"code_snapshot.tar.gz","code_snapshot_sha256":"$CODE_SNAPSHOT_SHA256",
  "image":"$IMAGE","image_id":"$IMAGE_ID","image_inspect_path":"image.inspect.json","dockerfile_sha256":"$DOCKERFILE_SHA256","cli_version_path":"cli.version.txt","cli_version_sha256":"$CLI_VERSION_SHA256"}
 JSON
+META_TMP="$RUN/meta.data.json"
+jq --argjson dp "$DATA_PROVENANCE" '. + $dp' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 if [ -n "$RESUME_FROM" ]; then
   META_TMP="$RUN/meta.resume.json"
   jq --arg parent "$RESUME_FROM" --arg parent_id "$PARENT_RUN_ID" --arg thread "$PARENT_THREAD_ID" --argjson parent_budget "$PARENT_BUDGET_MIN" \

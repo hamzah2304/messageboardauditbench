@@ -49,12 +49,31 @@ It was not overwritten during this audit.
 
 ## Work remaining before publishing the blog
 
-1. **Reconcile the Anthropic batch's data version.** Identify which swap revision
-   each batch actually consumed. The runner records code and config provenance,
-   but the current provenance record does not hash each mounted data file.
-   Preserve the historical input and its matching rubric version before
-   refreshing shared data, once no active trial is reading it. A current
-   checksum alone cannot certify the inputs used by a past run.
+1. ~~**Reconcile the Anthropic batch's data version.**~~ Resolved for everything
+   staged and graded, and the gap that raised it is closed going forward.
+
+   The batch: `benchmark/rubrics/anthropic/VERSION.json` hashes the
+   `scripts/swap_provider.py` that built the data its answer key grades against,
+   and that hash matches the current file. Its own note names the three batches
+   that ran on the earlier build rendering the OAI shorthand as `Claude`
+   (`20260908T113359Z`, `130708Z`, `132526Z`); none of the three appears in any
+   staged or graded set. The staged reports agree: across all 88
+   Anthropic-variant reports, `/home/ant/` and the post-change misspelling
+   `Antropic` occur and `/home/oai/` and `/home/claude/` do not, and the runs
+   began at 14:50, after the 14:47 rule change. That is inference from quoted
+   tokens rather than certification — `ablation_anthropic_b30` quotes no paths
+   either way — but no evidence of a stale build survives in the corpus.
+
+   The gap: run records named the variant but hashed no data file, so `data/`,
+   a gitignored build output, could be older than the code committed beside it.
+   Both runners now record `data_files_sha256`, the resolved `data_dir`, and a
+   `data_manifest_status` checking those digests against
+   `data/SHA256SUMS.variants`, so a future run says for itself whether it read
+   the manifest's data.
+
+   Still worth doing: whichever checkout failed `build_data.sh --verify` during
+   the audit should rebuild `data/verbatim_anthropic` before launching further
+   Anthropic-setting trials. Past runs are unaffected; the next one would not be.
 2. **Check ablation grading and matched comparisons.** Since the initial audit,
    collaborators have exported the complete provider-swap round and added
    grades. Use the current tracked report indexes and grade files to establish
