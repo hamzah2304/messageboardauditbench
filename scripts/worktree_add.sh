@@ -22,10 +22,10 @@ else
 fi
 # Shared, gitignored state lives in the primary checkout only. data/ itself is tracked (checksums,
 # .gitkeep files), so the built variants are linked underneath it: whole directories where the
-# directory is ignored, file by file where only the contents are (raw_stripped, verbatim).
+# directory is ignored, file by file where only the contents are (raw_stripped, verbatim, verbatim_anthropic).
 link() { [ -e "$1" ] && [ ! -e "$2" ] && ln -s "$1" "$2" || true; }
 for p in runs logs .env data/raw data/augmented; do link "$ROOT/$p" "$WT/$p"; done
-for v in raw_stripped verbatim; do
+for v in raw_stripped verbatim verbatim_anthropic; do
   for f in "$ROOT/data/$v"/*; do [ -e "$f" ] && link "$f" "$WT/data/$v/$(basename "$f")"; done
 done
 (cd "$WT" && uv sync --quiet 2>/dev/null) || echo "uv sync failed in $WT; run it by hand" >&2
