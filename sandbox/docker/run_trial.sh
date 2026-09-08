@@ -40,6 +40,12 @@ EFFORT="${EFFORT:-$CFG_EFFORT}"
 DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
+# A task worktree's data files are symlinks into the primary checkout. A bind mount cannot
+# follow them, so mount the directory they resolve to.
+if [ -L "$DATA_DIR/events.jsonl" ]; then
+  DATA_DIR="$(dirname "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$DATA_DIR/events.jsonl")")"
+  echo "data: symlinked; mounting $DATA_DIR"
+fi
 
 # Always ask Docker to build: layer caching makes unchanged launches cheap and
 # ensures the recorded image contains this worktree's exact helper scripts.
@@ -206,10 +212,10 @@ docker run -e VENDOR_HOST="$VENDOR_HOST" "${CANARY_ARGS[@]}" bash -c '
   env -u HTTPS_PROXY -u HTTP_PROXY curl -s -m 8 https://collusion.wiki/ >/dev/null 2>&1 && { echo "FAIL direct egress"; fail=1; }
   env -u HTTPS_PROXY -u HTTP_PROXY curl -s -m 8 https://1.1.1.1/ >/dev/null 2>&1 && { echo "FAIL direct egress by ip"; fail=1; }
   code=$(curl -s -m 20 -o /dev/null -w "%{http_code}" "https://$VENDOR_HOST/"); [ "$code" != 000 ] || { echo "FAIL vendor host $VENDOR_HOST unreachable via proxy"; fail=1; }
-  echo "--- files visible under /work:"; find /work -type f | sort
+  echo "--- files visible under /work:"; find /work -type f | LC_ALL=C sort
   echo "--- bind mounts:"; awk "\$2 ~ /^\/(work|home)/ {print \$2, \$4}" /proc/mounts
   exit $fail' > "$RUN/canary.log" 2>&1 || { cat "$RUN/canary.log"; echo "canary failed; trial aborted" >&2; exit 3; }
-EXPECT="$( { (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#'); (cd "$DATA_DIR" && find . -type f | sed 's#^\./#/work/data/#'); } | sort)"
+EXPECT="$( { (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#'); (cd "$DATA_DIR" && find . -type f | sed 's#^\./#/work/data/#'); } | LC_ALL=C sort)"
 GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
 
