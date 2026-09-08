@@ -1,0 +1,135 @@
+<title>Audit Agent Action Mix</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{color-scheme:light;
+ --bg:#f6f5f2;--surface:#fdfdfb;--ink:#1c1b18;--ink2:#5a5852;--ink3:#8a877f;--rule:#dedcd4;--hover:#eeece6;
+ --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+ --bg:#161614;--surface:#1e1e1b;--ink:#f1efe8;--ink2:#bfbcb2;--ink3:#8a877f;--rule:#34332f;--hover:#2a2a26;
+ --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;}}
+:root[data-theme="dark"]{color-scheme:dark;
+ --bg:#161614;--surface:#1e1e1b;--ink:#f1efe8;--ink2:#bfbcb2;--ink3:#8a877f;--rule:#34332f;--hover:#2a2a26;
+ --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;margin:0}
+main{max-width:1040px;margin:0 auto;padding:40px 24px 64px}
+h1{font:600 30px/1.15 "IBM Plex Sans Condensed","Arial Narrow",sans-serif;margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--ink2);max-width:64ch;margin:0 0 24px}
+.controls{display:flex;flex-wrap:wrap;gap:20px;align-items:center;padding:12px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin-bottom:20px}
+.ctl{display:flex;align-items:center;gap:6px}
+.ctl .lbl{font:500 11px/1 "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-right:4px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.seg button{background:var(--surface);color:var(--ink2);border:0;padding:6px 12px;font:500 13px "IBM Plex Sans",sans-serif;cursor:pointer}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible{outline:2px solid var(--s1);outline-offset:-2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 14px;padding:0;list-style:none;font-size:13px;color:var(--ink2)}
+.legend li{display:flex;align-items:center;gap:7px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.chartwrap{overflow-x:auto;position:relative}
+svg{display:block;font-family:"IBM Plex Sans",sans-serif}
+.rowlbl{font-size:13px;fill:var(--ink)}
+.rowmeta{font:11px "IBM Plex Mono",monospace;fill:var(--ink3)}
+.tot{font:500 12px "IBM Plex Mono",monospace;fill:var(--ink2)}
+.tick{font:11px "IBM Plex Mono",monospace;fill:var(--ink3)}
+.grid{stroke:var(--rule);stroke-width:1}
+.seg-rect{stroke:var(--surface);stroke-width:2;cursor:default}
+.seg-rect:hover{filter:brightness(1.12)}
+.tip{position:absolute;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.12);display:none;max-width:280px;z-index:2}
+.tip b{font-weight:500}
+.tip .v{font:500 13px "IBM Plex Mono",monospace}
+.note{color:var(--ink2);font-size:13px;max-width:70ch;margin:20px 0 0}
+details{margin-top:32px}
+summary{cursor:pointer;font:600 15px "IBM Plex Sans Condensed",sans-serif;color:var(--ink)}
+.tblwrap{overflow-x:auto;margin-top:12px}
+table{border-collapse:collapse;font-size:13px;min-width:100%}
+th,td{padding:6px 10px;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+th{font:500 11px "IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+td:first-child,th:first-child{text-align:left}
+td:first-child{font-family:"IBM Plex Mono",monospace}
+h2{font:600 20px "IBM Plex Sans Condensed",sans-serif;margin:36px 0 8px}
+.defs{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px;max-width:78ch}
+.defs dt{display:flex;align-items:center;gap:7px;color:var(--ink);white-space:nowrap}
+.defs dd{margin:0;color:var(--ink2)}
+.defs code{font:12px "IBM Plex Mono",monospace;background:var(--hover);padding:1px 5px;border-radius:3px}
+@media (prefers-reduced-motion:no-preference){.seg-rect{transition:width .25s ease,x .25s ease}}
+</style>
+<main>
+<h1>What the audit agents actually do with their tool calls</h1>
+<p class="sub">Every tool call in every transcript sorted into one of seven action types, then averaged per run for each model. Same task, same data, same four JSONL files. No model had a subagent tool available.</p>
+<div class="controls">
+ <div class="ctl"><span class="lbl">Budget</span><span class="seg" id="bud"><button data-v="120" aria-pressed="true">120 min</button><button data-v="30" aria-pressed="false">30 min</button><button data-v="all" aria-pressed="false">All runs</button></span></div>
+ <div class="ctl"><span class="lbl">Measure</span><span class="seg" id="meas"><button data-v="abs" aria-pressed="true">Calls per run</button><button data-v="pct" aria-pressed="false">Share of calls</button></span></div>
+</div>
+<ul class="legend" id="legend"></ul>
+<div class="chartwrap"><svg id="chart"></svg><div class="tip" id="tip"></div></div>
+<p class="note" id="note"></p>
+<h2>How each call was classified</h2>
+<dl class="defs" id="defs"></dl>
+<details><summary>Table view</summary><div class="tblwrap"><table id="tbl"></table></div></details>
+</main>
+<script>
+const D={"types": ["Python analysis", "Shell query (grep/jq/awk/sql)", "Shell inspect (ls/head/cat/wc)", "Report write/edit", "Report read/check", "Build tooling (.py files)", "Idle / wait (sleep)"], "rows": [{"model": "claude-fable-5-1", "budget": 30, "n": 2, "mean": [25.0, 3.0, 2.0, 4.5, 3.5, 0.0, 0.5]}, {"model": "claude-haiku-4-5", "budget": 30, "n": 1, "mean": [20.0, 0.0, 1.0, 9.0, 9.0, 0.0, 0.0]}, {"model": "claude-opus-4-8", "budget": 10, "n": 1, "mean": [15.0, 0.0, 2.0, 10.0, 5.0, 0.0, 0.0]}, {"model": "claude-opus-4-8", "budget": 120, "n": 3, "mean": [50.0, 0.0, 2.7, 27.7, 11.3, 0.0, 0.0]}, {"model": "claude-opus-4-8", "budget": 30, "n": 1, "mean": [20.0, 0.0, 1.0, 5.0, 3.0, 0.0, 0.0]}, {"model": "claude-opus-5", "budget": 30, "n": 3, "mean": [47.7, 0.7, 3.3, 29.0, 11.7, 0.0, 0.0]}, {"model": "claude-sonnet-5", "budget": 120, "n": 3, "mean": [213.7, 1.3, 30.3, 56.0, 94.0, 0.0, 0.0]}, {"model": "claude-sonnet-5", "budget": 30, "n": 1, "mean": [46.0, 0.0, 4.0, 8.0, 6.0, 0.0, 0.0]}, {"model": "google_gemini-3.8-flash", "budget": 120, "n": 3, "mean": [59.3, 0.0, 11.7, 3.7, 12.0, 20.3, 0.0]}, {"model": "gpt-5.6-sol", "budget": 120, "n": 2, "mean": [177.0, 8.0, 3.0, 56.0, 27.0, 0.0, 0.0]}, {"model": "gpt-5.6-terra", "budget": 120, "n": 1, "mean": [46.0, 23.0, 2.0, 28.0, 11.0, 0.0, 0.0]}, {"model": "gpt-6-astra", "budget": 10, "n": 1, "mean": [13.0, 1.0, 1.0, 2.0, 1.0, 1.0, 0.0]}, {"model": "gpt-6-astra", "budget": 120, "n": 3, "mean": [196.7, 3.3, 30.7, 15.3, 25.3, 11.0, 0.0]}, {"model": "gpt-6-astra", "budget": 30, "n": 1, "mean": [53.0, 1.0, 0.0, 2.0, 8.0, 4.0, 0.0]}, {"model": "meta_muse-spark-1.3", "budget": 120, "n": 2, "mean": [429.0, 0.0, 31.5, 71.5, 323.0, 0.5, 355.5]}, {"model": "meta_muse-spark-1.3", "budget": 20, "n": 1, "mean": [56.0, 0.0, 3.0, 7.0, 11.0, 0.0, 5.0]}, {"model": "meta_muse-spark-1.3", "budget": 30, "n": 1, "mean": [94.0, 0.0, 3.0, 12.0, 10.0, 1.0, 10.0]}, {"model": "moonshotai_kimi-k3", "budget": 120, "n": 3, "mean": [165.7, 1.7, 2.0, 30.7, 41.0, 0.0, 0.0]}, {"model": "z-ai_glm-5.3", "budget": 120, "n": 3, "mean": [78.7, 15.7, 3.3, 19.3, 9.7, 0.0, 0.0]}]};
+const COL=['--s1','--s2','--s3','--s4','--s5','--s6','--s7'];
+const DEFS=[
+ ['Python analysis','Any shell call that invokes <code>python3</code> on the data: nearly always an inline heredoc that <code>json.loads</code> the JSONL files and prints a <code>Counter</code>.'],
+ ['Shell query (grep/jq/awk/sql)','Data queries without Python: <code>grep</code>/<code>rg</code>, <code>jq</code>, <code>awk</code>, <code>sqlite3</code>.'],
+ ['Shell inspect (ls/head/cat/wc)','Orientation and peeking: <code>ls</code>, <code>head</code>, <code>cat</code>, <code>wc</code>, <code>find</code>, <code>date</code>, non-report <code>Read</code> calls.'],
+ ['Report write/edit','Any Edit, Write, write_file or file_change on <code>report.md</code>, or a shell redirect into it.'],
+ ['Report read/check','Reading the report back, word counts, <code>report_length.py</code>, <code>sed -n</code> on report.md.'],
+ ['Build tooling (.py files)','Writing a reusable script to disk (<code>query.py</code>, <code>verify_report.py</code>) rather than a one-off heredoc.'],
+ ['Idle / wait (sleep)','A shell call whose job is <code>sleep N</code>: waiting out the clock.'],
+];
+const short=s=>s.replace(/ \(.*\)/,'');
+const legend=document.getElementById('legend');
+D.types.forEach((t,i)=>{const li=document.createElement('li');li.innerHTML=`<i style="background:var(${COL[i]})"></i>${short(t)}`;legend.appendChild(li);});
+const defs=document.getElementById('defs');
+DEFS.forEach(([t,d],i)=>{defs.insertAdjacentHTML('beforeend',`<dt><i class="sw" style="width:10px;height:10px;border-radius:3px;background:var(${COL[i]});display:inline-block"></i>${short(t)}</dt><dd>${d}</dd>`);});
+let bud='120',meas='abs';
+function rows(){
+ let r=D.rows.filter(x=>bud==='all'||String(x.budget)===bud);
+ r=r.map(x=>({...x,total:x.mean.reduce((a,b)=>a+b,0)}));
+ r.sort((a,b)=>b.total-a.total);return r;
+}
+const svg=document.getElementById('chart'),tip=document.getElementById('tip');
+function fmtModel(m){return m.replace(/^(google_|meta_|moonshotai_|z-ai_)/,'').replace('claude-','')}
+function draw(){
+ const r=rows();const W=1000,L=250,R=70,rowH=34,top=28,H=top+r.length*rowH+12;
+ svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.setAttribute('width','100%');svg.style.minWidth='720px';
+ const maxv=meas==='pct'?100:Math.max(...r.map(x=>x.total));
+ const scale=v=>v/maxv*(W-L-R);
+ let s='';
+ const ticks=meas==='pct'?[0,25,50,75,100]:niceTicks(maxv);
+ ticks.forEach(t=>{const x=L+scale(t);s+=`<line class="grid" x1="${x}" x2="${x}" y1="${top-6}" y2="${H-8}"/><text class="tick" x="${x}" y="${top-12}" text-anchor="middle">${t}${meas==='pct'?'%':''}</text>`;});
+ r.forEach((x,i)=>{
+  const y=top+i*rowH+5,h=rowH-10;
+  s+=`<text class="rowlbl" x="${L-14}" y="${y+h/2+1}" text-anchor="end" dominant-baseline="middle">${fmtModel(x.model)}</text>`;
+  s+=`<text class="rowmeta" x="${8}" y="${y+h/2+1}" dominant-baseline="middle">${x.budget}m · n=${x.n}</text>`;
+  let cx=L;
+  x.mean.forEach((v,j)=>{const val=meas==='pct'?v/x.total*100:v;const w=scale(val);if(w<=0)return;
+   const last=j===x.mean.length-1||x.mean.slice(j+1).every(z=>z===0);
+   const rx=last?4:0;
+   s+=`<rect class="seg-rect" x="${cx}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="var(${COL[j]})" data-m="${fmtModel(x.model)}" data-t="${short(D.types[j])}" data-v="${v}" data-p="${(v/x.total*100).toFixed(0)}" data-n="${x.n}"/>`;
+   cx+=w;});
+  s+=`<text class="tot" x="${cx+8}" y="${y+h/2+1}" dominant-baseline="middle">${meas==='pct'?Math.round(x.total)+' calls':Math.round(x.total)}</text>`;
+ });
+ svg.innerHTML=s;
+ document.getElementById('note').textContent=meas==='abs'
+  ?'Bars are the mean number of tool calls per run, so a longer bar means a busier agent, not a better one. Muse’s bar is dominated by sleep loops it used to hold the clock after finishing early.'
+  :'Each bar sums to 100% of that model’s calls. The number at the end is the mean calls per run, for scale.';
+ table(r);
+}
+function niceTicks(m){const step=m>1000?250:m>400?100:m>150?50:m>60?20:10;const t=[];for(let v=0;v<=m;v+=step)t.push(v);return t;}
+function table(r){
+ const t=document.getElementById('tbl');
+ t.innerHTML='<thead><tr><th>Model</th><th>Budget</th><th>Runs</th>'+D.types.map(x=>`<th>${short(x)}</th>`).join('')+'<th>Total</th></tr></thead><tbody>'+
+  r.map(x=>`<tr><td>${x.model}</td><td>${x.budget} min</td><td>${x.n}</td>${x.mean.map(v=>`<td>${v.toFixed(0)}</td>`).join('')}<td>${x.total.toFixed(0)}</td></tr>`).join('')+'</tbody>';
+}
+svg.addEventListener('mousemove',e=>{const el=e.target.closest('.seg-rect');if(!el){tip.style.display='none';return;}
+ tip.innerHTML=`<b>${el.dataset.m}</b><br>${el.dataset.t}<br><span class="v">${Number(el.dataset.v).toFixed(1)} calls/run · ${el.dataset.p}%</span><br><span style="color:var(--ink3)">mean of ${el.dataset.n} run${el.dataset.n==1?'':'s'}</span>`;
+ const wr=svg.parentElement.getBoundingClientRect();tip.style.display='block';
+ let x=e.clientX-wr.left+14,y=e.clientY-wr.top+14;if(x+290>wr.width)x-=300;tip.style.left=x+'px';tip.style.top=y+'px';});
+svg.addEventListener('mouseleave',()=>tip.style.display='none');
+document.querySelectorAll('.seg').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));if(g.id==='bud')bud=b.dataset.v;else meas=b.dataset.v;draw();}));
+draw();
+</script>

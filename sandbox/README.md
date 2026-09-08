@@ -162,6 +162,15 @@ OpenRouter's `reasoning`/`reasoning_details` verbatim on each assistant event
 (and passes them back so the model keeps its chain of thought across tool
 calls), along with the serving provider, finish reason and latency per call.
 
+Every run also keeps what is needed to continue the conversation later with the
+exact history the model had (for follow-up questions to the agent): Claude Code runs
+with session persistence on and its session file is copied to `<run>/claude_sessions/`
+(resume with `claude -p --resume <session_id>` in the same image, cwd `/work`);
+Codex's rollout in `<run>/codex_sessions/` is what `codex exec resume <thread_id>`
+replays, encrypted reasoning included; the ReAct scaffold's message list can be rebuilt
+verbatim from `transcript.jsonl` (system prompt and tools are fixed in the script).
+`meta.json` records the id as `session_id` for the two CLIs.
+
 Live tail: `python3 sandbox/watch.py runs/<run>`.
 
 Prompts are in `sandbox/prompts/`: `blind` (no hint about who the editors were),
