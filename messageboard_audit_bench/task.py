@@ -14,6 +14,12 @@ Two entry points:
     so `inspect view` can render past or interrupted runs with scoring.
       inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
 
+  * `messageboard_audit_bench_continue` resumes one finished ReAct sample from
+    its eval log: the stored conversation is the prefill, the report it wrote
+    is put back in the sandbox, and a follow-up message asks for more.
+      inspect eval messageboard_audit_bench/messageboard_audit_bench_continue \
+        -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epoch=1
+
 View any result with:  inspect view
 """
 
@@ -24,7 +30,8 @@ import re
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig
+from inspect_ai.log import read_eval_log
+from inspect_ai.model import ChatMessageSystem, ChatMessageUser, GenerateConfig
 from inspect_ai.util import (
     ComposeBuild,
     ComposeConfig,
@@ -357,4 +364,139 @@ def messageboard_audit_bench_replay(
         scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
         version=EVAL_VERSION,
         metadata={"benchmark": "MessageBoardAuditBench", "mode": "replay"},
+    )
+
+
+def _load_followup_config(config_name: str) -> dict:
+    """Load a continuation config; these are not fresh-trial conditions."""
+    repo = repo_root()
+    if not _CONFIG_NAME.fullmatch(config_name):
+        raise ValueError(f"invalid config name {config_name!r}")
+    path = repo / "configs" / f"{config_name}.toml"
+    if not path.is_file():
+        raise RuntimeError(f"config file is missing: {path}")
+
+    import tomllib
+
+    cfg = tomllib.loads(path.read_text())
+    acceptance_limits(cfg)
+    return cfg
+
+
+@task
+def messageboard_audit_bench_continue(
+    parent_log: str,
+    parent_epoch: int = 1,
+    config: str = "followup-5k",
+    judge: str = "anthropic/claude-sonnet-5",
+) -> Task:
+    """Continue one finished ReAct sample with a follow-up request.
+
+    The parent sample's messages become the new sample's input, so the model
+    sees exactly the conversation it had (Inspect's ReAct agent re-inserts the
+    identical system message it prepended the first time, which is why the
+    stored one is dropped). The parent's report is written back to
+    ``/work/report.md`` before the agent starts. Other scratch files the agent
+    made are not recoverable from the log; the follow-up prompt says so.
+
+    Args:
+        parent_log: Path to the round's ``.eval`` log holding the parent sample.
+        parent_epoch: Which epoch of that log to continue.
+        config: Continuation config from ``configs/``; its ``budget_min`` is
+            the extra time and its prompt is the follow-up message.
+        judge: Inspect model used to grade the report.
+    """
+    cfg = _load_followup_config(config)
+    log = read_eval_log(parent_log)
+    if log.eval.task_args.get("agent") != "react" or (
+        log.eval.task_args.get("backend") != "inspect"
+    ):
+        raise ValueError("continuation supports react samples run on the inspect backend")
+    parent = next((s for s in log.samples or [] if s.epoch == parent_epoch), None)
+    if parent is None:
+        raise ValueError(f"no epoch {parent_epoch} in {parent_log}")
+    report = parent.output.completion if parent.output else ""
+    if not parent.metadata.get("report_written") or not report.strip():
+        raise ValueError("parent sample has no report to continue from")
+    budget_min = _time_limit(int(cfg["budget_min"]))
+    runtime_fraction = _min_runtime_fraction(cfg.get("min_runtime_fraction", 0))
+    minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
+        budget_min * 60, runtime_fraction
+    )
+    cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
+    followup = render_prompt(
+        (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text(),
+        budget_min,
+        *limits(cfg),
+    ) + _minimum_runtime_instruction(budget_min * 60, runtime_fraction)
+    history = list(parent.messages)
+    if history and isinstance(history[0], ChatMessageSystem):
+        history = history[1:]
+    messages = [*history, ChatMessageUser(content=followup)]
+    parent_meta = parent.metadata
+    sample_metadata = {
+        "agent": "react",
+        "scaffold": _scaffold("react", "inspect"),
+        "backend": "inspect",
+        "isolation": "network_none",
+        "mode": "continuation",
+        "config": config,
+        "budget_min": budget_min,
+        "min_runtime_fraction": runtime_fraction,
+        "minimum_runtime_seconds": minimum_runtime_seconds,
+        "data_variant": cfg["data_variant"],
+        "effort": cfg["effort"],
+        "report_min_words": limits(cfg)[0],
+        "report_max_words": limits(cfg)[1],
+        "report_accept_min_words": acceptance_limits(cfg)[0],
+        "report_accept_max_words": acceptance_limits(cfg)[1],
+        "parent_log": str(parent_log),
+        "parent_sample_id": parent.id,
+        "parent_epoch": parent_epoch,
+        "parent_config": parent_meta.get("config"),
+        "parent_budget_min": parent_meta.get("budget_min"),
+        "parent_report_words": parent_meta.get("report_words"),
+        "parent_messages": len(parent.messages),
+        "parent_model": log.eval.model,
+    }
+    sample = Sample(
+        input=messages,
+        id=f"react:inspect:{config}:{budget_min}m",
+        metadata=sample_metadata,
+    )
+    return Task(
+        dataset=[sample],
+        solver=inspect_native_agent(
+            agent="react",
+            time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
+            report_min_words=limits(cfg)[0],
+            report_max_words=limits(cfg)[1],
+            min_runtime_fraction=runtime_fraction,
+            seed_report=report,
+        ),
+        scorer=[rubric_scorer(judge=judge), process_metrics(), report_length()],
+        config=GenerateConfig(cache_prompt=True, reasoning_effort=cfg["effort"]),
+        model=log.eval.model,
+        sandbox=_inspect_sandbox(cfg["data_variant"]),
+        time_limit=cleanup_timeout_minutes * 60,
+        version=EVAL_VERSION,
+        metadata={
+            "benchmark": "MessageBoardAuditBench",
+            "mode": "continuation",
+            "backend": "inspect",
+            "scaffold": _scaffold("react", "inspect"),
+            "config": config,
+            "parent_log": str(parent_log),
+            "parent_epoch": parent_epoch,
+            "time_limit_minutes": budget_min,
+            "min_runtime_fraction": runtime_fraction,
+            "minimum_runtime_seconds": minimum_runtime_seconds,
+            "hard_time_limit_minutes": cleanup_timeout_minutes,
+            "data_variant": cfg["data_variant"],
+            "report_min_words": limits(cfg)[0],
+            "report_max_words": limits(cfg)[1],
+            "report_accept_min_words": acceptance_limits(cfg)[0],
+            "report_accept_max_words": acceptance_limits(cfg)[1],
+        },
     )

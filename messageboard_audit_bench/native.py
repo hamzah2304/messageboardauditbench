@@ -442,8 +442,12 @@ def inspect_native_agent(
     report_min_words: int = 0,
     report_max_words: int = 0,
     min_runtime_fraction: float = 0.75,
+    seed_report: str | None = None,
 ) -> Solver:
     """Run an agent through Inspect and collect its on-disk report.
+
+    ``seed_report`` places an earlier report at ``/work/report.md`` before the
+    agent starts, for continuation tasks whose conversation already refers to it.
 
     ``agent.run`` catches only the scoped Inspect limit, which lets this solver
     preserve the live trajectory and then read the report the agent was told to
@@ -475,6 +479,14 @@ def inspect_native_agent(
             report_min_words,
             report_max_words,
         )
+        if seed_report is not None:
+            # Through exec, so the file belongs to the agent's uid and stays editable.
+            seeded = await sandbox().exec(
+                ["sh", "-c", f"cat > {REPORT_PATH}"], input=seed_report
+            )
+            if not seeded.success:
+                raise RuntimeError(f"could not seed {REPORT_PATH}: {seeded.stderr}")
+            state.metadata["seed_report_words"] = len(seed_report.split())
         selected = inspect_agent(
             agent,
             claude_disallowed_tools=claude_disallowed_tools,

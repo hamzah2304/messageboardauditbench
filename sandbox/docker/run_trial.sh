@@ -8,6 +8,9 @@
 # Conditions come from a config: CONFIG=configs/<name>.toml (default configs/default.toml) sets the prompt,
 # the time budget, the kill timeout, the data variant, the effort and the Claude tool denylist. Env vars
 # PROMPT, BUDGET_MIN, TIMEOUT, DATA_DIR, EFFORT override individual values. IMAGE (mbab-sandbox).
+# RESUME_FROM=<finished run dir> continues that trial's own conversation instead of starting one
+# (Codex only: `codex exec resume <thread>` replays the saved rollout). The parent workspace is
+# copied in, the config's prompt becomes the follow-up message, and budget_min is the extra time.
 # The run is named <stamp>_<agent>_<model>_r<replicate>_<config name>_<run id>.
 #
 # Isolation comes from structure, not permissions:
@@ -50,6 +53,20 @@ RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN
 NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"
 mkdir -p "$RUN/work" "$SECRETS"
 echo "run: $RUN"
+RESUME_FROM="${RESUME_FROM:-}"; PARENT_THREAD_ID=""; PARENT_RUN_ID=""
+if [ -n "$RESUME_FROM" ]; then
+  RESUME_FROM="$(cd "$RESUME_FROM" && pwd)"
+  [ "$AGENT" = codex ] || { echo "RESUME_FROM supports codex only (claude round-4 runs kept no session; ReAct continues through the Inspect task)" >&2; exit 2; }
+  [ -f "$RESUME_FROM/work/report.md" ] || { echo "no report.md in $RESUME_FROM/work" >&2; exit 2; }
+  PARENT_THREAD_ID="$(jq -r 'select(.type=="thread.started") | .thread_id' "$RESUME_FROM/transcript.jsonl" 2>/dev/null | head -1)"
+  [ -n "$PARENT_THREAD_ID" ] || { echo "no thread.started in $RESUME_FROM/transcript.jsonl" >&2; exit 2; }
+  [ -n "$(find "$RESUME_FROM/codex_sessions" -name "rollout-*${PARENT_THREAD_ID}*.jsonl" 2>/dev/null)" ] || { echo "no rollout for $PARENT_THREAD_ID under $RESUME_FROM/codex_sessions" >&2; exit 2; }
+  PARENT_RUN_ID="$(jq -r '.run_id // ""' "$RESUME_FROM/meta.json")"
+  # The workspace as the agent left it, minus the data mount point, the harness's own
+  # state file and the final-message capture the model never saw.
+  (cd "$RESUME_FROM/work" && tar cf - --exclude=./data --exclude=./.mbab-runtime-policy.json --exclude=./final_message.md .) | (cd "$RUN/work" && tar xf -)
+  echo "resuming codex thread $PARENT_THREAD_ID from $RESUME_FROM"
+fi
 # Reproducibility record for every future subscription run. Keep exact inputs
 # and the runnable checkout, rather than relying on a mutable branch name.
 cp "$CONFIG" "$RUN/config.source.toml"
@@ -101,10 +118,13 @@ timeout_seconds() {
   fi
 }
 # data/<variant> is bind-mounted read-only straight into /work/data.
-python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" > "$RUN/work/prompt.txt"
-python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$RUN/work/prompt.txt"
+# On a resume the follow-up message lives only in the run dir: /work/prompt.txt stays the
+# parent's original prompt, exactly as the model has seen it all along.
+PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/prompt.txt"
+python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" > "$PROMPT_OUT"
+python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$PROMPT_OUT"
 MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
-cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
+[ -z "$RESUME_FROM" ] && cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
 PROMPT="$(cat "$RUN/prompt.txt")"
 
 # Credentials: only the selected harness receives its throwaway credential directory.
@@ -148,6 +168,8 @@ if [ "$AGENT" = codex ]; then
   fi
   # Keep the rollout for per-call token and reasoning-item auditing.
   printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
+  # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
+  [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")
 fi
 # After every tool call, Claude Code and Codex feed the agent its remaining time (sandbox/time_left.sh reads MBAB_DEADLINE_EPOCH).
@@ -212,6 +234,12 @@ cat > "$RUN/meta.json" <<JSON
  "git_commit":"$GIT_COMMIT_SHA","git_dirty_patch_path":"git.dirty.patch","git_dirty_patch_sha256":"$GIT_DIRTY_DIFF_SHA256","code_snapshot_path":"code_snapshot.tar.gz","code_snapshot_sha256":"$CODE_SNAPSHOT_SHA256",
  "image":"$IMAGE","image_id":"$IMAGE_ID","image_inspect_path":"image.inspect.json","dockerfile_sha256":"$DOCKERFILE_SHA256","cli_version_path":"cli.version.txt","cli_version_sha256":"$CLI_VERSION_SHA256"}
 JSON
+if [ -n "$RESUME_FROM" ]; then
+  META_TMP="$RUN/meta.resume.json"
+  jq --arg parent "$RESUME_FROM" --arg parent_id "$PARENT_RUN_ID" --arg thread "$PARENT_THREAD_ID" \
+     '. + {mode: "continuation", parent_run_dir: $parent, parent_run_id: $parent_id, parent_thread_id: $thread, prompt_path: "prompt.txt"}' \
+     "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+fi
 
 record_runner_event() {
   python3 - "$RUN/runner-events.jsonl" "$1" "${2:-1}" "${3:-}" <<'PY_EVENT'
@@ -244,7 +272,9 @@ case "$AGENT" in
       remaining="$((HARD_DEADLINE - $(date +%s)))"
       if [ "$remaining" -le 0 ]; then RC=124; break; fi
       record_runner_event cli_started "$attempt"
-      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "${remaining}s" codex exec -C /work \
+      # `exec resume` takes no -C; the container's working directory is already /work, the cwd the rollout records.
+      if [ -n "$RESUME_FROM" ]; then CODEX_CMD=(exec resume "$PARENT_THREAD_ID"); else CODEX_CMD=(exec -C /work); fi
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "${remaining}s" codex "${CODEX_CMD[@]}" \
         --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
         --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
         --json -o /work/final_message.md "$PROMPT" \
