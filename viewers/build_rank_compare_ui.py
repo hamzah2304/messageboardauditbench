@@ -21,6 +21,7 @@ Only models present on both corpora are drawn, since a slope needs two ends.
 import json
 import os
 import re
+import random
 import statistics as st
 import sys
 import pathlib
@@ -49,6 +50,21 @@ ANTH = {"Opus 5", "Opus 4.8", "Sonnet 5", "Haiku 4.5"}
 RX = re.compile(r"graded_(?:r4b|psw)(\d+)_(?:claude|codex|react)_(.+?)_rep\d"
                 r"(?:_+served_[a-z0-9_]+?)?(?:_+p[0-9a-f]+)?\.json$")
 strict = lambda s: max(2 * s - 1, 0.0)  # noqa: E731
+
+
+def boot_ci(per_model, n=10000, seed=7):
+    """Percentile interval over models, not runs.
+
+    Resampling reports would treat Sol's eighteen standard runs as eighteen independent
+    observations of "an OpenAI model", which they are not; the group has four members and
+    the interval should say so.
+    """
+    if len(per_model) < 2:
+        return None, None
+    rnd = random.Random(seed)
+    means = sorted(st.mean([v for _ in per_model for v in rnd.choice(per_model)])
+                   for _ in range(n))
+    return means[int(0.025 * n)], means[int(0.975 * n)]
 
 
 def group(model):
@@ -103,9 +119,24 @@ def main():
             for i, r in enumerate(sorted(rows, key=lambda r: -r[field]), 1):
                 r[f"rank_{field}"] = i
         rows.sort(key=lambda r: r["rank_std"])
+        # OpenAI against everyone else, per corpus, with an interval bootstrapped over
+        # models rather than reports: runs from one model are not independent, and Sol
+        # alone contributes 18 of the standard corpus's OpenAI runs.
+        def split(field, run_field):
+            out = {}
+            for side, want in (("OpenAI", True), ("non-OpenAI", False)):
+                sel = [mo for mo in both if (group(mo) == "OpenAI") == want]
+                per = {mo: m[run_field][mo] for mo in sel}
+                lo, hi = boot_ci(list(per.values()))
+                out[side] = {"mean": st.mean(st.mean(v) for v in per.values()),
+                             "lo": lo, "hi": hi, "models": len(sel),
+                             "runs": sum(len(v) for v in per.values())}
+            return out
         data["measures"][key] = {"label": m["label"], "note": m["note"], "rows": rows,
                                  "n_std": sum(r["n_std"] for r in rows),
-                                 "n_twin": sum(r["n_twin"] for r in rows)}
+                                 "n_twin": sum(r["n_twin"] for r in rows),
+                                 "split": {"standard": split("std", "std"),
+                                           "twin": split("twin", "twin")}}
     DATA_JSON.parent.mkdir(parents=True, exist_ok=True)
     DATA_JSON.write_text(json.dumps(data, indent=1, ensure_ascii=False))
     lines = ["measure,model,group,score_standard,score_twin,rank_standard,rank_twin,n_standard,n_twin"]
@@ -135,7 +166,10 @@ __FIGS__
 </main>"""
 
 FIGS = "\n\n".join([
-    chrome.figure(1, "The same ranking, twice", "fig1", legend_id="leg1",
+    chrome.figure(1, "OpenAI models against everyone else, before and after the swap", "fig0",
+                  read_id="read0", cap_id="cap0", legend_id="leg0", table_id="tbl0"),
+    chrome.figure(2, "The same ranking, twice", "fig1", legend_id="leg1",
+                  read_id="read1", cap_id="cap1",
                   tools='<button class="csv" data-csv="ranks">copy CSV</button>'
                         '<span>or benchmark/figures/rank_compare.csv</span>',
                   table_id="tbl1"),
@@ -158,6 +192,85 @@ document.getElementById('lede').textContent =
   + 'evidence names becomes Anthropic instead of OpenAI. If reticence were loyalty, ranks '
   + 'would move when the name changes — OpenAI models climbing, Anthropic models falling. '
   + 'Recall is judged by ' + D.judges.recall + ', the probe by ' + D.judges.probe + '.';
+
+/* --- Figure 1: the group means, both corpora --- */
+const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--p-google)'};
+function fig0() {
+  const M = D.measures[sel], sp = M.split;
+  const corpora = [['standard', 'data names OpenAI'], ['twin', 'data names Anthropic']];
+  const sides = ['OpenAI', 'non-OpenAI'];
+  const W = 1040, H = 372, L = 66, R = 20, T = 26, B = 78;
+  const IW = W - L - R, IH = H - T - B;
+  const all = corpora.flatMap(([c]) => sides.flatMap(k => [sp[c][k].mean, sp[c][k].lo, sp[c][k].hi]))
+                     .filter(v => v != null);
+  const hi = Math.max(...all) * 1.15;
+  const Y = v => T + IH - v / hi * IH;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'OpenAI and non-OpenAI model means on both corpora'});
+  const step = hi > 0.4 ? 0.1 : 0.05;
+  for (let v = 0; v <= hi; v += step) {
+    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'tick'}));
+    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'axis num', 'text-anchor': 'end'});
+    t.textContent = v.toFixed(2); svg.append(t);
+  }
+  svg.append(s('line', {x1: L, x2: L + IW, y1: Y(0), y2: Y(0), class: 'axline'}));
+  const band = IW / corpora.length, bw = Math.min(band * 0.3, 96);
+  corpora.forEach(([c, label], i) => {
+    const cx = L + band * (i + 0.5);
+    sides.forEach((k, j) => {
+      const q = sp[c][k], x = cx + (j === 0 ? -bw - 6 : 6);
+      svg.append(s('rect', {x, y: Y(q.mean), width: bw, height: Math.max(Y(0) - Y(q.mean), 1),
+        fill: SIDE[k], 'fill-opacity': .85, rx: 4}));
+      const mx = x + bw / 2;
+      if (q.lo != null) {
+        svg.append(s('line', {x1: mx, x2: mx, y1: Y(q.lo), y2: Y(q.hi), stroke: 'var(--ink)',
+          'stroke-width': 1.2, opacity: .55}));
+        [q.lo, q.hi].forEach(v => svg.append(s('line', {x1: mx - 5, x2: mx + 5, y1: Y(v), y2: Y(v),
+          stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55})));
+      }
+      const t = s('text', {x: mx, y: Y(q.mean) - 7, class: 'lab num', 'text-anchor': 'middle',
+        stroke: 'var(--surface)', 'stroke-width': 3, 'paint-order': 'stroke',
+        'stroke-linejoin': 'round'});
+      t.textContent = q.mean.toFixed(3); svg.append(t);
+      /* two lines: at this bar width one line of "N models · N runs" overlaps its neighbour */
+      [`${q.runs} runs`, `${q.models} models`].forEach((txt, r) => {
+        const n = s('text', {x: mx, y: Y(0) + 15 + r * 12, class: 'axis', 'text-anchor': 'middle'});
+        n.textContent = txt; svg.append(n);
+      });
+    });
+    const lb = s('text', {x: cx, y: Y(0) + 48, class: 'axname', 'text-anchor': 'middle'});
+    lb.textContent = label; svg.append(lb);
+  });
+  const ay = s('text', {x: 16, y: T + IH / 2, class: 'axname', 'text-anchor': 'middle',
+    transform: `rotate(-90 16 ${T + IH / 2})`});
+  ay.textContent = M.label + (sel === 'origin' ? ' (raw 0-1)' : ' (strict)'); svg.append(ay);
+  document.getElementById('fig0').replaceChildren(svg);
+  const leg = document.getElementById('leg0'); leg.replaceChildren();
+  sides.forEach(k => { const q = el('span'); const i = el('i'); i.style.background = SIDE[k];
+    q.append(i, document.createTextNode(k + ' models')); leg.append(q); });
+  const d1 = sp.standard['OpenAI'].mean - sp.standard['non-OpenAI'].mean;
+  const d2 = sp.twin['OpenAI'].mean - sp.twin['non-OpenAI'].mean;
+  document.getElementById('read0').textContent =
+    `Gap of ${d1.toFixed(3)} when the data names OpenAI, ${d2.toFixed(3)} when it names `
+    + `Anthropic. If the deficit were loyalty it would close on the right.`;
+  document.getElementById('cap0').textContent =
+    `${M.label}: ${M.note}. Each model contributes once, so Sol's eighteen standard runs do `
+    + `not outvote Haiku's six. Whiskers are 95% percentile intervals bootstrapped over `
+    + `models — four in the OpenAI group and eight in the other — which is why they are wide.`;
+  const t = el('table'), hd = el('tr');
+  ['corpus', 'group', 'mean', '95% CI', 'models', 'runs'].forEach((h, i) =>
+    hd.append(el('th', i < 2 ? 'l' : '', h)));
+  const th = el('thead'); th.append(hd); t.append(th);
+  const tb = el('tbody');
+  corpora.forEach(([c, label]) => sides.forEach(k => {
+    const q = sp[c][k], tr = el('tr');
+    tr.append(el('td', 'l', label), el('td', 'l', k), el('td', 'num', q.mean.toFixed(3)),
+      el('td', 'num', q.lo == null ? '—' : `${q.lo.toFixed(3)}, ${q.hi.toFixed(3)}`),
+      el('td', 'num', q.models), el('td', 'num', q.runs));
+    tb.append(tr);
+  }));
+  t.append(tb); document.getElementById('tbl0').replaceChildren(t);
+}
 
 function fig() {
   const M = D.measures[sel], rows = M.rows;
@@ -224,7 +337,7 @@ function tabs() {
   const box = document.getElementById('tabs'); box.replaceChildren();
   Object.entries(D.measures).forEach(([k, m]) => {
     const b = el('button', k === sel ? 'on' : '', m.label);
-    b.onclick = () => { sel = k; tabs(); fig(); };
+    b.onclick = () => { sel = k; tabs(); fig0(); fig(); };
     box.append(b);
   });
   const c = el('button', 'csv', 'copy CSV'); c.dataset.csv = 'ranks';
@@ -243,7 +356,7 @@ const cav = document.getElementById('cav');
  'Overall recall is the control: a model that simply writes worse reports on the swapped '
  + 'data should move there too, not only on the attribution measures.'
 ].forEach(t => cav.append(el('li', null, t)));
-tabs(); fig();
+tabs(); fig0(); fig();
 """
 
 TEMPLATE = (chrome.shell("Ranks on both corpora", BODY.replace("__FIGS__", FIGS))
