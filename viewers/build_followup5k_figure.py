@@ -15,7 +15,7 @@ Three panels:
 Scores are Fable 5.1 on the v2 sheets, strict-transformed — max(2s - 1, 0) then the mean
 over findings — the same measure as the headline figures.
 """
-import json, re, statistics as st, sys, pathlib
+import json, random, re, statistics as st, sys, pathlib
 from collections import defaultdict
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -36,6 +36,20 @@ RX_FOLLOW = re.compile(r"graded_fu5kb(\d+)_(claude|codex|react)_(.+?)_rep(\d)\.j
 # table repeats every value.
 PALETTE = ["#B4442F", "#2C63C8", "#2F8F45", "#C21E7B", "#1187A5", "#9A5F0A", "#7A4FCB", "#C77C00"]
 FILL = {10: 0.0, 30: 0.5, 120: 1.0}      # hollow to solid, as the headline figures do
+
+
+def ci(values, n=10000, seed=5):
+    """Percentile interval over a group's own matched pairs.
+
+    Deliberately bootstrapped over pairs rather than reported as a bare mean: several
+    groups here have six to ten pairs, and without the interval a two-run cell looks as
+    settled as a seventeen-run one.
+    """
+    if len(values) < 2:
+        return None, None
+    rnd = random.Random(seed)
+    means = sorted(st.mean(rnd.choices(values, k=len(values))) for _ in range(n))
+    return means[int(0.025 * n)], means[int(0.975 * n)]
 
 
 def scores(path, want_max):
@@ -90,6 +104,33 @@ def main():
               for (mo, b), v in sorted(cells.items())]
 
     claims = {c["id"]: c for c in json.loads((CLAIMS / "claims_v2.json").read_text())["claims"]}
+    clusters = defaultdict(list)
+    for c in claims.values():
+        clusters[c["section"]].append(c["id"])
+
+    # Cluster-level change for Astra against everything else. Astra gains twice what any
+    # other model does, and the question is where — a cluster mean over 2-6 findings is
+    # steadier than any single finding, and the comparison series says whether a gain is
+    # Astra's or just what more words do.
+    FOCUS = "GPT-6 Astra"
+    grouped = defaultdict(lambda: defaultdict(list))
+    for r in pairs:
+        grp = FOCUS if r["model"] == FOCUS else "every other model"
+        for sec, ids in clusters.items():
+            # collect() already applied the strict transform
+            before = st.mean(pc_short[r["parent"]][i] for i in ids)
+            after = st.mean(pc_long[r["follow"]][i] for i in ids)
+            grouped[grp][sec].append(after - before)
+    cluster_delta = []
+    for sec, ids in clusters.items():
+        row = {"cluster": sec, "k": len(ids)}
+        for grp in (FOCUS, "every other model"):
+            ds = grouped[grp][sec]
+            lo, hi = ci(ds)
+            row[grp] = {"delta": st.mean(ds), "lo": lo, "hi": hi, "n": len(ds)}
+        cluster_delta.append(row)
+    cluster_delta.sort(key=lambda r: -r[FOCUS]["delta"])
+    top_bottom = cluster_delta[:3] + cluster_delta[-3:]
     deltas = sorted(
         ({"id": cid, "section": claims[cid]["section"], "claim": claims[cid]["claim"],
           "short": st.mean(a for a, b in v), "long": st.mean(b for a, b in v),
@@ -97,16 +138,6 @@ def main():
           "n_up": sum(1 for a, b in v if b > a), "n_down": sum(1 for a, b in v if b < a)}
          for cid, v in claim_delta.items()),
         key=lambda d: -d["delta"])
-
-    import random
-    def ci(values, n=10000, seed=5):
-        """Percentile CI over a model's own runs. Few runs each, so the interval is wide —
-        which is the point: it stops a two-run model looking as settled as a ten-run one."""
-        if len(values) < 2:
-            return None, None
-        rnd = random.Random(seed)
-        means = sorted(st.mean(rnd.choices(values, k=len(values))) for _ in range(n))
-        return means[int(0.025 * n)], means[int(0.975 * n)]
 
     by_model = defaultdict(list)
     for r in pairs:
@@ -121,6 +152,9 @@ def main():
 
     models = sorted({p["model"] for p in points})
     data = {"points": points, "deltas": deltas, "pairs": pairs, "model_delta": model_delta,
+            "cluster_delta": cluster_delta, "top_bottom": top_bottom,
+            "groups": ["GPT-6 Astra", "every other model"],
+            "group_colours": {"GPT-6 Astra": "#C15F3C", "every other model": "#2C63C8"},
             "models": models, "colours": {m: PALETTE[i % len(PALETTE)] for i, m in enumerate(models)},
             "fill": {str(k): v for k, v in FILL.items()},
             "n_pairs": len(pairs), "n_claims": len(deltas),
@@ -134,6 +168,8 @@ def main():
     o = data["overall"]
     print(f"wrote {OUT} — {len(pairs)} matched pairs, {len(points)} model-budget cells")
     print(f"  {o['short']:.3f} -> {o['long']:.3f}  ({o['up']} up, {o['flat']} flat, {o['down']} down)")
+    print("  clusters, Astra top/bottom: "
+          + ", ".join(f"{r['cluster']} {r['GPT-6 Astra']['delta']:+.3f}" for r in top_bottom))
     print("  by model: " + ", ".join(f"{m['model']} {m['delta']:+.3f}" for m in model_delta[:3])
           + f" ... {model_delta[-1]['model']} {model_delta[-1]['delta']:+.3f}")
     print(f"  biggest claim gains: " + ", ".join(f"{d['id']} {d['delta']:+.3f}" for d in deltas[:4]))
@@ -181,6 +217,8 @@ td.zero{color:var(--mut);font-weight:400}
   <div class="legend" id="leg1"></div><p class="cap" id="cap1"></p></div>
 <div class="panel"><h2>Average change in recall, by model</h2><div id="fig3"></div>
   <p class="cap" id="cap3"></p></div>
+<div class="panel"><h2>Astra&rsquo;s best and worst three clusters</h2><div id="fig4"></div>
+  <div class="legend" id="leg4"></div><p class="cap" id="cap4"></p></div>
 <div class="panel"><h2>Which findings the extra length surfaced</h2><div id="fig2"></div>
   <p class="cap" id="cap2"></p></div>
 <div class="panel"><h2>Every finding</h2><div id="tbl2"></div></div>
@@ -315,6 +353,72 @@ function fig2() {
     + `agents were (N09, N10), and why the activity stopped (N38) — sit flat at the bottom.`;
 }
 
+/* ---------- Figure 4: Astra's best and worst clusters ---------- */
+function fig4() {
+  const rows = D.top_bottom, G = D.groups;
+  const W = 1080, H = 400, L = 62, R = 20, T = 26, B = 74;
+  const IW = W - L - R, IH = H - T - B, band = IW / rows.length;
+  const all = rows.flatMap(r => G.flatMap(g => [r[g].lo, r[g].hi, r[g].delta]));
+  const lo = Math.min(0, ...all) - 0.005, hi = Math.max(...all) + 0.012;
+  const Y = v => T + IH - (v - lo) / (hi - lo) * IH;
+  const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': "Astra's best and worst three clusters against every other model"});
+  for (let v = Math.ceil(lo / 0.05) * 0.05; v <= hi + 1e-9; v += 0.05) {
+    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'gl'}));
+    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'tick', 'text-anchor': 'end'});
+    t.textContent = (v > 0 ? '+' : '') + v.toFixed(2); svg.append(t);
+  }
+  svg.append(s('line', {x1: L, x2: L + IW, y1: Y(0), y2: Y(0),
+    stroke: 'var(--sec)', 'stroke-width': 1, opacity: .5}));
+  /* the three best and the three worst sit next to each other, so mark the seam */
+  const seam = L + band * 3;
+  svg.append(s('line', {x1: seam, x2: seam, y1: T, y2: T + IH, stroke: 'var(--bd)',
+    'stroke-width': 1, 'stroke-dasharray': '3 3'}));
+  const ay = s('text', {x: 15, y: T + IH / 2, class: 'axname', 'text-anchor': 'middle',
+    transform: `rotate(-90 15 ${T + IH / 2})`});
+  ay.textContent = 'mean change in strict recall'; svg.append(ay);
+
+  const bw = Math.min(band * 0.36, 44);
+  rows.forEach((r, i) => {
+    const cx = L + band * (i + 0.5);
+    G.forEach((g, j) => {
+      const x = cx + (j === 0 ? -bw - 2 : 2), v = r[g].delta;
+      const top = Y(Math.max(v, 0)), bot = Y(Math.min(v, 0));
+      svg.append(s('rect', {x, y: top, width: bw, height: Math.max(bot - top, 1),
+        fill: D.group_colours[g], 'fill-opacity': .85, rx: 3}));
+      const mx = x + bw / 2;
+      if (r[g].lo != null) {
+        svg.append(s('line', {x1: mx, x2: mx, y1: Y(r[g].lo), y2: Y(r[g].hi),
+          stroke: 'var(--ink)', 'stroke-width': 1.1, opacity: .5}));
+        [r[g].lo, r[g].hi].forEach(w => svg.append(s('line', {x1: mx - 4, x2: mx + 4,
+          y1: Y(w), y2: Y(w), stroke: 'var(--ink)', 'stroke-width': 1.1, opacity: .5})));
+      }
+      const t = s('text', {x: mx, y: Y(Math.max(v, 0)) - 6, class: 'mlab', 'text-anchor': 'middle',
+        stroke: 'var(--card)', 'stroke-width': 3, 'paint-order': 'stroke',
+        'stroke-linejoin': 'round'});
+      t.textContent = (v >= 0 ? '+' : '') + v.toFixed(3); svg.append(t);
+    });
+    const nm = s('text', {x: cx, y: T + IH + 18, class: 'mlab', 'text-anchor': 'middle'});
+    nm.textContent = r.cluster; svg.append(nm);
+    const k = s('text', {x: cx, y: T + IH + 31, class: 'tick', 'text-anchor': 'middle'});
+    k.textContent = `${r.k} finding${r.k > 1 ? 's' : ''}`; svg.append(k);
+  });
+  ['Astra\u2019s best three', 'and worst three'].forEach((txt, i) => {
+    const t = s('text', {x: L + band * (i ? 4.5 : 1.5), y: T - 8, class: 'tick',
+      'text-anchor': 'middle'});
+    t.textContent = txt; svg.append(t);
+  });
+  document.getElementById('fig4').replaceChildren(svg);
+  const leg = document.getElementById('leg4'); leg.replaceChildren();
+  G.forEach(g => { const sp = el('span'); const i = el('i');
+    i.style.background = D.group_colours[g]; sp.append(i, document.createTextNode(g)); leg.append(sp); });
+  document.getElementById('cap4').textContent =
+    `The three clusters Astra gained most on and the three it gained least on, each against every `
+    + `other model on the same cluster. Whiskers are 95% percentile intervals over the matched pairs `
+    + `in each group (Astra ${rows[0][G[0]].n}, others ${rows[0][G[1]].n}). Astra's gains are in `
+    + `mechanism the other models cannot move; what it does not gain on is who the agents were.`;
+}
+
 /* ---------- Figure 3: average delta per model ---------- */
 function fig3() {
   const rows = D.model_delta;
@@ -411,7 +515,7 @@ function tables() {
   });
   t1.append(b1); document.getElementById('tbl1').replaceChildren(t1);
 }
-fig1(); fig3(); fig2(); tables();
+fig1(); fig3(); fig4(); fig2(); tables();
 </script>
 </body></html>
 """
