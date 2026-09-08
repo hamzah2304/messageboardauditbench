@@ -172,7 +172,7 @@ def export_records(
             "config": config_name,
             "prompt_id": prompt_id,
             "budget_min": meta.get("budget_min"),
-            **{k: meta.get(k) for k in PARENT_KEYS if k in meta},
+            "mode": meta.get("mode"),
             "data_variant": variant,
             "effort": effort,
         }
