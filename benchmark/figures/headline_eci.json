@@ -7,9 +7,9 @@
  "transform": "strict = mean over points of max(2*score - 1, 0); see scripts/report_performance.py",
  "eci_source": "benchmark/eci_scores.json (Epoch's own eci_scores.csv, retrieved 2026-09-07)",
  "correlations": {
-  "all_models": 0.709,
-  "reached_120_only": 0.251,
-  "excluding_haiku": 0.319
+  "all_models": 0.708,
+  "reached_120_only": 0.241,
+  "excluding_haiku": 0.313
  },
  "caveats": [
   "Two models are not at 120 minutes: Haiku 4.5 has no 120-min run; Opus 5's three 120-min runs were all served by Opus 4.8 after a safeguard refusal and are excluded as not being its results.",
@@ -111,8 +111,8 @@
    ],
    "eci_model": "GPT-5.6 Sol",
    "max_budget_min": 120,
-   "strict_mean": 0.3716,
-   "n_replicates": 5,
+   "strict_mean": 0.3605,
+   "n_replicates": 6,
    "reached_120": true,
    "excluded_note": "",
    "replicates": [
@@ -155,12 +155,20 @@
      "strict": 0.2789,
      "raw": 0.474,
      "served": null
+    },
+    {
+     "report": "r4b120_react_openai_gpt_5_6_sol_rep3",
+     "harness": "react",
+     "rep": 3,
+     "strict": 0.3053,
+     "raw": 0.526,
+     "served": null
     }
    ],
    "all_budgets": {
     "10": 0.2097,
     "30": 0.286,
-    "120": 0.3716
+    "120": 0.3605
    }
   },
   {
