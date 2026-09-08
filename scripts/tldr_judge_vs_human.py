@@ -66,6 +66,9 @@ def main():
     ap.add_argument("--judge", default="claude-fable-5-1")
     ap.add_argument("--who", default="Hasan")
     ap.add_argument("--rubric", default="tldrh")
+    ap.add_argument("--exclude", default="", help="drop reports whose key contains this "
+                    "substring, e.g. haiku — a model far below the rest inflates pairwise "
+                    "accuracy, because every pair it is in is an easy one")
     ap.add_argument("--json", help="write the per-report table here")
     a = ap.parse_args()
 
@@ -73,7 +76,8 @@ def main():
              json.loads(SCORES.read_text())["graders"][a.who]["scores"].items()
              if v.get("score") is not None}
     jud = judge_scores(a.judge, a.rubric)
-    pairs = [(k, human[k], jud[san(k)]) for k in sorted(human) if san(k) in jud]
+    pairs = [(k, human[k], jud[san(k)]) for k in sorted(human) if san(k) in jud
+             and not (a.exclude and a.exclude.lower() in k.lower())]
     missing = [k for k in human if san(k) not in jud]
     if not pairs:
         raise SystemExit(f"no overlap: {len(human)} human, {len(jud)} judge scores")
@@ -85,6 +89,7 @@ def main():
     approx = sum(1 for x in ad if x <= APPROX + 1e-9)
     strict = sum(1 for x in ad if x >= STRICT - 1e-9)
     print(f"judge {a.judge} ({a.rubric}) vs {a.who} — {len(pairs)} reports"
+          + (f", excluding '{a.exclude}'" if a.exclude else "")
           + (f"  [{len(missing)} of {a.who}'s labels have no judge grade]" if missing else ""))
     print(f"  {a.who}: mean {st.mean(hs):.3f}  sd {st.pstdev(hs):.3f}  range {min(hs)}–{max(hs)}")
     print(f"  judge: mean {st.mean(js):.3f}  sd {st.pstdev(js):.3f}  range {min(js)}–{max(js)}")
