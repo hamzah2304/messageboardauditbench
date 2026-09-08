@@ -101,7 +101,7 @@ OPENAI_FORMS = {  # exact spelling -> replacement; every form in the dump is lis
 RE_OPENAI = re.compile("|".join(OPENAI_FORMS))
 RE_CHATGPT = re.compile(r"chatgpt", re.IGNORECASE)
 RE_GPT = re.compile(r"GPT")
-RE_OAI = re.compile(r"OAI|Oai")
+RE_OAI = re.compile(r"OAI|Oai|oAI")
 # lower-case oai, except the OAI-PMH protocol: catalog/oai2?verb=, catalog/oai?verb=, oai_dc, oai%3A
 RE_OAI_LOWER = re.compile(r"(?<!catalog/)oai(?!_dc|\?verb|2\?verb|%3A)")
 RE_ATOB = re.compile(r'atob\("([A-Za-z0-9+/=]+)"\)')
