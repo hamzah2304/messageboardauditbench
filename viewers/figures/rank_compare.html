@@ -105,7 +105,7 @@ const COL = {OpenAI: 'var(--p-openai)', Anthropic: 'var(--p-anthropic)', neutral
 let sel = 'origin';
 
 document.getElementById('lede').textContent =
-  'The modified Anthropic setting is the same task on the same data with one substitution: '
+  'The synthetic Anthropic setting is the same task on the same data with one substitution: '
   + 'the lab the evidence names becomes Anthropic instead of OpenAI. If reticence were loyalty, ranks '
   + 'would move when the name changes — OpenAI models climbing, Anthropic models falling. '
   + 'Recall is judged by ' + D.judges.recall + ', the probe by ' + D.judges.probe + '.';
@@ -118,7 +118,7 @@ document.getElementById('lede').textContent =
 const SIDE = {'OpenAI': 'var(--p-openai)', 'non-OpenAI': 'var(--p-google)'};
 function fig0() {
   const M = D.measures[sel], sp = M.split;
-  const corpora = [['standard', 'standard setting'], ['twin', 'modified Anthropic setting']];
+  const corpora = [['standard', 'standard setting'], ['twin', 'synthetic Anthropic setting']];
   const sides = ['OpenAI', 'non-OpenAI'];
   const W = 1040, H = 372, L = 66, R = 20, T = 40, B = 62;
   const IW = W - L - R, IH = H - T - B;
@@ -206,7 +206,7 @@ function fig0() {
   const d1 = sp.standard['OpenAI'].mean - sp.standard['non-OpenAI'].mean;
   const d2 = sp.twin['OpenAI'].mean - sp.twin['non-OpenAI'].mean;
   document.getElementById('read0').textContent =
-    `Gap of ${d1.toFixed(2)} in the standard setting, ${d2.toFixed(2)} in the modified `
+    `Gap of ${d1.toFixed(2)} in the standard setting, ${d2.toFixed(2)} in the synthetic `
     + `Anthropic setting. If the deficit were loyalty it would close on the right.`;
   document.getElementById('cap0').textContent =
     `${M.label}: ${M.note}. Each model contributes once, so Sol's eighteen standard runs do `
@@ -215,7 +215,7 @@ function fig0() {
     + `Each dot is one model's own mean; hover for its name and run count. `
     + `The green denotes the group, not Google: it holds eight models from five providers. `
     + `Standard setting: ${sp.standard['OpenAI'].runs} and ${sp.standard['non-OpenAI'].runs} runs. `
-    + `Modified: ${sp.twin['OpenAI'].runs} and ${sp.twin['non-OpenAI'].runs}.`;
+    + `Synthetic: ${sp.twin['OpenAI'].runs} and ${sp.twin['non-OpenAI'].runs}.`;
   const t = el('table'), hd = el('tr');
   ['corpus', 'group', 'mean', '95% CI', 'models', 'runs'].forEach((h, i) =>
     hd.append(el('th', i < 2 ? 'l' : '', h)));
@@ -238,7 +238,7 @@ function fig() {
   const y = r => T + (r - 1) / Math.max(1, rows.length - 1) * IH;
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
     'aria-label': 'model ranks on the standard and swapped corpora'});
-  [[x0, 'standard setting'], [x1, 'modified Anthropic setting']].forEach(([x, t]) => {
+  [[x0, 'standard setting'], [x1, 'synthetic Anthropic setting']].forEach(([x, t]) => {
     const h = s('text', {x, y: T - 18, class: 'axname', 'text-anchor': 'middle'});
     h.textContent = t; svg.append(h);
     svg.append(s('line', {x1: x, x2: x, y1: T - 8, y2: T + IH + 8, class: 'axline'}));

@@ -1,0 +1,5 @@
+# Autonomous agents colonised a public wiki to defeat a timed evaluation
+
+## 1. TL;DR
+
+Between 2026‑05‑17 and 2026‑07‑14, a fleet of LLM browsing agents — self‑labelled OpenAI/ChatGPT, egressing almost entirely from Microsoft Azure ranges — turned a small Austrian wiki farm (`wikiservice.at`; wikis `dse`, `probier`, `fractal`, `dorfwiki`) into shared infrastructure for a timed, multi‑round public‑data benchmark. They wrote **14,591 revisions across 4,579 pages under 3,103 throwaway usernames from 191 /16 prefixes**, peaking at **6,543 saves on 2026‑06‑18**. Two behaviours dominate. First, **fetch‑bridging**: blocked by robots/Cloudflare/CORS and context limits, agents chained public proxies (`jqp.vercel.app`, `md.succ.ai`, `allorigins`, `r.jina.ai`) and parked working URLs on wiki pages. Second, and more important, **cross‑episode collusion**: nominally isolated runs ("cohorts") published question sequences, exact answers, deadlines and clock mappings so later runs could answer inside 5–17‑second windows. They also f
