@@ -33,7 +33,7 @@ import pathlib
 from urllib.parse import quote
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from paths import ROOT, RUBRICS, GRADED_INPUTS, VIEWERS, CORPUS
+from paths import ROOT, RUBRICS, GRADED, GRADED_INPUTS, VIEWERS, CORPUS
 
 OUT = VIEWERS / "tldr_grading.html"
 DATA_DIR = VIEWERS / "data" / "tldr"
@@ -46,6 +46,15 @@ FONTS = CORPUS / "fonts"
 # Where the excerpt stops: the last sentence of "Our preliminary findings", immediately
 # before the Timeline. Everything a grader needs to judge a 200-word summary is above it.
 CUT = "unintended ways.</p>"
+
+# Site furniture that costs the grader a screen of scrolling and tells them nothing about
+# the story: the call to write your own analysis, the explorer/download buttons, the
+# acknowledgements, and the traffic chart with its caption. Each is matched by its opening
+# tag and removed whole, with its children.
+DROP = [r'<p>(?=We encourage others to take a look)',
+        r'<p class="cta-solo"',
+        r'<p class="thanks"',
+        r'<figure class="fig wide" data-figure="visits"']
 
 # Two or three words per anchor, for the reminder beside the score buttons. The full
 # wording is in tldr_holistic.json and shown on the rubric panel; these are the handle.
@@ -126,9 +135,30 @@ def truncate_html(doc, cut):
     return head + "".join(f"</{t}>" for t in reversed(stack))
 
 
+def drop_element(doc, opening):
+    """Remove the first element whose opening tag matches `opening`, children and all.
+
+    Slicing to the next matching close tag would stop at the first nested one; balancing
+    the tag name means a <figure> containing its own <figcaption> and <img> leaves as a
+    unit rather than leaving its tail behind.
+    """
+    m = re.search(opening, doc)
+    if not m:
+        raise SystemExit(f"nothing to drop for {opening!r} — has the article changed?")
+    tag = re.match(r"<([a-zA-Z][\w-]*)", doc[m.start():]).group(1)
+    depth, i = 0, m.start()
+    for t in re.finditer(rf"</?{tag}\b[^>]*>", doc[m.start():]):
+        depth += -1 if t.group(0).startswith("</") else 1
+        if depth == 0:
+            return doc[:i] + doc[i + t.end():]
+    raise SystemExit(f"unbalanced <{tag}> from {opening!r}")
+
+
 def write_human_html():
     w = load(ROOT / "scripts" / "wiki_report.py", "wiki_report")
     doc = truncate_html(w.article_html(), CUT)
+    for spec in DROP:
+        doc = drop_element(doc, spec)
     doc = re.sub(r'(<input(?=[^>]*\bclass="[^"]*\bex-toggle\b)(?![^>]*\bchecked\b)[^>]*?)/?>',
                  r'\1 checked>', doc)
     doc = re.sub(r"<details(?![^>]*\bopen\b)", "<details open", doc)
@@ -177,6 +207,23 @@ def reports():
     return out
 
 
+def strict_scores():
+    """Each report's strict score from the v2 recall grades: mean of max(2s-1, 0).
+
+    The same number the performance figures use, so the grading queue is ordered the way
+    the benchmark ranks the reports rather than alphabetically.
+    """
+    d = GRADED / "judge_claude_fable_5_1" / "v2"
+    out = {}
+    for p in sorted(d.glob("graded_*.json")):
+        g = json.loads(p.read_text())
+        vals = [v["score"] for v in g["scores"].values()]
+        if vals:
+            out[p.stem[len("graded_"):]] = round(
+                sum(max(2 * v - 1, 0.0) for v in vals) / len(vals), 3)
+    return out
+
+
 def core30(rows):
     """Thirty reports both graders do, so every one of them is double-scored.
 
@@ -212,9 +259,14 @@ def main():
     rows = reports()
     core = core30(rows)
     core_set = set(core)
+    strict = strict_scores()
     for r in rows:
         r["core"] = r["key"] in core_set
-    rows.sort(key=lambda r: (not r["core"], r["budget"], r["model"], r["rep"]))
+        r["strict"] = strict.get(re.sub(r"[^0-9a-zA-Z]+", "_", r["key"]).strip("_"))
+    # best first: the queue is the benchmark's own ranking, so a grader reads the good
+    # summaries and the bad ones in an order that makes the scale obvious as they go
+    rows.sort(key=lambda r: (not r["core"], -(r["strict"] if r["strict"] is not None else -1),
+                             r["model"], r["budget"], r["rep"]))
     scale = [{"v": v, "short": SCALE_SHORT.get(v, v), "full": t} for v, t in rub["scale"]]
 
     data = {"save_path": str(SAVE_PATH), "human_html": str(HUMAN_HTML),
@@ -228,6 +280,9 @@ def main():
                        .replace("__FACES__", face_css())
                        .replace("__DATA__", json.dumps({"payload": str(payload)})))
     n_core = sum(r["core"] for r in rows)
+    unscored = [r["key"] for r in rows if r["strict"] is None]
+    if unscored:
+        print(f"  ! {len(unscored)} reports have no v2 grade, sorted last: {unscored[:3]}")
     print(f"wrote {OUT}  —  {len(rows)} reports ({n_core} in the core set), "
           f"{len(points)} points, saving to {SAVE_PATH}")
     print("  budgets: " + ", ".join(f"{b}m={sum(r['budget'] == b for r in rows)}"
@@ -282,15 +337,17 @@ font-size:11px;color:var(--sec)}
 #list{flex:1;overflow-y:auto;padding-bottom:24px}
 .grouphd{position:sticky;top:0;background:var(--card);padding:7px 12px 4px;font-size:11px;
 letter-spacing:.06em;text-transform:uppercase;color:var(--mut);border-bottom:1px solid var(--bd);z-index:2}
-.item{display:flex;align-items:baseline;gap:7px;padding:6px 12px;border-bottom:1px solid #F0EEE8;
-cursor:pointer;font-size:13px}
+.item{display:grid;grid-template-columns:7px 1fr auto;gap:2px 7px;padding:5px 12px;
+border-bottom:1px solid #F0EEE8;cursor:pointer;font-size:13px;align-items:baseline}
 .item:hover{background:var(--row)}
 .item.sel{background:var(--soft);box-shadow:inset 3px 0 0 var(--acc)}
-.item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item .bd{font-size:11px;color:var(--mut);white-space:nowrap}
-.item .sc{font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;color:var(--acc);min-width:22px;text-align:right}
+.item .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .bd{grid-column:2;font-size:11px;color:var(--mut);white-space:nowrap}
+.item .sc{grid-row:1/3;grid-column:3;align-self:center;font-variant-numeric:tabular-nums;
+font-size:14px;font-weight:600;color:var(--acc);min-width:24px;text-align:right}
 .item .sc.none{color:#D9D5CC;font-weight:400}
-.item .dot{width:6px;height:6px;border-radius:50%;background:transparent;flex:0 0 auto}
+.item .dot{grid-row:1;width:6px;height:6px;border-radius:50%;background:transparent;
+align-self:center}
 .item .dot.other{background:#C9C4B8}
 
 /* ---------- the two halves ---------- */
@@ -308,7 +365,9 @@ display:flex;align-items:center;gap:8px;flex:0 0 auto}
 
 /* the TL;DR itself, set the way the report sets it */
 #tldr{font-family:"et-book",Palatino,"Palatino Linotype",Georgia,serif;font-size:17px;
-line-height:1.62;white-space:pre-wrap;color:var(--ink);max-width:62ch}
+line-height:1.55;color:var(--ink);max-width:64ch}
+#tldr p{margin:0 0 .45em}
+#tldr p:last-child{margin-bottom:0}
 #tldr .empty{font-family:system-ui,sans-serif;font-size:13px;color:var(--mut)}
 #meta{font-size:12px;color:var(--sec);margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid var(--bd);
 display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -566,7 +625,8 @@ function paintList() {
       const e = mine(r.key), it = el('div', 'item' + (sel === r.key ? ' sel' : ''));
       it.appendChild(el('span', 'dot' + (others(r.key).length ? ' other' : '')));
       it.appendChild(el('span', 'nm', r.model));
-      it.appendChild(el('span', 'bd', r.budget + 'm·r' + r.rep));
+      it.appendChild(el('span', 'bd', r.budget + 'm · rep' + r.rep +
+                        (r.strict != null ? ' · judge ' + r.strict.toFixed(2) : '')));
       it.appendChild(el('span', 'sc' + (e && e.score != null ? '' : ' none'),
                         e && e.score != null ? fmt(e.score) : '–'));
       it.onclick = () => { sel = r.key; paintList(); paintReport(); };
@@ -598,9 +658,14 @@ function paintReport() {
   meta.appendChild(el('span', 'badge n', r.scaffold));
   if (r.served) meta.appendChild(el('span', 'badge n', 'served as ' + r.served));
   if (r.core) meta.appendChild(el('span', 'badge g', 'shared set'));
+  if (r.strict != null) meta.appendChild(el('span', 'badge n', 'judge ' + r.strict.toFixed(2) + ' on the full report'));
   meta.appendChild(el('span', 'badge n', r.words + ' words'));
   if (r.how !== 'heading') meta.appendChild(el('span', 'badge n', 'no TL;DR heading — opening prose'));
-  t.textContent = r.tldr;
+  /* the raw summary carries the report's own line wrapping and blank lines; preserving
+     them costs a third of the pane in white space for no reading benefit */
+  t.innerHTML = '';
+  r.tldr.split(/\n\s*\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean)
+    .forEach(x => t.appendChild(el('p', null, x)));
   document.getElementById('tldr-r').textContent = r.key;
   document.querySelector('#tldr').parentElement.scrollTop = 0;
   paintScore(r);
