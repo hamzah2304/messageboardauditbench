@@ -707,6 +707,8 @@ async function boot() {
     }
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     if (ev.key === 'Escape') { closeModal(); return; }
+    /* the rubric panel is a reading surface: a stray digit behind it must not score */
+    if (document.getElementById('veil').classList.contains('on')) return;
     if (ev.key === 'j' || ev.key === 'ArrowDown') { ev.preventDefault(); move(1); }
     else if (ev.key === 'k' || ev.key === 'ArrowUp') { ev.preventDefault(); move(-1); }
     else if (ev.key >= '0' && ev.key <= '9') { setScore(Number(ev.key) / 10); }
