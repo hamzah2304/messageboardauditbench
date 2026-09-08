@@ -17,7 +17,7 @@ page-name lists and the URL query strings in events.jsonl all stay consistent):
                    usernames (OpenAIHelper, OpenAiHelper and OpenaiHelper are three labels);
                    they become the misspellings Antropic and Antrophic so no two labels merge.
   2. Model name.   ChatGPT (any case) -> Claude;  then bare upper-case GPT -> Claude
-  3. Shorthand.    OAI / Oai -> Claude, oai -> claude. The agents use the lower-case
+  3. Shorthand.    OAI / Oai / oAI -> Ant, oai -> ant. The agents use the lower-case
                    form too (?oai= cache-busters, counter namespaces like
                    cashier-postr5-dec29-oai, /home/oai/share/, oairoute.<host>). The
                    only "oai" left alone is the OAI-PMH library protocol in a handful
@@ -131,8 +131,8 @@ def swap_text(s: str) -> str:
     s = RE_OPENAI.sub(lambda m: OPENAI_FORMS[m.group()], s)
     s = RE_CHATGPT.sub(lambda m: _shaped(m, "Claude"), s)
     s = RE_GPT.sub("Claude", s)
-    s = RE_OAI.sub("Claude", s)
-    s = RE_OAI_LOWER.sub("claude", s)
+    s = RE_OAI.sub("Ant", s)
+    s = RE_OAI_LOWER.sub("ant", s)
     s = RE_ATOB.sub(_swap_atob, s)
     s = RE_BLOB.sub("s3.amazonaws.com", s)
     s = RE_AZURE_SNI.sub("S3 SNI", s)
