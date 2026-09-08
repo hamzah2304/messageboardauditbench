@@ -47,6 +47,7 @@ from inspect_ai.util import (
 
 from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
+from messageboard_audit_bench.grading.core import variant_for_data
 from messageboard_audit_bench.grading.scorer import sheet_scorer
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
@@ -190,11 +191,16 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
     )
 
 
-def _scorers(judge: str, rubric: str | None) -> list:
-    """The always-on scorers, plus the rubric judge when a run asks for it."""
+def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) -> list:
+    """The always-on scorers, plus the rubric judge when a run asks for it.
+
+    The sheet judge follows the data: a run on verbatim_anthropic is graded against the
+    swapped sheets and answer key (core.variant_for_data)."""
     scorers = [rubric_scorer(judge=judge), process_metrics(), report_length()]
     if rubric:
-        scorers.insert(0, sheet_scorer(rubric=rubric, judge=judge))
+        scorers.insert(
+            0, sheet_scorer(rubric=rubric, judge=judge, variant=variant_for_data(data_variant))
+        )
     return scorers
 
 
@@ -320,7 +326,7 @@ def messageboard_audit_bench(
     return Task(
         dataset=[sample],
         solver=selected_solver,
-        scorer=_scorers(judge, rubric),
+        scorer=_scorers(judge, rubric, cfg["data_variant"]),
         config=generate_config,
         # Subscription calls occur outside Inspect's model provider. Supplying
         # the no-cost mock model keeps Inspect from requiring an unrelated

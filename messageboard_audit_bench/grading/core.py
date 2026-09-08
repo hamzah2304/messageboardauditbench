@@ -86,21 +86,43 @@ def rubric_ids(mode: str) -> list[str]:
     return [f"{spec.prefix}{i}" for i in range(1, spec.n_sheets + 1)]
 
 
-def _rubrics_dir() -> Path:
-    return repo_root() / "benchmark" / "rubrics"
+# Rubric variants. A data variant that rewrites who the agents are (verbatim_anthropic,
+# built by scripts/swap_provider.py) needs sheets and an answer key rewritten the same
+# way, or the judge marks "Anthropic agents on AWS" as contradicting "OpenAI agents on
+# Azure". benchmark/rubrics/build_rubrics_anthropic.py builds those files; this table says
+# which data variant reads which.
+VARIANT_FOR_DATA: dict[str, str] = {"verbatim_anthropic": "anthropic"}
+VARIANTS = (None, "anthropic")
 
 
-def human_report() -> str:
-    return (repo_root() / "benchmark" / "human_report.txt").read_text()
+def variant_for_data(data_variant: str | None) -> str | None:
+    return VARIANT_FOR_DATA.get(data_variant or "")
 
 
-def load_sheets(mode: str) -> tuple[list[dict], dict[str, str]]:
+def _check_variant(variant: str | None) -> None:
+    if variant not in VARIANTS:
+        raise ValueError(f"unknown rubric variant {variant!r}; expected one of {VARIANTS}")
+
+
+def _rubrics_dir(variant: str | None = None) -> Path:
+    _check_variant(variant)
+    d = repo_root() / "benchmark" / "rubrics"
+    return d / variant if variant else d
+
+
+def human_report(variant: str | None = None) -> str:
+    _check_variant(variant)
+    name = f"human_report_{variant}.txt" if variant else "human_report.txt"
+    return (repo_root() / "benchmark" / name).read_text()
+
+
+def load_sheets(mode: str, variant: str | None = None) -> tuple[list[dict], dict[str, str]]:
     """(claim sets, rubric_id -> prompt template) for one mode.
 
     The .md is the whole prompt, with {{HUMAN_REPORT}} and {{MODEL_REPORT}} placeholders;
     the .json is the machine-readable claim set the aggregation reads grading_mode from.
     """
-    spec, d = MODES[mode], _rubrics_dir()
+    spec, d = MODES[mode], _rubrics_dir(variant)
     sets = [
         json.loads((d / f"{spec.sheet_set}_{i}.json").read_text())
         for i in range(1, spec.n_sheets + 1)
@@ -124,7 +146,11 @@ def extract_tldr(report_md: str) -> tuple[str, str]:
 
 
 def build_prompt(
-    mode: str, rubric_id: str, report_md: str, templates: dict[str, str] | None = None
+    mode: str,
+    rubric_id: str,
+    report_md: str,
+    templates: dict[str, str] | None = None,
+    variant: str | None = None,
 ) -> tuple[str, str, str]:
     """(system, prefix, suffix) for one sheet.
 
@@ -134,10 +160,10 @@ def build_prompt(
     single-message prompt the OpenAI path sends.
     """
     if templates is None:
-        _, templates = load_sheets(mode)
+        _, templates = load_sheets(mode, variant)
     if MODES[mode].tldr_only:
         report_md, _how = extract_tldr(report_md)
-    filled = templates[rubric_id].replace("{{HUMAN_REPORT}}", human_report())
+    filled = templates[rubric_id].replace("{{HUMAN_REPORT}}", human_report(variant))
     prefix, sep, tail = filled.partition("{{MODEL_REPORT}}")
     if not sep:
         raise ValueError(f"{mode}/{rubric_id}: sheet has no {{{{MODEL_REPORT}}}} placeholder")
@@ -243,15 +269,20 @@ def aggregate(
     return out
 
 
-def out_dir(judge: str, mode: str) -> Path:
+def out_dir(judge: str, mode: str, variant: str | None = None) -> Path:
     """Where a judge's grades for one rubric are filed.
 
     The default judge keeps writing to benchmark/graded/ (where every committed grade
-    lives); any other judge gets its own namespace so the two never collide.
+    lives); any other judge gets its own namespace so the two never collide. A rubric
+    variant gets a further subdirectory, so grades against the swapped answer key never
+    sit next to grades against the real one.
     """
+    _check_variant(variant)
     graded = repo_root() / "benchmark" / "graded"
     name = judge_name(judge)
     path = graded if name == DEFAULT_JUDGE else graded / f"judge_{sanitise(name)}"
     if mode != "recall":
         path = path / mode
+    if variant:
+        path = path / f"variant_{variant}"
     return path

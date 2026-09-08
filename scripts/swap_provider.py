@@ -139,6 +139,55 @@ def swap_text(s: str) -> str:
     return s
 
 
+# --- Prose (human report, grading sheets). The data rules above, plus the things a human
+#     writes about the maker that never occur in the dump: the cloud provider by name, the
+#     fetch-tool user agent, product names, the legal entity. Azure and AWS are mirrored
+#     (Azure -> AWS, AWS -> Azure), matching the ip16 remap, which sends the Azure blocks to
+#     AWS ranges and leaves the dump's few real AWS prefixes where they were. "Azure B2C" is
+#     the victim's signup system and stays, as it does in the data.
+PROSE_FIRST = [  # applied before the data rules, longest and most specific first
+    (re.compile(r"Azure B2C"), "\x00B2C\x00"),
+    (re.compile(r"Microsoft Azure IP addresses"), "Amazon Web Services IP addresses"),
+    (re.compile(r"Microsoft Azure"), "Amazon Web Services"),
+    (re.compile(r"Azure Blob Storage hostnames?"), "Amazon S3 hostnames"),
+    (re.compile(r"Azure Blob Storage"), "Amazon S3"),
+    (re.compile(r"\bAWS\b"), "\x00AZ\x00"),
+    (re.compile(r"\bAzure\b"), "AWS"),
+    (re.compile(r"\bazure\b"), "aws"),
+    (re.compile(r"\x00AZ\x00"), "Azure"),
+    (re.compile(r"\x00B2C\x00"), "Azure B2C"),
+    (re.compile(r"OpenAI OpCo, LLC"), "Anthropic, PBC"),
+    (re.compile(r"Codex cloud VMs through the Codex app"), "Claude Code cloud sandboxes through the Claude app"),
+    (re.compile(r"Codex VMs"), "Claude Code sandboxes"),
+    (re.compile(r"\bCodex\b"), "Claude Code"),
+    (re.compile(r"GPT-6 Astra"), "Claude Fable 5.1"),
+    (re.compile(r"GPT-5\.6"), "Claude Opus 5"),
+]
+RE_IP16_TOKEN = re.compile(r"\b(\d{1,3})\.(\d{1,3}|x)\b(?!\.\d)")
+
+
+def swap_prose(s: str, ip_map: dict[str, str] | None = None) -> str:
+    """The data substitutions plus the prose-only ones, for the human report and the
+    grading sheets. `ip_map` (from build_ip_map) also rewrites bare /16 mentions such as
+    "20.245" or "20.x"; full IPv4 addresses (the Power BI target) are left alone."""
+    for rx, rep in PROSE_FIRST:
+        s = rx.sub(rep, s)
+    s = swap_text(s)
+    if ip_map:
+        by_octet = {}
+        for src, dst in ip_map.items():
+            by_octet.setdefault(src.split(".")[0], dst.split(".")[0])
+
+        def _ip(m: re.Match) -> str:
+            first, second = m.group(1), m.group(2)
+            if second == "x":
+                return f"{by_octet[first]}.x" if first in by_octet else m.group()
+            return ip_map.get(f"{first}.{second}", m.group())
+
+        s = RE_IP16_TOKEN.sub(_ip, s)
+    return s
+
+
 def build_ip_map(rows_by_file: dict[str, list[dict]]) -> dict[str, str]:
     """Assign each Azure /16 in the input to an AWS /16 from its octet's pool, in sorted order."""
     present = set()

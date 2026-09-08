@@ -65,11 +65,16 @@ def _messages(system: str, prefix: str, suffix: str) -> list[Any]:
 
 
 async def grade_sheet(
-    model: Model, mode: str, rubric_id: str, report_md: str, templates: dict[str, str]
+    model: Model,
+    mode: str,
+    rubric_id: str,
+    report_md: str,
+    templates: dict[str, str],
+    variant: str | None = None,
 ) -> tuple[dict[str, dict], str]:
     """One sheet. Returns (claims, effort actually used); raises only if nothing parses."""
     spec = core.MODES[mode]
-    system, prefix, suffix = core.build_prompt(mode, rubric_id, report_md, templates)
+    system, prefix, suffix = core.build_prompt(mode, rubric_id, report_md, templates, variant)
     last: Exception | None = None
     for effort in EFFORTS:
         try:
@@ -96,17 +101,21 @@ async def grade_sheet(
 
 
 @scorer(metrics=[mean(), stderr()])
-def sheet_scorer(rubric: str = "v2", judge: str | Model | None = None) -> Scorer:
+def sheet_scorer(
+    rubric: str = "v2", judge: str | Model | None = None, variant: str | None = None
+) -> Scorer:
     """Grade the report against every sheet of `rubric`.
 
     Args:
       rubric: a key of `core.MODES` — "v2" and "tldrh" are the supported ones.
       judge: the grading model. Resolved at scoring time through the `grader` model role,
         so `--model-role grader=openai/gpt-5.6-sol` works as it does for the other scorers.
+      variant: a rubric variant (`core.VARIANTS`); the task derives it from the data
+        variant, so a verbatim_anthropic run is judged against the swapped answer key.
     """
     if rubric not in core.MODES:
         raise ValueError(f"unknown rubric {rubric!r}; expected one of {sorted(core.MODES)}")
-    sets, templates = core.load_sheets(rubric)
+    sets, templates = core.load_sheets(rubric, variant)
 
     async def score(state: TaskState, target: Target) -> Score:
         model = get_model(judge, role="grader")
@@ -120,7 +129,9 @@ def sheet_scorer(rubric: str = "v2", judge: str | Model | None = None) -> Scorer
         for spec in sets:
             rubric_id = spec["rubric_id"]
             try:
-                items, effort = await grade_sheet(model, rubric, rubric_id, report_md, templates)
+                items, effort = await grade_sheet(
+                    model, rubric, rubric_id, report_md, templates, variant
+                )
             except Exception as exc:  # noqa: BLE001 — recorded, not raised: other sheets stand
                 failures[rubric_id] = f"{type(exc).__name__}: {exc}"[:300]
                 continue
@@ -151,7 +162,7 @@ def sheet_scorer(rubric: str = "v2", judge: str | Model | None = None) -> Scorer
                 f"{len(per_rubric)}/{len(sets)} sheets graded by {model}"
                 + (f"; failed: {', '.join(failures)}" if failures else "")
             ),
-            metadata={"grade": out, "failures": failures},
+            metadata={"grade": out, "failures": failures, "variant": variant},
         )
 
     return score

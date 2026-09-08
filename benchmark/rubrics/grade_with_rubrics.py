@@ -38,6 +38,14 @@ MODE = {"contra": "contradiction", "v2": "v2", "recall": "recall",
         "tldr": "tldr", "tldrh": "tldrh"}[_R]
 SPEC = core.MODES[MODE]
 LO, HI = SPEC.lo, SPEC.hi
+# --variant anthropic (or RUBRIC_VARIANT=anthropic): grade reports written against the
+# verbatim_anthropic data with the swapped sheets and answer key (see
+# build_rubrics_anthropic.py). Grades land under a variant_<name>/ subdirectory.
+def _variant_arg():
+    if "--variant" in sys.argv:
+        return sys.argv[sys.argv.index("--variant") + 1]
+    return os.getenv("RUBRIC_VARIANT") or None
+VARIANT = _variant_arg()
 
 DEFAULT_MODEL = core.DEFAULT_JUDGE
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
@@ -48,7 +56,7 @@ IS_ANTHROPIC = MODEL.startswith("claude")
 
 _san = core.sanitise
 
-OUT_DIR = core.out_dir(MODEL, MODE)
+OUT_DIR = core.out_dir(MODEL, MODE, VARIANT)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 if IS_ANTHROPIC:
@@ -68,7 +76,7 @@ REPORTS = {
 # Each sheet's .md is the full, copy-ready grading prompt with {{HUMAN_REPORT}} /
 # {{MODEL_REPORT}} placeholders (score 0-1 per claim, one decimal); the .json is the
 # machine-readable claim set.
-RUBRIC_SETS, RUBRIC_MD = core.load_sheets(MODE)
+RUBRIC_SETS, RUBRIC_MD = core.load_sheets(MODE, VARIANT)
 SYS = core.SYSTEM
 
 def sol(system, user, max_tok=16000):
@@ -113,7 +121,7 @@ def grade_one(report_md, rub):
     cache breakpoint; the OpenAI path concatenates them into one message. Either way the
     bytes are the same, which is what tests/test_grading_prompt_parity.py pins down.
     """
-    system, prefix, suffix = core.build_prompt(MODE, rub["rubric_id"], report_md, RUBRIC_MD)
+    system, prefix, suffix = core.build_prompt(MODE, rub["rubric_id"], report_md, RUBRIC_MD, VARIANT)
     if IS_ANTHROPIC:
         raw, eff = claude(system, prefix, suffix)
         data = _extract_json(raw)
@@ -157,13 +165,15 @@ def resolve_reports(args):
 
 def main():
     args = [a for a in sys.argv[1:] if a not in ("--force", "--contra", "--v2", "--tldrh")]
+    if "--variant" in args:
+        i = args.index("--variant"); del args[i:i + 2]
     reports = resolve_reports(args)
     if "--force" not in sys.argv[1:]:  # skip reports already graded (fill gaps only)
         reports = [r for r in reports if not (OUT_DIR / f"graded_{r[0]}.json").exists()]
     if not reports:
         print("nothing to do (all graded; pass --force to regrade)"); return
     tasks = [(key, path, title, rub) for (key, path, title) in reports for rub in RUBRIC_SETS]
-    print(f"model={MODEL}  rubric={MODE}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
+    print(f"model={MODEL}  rubric={MODE}  variant={VARIANT}  grading {len(reports)} reports x {len(RUBRIC_SETS)} rubrics = {len(tasks)} calls "
           f"(bounded pool of {WORKERS}) -> {OUT_DIR}", flush=True)
     acc = {key: {"title": title, "path": path, "per_claim": {}, "per_rubric": {}}
            for (key, path, title) in reports}
