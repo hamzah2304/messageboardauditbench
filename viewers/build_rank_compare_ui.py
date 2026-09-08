@@ -247,6 +247,14 @@ function fig0() {
         placed.push({y: Y(pt.mean), dx});
         const c = s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 2.6, fill: SIDE[k],
           opacity: .75});
+        /* Sol is the one model with a directional effect across the two settings, so it
+           is named rather than left to a hover */
+        if (pt.model === 'GPT-5.6 Sol') {
+          svg.append(s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 4.6, fill: 'none',
+            stroke: SIDE[k], 'stroke-width': 1.2}));
+          const lb = s('text', {x: mx + dx + 9, y: Y(pt.mean) + 3.5, class: 'lab'});
+          lb.textContent = '5.6 Sol'; svg.append(lb);
+        }
         c.append(s('title'));
         c.lastChild.textContent = `${pt.model}: ${pt.mean.toFixed(2)} over ${pt.n} run${pt.n > 1 ? 's' : ''}`;
         svg.append(c);

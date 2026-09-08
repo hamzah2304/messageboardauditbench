@@ -84,7 +84,11 @@ HEAD = r"""<!doctype html>
 
 def shell(title: str, body: str) -> str:
     """The full page: head, styles, body, and the data/script tail the caller fills."""
-    return (HEAD.replace("__TITLE__", title)
+    # data-theme="light" rather than leaving it to prefers-color-scheme: these figures are
+    # built to be read and screenshotted for a post, and a reader's OS setting should not
+    # decide what the published figure looks like.
+    return (HEAD.replace("__TITLE__", title).replace("<html lang=\"en\">",
+                                                     "<html lang=\"en\" data-theme=\"light\">")
             + "<style>" + CSS + "</style></head><body>\n"
             + body
             + '\n<div id="tip"></div>\n'

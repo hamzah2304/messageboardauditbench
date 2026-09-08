@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Ranks on both corpora</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>:root{--ground:#F6F6F2;--surface:#FFFFFF;--ink:#17181A;--ink2:#5F636A;--ink3:#8E939B;--line:#DEDFD9;--grid:#ECECE7;
@@ -159,6 +159,14 @@ function fig0() {
         placed.push({y: Y(pt.mean), dx});
         const c = s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 2.6, fill: SIDE[k],
           opacity: .75});
+        /* Sol is the one model with a directional effect across the two settings, so it
+           is named rather than left to a hover */
+        if (pt.model === 'GPT-5.6 Sol') {
+          svg.append(s('circle', {cx: mx + dx, cy: Y(pt.mean), r: 4.6, fill: 'none',
+            stroke: SIDE[k], 'stroke-width': 1.2}));
+          const lb = s('text', {x: mx + dx + 9, y: Y(pt.mean) + 3.5, class: 'lab'});
+          lb.textContent = '5.6 Sol'; svg.append(lb);
+        }
         c.append(s('title'));
         c.lastChild.textContent = `${pt.model}: ${pt.mean.toFixed(2)} over ${pt.n} run${pt.n > 1 ? 's' : ''}`;
         svg.append(c);
