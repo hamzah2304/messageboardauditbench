@@ -98,6 +98,18 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
         }
         meta["model_served"] = fallbacks[-1].get("fallback_model")
 
+    # The id needed to resume this conversation later: Claude Code's session_id
+    # (init event) or Codex's thread_id. ReAct has none; its history is transcript.jsonl.
+    for event in events:
+        session_id = (
+            event.get("session_id")
+            if event.get("type") == "system" and event.get("subtype") == "init"
+            else event.get("thread_id")
+        )
+        if session_id:
+            meta["session_id"] = session_id
+            break
+
     if _terminal_refusal(events):
         meta["model_refusal"] = {"events": 1, "terminal": True}
         returncode = 5

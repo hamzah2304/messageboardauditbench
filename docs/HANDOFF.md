@@ -178,9 +178,10 @@ Components:
   `*.oaiusercontent.com` and `developers.openai.com` (MCP); refusing them is
   harmless. Every CONNECT is logged with host and verdict.
 - **CLI flags.** Claude: `-p --model X --effort medium --dangerously-skip-permissions
-  --no-chrome --no-session-persistence --setting-sources user --output-format
+  --no-chrome --setting-sources user --output-format
   stream-json --verbose --disallowedTools WebFetch,WebSearch,Task` (check the
-  exact flag name on the installed version). Codex: `exec --model X -c
+  exact flag name on the installed version; session persistence stays on so the
+  session file can be copied to `<run>/claude_sessions/` and resumed later). Codex: `exec --model X -c
   model_reasoning_effort="medium" --dangerously-bypass-approvals-and-sandbox
   --skip-git-repo-check --ignore-rules --json -o final_message.md`, with a
   minimal config.toml (no MCP, web search off) and `< /dev/null` on stdin.

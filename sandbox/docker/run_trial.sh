@@ -68,15 +68,20 @@ CODE_SNAPSHOT_SHA256="$(shasum -a 256 "$RUN/code_snapshot.tar.gz" | cut -c1-64)"
 # This survives credential, canary, or image-launch failures that occur before
 # the complete metadata document can be rendered below.
 printf '{"run_id":"%s","launch_status":"preparing"}\n' "$RUN_ID" > "$RUN/meta.json"
+# Keep each CLI's own session store so a finished run can be continued later with the exact conversation it had
+# (`claude -p --resume <session_id>` / `codex exec resume <thread_id>`; ReAct rebuilds its messages from transcript.jsonl).
+# Codex's rollout is also the only place with per-API-call usage and the encrypted reasoning items. Neither store holds credentials.
+save_sessions() {
+  [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
+  [ -d "$SECRETS/claude/projects" ] && [ ! -d "$RUN/claude_sessions" ] && cp -R "$SECRETS/claude/projects" "$RUN/claude_sessions" 2>/dev/null || true
+}
 cleanup() {
   docker rm -f "mbab-agent-$RUN_ID" >/dev/null 2>&1 || true
   [ ! -f "$RUN/tool-telemetry/events.jsonl" ] || cp "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
   docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true
   docker rm -f "$PROXY" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
-  # Codex's session rollout is the only place with per-API-call usage and the
-  # reasoning items. It contains no credentials and is retained for auditing.
-  [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
+  save_sessions
   rm -rf "$SECRETS"
   AUDIT_PYTHON="${AUDIT_PYTHON:-$ROOT/.venv/bin/python}"
   [ -x "$AUDIT_PYTHON" ] || AUDIT_PYTHON="$(command -v python3)"
@@ -228,7 +233,7 @@ case "$AGENT" in
     record_runner_event cli_started
     docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
-      --dangerously-skip-permissions --no-chrome --no-session-persistence --setting-sources user \
+      --dangerously-skip-permissions --no-chrome --setting-sources user \
       ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
       --output-format stream-json --verbose --include-partial-messages \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?; record_runner_event cli_finished 1 "$RC" ;;
@@ -288,8 +293,8 @@ jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
    --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
    '. + {early_stop_attempts: $early_stop_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
    "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
-# Codex rollout must be in place before usage is summarized (cleanup would otherwise copy it only at exit).
-[ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
+# Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
+save_sessions
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
 PYTHONPATH="$ROOT" python3 "$ROOT/messageboard_audit_bench/usage.py" "$RUN" --quiet || { echo "usage summary failed" >&2; if [ "$RC" -eq 0 ]; then RC=6; fi; }
 set +e
