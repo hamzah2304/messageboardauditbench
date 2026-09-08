@@ -318,49 +318,61 @@ function fig2() {
 /* ---------- Figure 3: average delta per model ---------- */
 function fig3() {
   const rows = D.model_delta;
-  const W = 1080, H = 330, L = 150, R = 120, T = 16, B = 46;
-  const IW = W - L - R, IH = H - T - B, bandH = IH / rows.length;
+  const W = 1080, H = 400, L = 62, R = 20, T = 26, B = 76;
+  const IW = W - L - R, IH = H - T - B, band = IW / rows.length;
   const lo = Math.min(0, ...rows.map(r => r.lo == null ? r.delta : r.lo)) - 0.005;
-  const hi = Math.max(...rows.map(r => r.hi == null ? r.delta : r.hi)) + 0.005;
-  const X = v => L + (v - lo) / (hi - lo) * IW;
+  const hi = Math.max(...rows.map(r => r.hi == null ? r.delta : r.hi)) + 0.008;
+  const Y = v => T + IH - (v - lo) / (hi - lo) * IH;
   const svg = s('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
     'aria-label': 'average change in recall per model'});
   for (let v = Math.ceil(lo / 0.02) * 0.02; v <= hi + 1e-9; v += 0.02) {
-    svg.append(s('line', {x1: X(v), x2: X(v), y1: T, y2: T + IH, class: 'gl'}));
-    const t = s('text', {x: X(v), y: T + IH + 17, class: 'tick', 'text-anchor': 'middle'});
+    svg.append(s('line', {x1: L, x2: L + IW, y1: Y(v), y2: Y(v), class: 'gl'}));
+    const t = s('text', {x: L - 8, y: Y(v) + 3.5, class: 'tick', 'text-anchor': 'end'});
     t.textContent = (v > 0 ? '+' : '') + v.toFixed(2); svg.append(t);
   }
-  svg.append(s('line', {x1: X(0), x2: X(0), y1: T, y2: T + IH, stroke: 'var(--sec)',
-    'stroke-width': 1, opacity: .5}));
+  svg.append(s('line', {x1: L, x2: L + IW, y1: Y(0), y2: Y(0),
+    stroke: 'var(--sec)', 'stroke-width': 1, opacity: .5}));
+  const ay = s('text', {x: 15, y: T + IH / 2, class: 'axname', 'text-anchor': 'middle',
+    transform: `rotate(-90 15 ${T + IH / 2})`});
+  ay.textContent = 'mean change in strict recall'; svg.append(ay);
+
   rows.forEach((r, i) => {
-    const y = T + i * bandH, h = Math.min(bandH - 8, 22);
-    const cy = y + bandH / 2;
-    const x0 = X(Math.min(0, r.delta)), w = Math.abs(X(r.delta) - X(0));
-    svg.append(s('rect', {x: x0, y: cy - h / 2, width: Math.max(w, 0.5), height: h,
-      fill: col(r.model), 'fill-opacity': .85, rx: 3}));
+    const cx = L + band * (i + 0.5), bw = Math.min(band - 22, 52);
+    const top = Y(Math.max(r.delta, 0)), bot = Y(Math.min(r.delta, 0));
+    /* a 4px rounded end sits at the value; the bar is anchored to the zero line */
+    svg.append(s('rect', {x: cx - bw / 2, y: top, width: bw, height: Math.max(bot - top, 1),
+      fill: col(r.model), 'fill-opacity': .85, rx: 4}));
     if (r.lo != null) {   /* 95% percentile interval over that model's own runs */
-      svg.append(s('line', {x1: X(r.lo), x2: X(r.hi), y1: cy, y2: cy,
+      svg.append(s('line', {x1: cx, x2: cx, y1: Y(r.lo), y2: Y(r.hi),
         stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55}));
-      [r.lo, r.hi].forEach(v => svg.append(s('line', {x1: X(v), x2: X(v),
-        y1: cy - 4, y2: cy + 4, stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55})));
+      [r.lo, r.hi].forEach(v => svg.append(s('line', {x1: cx - 5, x2: cx + 5, y1: Y(v), y2: Y(v),
+        stroke: 'var(--ink)', 'stroke-width': 1.2, opacity: .55})));
     }
-    const nm = s('text', {x: L - 10, y: cy + 4, class: 'mlab', 'text-anchor': 'end'});
-    nm.textContent = r.model; svg.append(nm);
-    const lab = s('text', {x: X(Math.max(r.delta, r.hi == null ? r.delta : r.hi)) + 8,
-      y: cy + 4, class: 'mlab'});
-    lab.textContent = `${r.delta >= 0 ? '+' : ''}${r.delta.toFixed(3)}  ·  ${r.up}/${r.n} up`;
-    svg.append(lab);
+    /* the value sits on the bar, not on top of the whisker: Kimi's interval is ten times
+       its bar, and a label floating at the whisker's end reads as a tall bar */
+    const val = s('text', {x: cx, y: Y(Math.max(r.delta, 0)) - 7, class: 'mlab',
+      'text-anchor': 'middle', stroke: 'var(--card)', 'stroke-width': 3,
+      'paint-order': 'stroke', 'stroke-linejoin': 'round'});
+    val.textContent = (r.delta >= 0 ? '+' : '') + r.delta.toFixed(3); svg.append(val);
+    /* model names are long for eight bands, so they wrap rather than tilt */
+    const parts = r.model.split(' ');
+    const lines = parts.length > 2 ? [parts.slice(0, -1).join(' '), parts[parts.length - 1]] : [r.model];
+    lines.forEach((ln, k) => {
+      const t = s('text', {x: cx, y: T + IH + 18 + k * 12, class: 'mlab', 'text-anchor': 'middle'});
+      t.textContent = ln; svg.append(t);
+    });
+    const n = s('text', {x: cx, y: T + IH + 18 + lines.length * 12 + 2, class: 'tick',
+      'text-anchor': 'middle'});
+    n.textContent = `${r.up}/${r.n} up`; svg.append(n);
   });
-  const ax = s('text', {x: L + IW / 2, y: H - 6, class: 'axname', 'text-anchor': 'middle'});
-  ax.textContent = 'mean change in strict recall, long report minus short'; svg.append(ax);
   document.getElementById('fig3').replaceChildren(svg);
   document.getElementById('cap3').textContent =
     `One bar per model: the mean of (long - short) over that model's own matched pairs, so each `
     + `model is its own control. Whiskers are a 95% percentile interval bootstrapped over those `
-    + `pairs — wide, because no model has more than ${Math.max(...rows.map(r => r.n))} of them. `
+    + `pairs - wide, because no model has more than ${Math.max(...rows.map(r => r.n))} of them. `
     + `Seven of the eight intervals exclude zero, but only Astra's sits clear of the rest; the `
     + `others are a cluster around +0.02 that these sample sizes cannot separate. Kimi K3's `
-    + `spans zero — six pairs, one of which swings hard.`;
+    + `spans zero - six pairs, one of which swings hard.`;
 }
 
 /* ---------- tables ---------- */
