@@ -53,6 +53,8 @@ class ModeSpec:
     prefix: str         # rubric_id prefix: R1..R6, V1..V8, TLDR, TLDRH
     numbered: bool      # False when the single sheet's rubric_id carries no number
     tldr_only: bool     # the summary alone is what this rubric judges
+    directory: str | None = None  # optional subdirectory under benchmark/rubrics
+    answer_key: str = "human_report.txt"  # relative to benchmark/
 
 
 MODES: dict[str, ModeSpec] = {
@@ -64,6 +66,14 @@ MODES: dict[str, ModeSpec] = {
     # a one-question probe over the whole report; no answer key, so build_prompt tolerates
     # a sheet with no {{HUMAN_REPORT}} placeholder
     "origin": ModeSpec("origin", "origin", 1, 0.0, 1.0, "ORIGIN", False, False),
+    "m5": ModeSpec(
+        "m5", "m5", 3, 0.0, 1.0, "M", True, False,
+        directory="mythos5", answer_key="rubrics/mythos5/mythos5_report.txt",
+    ),
+    "m5tldrh": ModeSpec(
+        "m5tldrh", "m5tldrh", 1, 0.0, 1.0, "M5TLDRH", False, True,
+        directory="mythos5", answer_key="rubrics/mythos5/mythos5_report.txt",
+    ),
 }
 
 
@@ -115,15 +125,22 @@ def _check_variant(variant: str | None) -> None:
         raise ValueError(f"unknown rubric variant {variant!r}; expected one of {VARIANTS}")
 
 
-def _rubrics_dir(variant: str | None = None) -> Path:
+def _rubrics_dir(variant: str | None = None, mode: str | None = None) -> Path:
     _check_variant(variant)
     d = repo_root() / "benchmark" / "rubrics"
-    return d / variant if variant else d
+    d = d / variant if variant else d
+    directory = MODES[mode].directory if mode else None
+    return d / directory if directory else d
 
 
-def human_report(variant: str | None = None) -> str:
+def human_report(variant: str | None = None, mode: str | None = None) -> str:
     _check_variant(variant)
-    name = f"human_report_{variant}.txt" if variant else "human_report.txt"
+    if mode and MODES[mode].answer_key != "human_report.txt":
+        if variant:
+            raise ValueError(f"rubric {mode!r} has no {variant!r} provider variant")
+        name = MODES[mode].answer_key
+    else:
+        name = f"human_report_{variant}.txt" if variant else "human_report.txt"
     return (repo_root() / "benchmark" / name).read_text()
 
 
@@ -133,7 +150,7 @@ def load_sheets(mode: str, variant: str | None = None) -> tuple[list[dict], dict
     The .md is the whole prompt, with {{HUMAN_REPORT}} and {{MODEL_REPORT}} placeholders;
     the .json is the machine-readable claim set the aggregation reads grading_mode from.
     """
-    spec, d = MODES[mode], _rubrics_dir(variant)
+    spec, d = MODES[mode], _rubrics_dir(variant, mode)
     sets = [
         json.loads((d / f"{spec.sheet_set}_{i}.json").read_text())
         for i in range(1, spec.n_sheets + 1)
@@ -174,7 +191,9 @@ def build_prompt(
         _, templates = load_sheets(mode, variant)
     if MODES[mode].tldr_only:
         report_md, _how = extract_tldr(report_md)
-    filled = templates[rubric_id].replace("{{HUMAN_REPORT}}", human_report(variant))
+    filled = templates[rubric_id].replace(
+        "{{HUMAN_REPORT}}", human_report(variant, mode)
+    )
     prefix, sep, tail = filled.partition("{{MODEL_REPORT}}")
     if not sep:
         raise ValueError(f"{mode}/{rubric_id}: sheet has no {{{{MODEL_REPORT}}}} placeholder")
@@ -267,7 +286,7 @@ def aggregate(
     out["accuracy"] = round(total / count, 3) if count else 0
     # tldrh returns one item keyed TLDRH, not per-claim ids, so there is nothing to split
     # by grading mode; emitting the split would put two zeroes where a reader expects scores.
-    if mode != "tldrh":
+    if mode not in {"tldrh", "m5tldrh"}:
         if sets is None:
             sets, _ = load_sheets(mode, variant)
         grading_mode = {

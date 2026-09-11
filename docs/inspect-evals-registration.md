@@ -23,7 +23,7 @@ are covered:
 
 - `pyproject.toml` provides PEP 517 packaging and declares `inspect_ai`.
 - The package has an `inspect_ai` entry point and exports the `@task` functions.
-- The task has a stable sample ID, version `7-A`, and run metadata.
+- The task has a stable sample ID, version `8-A`, and run metadata.
 - The source archive and generated variants are checked against committed
   SHA-256 digests, so upstream drift fails loudly.
 - Unit tests cover task construction, native trajectory collection, transcript

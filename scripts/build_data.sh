@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Rebuild every data variant from the public download, deterministically.
 #
-#   scripts/build_data.sh            # fetch (if missing) -> raw_stripped -> verbatim -> verbatim_anthropic, then verify
+#   scripts/build_data.sh            # build the wiki variants and Mythos 5 transcript, then verify
 #   scripts/build_data.sh --verify   # only check existing outputs against data/SHA256SUMS.variants
 #
 # Outputs: data/raw (download, checksums verified by fetch_data.sh),
 #          data/raw_stripped (analysis fields removed; the primary benchmark input),
 #          data/verbatim (raw_stripped plus what the report prints verbatim; see docs/verbatim-data.md),
 #          data/verbatim_anthropic (verbatim with the maker re-attributed to Anthropic; see scripts/swap_provider.py).
+#          data/mythos5 (the released transcript with its editorial metadata row removed).
 # data/SHA256SUMS.variants is committed; a rebuild must reproduce it exactly.
 set -euo pipefail
 # sha256sum is GNU-only; macOS ships `shasum -a 256`.
@@ -20,6 +21,7 @@ if [ "${1:-}" != "--verify" ]; then
   python3 scripts/strip_analysis_fields.py data/raw data/raw_stripped
   python3 scripts/fill_verbatim.py data/raw_stripped data/verbatim benchmark/human_report.txt
   python3 scripts/swap_provider.py data/verbatim data/verbatim_anthropic
+  python3 scripts/build_mythos5_data.py
 fi
 
 if [ -f "$SUMS" ]; then

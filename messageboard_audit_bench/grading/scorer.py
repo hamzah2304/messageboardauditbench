@@ -107,7 +107,8 @@ def sheet_scorer(
     """Grade the report against every sheet of `rubric`.
 
     Args:
-      rubric: a key of `core.MODES` — "v2" and "tldrh" are the supported ones.
+      rubric: a key of `core.MODES`, including the wiki's "v2"/"tldrh" and
+        Mythos 5's "m5"/"m5tldrh" pairs.
       judge: the grading model. Resolved at scoring time through the `grader` model role,
         so `--model-role grader=openai/gpt-5.6-sol` works as it does for the other scorers.
       variant: a rubric variant (`core.VARIANTS`); the task derives it from the data

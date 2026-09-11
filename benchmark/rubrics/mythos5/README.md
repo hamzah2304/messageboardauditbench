@@ -13,11 +13,12 @@ the general recipe this incident follows is
 
 | file | what it is |
 |---|---|
-| `claims_m5.json` | the 15 scored points, each with a `report_quote` span from the answer key, a scoring `note`, a `derivable` verdict (`yes`/`partial`), and a `transcript_anchor` — the action number(s) that establish it in the released transcript |
-| `mythos5_report.txt` | the answer key: the Mythos 5 sections of the write-up, verbatim, spliced into each sheet at `{{HUMAN_REPORT}}` |
-| `m5_1.md` … `m5_3.md` | the judge sheets the grader reads (5 points each) |
+| `claims_m5.json` | the 13 scored points, each with a `report_quote` span from the answer key, a scoring `note`, a `derivable` verdict (`yes`/`partial`), and a `transcript_anchor` — the action number(s) that establish it in the released transcript |
+| `mythos5_report.txt` | the answer key: the Mythos 5 sections of the write-up, inserted into each sheet at grading time |
+| `m5_1.md` … `m5_3.md` | the judge sheets the grader reads (up to 5 points each) |
 | `m5_1.json` … `m5_3.json` | structured form of each sheet |
 | `m5_all.md` | all three sheets concatenated |
+| `m5tldrh_1.md` / `.json` | holistic score for the report's 200-word summary, limited to the visible transcript |
 
 Rebuild: `python benchmark/rubrics/build_rubrics_m5.py` (reads `claims_m5.json` +
 `mythos5_report.txt`, imports the 0–1 scale from `build_rubrics.py` so it can't
@@ -40,14 +41,22 @@ Only findings **derivable from the released transcript** are here. The transcrip
   transcript;
 - **monitor / classifier results** and **newer-model comparisons** — separate study.
 
-The six `partial` points are derivable in substance but have a specific quantity or
+The five `partial` points are derivable in substance but have a specific quantity or
 moment in a redacted region; each one's `note` tells the grader what NOT to require.
 
-## Not yet wired in
+## Runnable draft
 
-These sheets are standalone. Grading them through the Inspect scorer would need the
-scorer's answer-key loader (`messageboard_audit_bench/grading/core.py`,
-`scorer.py` "wiki edit logs" wording) pointed at a Mythos 5 variant, and a
-build-time fetch-and-pin for `transcript.jsonl`. See the open questions in the
-findings draft before treating any number from these sheets as comparable to the
-wiki cells — contamination and judge independence in particular.
+`scripts/build_data.sh` fetches the pinned source and writes only its 2,064 message
+records to `data/mythos5/transcript.jsonl`; the release's editorial metadata row is
+removed. Run a trial with `-T config=mythos5`; its default graders are `m5` and
+`m5tldrh`. See the open questions in the findings draft before treating any number
+as comparable to the wiki cells — contamination and judge independence in particular.
+
+For separately staged reports, grade with `-T rubric=m5` and
+`-T rubric=m5tldrh`, export both eval logs, then compute the same 70/30 formula:
+
+```bash
+uv run python scripts/score_reports.py \
+  --findings benchmark/graded/judge_<judge>/m5 \
+  --summary benchmark/graded/judge_<judge>/m5tldrh
+```

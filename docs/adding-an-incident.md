@@ -31,9 +31,9 @@ the corpus preparation and the answer key. Concretely:
 | stage | reused as-is | per-incident work |
 |---|---|---|
 | data prep | `scripts/build_data.sh` pattern, checksum discipline | strip *your* corpus of the investigators' analysis |
-| run | Docker sandbox, `blind-v2.txt` prompt, Inspect task | usually nothing — the prompt is generic ("investigate the logs in data/") |
-| grade | 0–1 scale, judge structure, calibration rules | findings, derivability split, grading sheets |
-| score | `score_reports.py`, 70/30 composite | nothing |
+| run | Docker sandbox, `blind-v2.txt` prompt, Inspect task | dataset name, allowed file shape, config |
+| grade | 0–1 scale and judge structure | findings, derivability split, finding sheets, incident-specific TL;DR sheet |
+| score | `score_reports.py`, 70/30 formula | point it at the incident's finding and TL;DR grade directories |
 
 ## Step 1 — Extract the findings and split by derivability
 
@@ -49,8 +49,10 @@ Three buckets:
   scored points *with a note telling the grader what not to require*.
 - **Not derivable** — the evidence isn't in the corpus at all (it rested on data the
   investigators had and the agent doesn't). These do **not** become "you missed it"
-  misses. They become **calibration items**: an agent that says "not determinable"
-  is right; one that asserts them confidently is over-claiming.
+  misses. Keep them as candidates for a separate **calibration rubric**: an agent
+  that says "not determinable" is right; one that asserts them confidently is
+  over-claiming. The current recall sheets do not score this behavior, so implement
+  and validate that rubric before publishing a calibration number.
 
 > **Watch for redactions.** A finding can read as obvious and still be unrecoverable.
 > In the Mythos 5 transcript the opening (the task brief) and the climax (the
@@ -101,19 +103,24 @@ placeholder; keep it scoped to *this* incident so other material can't leak in.
 
 ## Step 4 — Wire it into the harness
 
-The prompt is already incident-agnostic, so most of the harness needs nothing. The
-incident-specific coupling is small, and here is all of it:
+The prompt is already incident-agnostic, but the harness validates data shape and
+selects incident-specific graders. Update all of these:
 
 - **Allowed datasets** — `messageboard_audit_bench/task.py` (the `data_variant not
   in {...}` guard, currently around line 246). Add your variant.
-- **Judge prompt wording** — `messageboard_audit_bench/scorer.py` (`JUDGE_PROMPT`,
-  line 24) hard-codes "investigated wiki edit logs". Generalise or branch it.
-- **Answer-key loader** — `messageboard_audit_bench/grading/core.py`:
-  `human_report()` (line 124) reads `human_report{_variant}.txt`, and
-  `VARIANT_FOR_DATA` (line 97) maps a data variant to its answer-key/rubric variant.
-  Add an entry so your corpus selects your write-up and your sheets.
-- **Corpus fetch** — add a build-time fetch-and-pin for your corpus alongside
-  `scripts/fetch_data.sh`.
+- **Named config and default graders** — add a config and map the incident's data
+  variant to its finding and TL;DR modes. Do not overload `VARIANT_FOR_DATA`;
+  that mapping represents provider-rewritten copies of the same incident.
+- **Data-shape preflight** — `sandbox/isolation_preflight.py` accepts exact supported
+  JSONL file sets. Add the new set so the native sandbox still rejects missing or
+  unexpected files. Generalise any direct launcher path that assumes a particular
+  wiki filename.
+- **Answer-key and sheet loader** — add grading modes whose sheet directory,
+  answer key, sheet count, and rubric IDs point at the new incident.
+- **Holistic summary rubric** — write incident-specific TL;DR anchors. Reusing the
+  wiki `tldrh` sheet would grade the new report against the wrong story.
+- **Corpus build** — add a build-time fetch, pinned source hash, deterministic
+  stripping step, and derived digest alongside `scripts/build_data.sh`.
 
 ## Step 5 — Before you trust a number
 

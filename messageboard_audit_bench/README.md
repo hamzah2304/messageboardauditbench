@@ -83,7 +83,7 @@ limit fires). Provider refusals receive two same-model retries. Terminal
 refusals are recorded from Inspect's normalized stop reason. Claude Code's
 built-in safeguard model switching is not disabled.
 
-`-T config=blind|context` chooses the prompt and its fixed data/effort
+`-T config=blind|context|mythos5` chooses the prompt and its fixed data/effort
 profile; config names never encode time. `-T time_limit_minutes=N` controls
 the stated budget and the scoped Inspect agent limit. An outer task guard gives
 native cleanup five additional minutes; it does not give the agent more time.
@@ -195,9 +195,27 @@ count after every saved report edit, including short and within-range drafts. No
 length check itself does not force expansion of a short report. `report_length` in the
 sandbox reports the current whitespace-based count on demand.
 
+## Mythos 5 transfer incident
+
+`scripts/build_data.sh` also builds a message-only copy of Anthropic's released
+Mythos 5 cyber transcript. The source hash is pinned and its editorial metadata
+row is removed before the agent sees it. Run the candidate transfer cell with:
+
+```
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=mythos5 -T time_limit_minutes=30 \
+  --model openai/gpt-5.6-sol \
+  --model-role grader=openai/gpt-5.6-sol
+```
+
+The default modes become `m5,m5tldrh`: 13 transcript-derivable findings and a
+holistic summary rubric scoped to the visible record. This is a runnable draft,
+not a result comparable to the published wiki cells; contamination and judge
+independence still require validation before reporting a benchmark number.
+
 ## Notes / next steps
 
-- Current tasks default to the existing `v2` and `tldrh` sheet graders.
+- Wiki tasks default to `v2,tldrh`; Mythos 5 defaults to `m5,m5tldrh`.
   `rubric.yaml` is available only through `-T rubric=legacy`.
   See [setup and ablation commands](../docs/getting-started.md).
 - Comparing Claude-in-Claude-Code against GPT-in-Codex is a *system* comparison,

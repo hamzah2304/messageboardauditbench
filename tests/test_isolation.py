@@ -120,6 +120,18 @@ def test_native_preflight_hashes_and_reads_every_data_file(tmp_path, monkeypatch
     assert all(value["records"] == 1 and len(value["sha256"]) == 64 for value in result["files"].values())
 
 
+def test_native_preflight_accepts_exact_transcript_incident_shape(tmp_path, monkeypatch) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "transcript.jsonl").write_text('{"record":"message"}\n')
+    monkeypatch.setattr(preflight, "_network_interfaces", lambda: ["lo"])
+
+    result = preflight.preflight(tmp_path)
+
+    assert result["ok"] is True
+    assert set(result["files"]) == {"transcript.jsonl"}
+
+
 def test_native_preflight_rejects_extra_visible_files_and_network_interfaces(tmp_path, monkeypatch) -> None:
     _write_complete_data(tmp_path)
     (tmp_path / "README.md").write_text("evaluation leak")

@@ -17,7 +17,7 @@ from messageboard_audit_bench.task import messageboard_audit_bench as build_task
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", config="blind")
 
-    assert task.version == EVAL_VERSION == "7-A"
+    assert task.version == EVAL_VERSION == "8-A"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
@@ -230,9 +230,10 @@ def test_config_error_lists_names() -> None:
 def test_all_public_configs_build(config_name: str) -> None:
     cfg = _load_config(config_name)
 
-    assert cfg["prompt"] == ("blind-v2" if config_name in ("blind", "blind-anthropic") else config_name)
+    expected_prompt = "context" if config_name == "context" else "blind-v2"
+    assert cfg["prompt"] == expected_prompt
     assert (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").is_file()
-    assert cfg["data_variant"] in {"raw_stripped", "verbatim", "verbatim_anthropic"}
+    assert cfg["data_variant"] in {"raw_stripped", "verbatim", "verbatim_anthropic", "mythos5"}
     assert build_task(config=config_name).dataset[0].id.endswith(f":{config_name}:20m")
 
 
