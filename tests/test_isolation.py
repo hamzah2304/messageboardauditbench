@@ -142,3 +142,21 @@ def test_native_preflight_rejects_extra_visible_files_and_network_interfaces(tmp
     assert result["ok"] is False
     assert any("README.md" in problem for problem in result["problems"])
     assert any("non-loopback" in problem for problem in result["problems"])
+
+
+def test_network_interfaces_ignores_dormant_docker_tunnels(monkeypatch) -> None:
+    monkeypatch.setattr(preflight.socket, "if_nameindex", lambda: [(1, "lo"), (2, "gre0")])
+
+    class FakeFlags:
+        def __init__(self, path: str) -> None:
+            self.path = path
+
+        def read_text(self) -> str:
+            return "0x9" if self.path.endswith("/lo/flags") else "0x80"
+
+        def __truediv__(self, child: str):
+            return FakeFlags(f"{self.path}/{child}")
+
+    monkeypatch.setattr(preflight, "Path", FakeFlags)
+
+    assert preflight._network_interfaces() == ["lo"]

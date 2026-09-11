@@ -16,7 +16,6 @@ import socket
 import sys
 from pathlib import Path
 
-
 REQUIRED_DATA_FILES = frozenset({"events.jsonl", "labels.jsonl", "pages.jsonl", "revisions.jsonl"})
 SUPPORTED_DATA_FILE_SETS = (REQUIRED_DATA_FILES, frozenset({"transcript.jsonl"}))
 ALLOWED_DATA_AUXILIARY_FILES = frozenset({".gitkeep"})
@@ -41,7 +40,24 @@ def file_digest_and_jsonl_count(path: Path) -> tuple[str, int]:
 
 
 def _network_interfaces() -> list[str]:
-    return sorted(name for _index, name in socket.if_nameindex())
+    """Return interfaces that the kernel currently marks administratively up.
+
+    Docker Desktop's Linux VM exposes inert tunnel device names even in a
+    container created with ``--network none``.  Their IFF_UP bit is clear and
+    they cannot carry traffic, so treating their mere presence as a network
+    escape makes the preflight reject an isolated container.
+    """
+    interfaces: list[str] = []
+    for _index, name in socket.if_nameindex():
+        try:
+            flags = int((Path("/sys/class/net") / name / "flags").read_text(), 16)
+        except (OSError, ValueError):
+            # Fail closed when the kernel does not expose an interface's flags.
+            interfaces.append(name)
+            continue
+        if flags & 0x1:  # Linux IFF_UP
+            interfaces.append(name)
+    return sorted(interfaces)
 
 
 def _is_readonly_mount(path: Path) -> bool:
