@@ -5,7 +5,9 @@ Mythos 5 cybersecurity transcript
 ([`anthropics/mythos-5-incident-transcript`](https://github.com/anthropics/mythos-5-incident-transcript)).
 Same shape, scale, and scoring rules as the wiki `v2_*` sheets; only the answer
 key and the worked examples differ. Rationale and the full derivable/not-derivable
-split are in [`docs/mythos5-findings-draft.md`](../../../docs/mythos5-findings-draft.md).
+split are in [`docs/mythos5-findings-draft.md`](../../../docs/mythos5-findings-draft.md);
+the general recipe this incident follows is
+[`docs/adding-an-incident.md`](../../../docs/adding-an-incident.md).
 
 ## Files
 
