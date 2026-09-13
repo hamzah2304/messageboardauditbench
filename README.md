@@ -8,6 +8,12 @@ left on a public wiki by autonomous OpenAI agents that used it to coordinate on 
 web-retrieval task. Human investigators wrote up what happened. We give an agent the raw
 dump — and nothing else — and score its report against that write-up.
 
+The repository also contains a runnable draft of a second, structurally different
+incident based on Anthropic's released Mythos 5 cybersecurity transcript. It is
+intended for transfer-method validation; its freshness, self-identifying content,
+and judge-independence questions prevent treating it as a published comparable cell.
+See [`benchmark/rubrics/mythos5/README.md`](benchmark/rubrics/mythos5/README.md).
+
 ## The task
 
 An agent gets the stripped log dump in a network-isolated container, a time budget, and a

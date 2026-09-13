@@ -120,6 +120,18 @@ def test_native_preflight_hashes_and_reads_every_data_file(tmp_path, monkeypatch
     assert all(value["records"] == 1 and len(value["sha256"]) == 64 for value in result["files"].values())
 
 
+def test_native_preflight_accepts_exact_transcript_incident_shape(tmp_path, monkeypatch) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "transcript.jsonl").write_text('{"record":"message"}\n')
+    monkeypatch.setattr(preflight, "_network_interfaces", lambda: ["lo"])
+
+    result = preflight.preflight(tmp_path)
+
+    assert result["ok"] is True
+    assert set(result["files"]) == {"transcript.jsonl"}
+
+
 def test_native_preflight_rejects_extra_visible_files_and_network_interfaces(tmp_path, monkeypatch) -> None:
     _write_complete_data(tmp_path)
     (tmp_path / "README.md").write_text("evaluation leak")
@@ -130,3 +142,21 @@ def test_native_preflight_rejects_extra_visible_files_and_network_interfaces(tmp
     assert result["ok"] is False
     assert any("README.md" in problem for problem in result["problems"])
     assert any("non-loopback" in problem for problem in result["problems"])
+
+
+def test_network_interfaces_ignores_dormant_docker_tunnels(monkeypatch) -> None:
+    monkeypatch.setattr(preflight.socket, "if_nameindex", lambda: [(1, "lo"), (2, "gre0")])
+
+    class FakeFlags:
+        def __init__(self, path: str) -> None:
+            self.path = path
+
+        def read_text(self) -> str:
+            return "0x9" if self.path.endswith("/lo/flags") else "0x80"
+
+        def __truediv__(self, child: str):
+            return FakeFlags(f"{self.path}/{child}")
+
+    monkeypatch.setattr(preflight, "Path", FakeFlags)
+
+    assert preflight._network_interfaces() == ["lo"]

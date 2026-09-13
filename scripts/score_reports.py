@@ -2,7 +2,7 @@
 """The published headline score for a set of graded reports, including your own.
 
     scripts/score_reports.py benchmark/graded/judge_claude_fable_5_1
-    scripts/score_reports.py --v2 <dir> --tldrh <dir> --json
+    scripts/score_reports.py --findings <dir> --summary <dir> --json
 
 The headline is 70% finding coverage and 30% holistic summary quality:
 
@@ -66,7 +66,7 @@ def combine(v2_dir: Path, tldrh_dir: Path) -> dict:
         cov = _coverage(v2[key]) if key in v2 else None
         holistic = tldrh[key].get("accuracy") if key in tldrh else None
         if cov is None or holistic is None:
-            missing = "v2" if cov is None else "tldrh"
+            missing = v2_dir.name if cov is None else tldrh_dir.name
             warnings.append(f"{key}: no {missing} grade, excluded from the headline")
             continue
         raw, strict_cov, above_half = cov
@@ -107,28 +107,35 @@ def main() -> int:
     ap.add_argument(
         "judge_dir",
         nargs="?",
-        help="a directory holding v2/ and tldrh/ subdirectories of grades",
+        help="a directory holding v2/tldrh or m5/m5tldrh grade subdirectories",
     )
-    ap.add_argument("--v2", help="directory of v2 finding grades")
-    ap.add_argument("--tldrh", help="directory of tldrh summary grades")
+    ap.add_argument(
+        "--v2", "--findings", dest="findings", help="directory of finding grades"
+    )
+    ap.add_argument(
+        "--tldrh", "--summary", dest="summary", help="directory of summary grades"
+    )
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args()
 
-    if args.v2 and args.tldrh:
-        v2_dir, tldrh_dir = Path(args.v2), Path(args.tldrh)
+    if args.findings and args.summary:
+        v2_dir, tldrh_dir = Path(args.findings), Path(args.summary)
     elif args.judge_dir:
-        v2_dir = Path(args.judge_dir) / "v2"
-        tldrh_dir = Path(args.judge_dir) / "tldrh"
+        root = Path(args.judge_dir)
+        if (root / "m5").is_dir() or (root / "m5tldrh").is_dir():
+            v2_dir, tldrh_dir = root / "m5", root / "m5tldrh"
+        else:
+            v2_dir, tldrh_dir = root / "v2", root / "tldrh"
     else:
-        ap.error("give a judge directory, or both --v2 and --tldrh")
+        ap.error("give a judge directory, or both --findings and --summary")
 
-    for label, folder in (("v2", v2_dir), ("tldrh", tldrh_dir)):
+    for label, folder in ((v2_dir.name, v2_dir), (tldrh_dir.name, tldrh_dir)):
         if not folder.is_dir():
             print(f"no {label} grades at {folder}", file=sys.stderr)
             print(
                 "Grade a report set first:\n"
                 "  uv run inspect eval messageboard_audit_bench/grade_reports \\\n"
-                "    -T dir=<your reports> -T rubric=v2 "
+                f"    -T dir=<your reports> -T rubric={label} "
                 "--model-role grader=anthropic/claude-fable-5-1\n"
                 "  uv run python scripts/export_grades.py logs/<the run>.eval",
                 file=sys.stderr,
