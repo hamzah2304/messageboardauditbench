@@ -37,6 +37,17 @@ def test_mythos_mode_rejects_provider_swap_variant():
         core.load_sheets("m5", "anthropic")
 
 
+def test_rubyhack_modes_use_their_own_sheets_and_answer_key():
+    sets, templates = core.load_sheets("rh")
+    assert len(sets) == 3
+    assert sum(len(sheet["claims"]) for sheet in sets) == 12
+    assert set(templates) == {"RH1", "RH2", "RH3"}
+    assert "RubyHack package-corpus answer key" in core.human_report(mode="rh")
+
+    summary_sets, _ = core.load_sheets("rhtldrh")
+    assert [sheet["rubric_id"] for sheet in summary_sets] == ["RHTLDRH"]
+
+
 @pytest.mark.parametrize("mode", ["v2", "tldrh", "recall", "contradiction", "tldr"])
 def test_variant_sheets_name_the_swapped_maker(mode):
     sets, templates = core.load_sheets(mode, "anthropic")

@@ -107,7 +107,7 @@ def main() -> int:
     ap.add_argument(
         "judge_dir",
         nargs="?",
-        help="a directory holding v2/tldrh or m5/m5tldrh grade subdirectories",
+        help="a directory holding an incident's finding and summary grade subdirectories",
     )
     ap.add_argument(
         "--v2", "--findings", dest="findings", help="directory of finding grades"
@@ -122,7 +122,9 @@ def main() -> int:
         v2_dir, tldrh_dir = Path(args.findings), Path(args.summary)
     elif args.judge_dir:
         root = Path(args.judge_dir)
-        if (root / "m5").is_dir() or (root / "m5tldrh").is_dir():
+        if (root / "rh").is_dir() or (root / "rhtldrh").is_dir():
+            v2_dir, tldrh_dir = root / "rh", root / "rhtldrh"
+        elif (root / "m5").is_dir() or (root / "m5tldrh").is_dir():
             v2_dir, tldrh_dir = root / "m5", root / "m5tldrh"
         else:
             v2_dir, tldrh_dir = root / "v2", root / "tldrh"

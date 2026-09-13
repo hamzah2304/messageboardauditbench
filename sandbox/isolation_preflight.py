@@ -17,7 +17,11 @@ import sys
 from pathlib import Path
 
 REQUIRED_DATA_FILES = frozenset({"events.jsonl", "labels.jsonl", "pages.jsonl", "revisions.jsonl"})
-SUPPORTED_DATA_FILE_SETS = (REQUIRED_DATA_FILES, frozenset({"transcript.jsonl"}))
+SUPPORTED_DATA_FILE_SETS = (
+    REQUIRED_DATA_FILES,
+    frozenset({"transcript.jsonl"}),
+    frozenset({"packages.jsonl"}),
+)
 ALLOWED_DATA_AUXILIARY_FILES = frozenset({".gitkeep"})
 
 

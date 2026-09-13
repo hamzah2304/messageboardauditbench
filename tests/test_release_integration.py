@@ -95,6 +95,34 @@ def test_mythos_eval_selects_incident_graders(tmp_path, monkeypatch):
     assert next(grade for grade in grades if grade["rubric"] == "m5")["max"] == 13
 
 
+def test_rubyhack_eval_selects_incident_graders(tmp_path, monkeypatch):
+    monkeypatch.setenv("INSPECT_TRACE_FILE", str(tmp_path / "trace.log"))
+    task = tasks.messageboard_audit_bench(agent="react", config="rubyhack")
+    task.sandbox = None
+    task.solver = report_from_sample()
+    replies = [sheet_reply("rh", i, 1) for i in range(3)]
+    replies.append(sheet_reply("rhtldrh", 0, 1))
+    model = judge(replies)
+
+    [log] = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": model},
+        display="none",
+        log_realtime=False,
+        log_dir=str(tmp_path / "logs"),
+    )
+
+    assert log.status == "success", log.error
+    grades = [
+        score.metadata["grade"]
+        for score in log.samples[0].scores.values()
+        if score.metadata and "grade" in score.metadata
+    ]
+    assert {grade["rubric"] for grade in grades} == {"rh", "rhtldrh"}
+    assert next(grade for grade in grades if grade["rubric"] == "rh")["max"] == 12
+
+
 def test_staged_grading_preserves_variant_and_needs_no_agent_model(tmp_path):
     (tmp_path / "report.md").write_text("A report")
     (tmp_path / "_index.jsonl").write_text(json.dumps({

@@ -66,7 +66,12 @@ from messageboard_audit_bench.solver import replay, subscription_agent
 
 EVAL_VERSION = "8-A"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_CONFIGS = ("blind", "context", "blind-anthropic", "mythos5")
+_CONFIGS = ("blind", "context", "blind-anthropic", "mythos5", "rubyhack")
+_DATA_VARIANTS = {"verbatim", "verbatim_anthropic", "raw_stripped", "mythos5", "rubyhack"}
+_INCIDENT_RUBRICS = {
+    "mythos5": "m5,m5tldrh",
+    "rubyhack": "rh,rhtldrh",
+}
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20
@@ -196,7 +201,7 @@ def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) ->
     scorers = [process_metrics(), report_length()]
     if rubric == "legacy":
         return [rubric_scorer(judge=judge), *scorers]
-    default_rubric = "m5,m5tldrh" if data_variant == "mythos5" else "v2,tldrh"
+    default_rubric = _INCIDENT_RUBRICS.get(data_variant or "", "v2,tldrh")
     modes = [mode.strip() for mode in (rubric or default_rubric).split(",") if mode.strip()]
     if len(modes) != len(set(modes)):
         raise ValueError("rubric must not contain duplicate modes")
@@ -238,14 +243,15 @@ def messageboard_audit_bench(
             when supplied to Inspect, takes precedence over this value.
         rubric: Comma-separated sheet modes; defaults to the finding and
             summary rubrics for the selected incident (``v2,tldrh`` for the
-            wiki, ``m5,m5tldrh`` for Mythos 5). Use Inspect's ``--no-score``
+            wiki, ``m5,m5tldrh`` for Mythos 5, and ``rh,rhtldrh`` for
+            RubyHack). Use Inspect's ``--no-score``
             to defer grading, or ``legacy`` for the old starter rubric.
         data_variant: Override the config's dataset, including
             ``verbatim_anthropic`` for the provider attribution ablation.
     """
     cfg = _load_config(config)
     if data_variant is not None:
-        if data_variant not in {"verbatim", "verbatim_anthropic", "raw_stripped", "mythos5"}:
+        if data_variant not in _DATA_VARIANTS:
             raise ValueError(f"unsupported data_variant {data_variant!r}")
         cfg = {**cfg, "data_variant": data_variant}
     if agent not in _SUPPORTED_AGENTS:
@@ -391,7 +397,7 @@ def messageboard_audit_bench_replay(
         if not include_failed and meta.get("exit_code") != 0:
             continue
         data_variant = str(meta.get("data_variant", "verbatim"))
-        incident = "mythos5" if data_variant == "mythos5" else "wiki"
+        incident = data_variant if data_variant in _INCIDENT_RUBRICS else "wiki"
         incidents.add(incident)
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(
@@ -411,9 +417,10 @@ def messageboard_audit_bench_replay(
         raise RuntimeError(f"no runs matched runs/{runs_glob}")
     if len(incidents) != 1:
         raise ValueError(
-            "a replay task cannot mix wiki and Mythos 5 runs; narrow runs_glob to one incident"
+            "a replay task cannot mix incidents; narrow runs_glob to one incident"
         )
-    data_variant = "mythos5" if incidents == {"mythos5"} else None
+    incident = next(iter(incidents))
+    data_variant = incident if incident in _INCIDENT_RUBRICS else None
     return Task(
         dataset=samples,
         solver=replay(),

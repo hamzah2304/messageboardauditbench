@@ -14,7 +14,7 @@ from score_reports import combine  # noqa: E402
 def _write(folder: Path, key: str, rubric: str, scores, judge="claude-fable-5-1"):
     folder.mkdir(parents=True, exist_ok=True)
     body = {"report": key, "grader": judge, "rubric": rubric}
-    if rubric in {"tldrh", "m5tldrh"}:
+    if rubric in {"tldrh", "m5tldrh", "rhtldrh"}:
         body["accuracy"] = scores
     else:
         body["scores"] = {f"N{i:02d}": {"score": s} for i, s in enumerate(scores)}
@@ -36,6 +36,16 @@ def test_formula_accepts_mythos_finding_and_summary_directories(tmp_path) -> Non
     _write(tmp_path / "m5tldrh", "run1", "m5tldrh", 0.8)
 
     row = combine(tmp_path / "m5", tmp_path / "m5tldrh")["reports"][0]
+
+    assert row["coverage_strict"] == 0.5
+    assert row["headline"] == 0.59
+
+
+def test_formula_accepts_rubyhack_finding_and_summary_directories(tmp_path) -> None:
+    _write(tmp_path / "rh", "run1", "rh", [1.0, 0.75, 0.5])
+    _write(tmp_path / "rhtldrh", "run1", "rhtldrh", 0.8)
+
+    row = combine(tmp_path / "rh", tmp_path / "rhtldrh")["reports"][0]
 
     assert row["coverage_strict"] == 0.5
     assert row["headline"] == 0.59

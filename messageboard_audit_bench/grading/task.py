@@ -62,8 +62,8 @@ def grade_reports(
 
     Args:
       dir: a folder under benchmark/graded_inputs/, or an absolute path.
-      rubric: a key of `core.MODES`, such as "v2", "tldrh", "m5", or
-        "m5tldrh".
+      rubric: a key of `core.MODES`, such as "v2", "tldrh", "m5",
+        "m5tldrh", "rh", or "rhtldrh".
       variant: explicit rubric variant for reports without an index; indexed
         reports otherwise select their variant from data_variant per sample.
       judge: Inspect model used to grade. As on the audit task, a ``grader``
