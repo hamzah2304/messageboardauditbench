@@ -168,6 +168,7 @@ def export_records(
         destination.write_text(record.report)
 
         config_manifest = {
+            "incident": meta.get("incident"),
             "scaffold": scaffold,
             "config": config_name,
             "prompt_id": prompt_id,
@@ -210,6 +211,7 @@ def export_records(
             {
                 "report": str(destination.relative_to(out)),
                 "source": "inspect_eval_log",
+                "incident": meta.get("incident"),
                 "log_file": record.log_file,
                 "sample_id": record.sample_id,
                 "partial": record.partial,

@@ -52,6 +52,14 @@ Grades from different sheets, judges or data variants are not comparable. If you
 add results, keep them in their own directory rather than merging them into an
 existing set — see [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md).
 
+New incidents use the registered lifecycle and scaffold in
+[`docs/adding-an-incident.md`](docs/adding-an-incident.md). The quickest overview is:
+
+```bash
+uv run python scripts/incident_pipeline.py list
+uv run python scripts/incident_pipeline.py guide rubyhack
+```
+
 ## Dependencies
 
 Every dependency carries an upper bound on purpose, so the benchmark stays

@@ -15,6 +15,7 @@ bytes reach the judge either way.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -22,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from messageboard_audit_bench.incidents import registered_mode_specs
 from messageboard_audit_bench.runtime import repo_root
 
 SYSTEM = (
@@ -66,23 +68,11 @@ MODES: dict[str, ModeSpec] = {
     # a one-question probe over the whole report; no answer key, so build_prompt tolerates
     # a sheet with no {{HUMAN_REPORT}} placeholder
     "origin": ModeSpec("origin", "origin", 1, 0.0, 1.0, "ORIGIN", False, False),
-    "m5": ModeSpec(
-        "m5", "m5", 3, 0.0, 1.0, "M", True, False,
-        directory="mythos5", answer_key="rubrics/mythos5/mythos5_report.txt",
-    ),
-    "m5tldrh": ModeSpec(
-        "m5tldrh", "m5tldrh", 1, 0.0, 1.0, "M5TLDRH", False, True,
-        directory="mythos5", answer_key="rubrics/mythos5/mythos5_report.txt",
-    ),
-    "rh": ModeSpec(
-        "rh", "rh", 3, 0.0, 1.0, "RH", True, False,
-        directory="rubyhack", answer_key="rubrics/rubyhack/rubyhack_report.txt",
-    ),
-    "rhtldrh": ModeSpec(
-        "rhtldrh", "rhtldrh", 1, 0.0, 1.0, "RHTLDRH", False, True,
-        directory="rubyhack", answer_key="rubrics/rubyhack/rubyhack_report.txt",
-    ),
 }
+_registered_modes = registered_mode_specs()
+if duplicates := MODES.keys() & _registered_modes.keys():
+    raise ValueError(f"registered incident modes collide with built-ins: {sorted(duplicates)}")
+MODES.update({name: ModeSpec(**values) for name, values in _registered_modes.items()})
 
 
 def sanitise(value: str) -> str:
@@ -169,6 +159,29 @@ def load_sheets(mode: str, variant: str | None = None) -> tuple[list[dict], dict
         for i in range(1, spec.n_sheets + 1)
     }
     return sets, templates
+
+
+def rubric_digest(mode: str, variant: str | None = None) -> str:
+    """Digest the exact sheets and answer key that define a grade."""
+    spec = MODES[mode]
+    directory = _rubrics_dir(variant, mode)
+    paths = [
+        path
+        for index in range(1, spec.n_sheets + 1)
+        for path in (
+            directory / f"{spec.sheet}_{index}.md",
+            directory / f"{spec.sheet_set}_{index}.json",
+        )
+    ]
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(str(path.relative_to(repo_root())).encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    digest.update(b"answer-key\0")
+    digest.update(human_report(variant, mode).encode())
+    return digest.hexdigest()
 
 
 def extract_tldr(report_md: str) -> tuple[str, str]:
@@ -277,6 +290,7 @@ def aggregate(
         "title": title,
         "grader": judge,
         "rubric": mode,
+        "rubric_sha256": rubric_digest(mode, variant),
         "total": total,
         "max": count,
         "per_rubric": per_rubric,
@@ -294,7 +308,9 @@ def aggregate(
     out["accuracy"] = round(total / count, 3) if count else 0
     # tldrh returns one item keyed TLDRH, not per-claim ids, so there is nothing to split
     # by grading mode; emitting the split would put two zeroes where a reader expects scores.
-    if mode not in {"tldrh", "m5tldrh", "rhtldrh"}:
+    # The historical `tldr` grades included by_mode despite extracting only the
+    # summary. Preserve those committed bytes; current holistic modes omit it.
+    if mode == "tldr" or not MODES[mode].tldr_only:
         if sets is None:
             sets, _ = load_sheets(mode, variant)
         grading_mode = {

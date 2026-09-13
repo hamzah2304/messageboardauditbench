@@ -22,8 +22,7 @@ if [ "${1:-}" != "--verify" ]; then
   python3 scripts/strip_analysis_fields.py data/raw data/raw_stripped
   python3 scripts/fill_verbatim.py data/raw_stripped data/verbatim benchmark/human_report.txt
   python3 scripts/swap_provider.py data/verbatim data/verbatim_anthropic
-  python3 scripts/build_mythos5_data.py
-  python3 scripts/build_rubyhack_data.py
+  python3 scripts/build_incident_data.py
 fi
 
 if [ -f "$SUMS" ]; then

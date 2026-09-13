@@ -38,13 +38,24 @@ else
 fi
 
 echo "data"
-if [ -f data/raw_stripped/revisions.jsonl ] && [ -d data/verbatim ] && [ -f data/verbatim_anthropic/revisions.jsonl ]; then
-  ok "data/raw_stripped, data/verbatim and data/verbatim_anthropic present"
+data_missing="$($project_python - <<'PY' 2>/dev/null
+from pathlib import Path
+from messageboard_audit_bench.incidents import incidents
+for item in incidents().values():
+    for variant in item.variants:
+        for name in item.corpus["files"]:
+            path = Path("data") / variant / name
+            if not path.is_file():
+                print(path)
+PY
+)"
+if [ -z "$data_missing" ]; then
+  ok "every registered incident dataset is present"
   if [ "${1:-}" = "--verify" ]; then
-    if scripts/build_data.sh --verify >/dev/null 2>&1; then ok "checksums match data/SHA256SUMS.variants"
-    else bad "checksums do not match; rebuild with scripts/build_data.sh"; fi
+    if uv run --no-sync python scripts/incident_pipeline.py check >/dev/null 2>&1; then ok "incident manifests, tasks, rubrics and checksums agree"
+    else bad "incident validation failed: run uv run python scripts/incident_pipeline.py check"; fi
   else warn "checksums not verified (pass --verify)"; fi
-else bad "data not built: run  scripts/build_data.sh"; fi
+else bad "data not built ($data_missing): run  scripts/build_data.sh"; fi
 
 echo "agent credentials (only the harness you run needs one)"
 if [ -s runs/.claude-oauth-token ]; then ok "claude: runs/.claude-oauth-token"

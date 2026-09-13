@@ -12,10 +12,12 @@ uv sync --frozen
 scripts/build_data.sh
 scripts/build_data.sh --verify
 scripts/doctor.sh
+uv run python scripts/incident_pipeline.py check --docker
 ```
 
-The build downloads the public wiki archive and Mythos 5 transcript, then checks
-the generated datasets against committed checksums. The Mythos builder removes
+The build downloads the public wiki archive and dispatches every registered
+incident builder, then checks the generated datasets against committed checksums.
+The Mythos builder removes
 the release's editorial metadata row before it reaches an agent. A mismatch must
 be resolved before comparing new scores with published results. Do not rebuild
 the shared data while trials are reading it.
@@ -102,6 +104,14 @@ per-finding grades appear in the `.eval` log. The judge defaults to
 published comparison requires its recorded judge, prompts and data version.
 The sheet mean differs from the figures' strict score: they transform each
 finding credit `s` to `max(2s - 1, 0)` before averaging.
+
+To see the registered maturity, defaults, rubrics, and results status for every
+incident, or exact commands for one of them:
+
+```bash
+uv run python scripts/incident_pipeline.py list
+uv run python scripts/incident_pipeline.py guide rubyhack
+```
 
 To select one rubric use `-T rubric=v2` or `-T rubric=tldrh`; comma-separated
 modes run together. `-T rubric=legacy` selects the older starter rubric only.

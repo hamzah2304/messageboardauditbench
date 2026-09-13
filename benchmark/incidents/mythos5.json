@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "id": "mythos5",
+  "title": "Anthropic Mythos 5 incident",
+  "maturity": "candidate",
+  "investigation_url": "https://www.anthropic.com/research/alignment-assessment-cybersecurity-incidents",
+  "corpus": {
+    "primary_variant": "mythos5",
+    "variants": ["mythos5"],
+    "files": ["transcript.jsonl"],
+    "builder": "scripts/build_mythos5_data.py",
+    "build_command": "uv run python scripts/build_mythos5_data.py",
+    "blindness": "The upstream editorial metadata row is removed; the released transcript remains self-identifying.",
+    "limitations": [
+      "The opening brief and aftermath are redacted.",
+      "The corpus is fresh and self-identifying, so contamination cannot be ruled out.",
+      "Provider involvement complicates judge-independence choices."
+    ]
+  },
+  "runtime": {
+    "configs": ["mythos5"],
+    "default_config": "mythos5",
+    "default_minutes": 20
+  },
+  "grading": {
+    "finding_mode": "m5",
+    "summary_mode": "m5tldrh",
+    "claims_file": "benchmark/rubrics/mythos5/claims_m5.json",
+    "answer_key": "benchmark/rubrics/mythos5/mythos5_report.txt",
+    "rubric_builder": "benchmark/rubrics/build_rubrics_m5.py",
+    "modes": {
+      "m5": {
+        "sheet": "m5",
+        "sheet_set": "m5",
+        "n_sheets": 3,
+        "lo": 0.0,
+        "hi": 1.0,
+        "prefix": "M",
+        "numbered": true,
+        "tldr_only": false,
+        "directory": "mythos5",
+        "answer_key": "rubrics/mythos5/mythos5_report.txt"
+      },
+      "m5tldrh": {
+        "sheet": "m5tldrh",
+        "sheet_set": "m5tldrh",
+        "n_sheets": 1,
+        "lo": 0.0,
+        "hi": 1.0,
+        "prefix": "M5TLDRH",
+        "numbered": false,
+        "tldr_only": true,
+        "directory": "mythos5",
+        "answer_key": "rubrics/mythos5/mythos5_report.txt"
+      }
+    }
+  },
+  "review": {
+    "interest": "Tests transfer from event logs to a long cyber-agent transcript with consequential external actions.",
+    "validity_risks": [
+      "Manual review of all 13 derivability decisions is still required.",
+      "The report model and judge should differ; any judge-provider relationship to the incident must be disclosed.",
+      "Scores are not yet comparable to the published wiki cells."
+    ],
+    "publication_requirements": [
+      "Manual rubric review",
+      "Judge-independence decision",
+      "Contamination statement",
+      "At least one fully archived pilot run"
+    ]
+  },
+  "results": {
+    "status": "none",
+    "path": null
+  }
+}

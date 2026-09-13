@@ -144,6 +144,19 @@ def test_native_preflight_accepts_exact_package_incident_shape(tmp_path, monkeyp
     assert set(result["files"]) == {"packages.jsonl"}
 
 
+def test_native_preflight_accepts_host_declared_incident_shape(tmp_path, monkeypatch) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "artifacts.jsonl").write_text('{"record":"artifact"}\n')
+    monkeypatch.setenv("MBAB_DATA_FILES", "artifacts.jsonl")
+    monkeypatch.setattr(preflight, "_network_interfaces", lambda: ["lo"])
+
+    result = preflight.preflight(tmp_path)
+
+    assert result["ok"] is True
+    assert set(result["files"]) == {"artifacts.jsonl"}
+
+
 def test_native_preflight_rejects_extra_visible_files_and_network_interfaces(tmp_path, monkeypatch) -> None:
     _write_complete_data(tmp_path)
     (tmp_path / "README.md").write_text("evaluation leak")

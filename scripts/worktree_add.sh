@@ -24,9 +24,17 @@ fi
 # .gitkeep files), so the built variants are linked underneath it: whole directories where the
 # directory is ignored, file by file where only the contents are (raw_stripped, verbatim, verbatim_anthropic).
 link() { [ -e "$1" ] && [ ! -e "$2" ] && ln -s "$1" "$2" || true; }
-for p in runs logs .env data/raw data/augmented data/mythos5 data/rubyhack; do link "$ROOT/$p" "$WT/$p"; done
-for v in raw_stripped verbatim verbatim_anthropic; do
-  for f in "$ROOT/data/$v"/*; do [ -e "$f" ] && link "$f" "$WT/data/$v/$(basename "$f")"; done
-done
+for p in runs logs .env data/raw data/augmented; do link "$ROOT/$p" "$WT/$p"; done
+while IFS= read -r v; do
+  [ -d "$ROOT/data/$v" ] || continue
+  if [ ! -e "$WT/data/$v" ]; then
+    link "$ROOT/data/$v" "$WT/data/$v"
+  else
+    for f in "$ROOT/data/$v"/*; do
+      [ -e "$f" ] && link "$f" "$WT/data/$v/$(basename "$f")"
+    done
+  fi
+done < <(cd "$WT" && python3 -c \
+  'from messageboard_audit_bench.incidents import data_variants; print(*sorted(data_variants()), sep="\n")')
 (cd "$WT" && uv sync --quiet 2>/dev/null) || echo "uv sync failed in $WT; run it by hand" >&2
 echo "$WT"

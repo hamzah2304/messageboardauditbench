@@ -82,4 +82,6 @@ def test_host_provenance_carries_the_dataset_identity_when_a_variant_is_given() 
         host_provenance("blind")["data_manifest_status"]
         == "not_recorded_no_variant_supplied"
     )
-    assert "data_files_sha256" in host_provenance("blind", data_variant="verbatim")
+    result = host_provenance("blind", data_variant="verbatim")
+    assert "data_files_sha256" in result
+    assert "benchmark/incidents/wiki.json" in result["source_files_sha256"]
