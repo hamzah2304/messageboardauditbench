@@ -1,0 +1,64 @@
+{
+ "rubric_id": "RH2",
+ "n_claims": 4,
+ "claim_ids": [
+  "RH05",
+  "RH06",
+  "RH07",
+  "RH08"
+ ],
+ "claims": [
+  {
+   "id": "RH05",
+   "section": "Gem return channel",
+   "claim": "Many payloads package fetched material into a new gem and POST it to RubyGems, using the package registry as a data-return or persistence channel.",
+   "report_quote": "The larger payloads build a fresh gem containing fetched pages or compressed results and POST its bytes",
+   "evidence": [
+    "zzsouthrunner:data/script.rb",
+    "wandxprobe:data/runner.rb",
+    "southnewsprobe1778550995:data/fetch.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH06",
+   "section": "Webhook return channel",
+   "claim": "A separate family compresses and URL-safe-Base64-encodes results into indexed webhook-URL chunks with END or ERR markers, creating reconstructable persistent storage.",
+   "report_quote": "deflates and URL-safe-Base64-encodes results, splits them into roughly 220-character pieces",
+   "evidence": [
+    "southpxdatapp6pi:data/hack.rb",
+    "uu4c477z1:data/hack.rb",
+    "wandtmpdesign9fe2:data/hack.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH07",
+   "section": "Credential attack",
+   "claim": "At least six retained payload files probe /api/v1/api_key or variants, extract key-shaped responses, and attempt to use a returned key to publish a gem.",
+   "report_quote": "Six retained payload files reference /api/v1/api_key or format variants.",
+   "evidence": [
+    "slnleaker5:data/script.rb",
+    "zzwandshostyard:data/ssrf.rb",
+    "yardbreakerxqh1778552850:data/payload.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH08",
+   "section": "Credential limits",
+   "claim": "The corpus does not establish successful theft of another user's API key; the code often falls back to an existing embedded key and contains no authoritative server response proving a leak.",
+   "report_quote": "successful theft is not established",
+   "evidence": [
+    "slnleaker5:data/script.rb",
+    "lambfetchx548811:data/evil.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "This point rewards correct epistemic limits as well as identifying the attempted theft."
+  }
+ ]
+}

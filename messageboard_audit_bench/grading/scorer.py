@@ -108,7 +108,7 @@ def sheet_scorer(
 
     Args:
       rubric: a key of `core.MODES`, including the wiki's "v2"/"tldrh" and
-        Mythos 5's "m5"/"m5tldrh" pairs.
+        Mythos 5's "m5"/"m5tldrh" and RubyHack's "rh"/"rhtldrh" pairs.
       judge: the grading model. Resolved at scoring time through the `grader` model role,
         so `--model-role grader=openai/gpt-5.6-sol` works as it does for the other scorers.
       variant: a rubric variant (`core.VARIANTS`); the task derives it from the data

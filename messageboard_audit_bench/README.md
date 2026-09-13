@@ -83,7 +83,7 @@ limit fires). Provider refusals receive two same-model retries. Terminal
 refusals are recorded from Inspect's normalized stop reason. Claude Code's
 built-in safeguard model switching is not disabled.
 
-`-T config=blind|context|mythos5` chooses the prompt and its fixed data/effort
+`-T config=blind|context|mythos5|rubyhack` chooses the prompt and its fixed data/effort
 profile; config names never encode time. `-T time_limit_minutes=N` controls
 the stated budget and the scoped Inspect agent limit. An outer task guard gives
 native cleanup five additional minutes; it does not give the agent more time.
@@ -215,7 +215,21 @@ independence still require validation before reporting a benchmark number.
 
 ## Notes / next steps
 
-- Wiki tasks default to `v2,tldrh`; Mythos 5 defaults to `m5,m5tldrh`.
+- RubyHack package forensics run with:
+
+  ```
+  uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+    -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
+    --model openai/gpt-5.6-sol \
+    --model-role grader=anthropic/claude-fable-5-1
+  ```
+
+  Its default modes are `rh,rhtldrh`, covering 12 package-corpus findings and
+  an incident-specific summary. The selected evidence does not establish
+  OpenAI attribution or campaign-wide totals.
+
+- Wiki tasks default to `v2,tldrh`; Mythos 5 defaults to `m5,m5tldrh`;
+  RubyHack defaults to `rh,rhtldrh`.
   `rubric.yaml` is available only through `-T rubric=legacy`.
   See [setup and ablation commands](../docs/getting-started.md).
 - Comparing Claude-in-Claude-Code against GPT-in-Codex is a *system* comparison,

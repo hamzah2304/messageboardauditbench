@@ -40,6 +40,18 @@ MBAB_MYTHOS5_TRANSCRIPT=/path/to/transcript.jsonl scripts/build_data.sh
 The local file must match the source digest pinned in
 `scripts/build_mythos5_data.py`.
 
+RubyHack is rebuilt from the 23 preserved Diffend pages cited by the
+investigation. Each page is canonicalized only by removing its changing CSRF
+token, then checked against a pinned digest. For an offline build, place those
+pages under their builder-generated filenames and set:
+
+```bash
+MBAB_RUBYHACK_SOURCE_DIR=/path/to/diffend-pages scripts/build_data.sh
+```
+
+The builder extracts package diff lines and redacts embedded RubyGems API keys;
+it never writes the source HTML into the repository.
+
 The Python package needs the checkout's configs, sandbox and grading assets.
 A wheel installed by itself is insufficient: run from the checkout root or set
 `MESSAGEBOARD_AUDIT_BENCH_ROOT` to that checkout.
@@ -82,7 +94,8 @@ compatible `--model` and its provider key. For a short setup check, use
 paid agent and grader calls and is not a benchmark result.
 
 Each wiki sample runs the `v2` finding sheets and `tldrh` summary sheet by
-default; `config=mythos5` selects `m5` and `m5tldrh`. Process and length
+default; `config=mythos5` selects `m5` and `m5tldrh`, while
+`config=rubyhack` selects `rh` and `rhtldrh`. Process and length
 diagnostics follow both pairs. The two rubric scores and
 per-finding grades appear in the `.eval` log. The judge defaults to
 `openai/gpt-5.6-sol`; `--model-role grader=...` overrides it. Reproducing a
@@ -104,6 +117,20 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 
 Do not present its score as comparable with the published wiki cells until the
 documented contamination and judge-independence questions have been resolved.
+
+The RubyHack package-forensics incident runs the same way. Its selected corpus
+is much smaller, so start with the 10-minute condition and an independent judge:
+
+```bash
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
+  --model openai/gpt-5.6-sol \
+  --model-role grader=anthropic/claude-fable-5-1
+```
+
+The selected package diffs do not independently establish OpenAI attribution or
+campaign-wide totals. The RubyHack rubrics reward reports that preserve those
+limits.
 
 ## Ablations
 

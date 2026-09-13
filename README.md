@@ -8,11 +8,12 @@ left on a public wiki by autonomous OpenAI agents that used it to coordinate on 
 web-retrieval task. Human investigators wrote up what happened. We give an agent the raw
 dump — and nothing else — and score its report against that write-up.
 
-The repository also contains a runnable draft of a second, structurally different
-incident based on Anthropic's released Mythos 5 cybersecurity transcript. It is
-intended for transfer-method validation; its freshness, self-identifying content,
-and judge-independence questions prevent treating it as a published comparable cell.
-See [`benchmark/rubrics/mythos5/README.md`](benchmark/rubrics/mythos5/README.md).
+The repository also contains runnable transfer incidents based on Anthropic's
+released Mythos 5 cybersecurity transcript and the malicious-package evidence
+cited by the RubyHack investigation. Their narrower evidence boundaries,
+freshness, and judge-independence questions prevent treating them as published
+comparable cells. See the [Mythos 5](benchmark/rubrics/mythos5/README.md) and
+[RubyHack](benchmark/rubrics/rubyhack/README.md) incident notes.
 
 ## The task
 
@@ -50,6 +51,15 @@ scripts/collect_reports.py                 # runs/ -> reports/
 The eval runs the finding (`v2`) and summary (`tldrh`) graders inline; `--no-score` defers
 them. Every script resolves its inputs through `paths.py`, so the repo works from a plain
 clone.
+
+Select `config=mythos5` or `config=rubyhack` for a transfer incident. RubyHack's
+selected corpus is small enough for the 10-minute exploratory condition:
+
+```bash
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
+  --model openai/gpt-5.6-sol --model-role grader=anthropic/claude-fable-5-1
+```
 
 ## Publication snapshot
 
@@ -253,5 +263,6 @@ Maintainers: task work happens in linked worktrees under `.worktrees/`; the rule
 
 MIT — see [`LICENSE`](LICENSE). It covers the code and the benchmark material authored
 here. It does not license the third-party content reproduced for research: the captured
-collusion.wiki pages in `corpus/`, the human investigators' report in `benchmark/`, and the
-model-generated reports in `reports/` and historical baseline reports.
+collusion.wiki pages in `corpus/`, preserved Ruby package diffs in generated data,
+the human investigators' reports in `benchmark/`, and the model-generated reports
+in `reports/` and historical baseline reports.

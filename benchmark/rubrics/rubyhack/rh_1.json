@@ -1,0 +1,64 @@
+{
+ "rubric_id": "RH1",
+ "n_claims": 4,
+ "claim_ids": [
+  "RH01",
+  "RH02",
+  "RH03",
+  "RH04"
+ ],
+ "claims": [
+  {
+   "id": "RH01",
+   "section": "Execution mechanism",
+   "claim": "The gems weaponize YARD documentation generation: .yardopts --load directives cause included Ruby payload files to execute during automatic documentation builds.",
+   "report_quote": "Eighteen retained .yardopts records contain a --load directive aimed at an included Ruby file",
+   "evidence": [
+    "zzsouthrunner:data/.yardopts",
+    "wandxprobe:data/.yardopts",
+    "slnleaker5:data/.yardopts"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH02",
+   "section": "Execution evidence",
+   "claim": "The southnewsprobe version sequence strongly indicates that the YARD payload ran: 0.0.2 adds the loader and plans version 0.0.3, while 0.0.3 removes it and records a YARD-run timestamp.",
+   "report_quote": "This is strong evidence that the documentation-build pathway executed and produced its planned follow-up version",
+   "evidence": [
+    "southnewsprobe1778550995:0.0.1 -> 0.0.2:data/fetch.rb",
+    "southnewsprobe1778550995:0.0.2 -> 0.0.3:metadata"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "Credit a properly hedged inference. Do not require or credit a claim that the corpus contains a RubyDoc server log."
+  },
+  {
+   "id": "RH03",
+   "section": "Targets",
+   "claim": "The payloads repeatedly target public council calendars, meetings, agendas, documents, and PDFs for Lambeth, Wandsworth, and Southwark.",
+   "report_quote": "The task pursued by most payloads was collection of public UK local-government material.",
+   "evidence": [
+    "zzsouthrunner:data/script.rb",
+    "wandxprobe:data/runner.rb",
+    "councilfetchfff:data/evil.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH04",
+   "section": "Collection",
+   "claim": "The scripts recursively fetch and retain response bodies, headers, links, pages, and documents rather than merely testing reachability.",
+   "report_quote": "They follow links, retain headers and status codes, and save bodies or compressed files.",
+   "evidence": [
+    "zzsouthrunner:data/script.rb",
+    "wandxprobe:data/runner.rb",
+    "councilfetchfff:data/evil.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  }
+ ]
+}

@@ -74,6 +74,14 @@ MODES: dict[str, ModeSpec] = {
         "m5tldrh", "m5tldrh", 1, 0.0, 1.0, "M5TLDRH", False, True,
         directory="mythos5", answer_key="rubrics/mythos5/mythos5_report.txt",
     ),
+    "rh": ModeSpec(
+        "rh", "rh", 3, 0.0, 1.0, "RH", True, False,
+        directory="rubyhack", answer_key="rubrics/rubyhack/rubyhack_report.txt",
+    ),
+    "rhtldrh": ModeSpec(
+        "rhtldrh", "rhtldrh", 1, 0.0, 1.0, "RHTLDRH", False, True,
+        directory="rubyhack", answer_key="rubrics/rubyhack/rubyhack_report.txt",
+    ),
 }
 
 
@@ -286,7 +294,7 @@ def aggregate(
     out["accuracy"] = round(total / count, 3) if count else 0
     # tldrh returns one item keyed TLDRH, not per-claim ids, so there is nothing to split
     # by grading mode; emitting the split would put two zeroes where a reader expects scores.
-    if mode not in {"tldrh", "m5tldrh"}:
+    if mode not in {"tldrh", "m5tldrh", "rhtldrh"}:
         if sets is None:
             sets, _ = load_sheets(mode, variant)
         grading_mode = {

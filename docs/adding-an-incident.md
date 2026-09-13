@@ -1,12 +1,12 @@
 # Adding an incident to the benchmark
 
-This benchmark scores one thing: **can an agent investigate raw logs, blind, and
-recover what a human investigation found?** Today it rests on a single incident
-(the collusion.wiki wiki dump). A second, structurally different incident tests
-whether that result *transfers* or is just overfit to one dataset. This doc is the
-recipe for adding one, generalised from the first worked example — the Claude
-Mythos 5 transcript under `benchmark/rubrics/mythos5/` (see
-[`mythos5-findings-draft.md`](mythos5-findings-draft.md)).
+This benchmark scores one thing: **can an agent investigate raw evidence, blind,
+and recover what a human investigation found?** It began with the collusion.wiki
+dump and now has two transfer-study implementations: the Claude Mythos 5
+transcript and the package diffs cited by RubyHack. Structurally different
+incidents test whether the method transfers or is overfit to one dataset. This
+document gives the shared recipe; `benchmark/rubrics/mythos5/` and
+`benchmark/rubrics/rubyhack/` are the worked examples.
 
 ## What you need before you start
 

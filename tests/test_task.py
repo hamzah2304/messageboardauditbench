@@ -233,7 +233,9 @@ def test_all_public_configs_build(config_name: str) -> None:
     expected_prompt = "context" if config_name == "context" else "blind-v2"
     assert cfg["prompt"] == expected_prompt
     assert (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").is_file()
-    assert cfg["data_variant"] in {"raw_stripped", "verbatim", "verbatim_anthropic", "mythos5"}
+    assert cfg["data_variant"] in {
+        "raw_stripped", "verbatim", "verbatim_anthropic", "mythos5", "rubyhack"
+    }
     assert build_task(config=config_name).dataset[0].id.endswith(f":{config_name}:20m")
 
 
