@@ -2,7 +2,9 @@
 """The published headline score for a set of graded reports, including your own.
 
     scripts/score_reports.py benchmark/graded/judge_claude_fable_5_1
-    scripts/score_reports.py --findings <dir> --summary <dir> --json
+    scripts/score_reports.py --incident rubyhack <judge-dir> \
+      --json-out benchmark/results/rubyhack/scores.json \
+      --markdown-out benchmark/results/rubyhack/README.md
 
 The headline is 70% finding coverage and 30% holistic summary quality:
 
@@ -29,6 +31,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from report_performance import W_COV, W_TLDR, strict  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from messageboard_audit_bench.incidents import incident, incidents  # noqa: E402
 
 
 def _grades(folder: Path) -> dict[str, dict]:
@@ -102,6 +107,33 @@ def combine(v2_dir: Path, tldrh_dir: Path) -> dict:
     }
 
 
+def markdown(result: dict, title: str = "Incident results") -> str:
+    """Render the same score record as a reviewable Markdown table."""
+    lines = [
+        f"# {title}",
+        "",
+        "Headline = 70% strict finding coverage + 30% holistic TL;DR.",
+        "",
+        "| report | raw findings | strict coverage | >0.5 | TL;DR | headline |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for row in sorted(result["reports"], key=lambda value: -value["headline"]):
+        lines.append(
+            f"| {row['report']} | {row['coverage_raw']:.3f} | "
+            f"{row['coverage_strict']:.3f} | {row['fraction_above_half']:.3f} | "
+            f"{row['tldrh']:.3f} | {row['headline']:.3f} |"
+        )
+    lines += [
+        "",
+        f"Mean headline: {result['mean_headline'] if result['mean_headline'] is not None else 'n/a'}  ",
+        f"Mean strict coverage: {result['mean_coverage_strict'] if result['mean_coverage_strict'] is not None else 'n/a'}  ",
+        f"Judge(s): {', '.join(result['judges']) or 'unknown'}",
+    ]
+    if result["warnings"]:
+        lines += ["", "## Warnings", "", *[f"- {warning}" for warning in result["warnings"]]]
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
@@ -115,19 +147,35 @@ def main() -> int:
     ap.add_argument(
         "--tldrh", "--summary", dest="summary", help="directory of summary grades"
     )
+    ap.add_argument(
+        "--incident",
+        choices=tuple(incidents()),
+        help="incident whose registered rubric directories should be used",
+    )
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--json-out", help="also write the machine-readable result to this path")
+    ap.add_argument("--markdown-out", help="also write a reviewable result table to this path")
     args = ap.parse_args()
 
+    selected = incident(args.incident) if args.incident else None
     if args.findings and args.summary:
         v2_dir, tldrh_dir = Path(args.findings), Path(args.summary)
     elif args.judge_dir:
         root = Path(args.judge_dir)
-        if (root / "rh").is_dir() or (root / "rhtldrh").is_dir():
-            v2_dir, tldrh_dir = root / "rh", root / "rhtldrh"
-        elif (root / "m5").is_dir() or (root / "m5tldrh").is_dir():
-            v2_dir, tldrh_dir = root / "m5", root / "m5tldrh"
-        else:
-            v2_dir, tldrh_dir = root / "v2", root / "tldrh"
+        if selected is None:
+            candidates = [
+                item
+                for item in incidents().values()
+                if any((root / mode).is_dir() for mode in item.rubrics)
+            ]
+            if len(candidates) != 1:
+                ap.error(
+                    "could not identify exactly one incident from the grade directories; "
+                    "pass --incident"
+                )
+            selected = candidates[0]
+        finding_mode, summary_mode = selected.rubrics
+        v2_dir, tldrh_dir = root / finding_mode, root / summary_mode
     else:
         ap.error("give a judge directory, or both --findings and --summary")
 
@@ -145,6 +193,24 @@ def main() -> int:
             return 2
 
     result = combine(v2_dir, tldrh_dir)
+    if selected:
+        result = {
+            "incident": selected.id,
+            "title": selected.title,
+            "maturity": selected.maturity,
+            "finding_mode": selected.rubrics[0],
+            "summary_mode": selected.rubrics[1],
+            **result,
+        }
+
+    if args.json_out:
+        destination = Path(args.json_out)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(result, indent=1) + "\n")
+    if args.markdown_out:
+        destination = Path(args.markdown_out)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(markdown(result, selected.title if selected else "Incident results"))
 
     if args.json:
         print(json.dumps(result, indent=1))

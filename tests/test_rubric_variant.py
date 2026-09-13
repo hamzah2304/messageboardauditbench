@@ -95,5 +95,6 @@ def test_variant_version_and_aggregate_stamp():
     out = core.aggregate("k", "t", "gpt-5.6-sol", "v2", per, {"V2": {"score": 1.0, "max": 1}}, None, "anthropic")
     assert out["rubric_variant"] == "anthropic"
     assert out["rubric_variant_version"] == core.variant_version("anthropic")
+    assert len(out["rubric_sha256"]) == 64
     plain = core.aggregate("k", "t", "gpt-5.6-sol", "v2", per, {"V2": {"score": 1.0, "max": 1}})
     assert "rubric_variant" not in plain

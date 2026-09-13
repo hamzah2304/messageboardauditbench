@@ -49,6 +49,13 @@ from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
 from messageboard_audit_bench.grading.core import variant_for_data
 from messageboard_audit_bench.grading.scorer import sheet_scorer
+from messageboard_audit_bench.incidents import (
+    config_names,
+    data_variants,
+    default_rubrics,
+    incident,
+    incident_for_variant,
+)
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
@@ -66,12 +73,8 @@ from messageboard_audit_bench.solver import replay, subscription_agent
 
 EVAL_VERSION = "8-A"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_CONFIGS = ("blind", "context", "blind-anthropic", "mythos5", "rubyhack")
-_DATA_VARIANTS = {"verbatim", "verbatim_anthropic", "raw_stripped", "mythos5", "rubyhack"}
-_INCIDENT_RUBRICS = {
-    "mythos5": "m5,m5tldrh",
-    "rubyhack": "rh,rhtldrh",
-}
+_CONFIGS = config_names()
+_DATA_VARIANTS = data_variants()
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20
@@ -100,10 +103,10 @@ def _load_config(config_name: str) -> dict:
     return cfg
 
 
-def _time_limit(time_limit_minutes: int | None) -> int:
-    value = (
-        DEFAULT_TIME_LIMIT_MINUTES if time_limit_minutes is None else time_limit_minutes
-    )
+def _time_limit(
+    time_limit_minutes: int | None, default: int = DEFAULT_TIME_LIMIT_MINUTES
+) -> int:
+    value = default if time_limit_minutes is None else time_limit_minutes
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("time_limit_minutes must be a positive integer")
     return value
@@ -145,7 +148,7 @@ def _prompt_for(
     min_runtime_fraction: float | None = None,
 ) -> str:
     cfg = _load_config(config_name)
-    budget_minutes = _time_limit(time_limit_minutes)
+    budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
     return render_prompt(text, budget_minutes, *limits(cfg)) + (
@@ -173,6 +176,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
         data_dir = targets.pop()
     elif targets:
         raise RuntimeError(f"data/{data_variant} symlinks point at several directories")
+    expected_files = ",".join(incident_for_variant(data_variant).corpus["files"])
     return SandboxEnvironmentSpec(
         type="isolated-docker",
         config=ComposeConfig(
@@ -188,6 +192,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                     user="1000:1000",
                     cap_drop=["ALL"],
                     security_opt=["no-new-privileges:true"],
+                    environment={"MBAB_DATA_FILES": expected_files},
                     working_dir="/work",
                     volumes=[f"{data_dir}:/work/data:ro"],
                 )
@@ -201,7 +206,7 @@ def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) ->
     scorers = [process_metrics(), report_length()]
     if rubric == "legacy":
         return [rubric_scorer(judge=judge), *scorers]
-    default_rubric = _INCIDENT_RUBRICS.get(data_variant or "", "v2,tldrh")
+    default_rubric = default_rubrics(data_variant or "verbatim")
     modes = [mode.strip() for mode in (rubric or default_rubric).split(",") if mode.strip()]
     if len(modes) != len(set(modes)):
         raise ValueError("rubric must not contain duplicate modes")
@@ -234,7 +239,7 @@ def messageboard_audit_bench(
             Native runs select their model with Inspect's ``--model`` option.
         config: Named prompt/data/effort configuration from ``configs/``.
         time_limit_minutes: Trial budget in minutes. Overrides the named
-            config's 20-minute default. Native runs have a separate
+            config's declared default. Native runs have a separate
             five-minute outer guard for cleanup and log recovery.
         min_runtime_fraction: Fraction of the agent budget that must elapse
             before normal completion is accepted. Defaults to ``0.75``; set
@@ -276,13 +281,14 @@ def messageboard_audit_bench(
         raise ValueError(
             "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
         )
-    budget_min = _time_limit(time_limit_minutes)
+    budget_min = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
     minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
         budget_min * 60, runtime_fraction
     )
     cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
     sample_metadata = {
+        "incident": incident_for_variant(cfg["data_variant"]).id,
         "agent": agent,
         "scaffold": _scaffold(agent, backend),
         "backend": backend,
@@ -354,6 +360,7 @@ def messageboard_audit_bench(
         version=EVAL_VERSION,
         metadata={
             "benchmark": "MessageBoardAuditBench",
+            "incident": incident_for_variant(cfg["data_variant"]).id,
             "backend": backend,
             "scaffold": _scaffold(agent, backend),
             "config": config,
@@ -397,8 +404,7 @@ def messageboard_audit_bench_replay(
         if not include_failed and meta.get("exit_code") != 0:
             continue
         data_variant = str(meta.get("data_variant", "verbatim"))
-        incident = data_variant if data_variant in _INCIDENT_RUBRICS else "wiki"
-        incidents.add(incident)
+        incidents.add(incident_for_variant(data_variant).id)
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(
             Sample(
@@ -419,8 +425,12 @@ def messageboard_audit_bench_replay(
         raise ValueError(
             "a replay task cannot mix incidents; narrow runs_glob to one incident"
         )
-    incident = next(iter(incidents))
-    data_variant = incident if incident in _INCIDENT_RUBRICS else None
+    selected_incident = next(iter(incidents))
+    data_variant = (
+        str(incident(selected_incident).corpus["primary_variant"])
+        if selected_incident != "wiki"
+        else None
+    )
     return Task(
         dataset=samples,
         solver=replay(),

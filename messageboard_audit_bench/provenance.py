@@ -8,6 +8,7 @@ import subprocess
 import tomllib
 from pathlib import Path
 
+from messageboard_audit_bench.incidents import incident_for_variant
 from messageboard_audit_bench.runtime import repo_root
 
 
@@ -147,6 +148,12 @@ def host_provenance(
             *root.glob("sandbox/*.sh"),
         }
     )
+    if data_variant:
+        try:
+            sources.append(incident_for_variant(data_variant).manifest_path)
+        except ValueError:
+            pass
+        sources = sorted(set(sources))
     dirty = _git(root, "diff", "--no-ext-diff", "--binary", "HEAD")
     return {
         "provenance_schema": 2,

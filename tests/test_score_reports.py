@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from score_reports import combine  # noqa: E402
+from score_reports import combine, main, markdown  # noqa: E402
 
 
 def _write(folder: Path, key: str, rubric: str, scores, judge="claude-fable-5-1"):
@@ -49,6 +49,46 @@ def test_formula_accepts_rubyhack_finding_and_summary_directories(tmp_path) -> N
 
     assert row["coverage_strict"] == 0.5
     assert row["headline"] == 0.59
+
+
+def test_result_markdown_exposes_components_and_headline(tmp_path) -> None:
+    _write(tmp_path / "rh", "run1", "rh", [1.0, 0.75, 0.5])
+    _write(tmp_path / "rhtldrh", "run1", "rhtldrh", 0.8)
+
+    rendered = markdown(combine(tmp_path / "rh", tmp_path / "rhtldrh"), "RubyHack")
+
+    assert "# RubyHack" in rendered
+    assert "| run1 | 0.750 | 0.500 | 0.667 | 0.800 | 0.590 |" in rendered
+    assert "Judge(s): claude-fable-5-1" in rendered
+
+
+def test_registered_incident_writes_reviewable_result_artifacts(
+    tmp_path, monkeypatch
+) -> None:
+    grades = tmp_path / "grades"
+    _write(grades / "rh", "run1", "rh", [1.0])
+    _write(grades / "rhtldrh", "run1", "rhtldrh", 0.8)
+    json_out = tmp_path / "results/scores.json"
+    markdown_out = tmp_path / "results/README.md"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_reports.py",
+            str(grades),
+            "--incident",
+            "rubyhack",
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+            "--json",
+        ],
+    )
+
+    assert main() == 0
+    assert json.loads(json_out.read_text())["incident"] == "rubyhack"
+    assert "RubyHack malicious-package investigation" in markdown_out.read_text()
 
 
 def test_the_three_finding_numbers_stay_distinct(tmp_path) -> None:

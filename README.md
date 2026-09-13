@@ -15,6 +15,24 @@ freshness, and judge-independence questions prevent treating them as published
 comparable cells. See the [Mythos 5](benchmark/rubrics/mythos5/README.md) and
 [RubyHack](benchmark/rubrics/rubyhack/README.md) incident notes.
 
+| incident | state | default | grading | results |
+|---|---|---:|---|---|
+| collusion.wiki | published | 20 min | `v2` + `tldrh` | published |
+| Mythos 5 | candidate | 20 min | `m5` + `m5tldrh` | none |
+| RubyHack | candidate | 10 min | `rh` + `rhtldrh` | none |
+
+The manifests under `benchmark/incidents/` drive the runtime. See the current
+state or the complete build-to-publication workflow with:
+
+```bash
+uv run python scripts/incident_pipeline.py list
+uv run python scripts/incident_pipeline.py guide mythos5
+```
+
+[`docs/adding-an-incident.md`](docs/adding-an-incident.md) covers incident
+selection, corpus and rubric review, no-cost validation, pilots, grading, and
+publication. It includes a scaffold command for contributors.
+
 ## The task
 
 An agent gets the stripped log dump in a network-isolated container, a time budget, and a
@@ -35,6 +53,7 @@ missing.
 ```bash
 uv sync --frozen
 scripts/build_data.sh                      # fetch + build data/, verified against checksums
+uv run python scripts/incident_pipeline.py check --docker
 
 # through Inspect (set OPENAI_API_KEY for this example's agent and grader)
 uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
@@ -48,7 +67,7 @@ ALLOW_NETWORKED_SUBSCRIPTION=1 CONFIG=configs/blind-20.toml \
 scripts/collect_reports.py                 # runs/ -> reports/
 ```
 
-The eval runs the finding (`v2`) and summary (`tldrh`) graders inline; `--no-score` defers
+The eval runs the registered finding and summary graders inline; `--no-score` defers
 them. Every script resolves its inputs through `paths.py`, so the repo works from a plain
 clone.
 

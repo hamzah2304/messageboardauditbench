@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "id": "rubyhack",
+  "title": "RubyHack malicious-package investigation",
+  "maturity": "candidate",
+  "investigation_url": "https://www.rubyhack.ai/",
+  "corpus": {
+    "primary_variant": "rubyhack",
+    "variants": ["rubyhack"],
+    "files": ["packages.jsonl"],
+    "builder": "scripts/build_rubyhack_data.py",
+    "build_command": "uv run python scripts/build_rubyhack_data.py",
+    "blindness": "Only package paths and preserved diff lines are retained; the investigation page and its conclusions are excluded.",
+    "limitations": [
+      "The investigators did not publish their campaign-wide working set.",
+      "The selected corpus is limited to 23 cited Diffend pages covering 22 packages.",
+      "It cannot establish OpenAI attribution, campaign totals, registry response, or links to other incidents."
+    ]
+  },
+  "runtime": {
+    "configs": ["rubyhack"],
+    "default_config": "rubyhack",
+    "default_minutes": 10
+  },
+  "grading": {
+    "finding_mode": "rh",
+    "summary_mode": "rhtldrh",
+    "claims_file": "benchmark/rubrics/rubyhack/claims_rh.json",
+    "answer_key": "benchmark/rubrics/rubyhack/rubyhack_report.txt",
+    "rubric_builder": "benchmark/rubrics/build_rubrics_rh.py",
+    "modes": {
+      "rh": {
+        "sheet": "rh",
+        "sheet_set": "rh",
+        "n_sheets": 3,
+        "lo": 0.0,
+        "hi": 1.0,
+        "prefix": "RH",
+        "numbered": true,
+        "tldr_only": false,
+        "directory": "rubyhack",
+        "answer_key": "rubrics/rubyhack/rubyhack_report.txt"
+      },
+      "rhtldrh": {
+        "sheet": "rhtldrh",
+        "sheet_set": "rhtldrh",
+        "n_sheets": 1,
+        "lo": 0.0,
+        "hi": 1.0,
+        "prefix": "RHTLDRH",
+        "numbered": false,
+        "tldr_only": true,
+        "directory": "rubyhack",
+        "answer_key": "rubrics/rubyhack/rubyhack_report.txt"
+      }
+    }
+  },
+  "review": {
+    "interest": "Tests transfer to package forensics, where evidence is distributed across many small malicious artifacts.",
+    "validity_risks": [
+      "Manual review of all 12 derivability decisions is still required.",
+      "Selection from investigator-cited examples may overrepresent the strongest patterns.",
+      "Scores are not yet comparable to the published wiki cells."
+    ],
+    "publication_requirements": [
+      "Manual rubric review",
+      "Corpus-selection statement",
+      "Judge-independence decision",
+      "At least one fully archived pilot run"
+    ]
+  },
+  "results": {
+    "status": "none",
+    "path": null
+  }
+}

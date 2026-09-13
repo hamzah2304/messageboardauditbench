@@ -25,6 +25,17 @@ SUPPORTED_DATA_FILE_SETS = (
 ALLOWED_DATA_AUXILIARY_FILES = frozenset({".gitkeep"})
 
 
+def expected_data_file_sets() -> tuple[frozenset[str], ...]:
+    """Use the host-declared incident shape, with legacy shapes as a fallback."""
+    declared = os.environ.get("MBAB_DATA_FILES")
+    if not declared:
+        return SUPPORTED_DATA_FILE_SETS
+    names = frozenset(name.strip() for name in declared.split(",") if name.strip())
+    if not names or any("/" in name or not name.endswith(".jsonl") for name in names):
+        return ()
+    return (names,)
+
+
 def file_digest_and_jsonl_count(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     rows = 0
@@ -89,8 +100,9 @@ def preflight(
     supported_files = frozenset(
         path.name for path in data.iterdir() if path.name not in ALLOWED_DATA_AUXILIARY_FILES
     ) if data.is_dir() else frozenset()
+    expected_sets = expected_data_file_sets()
     required_files = next(
-        (files for files in SUPPORTED_DATA_FILE_SETS if supported_files == files),
+        (files for files in expected_sets if supported_files == files),
         frozenset(),
     )
     allowed_names = required_files | ALLOWED_DATA_AUXILIARY_FILES
@@ -101,7 +113,7 @@ def preflight(
         problems.append("/work/data is missing")
     data_files = {path.name for path in data.iterdir()} if data.is_dir() else set()
     if not required_files:
-        expected = [sorted(files) for files in SUPPORTED_DATA_FILE_SETS]
+        expected = [sorted(files) for files in expected_sets]
         problems.append(f"data files are {sorted(data_files)!r}, expected one of {expected!r}")
     data_readonly = _is_readonly_mount(data)
     if require_readonly_mount and not data_readonly:

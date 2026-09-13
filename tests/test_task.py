@@ -21,6 +21,7 @@ def test_task_has_stable_sample_and_version() -> None:
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
+        "incident": "wiki",
         "agent": "codex",
         "scaffold": "codex-cli",
         "backend": "inspect",
@@ -236,7 +237,9 @@ def test_all_public_configs_build(config_name: str) -> None:
     assert cfg["data_variant"] in {
         "raw_stripped", "verbatim", "verbatim_anthropic", "mythos5", "rubyhack"
     }
-    assert build_task(config=config_name).dataset[0].id.endswith(f":{config_name}:20m")
+    assert build_task(config=config_name).dataset[0].id.endswith(
+        f":{config_name}:{cfg['budget_min']}m"
+    )
 
 
 def test_inspect_entry_point_exposes_namespaced_task() -> None:
