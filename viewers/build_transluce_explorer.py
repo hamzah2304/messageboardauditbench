@@ -339,7 +339,8 @@ def build():
         "overrides": json.loads((cat / "classification-overrides.json").read_text()),
     }
     blob = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-    page = TEMPLATE.read_text().replace("__DATA__", blob)
+    context_js = TEMPLATE.with_name("transluce_explorer.context.js").read_text()
+    page = TEMPLATE.read_text().replace("__DATA__", blob).replace("/*__CONTEXT__*/", context_js)
     OUT.write_text(page)
     print(f"{OUT}: {len(page) / 1e6:.1f} MB | {len(rows)} catalogue rows | {len(reports)} raw reports "
           f"({len(missing)} of subset missing) | {len(cites)} cited in post")

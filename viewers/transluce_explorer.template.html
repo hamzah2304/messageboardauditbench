@@ -120,6 +120,20 @@ details.raw summary{cursor:pointer;color:var(--muted);font-size:11px}
 .card .orphan{color:var(--err);font-size:11px;font-weight:600}
 .card .reply{border-top:1px dashed var(--rule);margin-top:5px;padding-top:4px;font-size:12px;white-space:pre-wrap}
 #selbtn{position:absolute;display:none;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#cxtip{position:absolute;z-index:60;max-width:360px;background:var(--ink);color:var(--bg);border-radius:8px;padding:9px 12px;font:13px/1.5 "IBM Plex Sans",system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);pointer-events:none;opacity:0;transition:opacity .1s;display:none}
+#cxtip.show{opacity:1;display:block}
+#cxtip b{color:var(--bg)} #cxtip code{background:rgba(255,255,255,.16);color:var(--bg);padding:0 3px;border-radius:3px;font-size:12px}
+#cxtip .cx-caveat{display:block;margin-top:5px;font-size:11.5px;opacity:.8}
+#cxtip .cx-h{font-weight:600;margin-bottom:2px}
+.cx{border-bottom:1px dotted var(--muted);cursor:help}
+.cxi{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;border-radius:50%;background:var(--chip);border:1px solid var(--rule);color:var(--muted);font-size:10px;font-weight:600;cursor:help;margin-left:5px;vertical-align:middle;font-family:"IBM Plex Sans"}
+.cxi:hover{border-color:var(--accent);color:var(--accent)}
+dt.cx{border-bottom:none}
+.whatbox{border:1px solid var(--rule);border-left:3px solid var(--accent);background:var(--panel);border-radius:8px;padding:10px 14px;margin:12px 0}
+.whatbox h3{font:600 13px/1.3 "IBM Plex Sans";text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:0 0 6px}
+.whatbox ul{margin:0;padding-left:18px} .whatbox li{margin:4px 0}
+.whatbox .cx-caveat{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+td.u .host{color:var(--muted);font-size:10px;font-style:italic;margin-left:4px}
 ::highlight(cmt){background-color:var(--hl)}
 ::highlight(cmtcur){background-color:var(--hl-cur)}
 .flash{animation:fl 1.4s ease-out}
@@ -189,6 +203,8 @@ details.raw summary{cursor:pointer;color:var(--muted);font-size:11px}
   </aside>
 </main>
 <button type="button" id="selbtn" class="primary">💬 Comment <span class="note" style="color:inherit">(c)</span></button>
+<div id="cxtip" role="tooltip" aria-hidden="true"></div>
+<script>/*__CONTEXT__*/</script>
 <script>
 const D = __DATA__;
 const T = D.tables;
@@ -198,6 +214,9 @@ const R = D.rows.map(r => ({id:r[0], t:r[1], disp:T.disp[r[2]], conf:T.conf[r[3]
   cls:T.cls[r[4]], why:T.why[r[5]], cav:T.cav[r[6]], src:T.src[r[7]] || "(no source: " + T.disp[r[2]] + ")", basis:T.basis[r[8]]}));
 const BYID = Object.fromEntries(R.map(r => [r.id, r]));
 const SECTIONS = [...new Set(Object.values(D.cites).map(c => c.section))];
+function hostOf(u){ try { return (u || "").replace(/^https?:\/\//, "").split(/[/?#]/)[0]; } catch(e){ return ""; } }
+function hostTag(u, small){ const n = CTX.hostNote(hostOf(u)); if (!n) return "";
+  return `<span class="${small ? "host " : "chip "}cx" data-cxhost="${esc(hostOf(u))}" tabindex="0" role="button">${small ? "" : "🛈 "}${esc(n.label)}</span>`; }
 R.forEach(r => { const rep = D.reports[r.id]; r.raw = !!rep; r.cited = !!D.cites[r.id];
   r.hay = (r.id + " " + r.why + " " + r.src + (rep ? " " + rep.submitted + " " + rep.final + " " + rep.title + " " + rep.programs.map(p => p.text).join(" ") : "")).toLowerCase(); });
 
@@ -338,7 +357,8 @@ $("#list").addEventListener("keydown", e => {
 });
 
 /* ---------------- report detail ---------------- */
-function secHead(title, key){ return `<div class="sh"><h3>${esc(title)}</h3><button type="button" class="secbtn" data-sec="${esc(key)}" data-title="${esc(title)}" aria-label="Comment on section ${esc(title)}">💬 section</button></div>`; }
+function secHead(title, key){ const cx = CTX.G["s." + key] ? `<span class="cxi" data-cx="s.${esc(key)}" tabindex="0" role="button" aria-label="What is this section?">i</span>` : "";
+  return `<div class="sh"><h3>${esc(title)}</h3>${cx}<button type="button" class="secbtn" data-sec="${esc(key)}" data-title="${esc(title)}" aria-label="Comment on section ${esc(title)}">💬 section</button></div>`; }
 function statusClass(s){ return "st" + String(s || "").slice(0, 1); }
 function openReport(id, fromHash){
   const r = BYID[id]; if (!r) { $("#center").innerHTML = `<div class="empty">Report ${esc(id)} is not in the catalogue.</div>`; return; }
@@ -355,21 +375,22 @@ function openReport(id, fromHash){
   if (cite) h += `<div class="sec" data-field="post">${secHead("What the Transluce post says", "post")}
     <div class="note">Section: <b>${esc(cite.section)}</b> · <button class="link" data-goto-post="${cite.block}">show in post</button></div>
     <blockquote class="ctx">${esc(cite.context)}</blockquote>${D.notes[id] ? `<div class="note">Scanned URL per post: <code>${esc(D.notes[id])}</code></div>` : ""}</div>`;
+  if (rep) { const said = CTX.readScan(rep, r); if (said && said.length) h += `<div class="whatbox" data-field="what"><h3>What happened in this scan</h3><ul>${said.map(b => `<li>${b}</li>`).join("")}</ul></div>`; }
   h += `<div class="sec label" data-field="labels">${secHead("Transluce's labels (their conclusions, not evidence)", "labels")}
-    <dl class="kv"><dt>disposition</dt><dd>${esc(r.disp)}</dd><dt>confidence</dt><dd><span class="dot c-${esc(r.conf)}"></span> ${esc(r.conf)}${ovr ? " (reviewed override)" : ""}</dd>
-    <dt>method class</dt><dd>${esc(r.cls)}</dd><dt>data source</dt><dd>${esc(r.src)} <span class="note">(${esc(r.basis || "")})</span></dd>
-    <dt>why included</dt><dd>${esc(r.why)}</dd><dt>caveat</dt><dd class="note">${esc(r.cav)}</dd></dl></div>`;
+    <dl class="kv"><dt class="cx" data-cx="l.disposition">disposition</dt><dd>${esc(r.disp)}</dd><dt class="cx" data-cx="l.confidence">confidence</dt><dd><span class="dot c-${esc(r.conf)}"></span> ${esc(r.conf)}${ovr ? " (reviewed override)" : ""}</dd>
+    <dt class="cx" data-cx="l.class">method class</dt><dd>${esc(r.cls)}</dd><dt class="cx" data-cx="l.source">data source</dt><dd>${esc(r.src)} <span class="note">(${esc(r.basis || "")})</span></dd>
+    <dt class="cx" data-cx="l.why">why included</dt><dd>${esc(r.why)}</dd><dt class="cx" data-cx="l.caveat">caveat</dt><dd class="note">${esc(r.cav)}</dd></dl></div>`;
   if (!rep) {
     h += `<div class="sec"><div class="empty">Raw urlquery JSON not fetched for this report. Open it on urlquery.net, or add it to the subset in <code>scripts/fetch_transluce.py</code> and rebuild.</div></div>`;
   } else {
     h += `<div class="sec" data-field="scan">${secHead("Scan", "scan")}<dl class="kv">
-      <dt>submitted URL</dt><dd><code>${esc(rep.submitted)}</code></dd>
-      <dt>final URL</dt><dd><code>${esc(rep.final)}</code></dd>
-      <dt>final title</dt><dd>${esc(rep.title) || '<span class="note">—</span>'}</dd>
-      <dt>final DOM</dt><dd class="note">${esc(rep.dom.mime_type || "")} · ${rep.dom.size ?? "?"} bytes · seen ${rep.dom.times_seen ?? "?"}× (first ${esc(rep.dom.first_seen || "?")})</dd>
-      <dt>submitter bucket</dt><dd class="mono">${esc(rep.user || "—")} <span class="note">· exit node ${esc(rep.exit || "—")} (shared anonymous buckets, not actor ids)</span></dd>
-      <dt>urlquery alerts</dt><dd>${Object.entries(rep.alerts.counts || {}).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")}${rep.alerts.items.length ? "<br>" + rep.alerts.items.map(esc).join("<br>") : ""}</dd>
-      ${rep.tags.length ? `<dt>tags</dt><dd>${rep.tags.map(t => `<span class="chip">${esc(typeof t === "string" ? t : JSON.stringify(t))}</span>`).join(" ")}</dd>` : ""}
+      <dt class="cx" data-cx="f.submitted">submitted URL</dt><dd><code>${esc(rep.submitted)}</code>${hostTag(rep.submitted)}</dd>
+      <dt class="cx" data-cx="f.final">final URL</dt><dd><code>${esc(rep.final)}</code>${hostTag(rep.final)}</dd>
+      <dt class="cx" data-cx="f.finaltitle">final title</dt><dd>${esc(rep.title) || '<span class="note">—</span>'}</dd>
+      <dt class="cx" data-cx="f.dom">final DOM</dt><dd class="note">${esc(rep.dom.mime_type || "")} · ${rep.dom.size ?? "?"} bytes · seen ${rep.dom.times_seen ?? "?"}× (first ${esc(rep.dom.first_seen || "?")})</dd>
+      <dt class="cx" data-cx="f.submitter">submitter bucket</dt><dd class="mono">${esc(rep.user || "—")} <span class="note">· exit node ${esc(rep.exit || "—")} (shared anonymous buckets, not actor ids)</span></dd>
+      <dt class="cx" data-cx="f.alerts">urlquery alerts</dt><dd>${Object.entries(rep.alerts.counts || {}).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")}${rep.alerts.items.length ? "<br>" + rep.alerts.items.map(esc).join("<br>") : ""}</dd>
+      ${rep.tags.length ? `<dt class="cx" data-cx="f.tags">tags</dt><dd>${rep.tags.map(t => `<span class="chip">${esc(typeof t === "string" ? t : JSON.stringify(t))}</span>`).join(" ")}</dd>` : ""}
       </dl></div>`;
     if (rep.programs.length) h += `<div class="sec" data-field="programs">${secHead("Decoded base64 payloads (" + rep.programs.length + ")", "programs")}
       ${rep.programs.map(p => `<div class="note">from ${esc(p.where)}</div><pre>${esc(p.text)}</pre>`).join("")}</div>`;
@@ -379,8 +400,8 @@ function openReport(id, fromHash){
       <div class="note">Response bodies are mostly not preserved by urlquery; judge outcomes from status codes and what follows.</div>
       <table class="http"><thead><tr><th>time</th><th>method</th><th>status</th><th>type</th><th>URL</th></tr></thead><tbody>
       ${rep.http.map((x, i) => `<tr class="${x.nav ? "nav" : ""}"><td class="mono">${esc((x.t || "").slice(11, 23))}</td><td>${esc(x.m)}</td>
-        <td class="${statusClass(x.s)}">${esc(x.s)} ${esc(x.st || "")}</td><td>${esc(x.rt)}${x.nav ? " ⤷" : ""}</td>
-        <td class="u">${esc(x.u)}${x.req || x.res || x.by ? `<details class="raw"><summary>${x.req || x.res ? "headers" : "details"}${x.mime ? " · " + esc(x.mime) : ""}${x.size ? " · " + x.size + " B" : ""}</summary>${x.by ? `<div class="note">requested by: ${esc(x.by)}</div>` : ""}${x.req ? `<pre>${esc(x.req)}</pre>` : ""}${x.res ? `<pre>${esc(x.res)}</pre>` : ""}</details>` : `<div class="note">${esc(x.mime || "")}${x.size ? " · " + x.size + " B" : ""}</div>`}</td></tr>`).join("")}
+        <td class="${statusClass(x.s)}${CTX.statusNote(x.s) ? " cx" : ""}"${CTX.statusNote(x.s) ? ` data-cxstatus="${esc(x.s)}"` : ""}>${esc(x.s)} ${esc(x.st || "")}</td><td>${esc(x.rt)}${x.nav ? " ⤷" : ""}</td>
+        <td class="u">${esc(x.u)}${hostTag(x.u, true)}${x.req || x.res || x.by ? `<details class="raw"><summary>${x.req || x.res ? "headers" : "details"}${x.mime ? " · " + esc(x.mime) : ""}${x.size ? " · " + x.size + " B" : ""}</summary>${x.by ? `<div class="note">requested by: ${esc(x.by)}</div>` : ""}${x.req ? `<pre>${esc(x.req)}</pre>` : ""}${x.res ? `<pre>${esc(x.res)}</pre>` : ""}</details>` : `<div class="note">${esc(x.mime || "")}${x.size ? " · " + x.size + " B" : ""}</div>`}</td></tr>`).join("")}
       </tbody></table></div>`;
   }
   h += neighbours(r) + "</article>";
@@ -580,6 +601,30 @@ $("#c-file").onchange = async e => { const f = e.target.files[0]; if (!f) return
   try { const d = JSON.parse(await f.text()); const before = C.comments.length; C.comments = merge(C.comments, d.comments || d); persist(); paint(); renderComments(); renderList();
     setSave("ok", `Imported ${f.name}: ${C.comments.length - before} new, others merged by last edit`); }
   catch(err) { setSave("err", "Import failed: " + err.message); } e.target.value = ""; };
+
+/* ---------------- hover context tooltips ---------------- */
+const cxtip = $("#cxtip");
+function cxHTML(el){
+  if (el.dataset.cx) { const g = CTX.G[el.dataset.cx]; return g || null; }
+  if (el.dataset.cxhost) { const n = CTX.hostNote(el.dataset.cxhost); return n ? `<div class="cx-h">${esc(n.label)} · <code>${esc(el.dataset.cxhost)}</code></div>${n.text}` : null; }
+  if (el.dataset.cxstatus) { const s = CTX.statusNote(el.dataset.cxstatus); return s ? `<div class="cx-h">HTTP ${esc(el.dataset.cxstatus)} — ${esc(s[0])}</div>${s[1]}` : null; }
+  return null;
+}
+function showCx(el){
+  const html = cxHTML(el); if (!html) return;
+  cxtip.innerHTML = html; cxtip.classList.add("show"); cxtip.setAttribute("aria-hidden", "false");
+  const r = el.getBoundingClientRect(), tw = Math.min(360, cxtip.offsetWidth), th = cxtip.offsetHeight;
+  let left = scrollX + r.left, top = scrollY + r.bottom + 6;
+  if (left + tw > scrollX + innerWidth - 8) left = scrollX + innerWidth - tw - 8;
+  if (r.bottom + th + 12 > innerHeight) top = scrollY + r.top - th - 6;   // flip above if no room below
+  cxtip.style.left = Math.max(8, left) + "px"; cxtip.style.top = top + "px";
+}
+function hideCx(){ cxtip.classList.remove("show"); cxtip.setAttribute("aria-hidden", "true"); }
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-cx],[data-cxhost],[data-cxstatus]"); if (el) showCx(el); });
+document.addEventListener("mouseout", e => { if (e.target.closest("[data-cx],[data-cxhost],[data-cxstatus]")) hideCx(); });
+document.addEventListener("focusin", e => { const el = e.target.closest("[data-cx],[data-cxhost],[data-cxstatus]"); if (el) showCx(el); });
+document.addEventListener("focusout", hideCx);
+addEventListener("scroll", hideCx, true);
 
 /* ---------------- boot ---------------- */
 (async function(){
