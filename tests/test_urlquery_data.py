@@ -115,6 +115,16 @@ def test_evaluator_summary_counts_string_statuses_without_payloads(tmp_path, cfg
     assert "private_payload" not in json.dumps(result)
 
 
+@pytest.mark.parametrize("hostname", ["urlquery.net", "search.urlquery.net", "1.urlquery.net"])
+def test_article_coverage_includes_urlquery_host_aliases(tmp_path, hostname):
+    import runpy
+
+    groups = runpy.run_path(str(Path(__file__).parents[1] / "docs/assessments/transluce/summarize_snapshot.py"))["article_groups"]
+    source = tmp_path / "article.html"
+    source.write_text(f'<article><h2>Case</h2><a href="https://{hostname}/report/{IDS[0]}">scan</a></article>')
+    assert groups(source) == {"Case": {IDS[0]}}
+
+
 def test_refuse_incomplete_and_existing_snapshot(tmp_path, cfg, catalog):
     cache = tmp_path / "raw"
     cache.mkdir()

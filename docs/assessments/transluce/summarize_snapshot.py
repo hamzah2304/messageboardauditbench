@@ -24,7 +24,7 @@ def article_groups(source: Path) -> dict[str, set[str]]:
         raise ValueError("source article missing")
     groups = collections.defaultdict(set)
     heading = "Introduction"
-    pattern = re.compile(r"https://urlquery\.net/report/([a-f0-9-]{36})(?:[/#?]|$)")
+    pattern = re.compile(r"https://(?:[a-z0-9-]+\.)*urlquery\.net/report/([a-f0-9-]{36})(?:[/#?]|$)")
     for element in article.descendants:
         if getattr(element, "name", None) in ("h2", "h3", "summary"):
             heading = element.get_text(" ", strip=True)
