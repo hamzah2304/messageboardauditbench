@@ -4,6 +4,7 @@ Run from the worktree: .venv/bin/python docs/assessments/transluce/build_preview
 Then: python scripts/html_viewer.py 8790
 """
 
+import argparse
 import hashlib
 import html
 import json
@@ -20,7 +21,7 @@ REPORT_ID = "transluce-benchmark-assessment-2026-09-26"
 
 SHELL = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Transluce benchmark assessment</title>
+<title>__TITLE__</title>
 <style>
 :root{--bg:#f6f4ef;--paper:#fffefa;--ink:#252c32;--muted:#59636c;--line:#dcded9;--accent:#266b61;--soft:#e6f0eb}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}
@@ -44,11 +45,13 @@ aside{align-self:start;position:sticky;top:20px;max-height:94vh;overflow:auto;fo
 textarea,input{font:14px/1.5 system-ui;width:100%;border:1px solid var(--line);padding:9px;border-radius:5px;margin:5px 0;background:white;color:var(--ink)}
 textarea{resize:vertical;min-height:95px}.selected{font-size:12px;border-left:3px solid var(--accent);padding-left:9px;max-height:100px;overflow:auto;margin:10px 0;color:var(--muted);white-space:pre-wrap}
 .comment{border-top:1px solid var(--line);padding:12px 0;overflow-wrap:anywhere}.comment p{white-space:pre-wrap;margin:6px 0}.comment button{font-size:11px;padding:4px 7px}
+.reply{background:var(--soft);padding:10px;border-radius:7px;margin-top:10px}.notice{max-width:1260px;margin:20px auto 0;padding:14px 20px;background:var(--soft);border-radius:8px;font-size:14px}
 .flash{background:#fff1b8;transition:background 1s}.actions{display:flex;gap:7px;flex-wrap:wrap}#status{min-height:2em;margin-top:9px}
 @media(max-width:1000px){.layout{grid-template-columns:minmax(0,1fr);padding:26px 20px;gap:25px}aside{position:static;max-height:none}article{max-width:850px}.top{padding:15px 20px}table{min-width:560px}}
 @media print{aside,.top{display:none}.layout{display:block;padding:0}body{background:white}.tablewrap{overflow:visible}table{min-width:0}h2{break-after:avoid}}
 </style></head><body>
 <header class="top"><span>Research assessment</span><a href="__SOURCE__">Markdown source</a></header>
+__NOTICE__
 <div class="layout"><article id="report">__BODY__</article>
 <aside><div class="panel"><h2>In this assessment</h2><nav>__TOC__</nav></div>
 <div class="panel"><h2>Leave a comment</h2><p class="small">Select text in the assessment, then add a note. Comments save locally to this worktree.</p>
@@ -57,8 +60,10 @@ textarea{resize:vertical;min-height:95px}.selected{font-size:12px;border-left:3p
 <div class="actions"><button id="save" disabled>Save comment</button><button id="export">Export JSON</button></div>
 <div id="status" class="small" role="status">Loading saved comments…</div><div id="comments"></div></div></aside></div>
 <script id="meta" type="application/json">__META__</script>
+<script id="seed" type="application/json">__SEED__</script>
 <script>
 const M=JSON.parse(document.getElementById('meta').textContent), KEY=M.report_id+':'+M.report_sha256;
+const seed=JSON.parse(document.getElementById('seed').textContent);
 const $=id=>document.getElementById(id), report=$('report');let comments=[],selection=null,ready=false;
 const matches=d=>d&&d.report_id===M.report_id&&d.report_sha256===M.report_sha256&&Array.isArray(d.comments);
 function payload(){return {...M,comments,saved_at:new Date().toISOString()};}
@@ -70,7 +75,9 @@ function render(){
   const q=document.createElement('div');q.className='selected';q.textContent=c.quote;
   const note=document.createElement('p');note.textContent=c.note;
   const jump=document.createElement('button');jump.textContent='Show passage';jump.onclick=()=>{const el=$(c.anchor);if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1800);}};
-  box.append(author,q,note,jump);$('comments').append(box);
+  box.append(author,q,note,jump);
+  for(const r of c.replies||[]){const reply=document.createElement('div');reply.className='reply';const name=document.createElement('strong');name.textContent=r.author;const text=document.createElement('p');text.textContent=r.text;reply.append(name,text);if(r.link?.startsWith('/')&&!r.link.startsWith('//')){const a=document.createElement('a');a.href=r.link;a.textContent='Read follow-up';reply.append(a);}box.append(reply);}
+  $('comments').append(box);
  }
 }
 async function persist(){
@@ -91,7 +98,7 @@ $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify(pa
 (async()=>{
  let local=null,remote=null;try{const d=JSON.parse(localStorage.getItem(KEY));if(matches(d))local=d;}catch(e){}
  try{const r=await fetch('/file?p='+encodeURIComponent(M.save_path));if(r.ok){const d=await r.json();if(matches(d))remote=d;}}catch(e){}
- const byId=new Map();for(const d of [remote,local])for(const c of d?.comments||[])byId.set(c.id,c);
+ const byId=new Map();for(const d of [matches(seed)?seed:null,remote,local])for(const c of d?.comments||[]){const old=byId.get(c.id);const replies=new Map();for(const r of [...old?.replies||[],...c.replies||[]])replies.set(r.id||r.author+':'+r.text,r);byId.set(c.id,{...old,...c,replies:Array.from(replies.values())});}
  comments=Array.from(byId.values());render();ready=true;update();$('status').textContent=comments.length+' saved comments';
 })();
 </script></body></html>
@@ -99,14 +106,27 @@ $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify(pa
 
 
 def main():
-    source = SOURCE.read_text()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=Path, default=SOURCE)
+    parser.add_argument("--output-name", default="transluce_assessment")
+    parser.add_argument("--report-id", default=REPORT_ID)
+    parser.add_argument("--title", default="Transluce benchmark assessment")
+    parser.add_argument("--comments", type=Path)
+    args = parser.parse_args()
+    if not re.fullmatch(r"[a-z0-9_]+", args.output_name):
+        parser.error("output-name must contain lowercase letters, digits or underscores")
+    source_path = args.source.resolve()
+    source = source_path.read_text()
     body = MarkdownIt("commonmark", {"html": False}).enable("table").render(source)
 
     def local_link(match):
         href = match.group(1)
         if not re.match(r"https?://|#|mailto:", href):
-            path = (HERE / href).resolve()
+            path = (source_path.parent / href).resolve()
             if path.is_file() and ROOT in path.parents:
+                pages = {HERE / "assessment.md": "transluce_assessment", HERE / "data_preparation.md": "transluce_data_preparation"}
+                if path in pages:
+                    return f'href="/{pages[path]}.html"'
                 return 'href="/file?p=' + quote(str(path), safe="") + '"'
         return match.group(0)
 
@@ -126,14 +146,21 @@ def main():
     body = re.sub(r"<(h[123]|p|li|td)>(.*?)</\1>", block, body, flags=re.S)
     body = body.replace("<table>", '<div class="tablewrap"><table>').replace("</table>", "</table></div>")
     metadata = {
-        "report_id": REPORT_ID,
+        "report_id": args.report_id,
         "report_sha256": hashlib.sha256(source.encode()).hexdigest(),
-        "save_path": str(ROOT / "viewers/data/transluce-assessment-review.json"),
+        "save_path": str(ROOT / "viewers/data" / (args.output_name.replace("_", "-") + "-review.json")),
     }
-    output = ROOT / "viewers/transluce_assessment.html"
+    seed = json.loads(args.comments.read_text()) if args.comments else None
+    if seed and (seed["report_sha256"] != metadata["report_sha256"] or seed["report_id"] != metadata["report_id"]):
+        raise ValueError("Comment export does not match the selected source snapshot")
+    output = ROOT / "viewers" / (args.output_name + ".html")
     result = SHELL.replace("__BODY__", body).replace("__TOC__", "".join(toc))
-    result = result.replace("__SOURCE__", html.escape("/file?p=" + quote(str(SOURCE), safe="")))
+    result = result.replace("__SOURCE__", html.escape("/file?p=" + quote(str(source_path), safe="")))
     result = result.replace("__META__", json.dumps(metadata).replace("<", "\\u003c"))
+    result = result.replace("__SEED__", json.dumps(seed).replace("<", "\\u003c"))
+    result = result.replace("__TITLE__", html.escape(args.title))
+    notice = '<div class="notice">The <a href="/transluce_data_preparation.html">data-preparation follow-up</a> incorporates your comments and supersedes this assessment’s effort and report-length proposals. Replies are in the comment panel below.</div>' if args.report_id == REPORT_ID else ""
+    result = result.replace("__NOTICE__", notice)
     output.write_text(result)
     print(f"Rendered {output}; {len(toc)} navigation entries; {len(source.split())} source words")
 
