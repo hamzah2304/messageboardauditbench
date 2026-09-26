@@ -87,6 +87,34 @@ def test_build_removes_labels_keeps_evidence_and_hashes(tmp_path, cfg, catalog):
         validate_dataset(output)
 
 
+def test_evaluator_summary_counts_string_statuses_without_payloads(tmp_path, cfg, catalog):
+    import runpy
+
+    summarize = runpy.run_path(str(Path(__file__).parents[1] / "docs/assessments/transluce/summarize_snapshot.py"))["summarize"]
+    cache = tmp_path / "raw"
+    (cache / "reports").mkdir(parents=True)
+    for scan_id in IDS:
+        report = raw(scan_id)
+        report["submit"]["url"] = "https://example.test/a%20b"
+        report["http"] = [{"response": {"status_code": "403", "data": {"data": "private_payload"}}}]
+        (cache / "reports" / f"{scan_id}.json").write_text(json.dumps(report))
+    output = tmp_path / "clean"
+    prepare.build(cfg, cache, output)
+    source = tmp_path / "article.html"
+    source.write_text(f'<article><h2>One</h2><a href="https://urlquery.net/report/{IDS[0]}">scan</a>'
+                      f'<h2>Two</h2><a href="https://urlquery.net/report/{IDS[0]}/json">same scan</a></article>')
+    result = summarize(output, source)
+    coverage = result["article_citation_coverage"]
+    assert coverage["cited_scan_count"] == coverage["present_scan_count"] == 1
+    assert coverage["scans_with_http_error"] == 1
+    assert coverage["scans_with_any_successful_text_decoding"] == 1
+    assert coverage["embedded_nonempty_response_bodies"] == 1
+    assert coverage["embedded_nonempty_final_dom_bodies"] == 0
+    assert result["http_status_counts"] == {"403": 2}
+    assert len(result["overlapping_article_sections"]) == 2
+    assert "private_payload" not in json.dumps(result)
+
+
 def test_refuse_incomplete_and_existing_snapshot(tmp_path, cfg, catalog):
     cache = tmp_path / "raw"
     cache.mkdir()
