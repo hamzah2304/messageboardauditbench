@@ -70,7 +70,7 @@ def test_trial_prompt_is_neutral_and_length_config_is_approved():
 
     from messageboard_audit_bench.report_length import render_prompt
     cfg = tomllib.loads((ROOT / "configs/urlquery-10.toml").read_text())
-    prompt = render_prompt((ROOT / "sandbox/prompts/urlquery-blind.txt").read_text(), 10, 3000, 3500)
+    prompt = render_prompt((ROOT / "sandbox/prompts/urlquery-blind-v2.txt").read_text(), 10, 3000, 3500)
     assert "{{" not in prompt and "3,500" in prompt
     assert cfg["effort"] == "medium" and cfg["report_accept_max_words"] == 3600
     for hint in ("Transluce", "ONCB", "AIHW", "OpenAI", "Anthropic", "collusion.wiki"):
