@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import time
+import tomllib
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -28,7 +29,18 @@ OVERRIDES = ("PROMPT", "BUDGET_MIN", "TIMEOUT", "DATA_DIR", "DATA_DIR_OVERRIDE",
              "MIN_RUNTIME_FRACTION", "MBAB_MIN_RUNTIME_FRACTION", "RESUME_FROM")
 
 
-def plan(dataset: Path) -> tuple[Path, dict]:
+def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | None = None) -> tuple[Path, dict]:
+    selected_agents = set(agents) if agents is not None else {"codex", "claude"}
+    if not selected_agents or selected_agents - {"codex", "claude"}:
+        raise ValueError("pilot agents must be codex and/or claude")
+    known_models = {model for _, model, _ in MATRIX}
+    selected_models = set(models) if models is not None else known_models
+    if not selected_models or selected_models - known_models:
+        raise ValueError("pilot models must come from the configured matrix")
+    matrix = [{"agent": a, "model": m, "replicate": r}
+              for a, m, r in MATRIX if a in selected_agents and m in selected_models]
+    if not matrix:
+        raise ValueError("agent/model filters select no trials")
     dataset = dataset.resolve()
     metadata = validate_trial_data("urlquery", dataset)
     root, shared = repo_root(), primary_root()
@@ -38,17 +50,25 @@ def plan(dataset: Path) -> tuple[Path, dict]:
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
     experiment = "pilot-" + stamp + "-" + uuid.uuid4().hex[:8]
     directory = shared / "runs/urlquery" / experiment
-    directory.mkdir(parents=True, exist_ok=False)
     config = (root / "configs/urlquery-10.toml").read_text()
     # Dataset version can change without changing prompt/model/time conditions.
     config = re.sub(r'^data_variant = .*$', f'data_variant = "urlquery/{dataset.name}"', config, flags=re.M)
     config += f'\ndataset_sha256 = "{metadata["dataset_sha256"]}"\n'
+    claude_version = tomllib.loads(config).get("claude_cli_version")
+    if not isinstance(claude_version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", claude_version):
+        raise ValueError("claude_cli_version must be an exact numeric version")
+    codex_version = tomllib.loads(config).get("codex_cli_version")
+    if not isinstance(codex_version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", codex_version):
+        raise ValueError("codex_cli_version must be an exact numeric version")
+    directory.mkdir(parents=True, exist_ok=False)
     config_path = directory / "pilot-config.toml"
     config_path.write_text(config)
     payload = {"experiment_id": experiment, **metadata, "dataset_path": str(dataset),
                "code_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
                "config": str(config_path), "config_sha256": file_sha256(config_path),
-               "matrix": [{"agent": a, "model": m, "replicate": r} for a, m, r in MATRIX],
+               "matrix": matrix,
+               "image": f"mbab-urlquery-sandbox-codex-{codex_version}-claude-{claude_version}",
+               "image_build_args": {"CLAUDE_VERSION": claude_version, "CODEX_VERSION": "rust-v" + codex_version},
                "budget_minutes": 10, "outer_guard_seconds": 900, "effort": "medium",
                "status": "planned", "grading": "none"}
     (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
@@ -58,17 +78,20 @@ def plan(dataset: Path) -> tuple[Path, dict]:
 def launch(directory: Path, payload: dict) -> list[dict]:
     root = repo_root()
     env = {k: v for k, v in os.environ.items() if k not in OVERRIDES}
-    env.update(CONFIG=payload["config"], IMAGE="mbab-urlquery-sandbox")
+    env.update(CONFIG=payload["config"], IMAGE=payload["image"])
+    build_args = [arg for key, value in sorted(payload["image_build_args"].items())
+                  for arg in ("--build-arg", f"{key}={value}")]
     # Build once outside the per-trial guard. The runner rebuild is then cached.
-    subprocess.run(["docker", "build", "-q", "-t", env["IMAGE"], "-f", "sandbox/docker/Dockerfile", "."], cwd=root, check=True)
+    subprocess.run(["docker", "build", "-q", "-t", env["IMAGE"], *build_args, "-f", "sandbox/docker/Dockerfile", "."], cwd=root, check=True)
     subprocess.run([str(root / ".venv/bin/python"), "scripts/check_urlquery_isolation.py", payload["dataset_path"],
                     "--image", env["IMAGE"], "--output", str(directory / "input-isolation.json")], cwd=root, check=True)
 
     def lane(agent):
         results = []
-        for selected, model, replicate in MATRIX:
-            if selected != agent:
+        for trial in payload["matrix"]:
+            if trial["agent"] != agent:
                 continue
+            model, replicate = trial["model"], trial["replicate"]
             log_path = directory / f"{agent}-{model}-r{replicate}.log"
             started = time.time()
             timed_out = False
@@ -121,9 +144,10 @@ def launch(directory: Path, payload: dict) -> list[dict]:
         return results
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = [row for lane_results in pool.map(lane, ("codex", "claude")) for row in lane_results]
+        agents = list(dict.fromkeys(trial["agent"] for trial in payload["matrix"]))
+        results = [row for lane_results in pool.map(lane, agents) for row in lane_results]
     (directory / "results.json").write_text(json.dumps(results, indent=2) + "\n")
-    payload["status"] = "finished" if len(results) == len(MATRIX) else "stopped_with_unlaunched_trials"
+    payload["status"] = "finished" if len(results) == len(payload["matrix"]) else "stopped_with_unlaunched_trials"
     (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
     subprocess.run([str(root / ".venv/bin/python"), "scripts/collect_reports.py", "--benchmark", "urlquery",
                     "--include-partial", "--include-rejected"], cwd=root, check=True)
@@ -134,8 +158,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--launch", action="store_true")
+    parser.add_argument("--agent", choices=("codex", "claude"), action="append",
+                        help="Run only this subscription lane; repeat to include both (default: both)")
+    parser.add_argument("--model", choices=sorted({m for _, m, _ in MATRIX}), action="append",
+                        help="Select model(s) from the planned matrix without rerunning other models")
     args = parser.parse_args()
-    directory, payload = plan(args.dataset)
+    directory, payload = plan(args.dataset, agents=args.agent, models=args.model)
     print(json.dumps({"plan": str(directory / "plan.json"), "launch": args.launch}), flush=True)
     if args.launch:
         launch(directory, payload)

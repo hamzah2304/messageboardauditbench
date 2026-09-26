@@ -170,6 +170,7 @@ def test_replay_rejects_cross_benchmark_metadata(tmp_path, monkeypatch):
 
 
 def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatch):
+    import os
     import tomllib
 
     from messageboard_audit_bench import urlquery_pilot as pilot
@@ -185,18 +186,42 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     assert cfg["budget_min"] == 10 and cfg["effort"] == "medium"
     assert payload["status"] == "planned" and len(payload["matrix"]) == 4
     assert [r["agent"] for r in payload["matrix"]].count("claude") == 2
+    assert payload["image_build_args"] == {"CLAUDE_VERSION": cfg["claude_cli_version"],
+                                            "CODEX_VERSION": "rust-v" + cfg["codex_cli_version"]}
+    assert payload["image"].endswith("-claude-" + cfg["claude_cli_version"])
+    helper = Path(__file__).parents[1] / "sandbox/docker/resolve_image.sh"
+    shell = 'set -eu; . "$1"; resolve_trial_image; for x in ${IMAGE_BUILD_ARGS[@]+"${IMAGE_BUILD_ARGS[@]}"}; do printf "%s\\n" "$x"; done'
+    result = subprocess.run(["bash", "-c", shell, "test", str(helper)], capture_output=True, text=True,
+                            env={**os.environ, "BENCHMARK_ID": "urlquery", "IMAGE": payload["image"],
+                                 "CFG_CODEX_CLI_VERSION": cfg["codex_cli_version"], "CFG_CLAUDE_CLI_VERSION": cfg["claude_cli_version"]})
+    assert result.returncode == 0, result.stderr
+    assert dict(line.split("=", 1) for line in result.stdout.splitlines() if line != "--build-arg") == payload["image_build_args"]
     assert not list(directory.glob("*.log"))
+    _, anthro = pilot.plan(dataset, agents=["claude"])
+    assert len(anthro["matrix"]) == 2 and all(row["agent"] == "claude" for row in anthro["matrix"])
+    with pytest.raises(ValueError, match="pilot agents"):
+        pilot.plan(dataset, agents=["other"])
+    _, retry = pilot.plan(dataset, models=["gpt-6-sol", "claude-opus-5-5"])
+    assert len(retry["matrix"]) == 3 and all(r["model"] != "gpt-6-astra" for r in retry["matrix"])
+    with pytest.raises(ValueError, match="select no trials"):
+        pilot.plan(dataset, agents=["claude"], models=["gpt-6-sol"])
 
 
+@pytest.mark.parametrize("agents", [None, ["claude"]])
 @pytest.mark.parametrize(("scenario", "rc", "expected_runs"), [("capacity_exhausted", 124, 2), ("refusal", 5, 4), ("error", 1, 2), ("outer_timeout", -15, 2)])
-def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, scenario, rc, expected_runs):
+def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, scenario, rc, expected_runs, agents):
     import uuid
 
     from messageboard_audit_bench import urlquery_pilot as pilot
     directory = tmp_path / "runs/urlquery/pilot-test"
     directory.mkdir(parents=True)
     payload = {"config": str(directory / "pilot-config.toml"), "dataset_path": str(tmp_path / "data"),
-               "dataset_sha256": "a" * 64, "outer_guard_seconds": 900, "status": "planned"}
+               "dataset_sha256": "a" * 64, "outer_guard_seconds": 900, "status": "planned",
+               "image": "mbab-urlquery-sandbox-codex-0.156.1-claude-2.1.283",
+               "image_build_args": {"CLAUDE_VERSION": "2.1.283", "CODEX_VERSION": "rust-v0.156.1"},
+               "matrix": [{"agent": a, "model": m, "replicate": r} for a, m, r in pilot.MATRIX if agents is None or a in agents]}
+    if agents is not None:
+        expected_runs //= 2
     calls, launches = [], []
 
     def fake_run(command, **kwargs):
@@ -208,6 +233,7 @@ def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, sc
             self.command = command
             self.stopped = False
             assert "BUDGET_MIN" not in kwargs["env"]
+            assert agents is None or command[2] in agents
             run_id = uuid.uuid4().hex
             run = directory.parent / ("20260926_trial_" + run_id[:12])
             run.mkdir()
@@ -236,9 +262,113 @@ def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, sc
     monkeypatch.setattr(pilot.subprocess, "Popen", Process)
     results = pilot.launch(directory, payload)
     assert len(results) == len(launches) == expected_runs
-    assert payload["status"] == ("finished" if expected_runs == 4 else "stopped_with_unlaunched_trials")
+    assert "CLAUDE_VERSION=2.1.283" in calls[0]
+    assert payload["status"] == ("finished" if expected_runs == len(payload["matrix"]) else "stopped_with_unlaunched_trials")
     if scenario == "outer_timeout":
         for run, run_id in launches:
             assert ["docker", "rm", "-f", f"mbab-agent-{run_id}", f"mbab-proxy-{run_id}"] in calls
             assert ["docker", "network", "rm", f"mbab-inner-{run_id}"] in calls
             assert not (run / ".secrets").exists() and (run / "meta.json").exists()
+
+
+@pytest.mark.parametrize("line", ['claude_cli_version = "2.1"', "claude_cli_version = 283", ""])
+def test_bad_cli_version_does_not_create_plan(tmp_path, monkeypatch, line):
+    from messageboard_audit_bench import urlquery_pilot as pilot
+
+    dataset = tmp_path / "data/urlquery/test-v1"
+    dataset.mkdir(parents=True)
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "configs/urlquery-10.toml").write_text(line + "\n")
+    monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
+    monkeypatch.setattr(pilot, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
+        "benchmark_id": "urlquery", "dataset_sha256": "a" * 64, "dataset_version": "test-v1"})
+    with pytest.raises(ValueError, match="claude_cli_version"):
+        pilot.plan(dataset)
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize(("version", "image", "message"), [
+    ("2.1", "mbab-sandbox", "exact numeric version"),
+    ("2.1.283", "mbab-urlquery-sandbox", "image must end"),
+])
+def test_runner_rejects_bad_cli_version_or_image_before_docker(tmp_path, version, image, message):
+    import os
+
+    root = Path(__file__).parents[1]
+    config = tmp_path / "invalid.toml"
+    config.write_text((root / "configs/urlquery-10.toml").read_text().replace('claude_cli_version = "2.1.283"',
+                                                                 f'claude_cli_version = "{version}"'))
+    result = subprocess.run(["bash", "sandbox/docker/run_trial.sh", "claude", "claude-opus-5-5"],
+                            cwd=root, env={**os.environ, "CONFIG": str(config), "IMAGE": image},
+                            capture_output=True, text=True)
+    assert result.returncode == 2 and message in result.stderr
+
+
+@pytest.mark.parametrize(("benchmark", "codex", "claude", "image", "expected", "args"), [
+    ("messageboard", "0.156.1", "2.1.283", "mbab-sandbox", "mbab-sandbox", []),
+    ("urlquery", "", "", "mbab-sandbox", "mbab-urlquery-sandbox", []),
+    ("urlquery", "", "2.1.283", "mbab-sandbox", "mbab-urlquery-sandbox-claude-2.1.283", ["--build-arg", "CLAUDE_VERSION=2.1.283"]),
+    ("urlquery", "0.156.1", "2.1.283", "mbab-sandbox", "mbab-urlquery-sandbox-codex-0.156.1-claude-2.1.283",
+     ["--build-arg", "CODEX_VERSION=rust-v0.156.1", "--build-arg", "CLAUDE_VERSION=2.1.283"]),
+])
+def test_image_resolution_preserves_original_and_unpinned_defaults(benchmark, codex, claude, image, expected, args):
+    import os
+
+    helper = Path(__file__).parents[1] / "sandbox/docker/resolve_image.sh"
+    shell = 'set -eu; . "$1"; resolve_trial_image; printf "%s\\n" "$IMAGE"; for x in ${IMAGE_BUILD_ARGS[@]+"${IMAGE_BUILD_ARGS[@]}"}; do printf "%s\\n" "$x"; done'
+    result = subprocess.run(["bash", "-c", shell, "test", str(helper)], capture_output=True, text=True,
+                            env={**os.environ, "BENCHMARK_ID": benchmark, "IMAGE": image,
+                                 "CFG_CODEX_CLI_VERSION": codex, "CFG_CLAUDE_CLI_VERSION": claude})
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [expected, *args]
+
+
+@pytest.mark.parametrize(("codex", "claude", "image"), [
+    ("", "", "mbab-urlquery-sandbox-claude-2.1.283"),
+    ("", "2.1.283", "mbab-urlquery-sandbox-codex-0.156.1-claude-2.1.283"),
+    ("0.156.1", "", "mbab-urlquery-sandbox-codex-0.156.1-claude-2.1.283"),
+])
+def test_versioned_image_requires_all_matching_config_pins(codex, claude, image):
+    import os
+
+    helper = Path(__file__).parents[1] / "sandbox/docker/resolve_image.sh"
+    result = subprocess.run(["bash", "-c", 'set -eu; . "$1"; resolve_trial_image', "test", str(helper)],
+                            capture_output=True, text=True,
+                            env={**os.environ, "BENCHMARK_ID": "urlquery", "IMAGE": image,
+                                 "CFG_CODEX_CLI_VERSION": codex, "CFG_CLAUDE_CLI_VERSION": claude})
+    assert result.returncode == 2 and "requires a matching config pin" in result.stderr
+
+
+@pytest.mark.parametrize("line", ['codex_cli_version = "0.156"', "codex_cli_version = 156", ""])
+def test_bad_codex_cli_version_does_not_create_plan(tmp_path, monkeypatch, line):
+    from messageboard_audit_bench import urlquery_pilot as pilot
+
+    dataset = tmp_path / "data/urlquery/test-v1"
+    dataset.mkdir(parents=True)
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "configs/urlquery-10.toml").write_text('claude_cli_version = "2.1.283"\n' + line + "\n")
+    monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
+    monkeypatch.setattr(pilot, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
+        "benchmark_id": "urlquery", "dataset_sha256": "a" * 64, "dataset_version": "test-v1"})
+    with pytest.raises(ValueError, match="codex_cli_version"):
+        pilot.plan(dataset)
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize(("agent", "content", "expected_code"), [
+    ("codex", "codex-cli 0.156.1\n", 0), ("claude", "2.1.283 (Claude Code)\n", 0),
+    ("codex", "codex-cli 0.153.4\n", 2), ("claude", "2.1.263 (Claude Code)\n", 2),
+])
+def test_recorded_binary_version_must_match_pin(tmp_path, agent, content, expected_code):
+    import os
+
+    helper = Path(__file__).parents[1] / "sandbox/docker/resolve_image.sh"
+    version_file = tmp_path / "cli.version.txt"
+    version_file.write_text(content)
+    result = subprocess.run(["bash", "-c", 'set -eu; . "$1"; verify_trial_cli_version "$2"',
+                             "test", str(helper), str(version_file)], capture_output=True, text=True,
+                            env={**os.environ, "BENCHMARK_ID": "urlquery", "AGENT": agent,
+                                 "CFG_CODEX_CLI_VERSION": "0.156.1", "CFG_CLAUDE_CLI_VERSION": "2.1.283"})
+    assert result.returncode == expected_code

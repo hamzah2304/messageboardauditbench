@@ -28,7 +28,7 @@ def check(dataset: Path, image: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dataset", type=Path)
-    parser.add_argument("--image", default="mbab-urlquery-sandbox")
+    parser.add_argument("--image", required=True, help="Exact trial image, including its configured CLI-version suffix")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     audit = check(args.dataset, args.image)

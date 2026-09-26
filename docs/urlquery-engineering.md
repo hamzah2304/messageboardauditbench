@@ -127,6 +127,21 @@ and results; it does not silently resume or repeat a previous plan. Authenticati
 or capacity failures stop that subscription's remaining lane. The host applies
 a 900-second per-trial guard, outside the active ten-minute Docker timeout.
 
+The URLQuery trial config also pins Claude Code 2.1.283 and Codex 0.156.1.
+These become Docker build arguments and a versioned image name; the original
+benchmark's Docker defaults remain unchanged. Pins and image-name suffixes must
+agree in both directions, including manual launches. The first attempt exposed
+an explicit Opus 5.5 minimum-client error and a Sol support error with missing
+model metadata on the older client. Those attempts remain archived. Explicit
+`--agent` and `--model` filters select retries from the existing matrix without
+automatically repeating successful trials or switching models/accounts.
+The successful initial Astra trial used Codex 0.153.4. The explicit retry selects
+Sol and two Opus trials on the newer clients; it does not replace that Astra
+report. The results index must link both experiment plans and retain the two
+failed startup attempts. Cross-model comparisons therefore also mix client
+versions. Runtime version output is checked against configured pins before
+inference, not merely recorded after the Docker build.
+
 Sources: [Transluce report](https://transluce.org/agent-activity),
 [URLQuery field definitions](https://urlquery.net/help/search), and the pinned
 ZIP's README/methods files. Raw evidence stays local; this work does not publish

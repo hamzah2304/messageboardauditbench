@@ -64,4 +64,31 @@ Plugin job IDs (local audit provenance):
 - Runner follow-up: `ef56acbb-66b9-473c-a66a-45e9df707557`.
 - Runner final: `1976f90f-844e-4d38-86e4-1b842f6facb4`.
 
-The results-report checkpoint remains pending until the dataset and pilot exist.
+## Runtime compatibility checkpoint
+
+The first launch exposed two startup failures, not investigation failures. Opus
+5.5 explicitly required Claude Code 2.1.280 or newer; the initial image had
+2.1.263. Sol returned a subscription-support error and missing model metadata on
+Codex 0.153.4, whereas recent successful repository runs used 0.156.0. URLQuery
+now pins Claude Code 2.1.283 and Codex 0.156.1 in its trial config, without changing
+the original benchmark's Docker defaults. Retry selection keeps the successful
+Astra run and preserves both failed attempts.
+
+Three further Opus 5.5 rounds found no final launch blocker. Accepted low-priority
+findings led to versioned image names checked against config pins in both
+directions, explicit preflight image selection, real Bash tests for old/default
+paths, single-lane launch tests, validation before creating plan directories,
+cross-language planner/runner consistency tests, and a check of the actual
+binary's version before inference. The original and retry plans and mixed client
+versions will be linked explicitly in the results report/index. This adapts the
+reviewer's optional plan-schema extension without rewriting either plan.
+
+The final small checks were tested, not sent through a fourth compatibility
+round. The running shell was replaced atomically during the first fixes; later
+edits were made only after the original pilot processes had finished.
+
+- Initial compatibility review: `1bf7b876-d278-4225-acc2-729b691d5e3e`.
+- Follow-up: `89aee55b-5f31-4f33-8c67-ba56cea9988f`.
+- Final compatibility review: `9b9a287e-34ab-4b8f-993a-7b266d2af7da`.
+
+The results-report checkpoint remains pending until the retry results exist.

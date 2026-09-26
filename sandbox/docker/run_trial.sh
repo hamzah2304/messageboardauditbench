@@ -40,11 +40,12 @@ EFFORT="${EFFORT:-$CFG_EFFORT}"
 DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
 BENCHMARK_ID="${CFG_BENCHMARK_ID:-messageboard}"
 BENCHMARK_PROVENANCE='{}'
+. "$HERE/resolve_image.sh"
+resolve_trial_image
 RUNS_ROOT="$ROOT/runs"
 case "$BENCHMARK_ID" in
   messageboard) ;;
   urlquery)
-    [ "$IMAGE" != mbab-sandbox ] || IMAGE=mbab-urlquery-sandbox
     PRIMARY_ROOT="$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")"
     DATA_DIR="${DATA_DIR_OVERRIDE:-$PRIMARY_ROOT/data/$CFG_DATA_VARIANT}"
     [ -n "${CFG_DATASET_SHA256:-}" ] || { echo "URLQuery requires dataset_sha256 in the resolved trial config" >&2; exit 2; }
@@ -65,7 +66,7 @@ fi
 
 # Always ask Docker to build: layer caching makes unchanged launches cheap and
 # ensures the recorded image contains this worktree's exact helper scripts.
-docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
+docker build -q -t "$IMAGE" ${IMAGE_BUILD_ARGS[@]+"${IMAGE_BUILD_ARGS[@]}"} -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
@@ -254,6 +255,7 @@ else
   docker run --rm "$IMAGE" "$AGENT" --version > "$RUN/cli.version.txt" 2>&1 || true
 fi
 CLI_VERSION_SHA256="$(shasum -a 256 "$RUN/cli.version.txt" | cut -c1-64)"
+verify_trial_cli_version "$RUN/cli.version.txt"
 
 # Dataset identity. data/ is a gitignored build output that can be older than the
 # code committed beside it, so a run record naming only the variant cannot establish
