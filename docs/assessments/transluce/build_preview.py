@@ -117,7 +117,8 @@ def main():
         parser.error("output-name must contain lowercase letters, digits or underscores")
     source_path = args.source.resolve()
     source = source_path.read_text()
-    body = MarkdownIt("commonmark", {"html": False}).enable("table").render(source)
+    # Reports can quote adversarial records: never load remote images or HTML.
+    body = MarkdownIt("commonmark", {"html": False}).enable("table").disable("image").render(source)
 
     def local_link(match):
         href = match.group(1)

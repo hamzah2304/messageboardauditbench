@@ -10,16 +10,25 @@ covered => restates an existing claim). Export JSON = approved claim objects
 Run:  cd viewers && python build_new_claims_ui.py   ->  new_claims.html
 """
 import json
+import argparse
 from pathlib import Path
 
 import sys as _sys, pathlib as _pl
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
+from messageboard_audit_bench.benchmarks import benchmark_spec
+from messageboard_audit_bench.review_scope import validate_review_scope, replace_once
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")
+args = parser.parse_args()
+if args.benchmark != "messageboard":
+    CLAIMS = ROOT / benchmark_spec(args.benchmark).evaluator_root / "claims"
 
 data = json.loads((CLAIMS / "new_claims.json").read_text())
-existing = json.loads((CLAIMS / "claims.json").read_text())["claims"]
+scope = validate_review_scope(data, args.benchmark)
+existing = json.loads((CLAIMS / "claims.json").read_text())["claims"] if args.benchmark == "messageboard" or (CLAIMS / "claims.json").exists() else []
 exist_by_id = {c["id"]: c["claim"] for c in existing}
 
 payload = {"meta": data["meta"], "claims": data["claims"], "existing": exist_by_id}
@@ -262,5 +271,11 @@ render();
 """
 
 html = HTML.replace("__DATA__", blob)
-(VIEWERS / "new_claims.html").write_text(html)
-print("wrote", VIEWERS / "new_claims.html", f"({len(html)} bytes, {len(data['claims'])} candidates)")
+name = "new_claims.html"
+if scope:
+    name = "urlquery_new_claims.html"
+    html = replace_once(html, "'candclaims_review_v2'", "'urlquery_candidates_" + scope["report_sha256"] + "_" + scope["dataset_sha256"] + "'")
+    html = replace_once(html, "return {saved_at:new Date().toISOString(),", "return {meta:META,saved_at:new Date().toISOString(),")
+    html = replace_once(html, "new_claims_approved.json", "urlquery_claims_approved.json")
+(VIEWERS / name).write_text(html)
+print("wrote", VIEWERS / name, f"({len(html)} bytes, {len(data['claims'])} candidates)")

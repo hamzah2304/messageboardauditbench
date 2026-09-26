@@ -59,26 +59,45 @@ def preflight(
     *,
     require_readonly_mount: bool = False,
     require_no_credentials: bool = False,
+    benchmark_id: str = "messageboard",
+    expected_sha256: str | None = None,
 ) -> dict:
     """Check visibility, data integrity, and the native no-network boundary."""
     work = work.resolve()
+    if benchmark_id not in {"messageboard", "urlquery"}:
+        raise ValueError("unknown benchmark")
     data = work / "data"
     visible = sorted(str(path.relative_to(work)) for path in work.rglob("*") if path.is_file() or path.is_symlink())
     problems: list[str] = []
     allowed_visible = {f"data/{name}" for name in REQUIRED_DATA_FILES | ALLOWED_DATA_AUXILIARY_FILES}
+    manifest = None
+    if benchmark_id == "urlquery":
+        try:
+            try:
+                from dataset_manifest import validate_dataset
+            except ModuleNotFoundError:
+                from messageboard_audit_bench.dataset_manifest import validate_dataset
+            if not expected_sha256:
+                raise ValueError("URLQuery preflight requires a pinned dataset hash")
+            manifest = validate_dataset(data, expected_sha256=expected_sha256)
+            allowed_visible = {f"data/{name}" for name in manifest["files"]} | {"data/manifest.json"}
+        except (OSError, ValueError, KeyError) as exc:
+            problems.append(f"dataset manifest: {exc}")
     if set(visible) - allowed_visible:
         problems.append(f"unexpected /work visibility: {visible!r}")
     if not data.is_dir():
         problems.append("/work/data is missing")
     data_files = {path.name for path in data.iterdir()} if data.is_dir() else set()
-    if not REQUIRED_DATA_FILES <= data_files or data_files - (REQUIRED_DATA_FILES | ALLOWED_DATA_AUXILIARY_FILES):
+    if benchmark_id == "messageboard" and (not REQUIRED_DATA_FILES <= data_files or data_files - (REQUIRED_DATA_FILES | ALLOWED_DATA_AUXILIARY_FILES)):
         problems.append(f"data files are {sorted(data_files)!r}, expected required {sorted(REQUIRED_DATA_FILES)!r}")
     data_readonly = _is_readonly_mount(data)
     if require_readonly_mount and not data_readonly:
         problems.append("/work/data is not a read-only mount")
 
     files: dict[str, dict[str, int | str]] = {}
-    for name in sorted(REQUIRED_DATA_FILES):
+    if manifest:
+        files = manifest["files"]
+    for name in sorted(REQUIRED_DATA_FILES if benchmark_id == "messageboard" else ()):
         path = data / name
         if not path.is_file() or path.is_symlink():
             problems.append(f"{name} is absent, not a regular file, or a symlink")
@@ -121,11 +140,15 @@ def preflight(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--work", type=Path, default=Path("/work"))
+    parser.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")
+    parser.add_argument("--expected-sha256")
     args = parser.parse_args()
     result = preflight(
         args.work,
         require_readonly_mount=True,
         require_no_credentials=True,
+        benchmark_id=args.benchmark,
+        expected_sha256=args.expected_sha256,
     )
     print(json.dumps(result, sort_keys=True))
     return 0 if result["ok"] else 1
