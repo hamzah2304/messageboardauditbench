@@ -142,12 +142,20 @@ failed startup attempts. Cross-model comparisons therefore also mix client
 versions. Runtime version output is checked against configured pins before
 inference, not merely recorded after the Docker build.
 
+Observed execution adds a separate caveat: both requested Opus 5.5 trials
+switched to Opus 4.8 after a cyber-safety refusal, through the original harness's
+permitted provider fallback. They are mixed-model outputs, not pure Opus 5.5
+measurements. The report index preserves the full observed model list and
+fallback metadata; the legacy audit's single first-served-model field is not
+sufficient. No replacement trial was launched to work around the refusal.
+
 Sources: [Transluce report](https://transluce.org/agent-activity),
 [URLQuery field definitions](https://urlquery.net/help/search), and the pinned
 ZIP's README/methods files. Raw evidence stays local; this work does not publish
 the corpus or credentials.
 The raw agent reports under `reports/urlquery/` are gitignored pending an explicit
-publication review: agents may quote credential-like strings despite the prompt.
+publication review: agents may quote credential-like strings despite the dataset
+guide's advice not to do so.
 The pilot summary links to local report previews, not a public deployment.
 
 ## Manual findings remain a separate step

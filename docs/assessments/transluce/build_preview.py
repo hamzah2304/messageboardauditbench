@@ -111,6 +111,7 @@ def main():
     parser.add_argument("--output-name", default="transluce_assessment")
     parser.add_argument("--report-id", default=REPORT_ID)
     parser.add_argument("--title", default="Transluce benchmark assessment")
+    parser.add_argument("--notice", default="", help="Plain-text provenance notice above the unmodified report")
     parser.add_argument("--comments", type=Path)
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z0-9_]+", args.output_name):
@@ -161,6 +162,8 @@ def main():
     result = result.replace("__SEED__", json.dumps(seed).replace("<", "\\u003c"))
     result = result.replace("__TITLE__", html.escape(args.title))
     notice = '<div class="notice">The <a href="/transluce_data_preparation.html">data-preparation follow-up</a> incorporates your comments and supersedes this assessment’s effort and report-length proposals. Replies are in the comment panel below.</div>' if args.report_id == REPORT_ID else ""
+    if args.notice:
+        notice += '<div class="notice">' + html.escape(args.notice) + '</div>'
     result = result.replace("__NOTICE__", notice)
     output.write_text(result)
     print(f"Rendered {output}; {len(toc)} navigation entries; {len(source.split())} source words")
