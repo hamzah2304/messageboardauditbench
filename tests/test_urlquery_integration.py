@@ -73,16 +73,22 @@ def test_findings_ui_is_inert_and_scopes_imports(tmp_path):
     assert "var(--fx-vw,100vw)" in page and "https://remote" not in page
     assert page.count("<script") == 1  # only the extraction UI
     review = tmp_path / "review.json"
-    finding = {"id": "me-1", "author": "me", "claim": "c", "kind": "finding", "derivable": "yes",
-               "status": "draft", "spans": [{"s": 0, "e": 3, "raw": "Rep", "quote": "Rep"}]}
-    review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [finding]}))
-    assert module.build(source, out, [review], assets) == scope
-    assert '"me-1"' in out.read_text()
+    quote = {"id": "q1", "s": 0, "e": 3, "raw": "Rep", "quote": "Rep"}
+    finding = {"id": "f1", "parent": None, "text": "c", "kind": "finding", "derivable": "yes", "quotes": [quote]}
+    sub = {"id": "f2", "parent": "f1", "text": "d", "kind": "finding", "derivable": None, "quotes": []}
+    review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [finding, sub]}))
+    frag = tmp_path / "artifact.html"
+    assert module.build(source, out, [review], assets, frag) == scope
+    assert '"f1"' in out.read_text() and '"q1"' in out.read_text()
+    assert not frag.read_text().startswith("<!doctype") and "</body>" not in frag.read_text()
     review.write_text(json.dumps({**scope, "benchmark_id": "messageboard", "schema": module.SCHEMA, "findings": []}))
     with pytest.raises(ValueError, match="wrong benchmark"):
         module.build(source, out, [review], assets)
     review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [{**finding, "derivable": "maybe"}]}))
     with pytest.raises(ValueError, match="invalid derivable"):
+        module.build(source, out, [review], assets)
+    review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [{**sub, "parent": "gone"}]}))
+    with pytest.raises(ValueError, match="missing parent"):
         module.build(source, out, [review], assets)
 
 

@@ -3,8 +3,8 @@
 
 The page shows the article as published (Transluce's own stylesheet and the
 static SVG/PNG figures) with every script, event handler, form and remote embed
-removed, plus a sidebar for extracting findings by hand: select a passage,
-write the finding it states, say whether the scan data can check it, export.
+removed, plus a sidebar where people write findings in their own words, add
+sub-findings under them, and attach quotes from the article to either level.
 
 No finding is generated or approved automatically. Imports are accepted only
 for this exact benchmark/source/rendered article.
@@ -25,7 +25,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SITE = "https://transluce.org"
 DEFAULT_ASSETS = ROOT / "data/transluce/site_assets"
-SCHEMA = "urlquery-findings-v1"
+SCHEMA = "urlquery-findings-v2"
 DERIVABLE = {"yes", "partly", "joint", "no", None}
 KINDS = {"finding", "conclusion", "context"}
 
@@ -138,25 +138,39 @@ def fetch_assets(source_html: str, assets: Path) -> tuple[str, dict[str, str]]:
     return css, images
 
 
-def validate_import(data: dict, scope: dict) -> list[dict]:
+def validate_import(data: dict, scope: dict) -> tuple[list[dict], list[dict]]:
+    """Split a v2 export into finding and quote records, rejecting anything off-scope."""
     if any(data.get(key) != value for key, value in scope.items()):
         raise ValueError("wrong benchmark/source/anchor version")
     if data.get("schema") != SCHEMA:
         raise ValueError(f"expected schema {SCHEMA}")
-    findings = data.get("findings", [])
-    for f in findings:
-        if not re.fullmatch(r"[a-z0-9_-]{1,60}", f.get("author", "me")):
-            raise ValueError("author must use 1-60 lowercase letters, digits, underscores or hyphens")
+    findings, quotes = [], []
+    ids = {f.get("id") for f in data.get("findings", [])}
+    for f in data.get("findings", []):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", str(f.get("id", ""))):
+            raise ValueError("invalid finding id")
         if f.get("derivable") not in DERIVABLE or f.get("kind", "finding") not in KINDS:
             raise ValueError("invalid derivable/kind")
-        if f.get("status") not in {None, "draft", "ready", "rejected"}:
+        if f.get("status", "draft") not in {"draft", "rejected"}:
             raise ValueError("invalid status")
-        if not f.get("spans"):
-            raise ValueError("a finding needs at least one quoted span")
-    return findings
+        if f.get("parent") not in ids | {None}:
+            raise ValueError("sub-finding points at a missing parent")
+        quotes.extend({**{k: q.get(k) for k in ("id", "s", "e", "raw", "quote", "section", "author", "created")},
+                       "finding": f["id"]} for q in f.get("quotes", []))
+        findings.append({k: f.get(k) for k in ("id", "parent", "text", "note", "kind", "derivable", "status",
+                                               "author", "created", "updated")})
+    return findings, quotes
 
 
-def build(source: Path, output: Path, imports: list[Path], assets: Path = DEFAULT_ASSETS):
+def artifact_fragment(page: str) -> str:
+    """claude.ai wraps a published page in its own skeleton, so drop ours."""
+    page = re.sub(r"^<!doctype html>\s*<html[^>]*><head><meta[^>]*><meta[^>]*>\s*", "", page, count=1)
+    page = page.replace("</head><body>", "", 1)
+    return re.sub(r"</body></html>\s*$", "", page)
+
+
+def build(source: Path, output: Path, imports: list[Path], assets: Path = DEFAULT_ASSETS,
+          artifact_out: Path | None = None):
     raw = source.read_bytes()
     text = raw.decode("utf-8")
     css, images = fetch_assets(text, assets)
@@ -168,13 +182,15 @@ def build(source: Path, output: Path, imports: list[Path], assets: Path = DEFAUL
         raise ValueError("source article not found; refusing empty extraction UI")
     scope = {"benchmark_id": "urlquery", "report_sha256": hashlib.sha256(raw).hexdigest(),
              "article_sha256": hashlib.sha256(article.group(0).encode()).hexdigest()}
-    seed = []
+    seed = {"findings": [], "quotes": []}
     for path in imports:
         try:
-            seed.extend(validate_import(json.loads(path.read_text()), scope))
+            findings, quotes = validate_import(json.loads(path.read_text()), scope)
         except ValueError as exc:
             raise ValueError(f"{exc}: {path}") from None
-    ids = [f["id"] for f in seed]
+        seed["findings"] += findings
+        seed["quotes"] += quotes
+    ids = [f["id"] for f in seed["findings"]]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate finding IDs; pass only the latest export")
 
@@ -188,6 +204,9 @@ def build(source: Path, output: Path, imports: list[Path], assets: Path = DEFAUL
         shell = shell.replace(key, value)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(shell, encoding="utf-8")
+    if artifact_out:
+        artifact_out.parent.mkdir(parents=True, exist_ok=True)
+        artifact_out.write_text(artifact_fragment(shell), encoding="utf-8")
     return scope
 
 
@@ -197,5 +216,6 @@ if __name__ == "__main__":
     ap.add_argument("--output", type=Path, default=HERE / "urlquery_findings.html")
     ap.add_argument("--assets", type=Path, default=DEFAULT_ASSETS)
     ap.add_argument("--import-review", type=Path, action="append", default=[])
+    ap.add_argument("--artifact-out", type=Path, help="also write a copy for publishing as a claude.ai artifact")
     args = ap.parse_args()
-    print(json.dumps(build(args.source, args.output, args.import_review, args.assets), indent=2))
+    print(json.dumps(build(args.source, args.output, args.import_review, args.assets, args.artifact_out), indent=2))

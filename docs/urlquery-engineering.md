@@ -167,11 +167,14 @@ The pilot summary links to local report previews, not a public deployment.
 Transluce's own stylesheet and figures (cached once in
 `data/transluce/site_assets/`, images inlined), with every script, event handler,
 form, iframe, remote image and site chrome removed; quoted code stays escaped
-text. A sidebar turns a selected passage into a finding: a rewritten checkable
-sentence, a kind (finding, conclusion or context), whether the frozen scans can
-check it (yes, partly, joint, no), optional extra passages and a note. A hover
-panel lists what the scan data cannot show. Exports use schema
-`urlquery-findings-v1` and carry benchmark and source/rendered-article hashes;
+text. In the sidebar people write findings in their own words, add
+sub-findings, and attach quotes selected from the article to either level;
+each carries a kind (finding, conclusion or context) and whether the frozen
+scans can check it (yes, partly, joint, no). A hover panel lists what the scan
+data cannot show. `--artifact-out` writes a copy for a claude.ai artifact,
+where findings and quotes live in the artifact's shared database and comments
+use claude.ai's comment threads; opened as a file, it saves in the browser.
+Exports use schema `urlquery-findings-v2` and carry benchmark and source/rendered-article hashes;
 imports for another benchmark or source version are rejected. This is an evaluator tool and is never in the agent mount.
 
 The existing candidate approval and feasibility builders accept
