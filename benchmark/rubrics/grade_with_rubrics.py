@@ -155,6 +155,7 @@ def resolve_reports(args):
     # (blind/context conditions); else the default 4 or named keys.
     if args and args[0] == "--dir":
         d = Path(args[1]) if Path(args[1]).is_absolute() else (GRADED_INPUTS / args[1])
+        core.require_original_benchmark_folder(d)
         return [(_san(p.stem), p, p.stem) for p in sorted(d.glob("*.md"))]
     if args and args[0] == "--baselines":
         return [(f"bl_{_san(p.stem)}", p, p.stem) for p in sorted((GRADED_INPUTS / "seed_baselines").glob("*.md"))]

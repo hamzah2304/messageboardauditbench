@@ -58,6 +58,8 @@ def main():
                 or specs.get((r["config"], None, "own")))
         if spec is None:
             continue
+        if r.get("benchmark_id", "messageboard") != "messageboard" or str(r.get("data_variant", "")).startswith("urlquery"):
+            sys.exit("refusing to stage a different benchmark under the original benchmark rubric")
         out, prefix = spec
         model = str(r["model"]).replace("/", "-")
         # A follow-up expands one specific earlier run. parent_epoch identifies which, and

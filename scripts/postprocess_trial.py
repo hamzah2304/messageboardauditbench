@@ -115,6 +115,16 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
         returncode = 5
         meta["exit_code"] = returncode
 
+    if meta.get("benchmark_id") == "urlquery":
+        runner_path = run / "runner-events.jsonl"
+        capacity = runner_path.exists() and any(e.get("event") == "capacity_exhausted" for e in _events(runner_path))
+        refusal = bool(meta.get("model_refusal"))
+        exhausted = not (refusal or capacity) and returncode in (124, 137) and wall_seconds >= meta["active_time_limit_seconds"]
+        termination = ("refusal" if refusal else "capacity_exhausted" if capacity else
+                       "active_time_limit" if exhausted else "normal" if returncode == 0 else "error")
+        meta.update(stopped_at_active_limit=exhausted, termination=termination,
+                    report_finalization="cli_finished" if termination == "normal" else "not_confirmed")
+
     usage_path = run / "usage.json"
     usage = json.loads(usage_path.read_text()) if usage_path.exists() else {}
     usage_keys = (
