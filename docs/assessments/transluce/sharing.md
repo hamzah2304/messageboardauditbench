@@ -86,11 +86,13 @@ requests to the index, report HTML, raw `.txt` and manifest returned HTTP 401.
 Sites access was then restricted to the owner plus Adam's email-bound viewer
 grant. An access read-back confirmed the grant; Adam's own sign-in was not tested.
 
-Homepage regrouping is prepared as Sites version 3, static-source commit
+Homepage regrouping is published as Sites version 3, static-source commit
 `6c2d0ba7783b12838e5a2a2dd9085e3a7b1e2b91`. It adds two exact task-prompt pages,
 groups the eight reports by prompt hash, and separates six writeups into three
 categories. All 1,425 tests pass. The initial Opus review
 `074ca36e-bdc0-4f89-8d67-3171f2a508d3` raised three accepted robustness issues:
 fixed budget prose, per-report prompt verification and unsafe-config test gaps.
-All were fixed; the follow-up found no actionable issues. Publication awaits
-confirmation to deploy to the existing owner-plus-Adam audience.
+All were fixed; the follow-up found no actionable issues. The user approved
+publication to the existing owner-plus-Adam audience. Deployment succeeded on
+2026-09-27 at 01:30 UTC without changing access. Signed-out checks of the homepage
+and the new exact-prompt download returned HTTP 401.
