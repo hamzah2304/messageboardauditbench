@@ -10,6 +10,7 @@ from inspect_ai.scorer import Target
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
     count_feedback_if_changed,
+    count_words,
     feedback,
     instruction,
     limits,
@@ -49,6 +50,33 @@ def test_acceptance_is_separate_from_prompt_target(count: int, accepted: bool) -
         acceptance=(0, 3100),
     )
     assert result["report_length_compliant"] is accepted
+
+
+@pytest.mark.parametrize(
+    "report,expected",
+    [
+        ("one [scan](https://urlquery.net/report/id) two", 2),
+        ("one [multi word](https://example.test/a_(b)) two", 2),
+        ("one [scan](https://example.test/a\\)b) two", 2),
+        ("one `[literal](https://example.test)` two", 3),
+        ("one ![alt](image.png) two", 3),
+        ("one [broken](https://example.test two", 3),
+    ],
+)
+def test_inline_link_exclusion_keeps_other_markdown_literal(
+    report: str, expected: int
+) -> None:
+    assert count_words(report) == expected
+
+
+def test_report_and_tldr_use_the_same_link_exclusion(tmp_path: Path) -> None:
+    report = "## TL;DR\none [scan](https://urlquery.net/report/id) two\n## Timeline\nthree"
+    path = tmp_path / "report.md"
+    path.write_text(report)
+    assert tldr_words(report) == 2
+    assert measure(report, 7, 7)["report_words"] == 7
+    assert measure(report, 7, 7)["report_word_count_method"] == "whitespace-no-inline-links-v2"
+    assert "7 words" in feedback(path, 7, 7)[0]
 
 
 @pytest.mark.parametrize(

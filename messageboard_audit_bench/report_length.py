@@ -13,8 +13,62 @@ import tempfile
 import time
 from pathlib import Path
 
-COUNT_METHOD = "whitespace-v1"
+COUNT_METHOD = "whitespace-no-inline-links-v2"
 MIN_REVISION_SECONDS = 60
+
+
+def _closing_delimiter(text: str, start: int, opener: str, closer: str) -> int | None:
+    """Find a balanced Markdown delimiter, allowing escaped punctuation."""
+    depth = 0
+    index = start
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+            continue
+        if text[index] == opener:
+            depth += 1
+        elif text[index] == closer:
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
+def count_words(text: str) -> int:
+    """Count whitespace units after removing complete inline Markdown links.
+
+    Both the visible label and destination of ``[label](destination)`` are
+    omitted. Backtick code spans and fenced code stay literal, as do images,
+    reference links, bare URLs, and malformed inline links.
+    """
+    kept: list[str] = []
+    index = 0
+    code_ticks = 0
+    while index < len(text):
+        if text[index] == "`":
+            end = index + 1
+            while end < len(text) and text[end] == "`":
+                end += 1
+            ticks = end - index
+            if code_ticks == 0:
+                code_ticks = ticks
+            elif code_ticks == ticks:
+                code_ticks = 0
+            kept.append(text[index:end])
+            index = end
+            continue
+        if not code_ticks and text[index] == "[" and (index == 0 or text[index - 1] not in "!\\"):
+            label_end = _closing_delimiter(text, index, "[", "]")
+            if label_end is not None and text[label_end + 1 : label_end + 2] == "(":
+                link_end = _closing_delimiter(text, label_end + 1, "(", ")")
+                if link_end is not None:
+                    kept.append(" ")
+                    index = link_end + 1
+                    continue
+        kept.append(text[index])
+        index += 1
+    return len("".join(kept).split())
 
 
 def limits(cfg: dict) -> tuple[int, int]:
@@ -57,7 +111,7 @@ def measure(
     exists: bool = True,
     acceptance: tuple[int, int] | None = None,
 ) -> dict:
-    count = len(text.split())
+    count = count_words(text)
     minimum, maximum = acceptance if acceptance is not None else (low, high)
     return {
         "report_words": count,
@@ -78,9 +132,10 @@ def instruction(low: int, high: int) -> str:
     return (
         f"\n\nWrite a report between {low:,} and {high:,} words long in report.md. "
         f"{high:,} words is a strict upper limit. Do not exceed it. "
-        "The authoritative count is len(text.split()): whitespace-separated units "
-        "in the entire raw Markdown file, including headings, tables, citations, "
-        "code and appendices. Aim near the midpoint. The current report and "
+        "The authoritative count is whitespace-separated units in the raw "
+        "Markdown file after excluding complete inline links of the form "
+        "[label](URL). Headings, tables, code and appendices still count. "
+        "Aim near the midpoint. The current report and "
         "TL;DR counts are reported whenever report.md changes. Before finishing, "
         "shorten report.md if it exceeds the upper limit.\n"
     )
@@ -123,12 +178,12 @@ def tldr_words(text: str) -> int | None:
         body.append(line)
     heading_rest = TLDR_HEADING.sub("", lines[start], count=1)
     heading_rest = re.sub(r"^[\s:*\-\u2013\u2014.]+", "", heading_rest)
-    return len((heading_rest + " " + " ".join(body)).split())
+    return count_words(heading_rest + " " + " ".join(body))
 
 
 def describe_count(text: str, low: int, high: int) -> str:
     """Describe the report and TL;DR counts using the scoring convention."""
-    count = len(text.split())
+    count = count_words(text)
     if count == 0:
         status = "empty report"
     elif count < low:
@@ -157,7 +212,7 @@ def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
             f"{low:,}–{high:,} words.",
             True,
         )
-    return describe_count(text, low, high), len(text.split()) <= high
+    return describe_count(text, low, high), count_words(text) <= high
 
 
 def overlong_feedback(path: Path, low: int, high: int) -> str:
