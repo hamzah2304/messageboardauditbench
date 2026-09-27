@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transluce Findings Extractor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Merriweather:ital,wght@0,400;0,700;1,400&amp;family=Open+Sans:wght@400;600;700&amp;display=swap">
+<style>__SITE_CSS__</style>
+<style>
+:root{color-scheme:light;--fx-vw:calc(100vw - 440px);--ink:#1c2233;--muted:#5d6479;--line:#dcdfe8;--panel:#f6f7fa;--card:#ffffff;--accent:#29377f;--warn-bg:#fff6dc;--warn-ink:#6b4e00;--bad:#991b1b}
+html,body{background:#ffffff;color:#1a202c}
+body{padding-right:440px!important}
+/* The article's inline URL notes were positioned by the site's scripts; show them under the ⓘ instead. */
+.margin-note.report-url-note{position:relative}
+.margin-note.report-url-note .note-content{position:absolute!important;top:1.6em!important;left:0!important;width:min(560px,60vw);max-width:none}
+.margin-note.report-url-note:hover .note-content,.margin-note.report-url-note:focus-within .note-content,.margin-note.report-url-note.show-note .note-content{display:block!important}
+.report-url-note-close{display:none!important}
+
+#fx{position:fixed;top:0;right:0;bottom:0;width:428px;overflow:auto;background:var(--panel);border-left:1px solid var(--line);z-index:9000;font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);padding-top:env(safe-area-inset-top,0px)}
+#fx *{box-sizing:border-box}
+#fx .hd{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:12px 14px 10px;z-index:3;display:grid;gap:8px}
+#fx .ttl{display:flex;align-items:center;gap:8px}
+#fx h2{font:700 15px Inter,system-ui,sans-serif;margin:0;color:var(--accent)}
+#fx .cnt{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+#fx .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#fx button,#fx .btn{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:4px 9px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;color:var(--ink)}
+#fx button:hover,#fx .btn:hover{border-color:var(--accent)}
+#fx button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+#fx button:disabled{opacity:.45;cursor:not-allowed}
+#fx button:focus-visible,#fx .btn:focus-within,#fx select:focus-visible,#fx textarea:focus-visible,#fxsel button:focus-visible,.fx-item:focus-visible{outline:2px solid #3f5ac2;outline-offset:2px}
+#fx .store{font-size:11.5px;color:var(--muted)}
+#fx .store.err{color:var(--bad);font-weight:700}
+#fx .store.ro{color:var(--warn-ink);font-weight:600}
+#fx .howto{margin:10px 14px 0;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+#fx .howto summary{font-weight:700;cursor:pointer}
+#fx .howto ol{margin:6px 0 2px 18px;padding:0;list-style:decimal}#fx .howto li{margin:3px 0}
+#fx .new{margin:10px 14px 0;display:grid;gap:6px}
+#fx textarea,#fx input[type=text]{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:13px/1.4 Inter,system-ui,sans-serif;color:var(--ink);background:var(--card)}
+#fx select{border:1px solid var(--line);border-radius:5px;padding:1px 3px;font:11.5px Inter,system-ui,sans-serif;color:var(--ink);background:var(--card)}
+#fx .filt{padding:8px 14px 0;font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+#fx .list{padding:4px 14px 40px;display:grid;gap:10px}
+.fx-item{background:var(--card);border:1px solid var(--line);border-left:4px solid #9aa3c7;border-radius:0 8px 8px 0;padding:8px 10px;display:grid;gap:5px}
+.fx-item.sub{border-left-width:3px;margin-left:16px;background:#fbfbfd}
+.fx-item.d-yes{border-left-color:#2e7d6b}.fx-item.d-partly{border-left-color:#c28a1e}.fx-item.d-no{border-left-color:var(--bad)}
+.fx-item .tags{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:11.5px;color:var(--muted)}
+#fx .fx-item .tags select{width:100%;min-width:0}
+.fx-group{font:700 12px Inter,system-ui,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+#fx .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}#fx .seg button{border:none;border-radius:0;padding:3px 10px}#fx .seg button.on{background:var(--accent);color:#fff}
+.legend{display:grid;gap:3px;margin-top:4px;font-size:12px}.legend b{color:var(--ink)}
+.fx-item.target{box-shadow:0 0 0 2px var(--accent)}
+.fx-item.rejected{opacity:.55}
+.fx-item .top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+.fx-item .fid{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;cursor:pointer}
+.fx-item .who{margin-left:auto}
+.fx-item .txt{font-size:13.5px;color:#111;white-space:pre-wrap;cursor:pointer}
+.fx-item .txt.empty{color:var(--muted);font-style:italic}
+.fx-item .note{font-size:12px;color:#444;white-space:pre-wrap}
+.fx-item .ev{font-size:11px;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap;font-variant-numeric:tabular-nums}.fx-item .ev a{font-family:ui-monospace,Menlo,monospace;color:var(--accent)}
+.fx-item .note{white-space:pre-wrap}
+.fx-item .tgt{font-size:11px;font-weight:700;color:var(--accent)}
+.fx-q{display:flex;gap:6px;align-items:flex-start;font:11.5px/1.4 ui-monospace,Menlo,monospace;background:#f3f4f8;border-radius:5px;padding:4px 7px}
+.fx-q .qt{flex:1;cursor:pointer;max-height:64px;overflow:hidden}
+.fx-q.lost{background:#fee2e2;color:#7f1d1d}
+#fx .fx-q .x{border:none;background:none;padding:0 2px;color:var(--muted);font-size:14px;line-height:1}
+.fx-item .acts{display:flex;gap:6px;flex-wrap:wrap}
+#fx .fx-item .acts button{font-size:11.5px;padding:3px 8px}
+#fx .fx-item button.danger{color:var(--bad);border-color:#f0c4c4}
+.bdg{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;background:#eef0f5;color:#333}
+.bdg.lost{background:var(--bad);color:#fff}
+/* Data-limits hover: opens on hover and on keyboard focus. */
+.tip{position:relative;display:inline-flex}
+#fx .tip>.tip-btn{border:1px solid #c9b27a;background:var(--warn-bg);color:var(--warn-ink);border-radius:999px;padding:1px 8px;font:700 11px Inter,system-ui,sans-serif;cursor:help}
+.tip>.tip-body{display:none;position:absolute;right:0;top:calc(100% + 6px);width:390px;max-width:calc(100vw - 32px);max-height:70vh;overflow:auto;background:#fff;border:1px solid #d9cfae;border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:10px 12px;z-index:9999;font:12.5px/1.5 Inter,system-ui,sans-serif;color:#222;text-align:left}
+.tip:hover>.tip-body,.tip:focus-within>.tip-body{display:block}
+.lim p{margin:0 0 6px}.lim ul{margin:0 0 6px 16px;padding:0;list-style:disc}.lim li{margin:0 0 5px}.lim-h{font-weight:800;color:var(--warn-ink)}.lim-k{font-size:11.5px;color:#555;border-top:1px solid #eee;padding-top:6px}
+.lim code{font-size:11px}
+/* Selection toolbar */
+#fxsel{position:absolute;z-index:9500;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.2);padding:8px;display:grid;gap:6px;width:320px;max-width:calc(100vw - 32px);font:12.5px Inter,system-ui,sans-serif;color:var(--ink)}
+#fxsel[hidden]{display:none}
+#fxsel select{width:100%;border:1px solid var(--line);border-radius:6px;padding:4px;font:12.5px Inter,system-ui,sans-serif}
+#fxsel .r{display:flex;gap:6px}
+#fxsel button{flex:1;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 8px;font:700 12px Inter,system-ui,sans-serif;cursor:pointer;color:var(--ink)}
+#fxsel button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+#fxsel button:disabled{opacity:.45}
+#fxsel .hint{color:var(--muted);font-size:11.5px}
+::highlight(fx-yes){background:#cdefe2}::highlight(fx-partly){background:#fcebc0}::highlight(fx-no){background:#f9d4d4}::highlight(fx-unset){background:#e3e7f5}::highlight(fx-act){background:#ffd76b}
+[hidden]{display:none!important}
+@media (max-width:900px){:root{--fx-vw:100vw}body{padding-right:0!important}#fx{position:static;width:auto;border-left:none;border-top:1px solid var(--line)}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head><body>
+__PAGE__
+<aside id="fx" aria-label="Findings">
+ <div class="hd">
+  <div class="ttl"><h2>Findings</h2><span class="cnt" id="fx-count"></span>
+   <span class="tip" style="margin-left:auto"><button type="button" class="tip-btn" aria-describedby="fx-lim">⚠ Data limits</button><div class="tip-body" id="fx-lim" role="tooltip">__LIMITS__</div></span></div>
+  <div class="row">
+   <button type="button" id="fx-export" title="Save all findings, sub-findings and quotes as JSON">Export JSON</button>
+   <button type="button" id="fx-copy">Copy JSON</button>
+   <label class="btn" for="fx-import" id="fx-import-l" title="Load an export (adds findings not already here)">Import…</label><input type="file" id="fx-import" accept="application/json,.json" hidden>
+   <input type="text" id="fx-author" placeholder="your name" aria-label="Your name" style="width:100px" hidden>
+  </div>
+  <div class="row" id="fx-viewrow" hidden><label for="fx-view" style="font-weight:700">Showing</label><select id="fx-view" style="flex:1;min-width:0;padding:4px 6px;font-size:12.5px"></select></div>
+  <div class="store" id="fx-store" role="status"></div>
+ </div>
+ <details class="howto" id="fx-howto" open><summary>How this works</summary>
+  <ol>
+   <li><b>Write a finding</b> below in your own words: one claim the report makes that a good investigation should also reach.</li>
+   <li>Add <b>sub-findings</b> for the specific facts inside it, such as dates, counts, targets and techniques.</li>
+   <li><b>Attach quotes.</b> Click a finding or sub-finding to make it the target. Then select the supporting text in the report and click <b>Attach quote</b>. One finding can have several quotes.</li>
+   <li>Tag each one with two dropdowns:
+    <div class="legend">
+     <div><b>Type</b> says what sort of claim it is. <b>Finding</b>: something the report observed. <b>Conclusion</b>: an inference the report draws from what it observed. <b>Context</b>: background that shouldn't be scored.</div>
+     <div><b>In scan data?</b> asks whether an AI agent given only the urlquery scans could reach it. <b>Yes</b>: the scans alone show it. <b>Partly</b>: some of it, e.g. the attempt is visible but not whether it worked. <b>No</b>: it needs outside information, such as news, statements or other sites. Hover <b>⚠ Data limits</b> for what's missing.</div>
+    </div></li>
+   <li>Use <b>Showing</b> at the top to switch between your own findings and anyone else's, one person at a time, or everyone together. You can edit only your own; other people's are read-only, and the highlights in the report follow whoever is selected. To extract independently, stay on your own until you're done.</li>
+   <li><b>Comment</b> by selecting text and clicking <b>Comment</b>, or with claude.ai's comment button. Comments are visible to everyone with access, so don't put findings in them.</li>
+  </ol>
+ </details>
+ <div class="new" id="fx-newbox">
+  <label for="fx-new" style="font-weight:700">New finding</label>
+  <textarea id="fx-new" rows="2" placeholder="e.g. Agents tried to hack three public data providers (UNM, Data USA, AIHW) between May and June 2026."></textarea>
+  <div class="row"><button type="button" class="pri" id="fx-add">Add finding</button><span class="store">⌘↵ adds it</span></div>
+ </div>
+ <div class="filt" id="fx-filt"></div>
+ <div class="list" id="fx-list" aria-live="polite"></div>
+</aside>
+<div id="fxsel" role="dialog" aria-label="Selected text" hidden>
+ <div class="hint" id="fxsel-hint"></div>
+ <select id="fxsel-target" aria-label="Attach quote to"></select>
+ <div class="r"><button type="button" class="pri" id="fxsel-quote">Attach quote</button><button type="button" id="fxsel-comment" hidden>Comment</button></div>
+</div>
+<script>
+__EMBED__
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id);};
+var ROOT=document.querySelector("article");
+var LS="urlquery_findings2_"+SCOPE.article_sha256.slice(0,16);
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function uid(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function nowISO(){return new Date().toISOString();}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
+
+/* ---------- state ----------
+   Each person's findings and quotes live in their own private db subtree, data/users/<id>.
+   DATA[uid] = {F:{id:finding}, Q:{id:quote}}; F and Q point at the group being shown or rendered. */
+var DATA={},ME="local",MODE="local",CAN_WRITE=true,IS_OWNER=false,VIEW="mine",DB=null,USER=null,COMMENTS=null,DOWNLOADS=null,NAMES={},storeErr="",JOINED=false,SUBS={};
+var F={},Q={};
+function group(uid){return DATA[uid]||(DATA[uid]={F:{},Q:{}});}
+function useGroup(uid){var g=group(uid);F=g.F;Q=g.Q;}
+function loadLocal(){var s=null;try{s=JSON.parse(lsGet(LS)||"null");}catch(e){}
+  var g=group("local");if(s){g.F=s.findings||{};g.Q=s.quotes||{};}
+  SEED.findings.forEach(function(f){if(!g.F[f.id])g.F[f.id]=f;});SEED.quotes.forEach(function(q){if(!g.Q[q.id])g.Q[q.id]=q;});useGroup("local");}
+function saveLocal(){var g=group("local");storeErr=lsSet(LS,JSON.stringify({findings:g.F,quotes:g.Q}))?"":"Couldn't save in this browser. Export JSON now so you don't lose work.";renderStore();}
+function myColl(){return DB.collection("data/users/"+ME);}
+function put(coll,doc){var g=group(ME),m=coll==="findings"?g.F:g.Q;doc=JSON.parse(JSON.stringify(doc));m[doc.id]=doc;
+  if(MODE==="db"){
+    if(!JOINED){JOINED=true;DB.doc("participants/"+ME).set({joined:nowISO()}).catch(function(){JOINED=false;});}
+    myColl().doc(doc.id).set(Object.assign({type:coll==="findings"?"finding":"quote"},doc)).then(function(){if(storeErr){storeErr="";renderStore();}},writeFail);}
+  else saveLocal();
+  render();}
+function del(coll,id){var g=group(ME),m=coll==="findings"?g.F:g.Q;delete m[id];
+  if(MODE==="db"){myColl().doc(id).delete().catch(writeFail);}else saveLocal();}
+function writeFail(e){var c=e&&e.code;
+  if(c==="invalid_argument")CAN_WRITE=false;
+  storeErr=c==="quota_exceeded"?"Storage for this page is full. Delete rejected findings, or ask the owner to archive old ones.":c==="invalid_argument"?"":"Couldn't save ("+(c||"error")+"). Try again in a moment.";
+  renderStore();render();}
+function author(){if(MODE==="db")return ME;var a=($("fx-author").value||"").trim().slice(0,60)||"me";lsSet(LS+"_author",a);return a;}
+function authorName(a){if(a==="final")return "Final list (Claude)";if(MODE==="db")return a===ME?"you":((NAMES[a]&&NAMES[a].name)||"Someone");return a||"me";}
+function editable(){return CAN_WRITE&&VIEW==="mine";}
+function renderStore(){var el=$("fx-store");
+  if(storeErr){el.className="store err";el.textContent=storeErr;return;}
+  if(!CAN_WRITE){el.className="store ro";el.textContent=MODE==="db"&&!ME?"Sign in to claude.ai to add findings. You can still read and comment.":"View only: you can read and comment. To add findings, ask the owner for Editor access.";return;}
+  el.className="store";
+  el.textContent=MODE==="db"?(VIEW!=="mine"?"Read-only: "+(VIEW==="all"?"everyone's findings":authorName(VIEW)+"'s findings")+". Switch Showing to You to edit yours.":"Showing your findings. Only you can edit them; everyone with access can read them."):MODE==="connecting"?"Connecting…":"Local copy: saved in this browser only. Export JSON to share.";}
+
+/* ---------- text offsets over the article ---------- */
+var nodes=[],starts=[],FULL="";
+(function walk(n){for(var c=n.firstChild;c;c=c.nextSibling){if(c.nodeType===3){starts.push(FULL.length);nodes.push(c);FULL+=c.nodeValue;}else if(c.nodeType===1&&c.tagName!=="SCRIPT"&&c.tagName!=="STYLE")walk(c);}})(ROOT);
+var nodeIdx=new Map();nodes.forEach(function(n,i){nodeIdx.set(n,i);});
+function locate(off){var lo=0,hi=nodes.length-1,a=0;while(lo<=hi){var m=(lo+hi)>>1;if(starts[m]<=off){a=m;lo=m+1;}else hi=m-1;}return[nodes[a],off-starts[a]];}
+function rangeFor(s,e){var a=locate(s),b=locate(e),r=document.createRange();try{r.setStart(a[0],Math.min(a[1],a[0].nodeValue.length));r.setEnd(b[0],Math.min(b[1],b[0].nodeValue.length));}catch(x){return null;}return r;}
+function offOf(node,o){if(node.nodeType!==3){var t=node.childNodes[o]||node;var w=document.createTreeWalker(t,NodeFilter.SHOW_TEXT);var f=w.nextNode();if(!f)return -1;node=f;o=0;}var i=nodeIdx.get(node);return i==null?-1:starts[i]+o;}
+// Stored offsets are trusted only while the text still matches; otherwise the quote is searched for.
+function anchorOf(q){if(!q||typeof q.raw!=="string")return null;if(q.s>=0&&FULL.slice(q.s,q.e)===q.raw)return[q.s,q.e];var p=FULL.indexOf(q.raw);return p>=0?[p,p+q.raw.length]:null;}
+function sectionAt(off){var r=rangeFor(off,off);if(!r)return"";var el=r.startContainer.parentElement,last="";
+  var hs=ROOT.querySelectorAll("h1,h2,h3,summary");for(var i=0;i<hs.length;i++){if(hs[i].compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING||hs[i].contains(el))last=hs[i].textContent.trim();}
+  return last.slice(0,140);}
+
+/* ---------- ordering and labels: F1, F1.2 ---------- */
+function vals(m){return Object.keys(m).map(function(k){return m[k];});}
+function byCreated(a,b){return (a.created||"")<(b.created||"")?-1:(a.created||"")>(b.created||"")?1:(a.id<b.id?-1:1);}
+function tops(){return vals(F).filter(function(f){return !f.parent||!F[f.parent];}).sort(byCreated);}
+function kids(id){return vals(F).filter(function(f){return f.parent===id;}).sort(byCreated);}
+function quotesOf(id){return vals(Q).filter(function(q){return q.finding===id;}).sort(function(a,b){var x=anchorOf(a),y=anchorOf(b);return (x?x[0]:1e12)-(y?y[0]:1e12);});}
+function labels(){var L={};tops().forEach(function(f,i){L[f.id]="F"+(i+1);kids(f.id).forEach(function(k,j){L[k.id]="F"+(i+1)+"."+(j+1);});});return L;}
+
+/* ---------- highlights ---------- */
+var HL=(typeof Highlight!=="undefined"&&window.CSS&&CSS.highlights);
+function paint(){if(!HL)return;var sets={};["yes","partly","no","unset"].forEach(function(k){sets[k]=new Highlight();CSS.highlights.set("fx-"+k,sets[k]);});
+  shownGroups().forEach(function(u){var g=group(u);vals(g.Q).forEach(function(q){var f=g.F[q.finding];if(!f||(f.status==="rejected"&&f.author!=="final"))return;var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(r)sets[f.status==="rejected"?"no":f.derivable==="joint"?"unset":(f.derivable||"unset")].add(r);});});}
+function flash(q){var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(!r)return;
+  for(var d=r.startContainer.parentElement;d;d=d.parentElement){if(d.tagName==="DETAILS")d.open=true;}
+  var el=r.startContainer.parentElement;if(el)el.scrollIntoView({block:"center",behavior:"smooth"});
+  if(HL){var h=new Highlight();h.add(r);CSS.highlights.set("fx-act",h);setTimeout(function(){CSS.highlights.delete("fx-act");},1600);}}
+
+/* ---------- sidebar ---------- */
+var TARGET=null,EDIT=null,DRAFT={},ARM=null,filter="all";
+var DL={unset:"Not decided yet",yes:"Yes: the scans alone show it",partly:"Partly: e.g. the attempt, not the outcome",no:"No: needs outside information"};
+var DS={unset:"undecided",yes:"yes",partly:"partly",no:"no"};
+var KL={finding:"Finding: observed in the report",conclusion:"Conclusion: an inference the report draws",context:"Context: background, not scored"};
+function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=qs.filter(function(q){return !anchorOf(q);}).length,mine=editable(f),ro=mine?"":" disabled";
+  var h='<div class="fx-item d-'+d+(isSub?" sub":"")+(TARGET===f.id?" target":"")+(f.status==="rejected"?" rejected":"")+'" data-id="'+esc(f.id)+'" tabindex="0">'
+   +'<div class="top"><span class="fid" data-act="target" title="Make this the quote target">'+L[f.id]+'</span>'
+   +(f.status==="rejected"?'<span class="bdg">'+(f.author==="final"?"excluded":"rejected")+'</span>':'')
+   +(lost?'<span class="bdg lost" title="Quoted text no longer found in this article version">'+lost+' unanchored</span>':'')
+   +'<span class="who">'+esc(authorName(f.author))+'</span></div>'
+   +'<div class="tags"><label for="k-'+esc(f.id)+'" title="What sort of claim this is">Type</label><select id="k-'+esc(f.id)+'" data-act="kind"'+ro+'>'+["finding","conclusion","context"].map(function(k){return '<option value="'+k+'"'+((f.kind||"finding")===k?" selected":"")+'>'+KL[k]+'</option>';}).join("")+'</select>'
+   +'<label for="d-'+esc(f.id)+'" title="Could an agent given only the urlquery scans reach this?">In scan data?</label><select id="d-'+esc(f.id)+'" data-act="derivable"'+ro+'>'+["unset","yes","partly","no"].map(function(k){return '<option value="'+k+'"'+(d===k?" selected":"")+'>'+DL[k]+'</option>';}).join("")+'</select></div>';
+  if(EDIT===f.id){var dv=DRAFT[f.id]||{text:f.text,note:f.note||""};
+    h+='<textarea data-act="edit-text" rows="3" aria-label="Finding text" placeholder="'+(isSub?"A specific fact: date, count, target or technique":"The finding, in your own words")+'">'+esc(dv.text)+'</textarea><textarea data-act="edit-note" rows="2" placeholder="Note (optional): doubts, record IDs, what is missing" aria-label="Note">'+esc(dv.note)+'</textarea>'
+      +'<div class="acts"><button type="button" class="pri" data-act="save">Save</button><button type="button" data-act="cancel">Cancel</button></div>';}
+  else{h+='<div class="txt'+(f.text?"":" empty")+'" data-act="target">'+esc(f.text||"(empty: click Edit)")+'</div>'+(f.note?'<div class="note">'+esc(f.note)+'</div>':'');}
+  if(f.evidence_scans&&f.evidence_scans.length)h+='<div class="ev">Evidence scans: '+f.evidence_scans.map(function(s){return '<a href="https://urlquery.net/report/'+esc(s)+'" target="_blank" rel="noopener noreferrer" title="'+esc(s)+'">'+esc(s.slice(0,8))+'</a>';}).join(" ")+'</div>';
+  if(COMMENTS)h+='<div class="acts"><button type="button" data-act="comment" title="Start a comment thread on this finding">Comment</button></div>';
+  if(TARGET===f.id&&mine)h+='<div class="tgt">Quote target: select text in the report, then click Attach quote.</div>';
+  h+=qs.map(function(q){var a=anchorOf(q);return '<div class="fx-q'+(a?"":" lost")+'"><span class="qt" data-q="'+esc(q.id)+'" title="Show in report">“'+esc(String(q.quote||"").slice(0,300))+'”</span>'+(mine?'<button type="button" class="x" data-act="unquote" data-q="'+esc(q.id)+'" aria-label="Remove quote">×</button>':'')+'</div>';}).join("");
+  if(mine&&EDIT!==f.id){h+='<div class="acts">'+(isSub?'':'<button type="button" data-act="sub">＋ Sub-finding</button>')+'<button type="button" data-act="edit">Edit</button>'
+     +'<button type="button" data-act="reject">'+(f.status==="rejected"?"Restore":"Reject")+'</button>'
+     +'<button type="button" class="danger" data-act="delete">'+(ARM===f.id?"Click again to delete":"Delete")+'</button></div>';}
+  return h+'</div>';}
+function shownGroups(){if(VIEW==="mine")return [ME];if(VIEW!=="all")return [VIEW];return Object.keys(DATA).filter(function(u){return u===ME||Object.keys(DATA[u].F).length;}).sort(function(a,b){return a===ME?-1:b===ME?1:0;});}
+function renderPicker(){var sel=$("fx-view");if(document.activeElement===sel)return;
+  var n=function(u){return DATA[u]?Object.keys(DATA[u].F).length:0;};
+  var others=PEOPLE.filter(function(u){return u!==ME;}).sort(function(a,b){return a==="final"?-1:b==="final"?1:authorName(a).localeCompare(authorName(b));});
+  var opts=[["mine","You ("+n(ME)+")"]].concat(others.map(function(u){return [u,authorName(u)+" ("+n(u)+")"];}),[["all","Everyone ("+PEOPLE.concat(PEOPLE.indexOf(ME)<0?[ME]:[]).reduce(function(s,u){return s+n(u);},0)+")"]]);
+  sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(VIEW===o[0]?" selected":"")+'>'+esc(o[1])+'</option>';}).join("");}
+function findQuote(id){for(var u in DATA){if(DATA[u].Q[id])return DATA[u].Q[id];}return null;}
+function visible(f){if(filter==="all")return true;var m=function(x){return (x.derivable||"unset")===filter;};return m(f)||kids(f.id).some(m);}
+function render(){
+  var groups=shownGroups(),all=0,nq=0,counts={};
+  groups.forEach(function(u){useGroup(u);all+=vals(F).length;nq+=vals(Q).length;vals(F).forEach(function(f){var d=f.derivable||"unset";counts[d]=(counts[d]||0)+1;});});
+  counts.all=all;
+  $("fx-count").textContent=all+" finding"+(all===1?"":"s")+" · "+nq+" quote"+(nq===1?"":"s")+(VIEW==="all"?" · "+groups.length+" people":"");
+  $("fx-filt").innerHTML=["all","yes","partly","no","unset"].filter(function(k){return k==="all"||counts[k];}).map(function(k){
+    return '<label><input type="radio" name="fxf" value="'+k+'"'+(filter===k?" checked":"")+'> '+(k==="all"?"all":"in data: "+DS[k])+' ('+counts[k]+')</label>';}).join("");
+  var ae=document.activeElement,focused=ae&&ae.closest&&ae.closest("#fx-list")&&ae.tagName==="TEXTAREA"?ae.getAttribute("data-act"):null;
+  $("fx-list").innerHTML=groups.map(function(u){useGroup(u);var L=labels();
+      var body=tops().filter(visible).map(function(f){return itemHTML(f,L,false)+kids(f.id).map(function(k){return itemHTML(k,L,true);}).join("");}).join("");
+      return (VIEW==="all"?'<div class="fx-group">'+esc(authorName(u))+' · '+vals(F).length+'</div>'+(body||'<p style="color:var(--muted);margin:0">Nothing yet.</p>'):body);}).join("")
+    ||'<p style="color:var(--muted);margin:6px 0">'+(VIEW==="all"?"Nobody has added findings yet.":"No findings yet. Write the first one above.")+'</p>';
+  useGroup(ME);
+  if(EDIT){var ta=document.querySelector('.fx-item[data-id="'+CSS.escape(EDIT)+'"] textarea[data-act="'+(focused||"edit-text")+'"]');
+    if(ta&&(focused||EDIT!==render.lastFocus)){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);render.lastFocus=EDIT;}}
+  $("fx-newbox").hidden=MODE==="db"&&VIEW!=="mine";$("fx-add").disabled=!editable();$("fx-new").disabled=!editable();$("fx-import-l").hidden=!editable();
+  $("fx-viewrow").hidden=!(MODE==="db"&&ME!=="anon");if(MODE==="db")renderPicker();
+  paint();
+}
+$("fx-filt").addEventListener("change",function(ev){if(ev.target.name==="fxf"){filter=ev.target.value;render();}});
+function setTarget(id){TARGET=(TARGET===id?null:id);render();}
+$("fx-list").addEventListener("click",function(ev){var item=ev.target.closest(".fx-item");if(!item)return;
+  var qEl=ev.target.closest(".qt");if(qEl){flash(findQuote(qEl.dataset.q));return;}
+  if(ev.target.closest('[data-act="comment"]')){if(COMMENTS)COMMENTS.openComposer({element:item}).catch(function(e){if(e&&(e.code==="unavailable"||e.code==="not_granted"))COMMENTS=null;render();});return;}
+  var f=F[item.dataset.id];if(!f||!editable())return;
+  var a=ev.target.closest("[data-act]"),act=a&&a.dataset.act;
+  if(act==="target"){setTarget(f.id);return;}
+  if(act==="edit"){EDIT=f.id;DRAFT[f.id]={text:f.text,note:f.note||""};render();return;}
+  if(act==="cancel"){EDIT=null;delete DRAFT[f.id];if(!f.text&&!quotesOf(f.id).length)del("findings",f.id);render();return;}
+  if(act==="save"){var d=DRAFT[f.id]||{};var t=(d.text||"").trim();if(!t)return;EDIT=null;delete DRAFT[f.id];put("findings",Object.assign({},f,{text:t,note:(d.note||"").trim(),updated:nowISO()}));return;}
+  if(act==="sub"){var s={id:uid("f"),parent:f.id,text:"",note:"",kind:"finding",derivable:null,status:"draft",author:author(),created:nowISO(),updated:nowISO()};
+    EDIT=s.id;DRAFT[s.id]={text:"",note:""};TARGET=s.id;put("findings",s);return;}
+  if(act==="reject"){put("findings",Object.assign({},f,{status:f.status==="rejected"?"draft":"rejected",updated:nowISO()}));return;}
+  if(act==="delete"){if(ARM!==f.id){ARM=f.id;render();setTimeout(function(){if(ARM===f.id){ARM=null;render();}},4000);return;}
+    ARM=null;[f].concat(kids(f.id)).forEach(function(x){quotesOf(x.id).forEach(function(q){del("quotes",q.id);});del("findings",x.id);});if(TARGET&&!F[TARGET])TARGET=null;render();return;}
+  if(act==="unquote"){del("quotes",a.dataset.q);render();return;}
+});
+$("fx-list").addEventListener("input",function(ev){var item=ev.target.closest(".fx-item"),act=ev.target.dataset.act;if(!item||!act)return;var d=DRAFT[item.dataset.id]||(DRAFT[item.dataset.id]={text:"",note:""});
+  if(act==="edit-text")d.text=ev.target.value;if(act==="edit-note")d.note=ev.target.value;});
+$("fx-list").addEventListener("change",function(ev){var item=ev.target.closest(".fx-item"),act=ev.target.dataset.act;if(!item||!F[item.dataset.id]||!editable())return;var f=F[item.dataset.id];
+  if(act==="derivable")put("findings",Object.assign({},f,{derivable:ev.target.value==="unset"?null:ev.target.value,updated:nowISO()}));
+  if(act==="kind")put("findings",Object.assign({},f,{kind:ev.target.value,updated:nowISO()}));});
+$("fx-list").addEventListener("keydown",function(ev){var item=ev.target.closest(".fx-item");if(!item)return;
+  if(ev.target.tagName==="TEXTAREA"){if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();item.querySelector('[data-act="save"]').click();}if(ev.key==="Escape"){item.querySelector('[data-act="cancel"]').click();}return;}
+  if(ev.target===item&&ev.key==="Enter"&&editable())setTarget(item.dataset.id);});
+function addFinding(){var t=$("fx-new").value.trim();if(!t||!editable())return;var f={id:uid("f"),parent:null,text:t,note:"",kind:"finding",derivable:null,status:"draft",author:author(),created:nowISO(),updated:nowISO()};
+  $("fx-new").value="";TARGET=f.id;put("findings",f);}
+$("fx-add").onclick=addFinding;
+$("fx-new").addEventListener("keydown",function(ev){if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();addFinding();}});
+
+/* ---------- selection toolbar: attach quote / comment ---------- */
+var SEL=null,bar=$("fxsel");
+function currentSel(){var s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return null;var r=s.getRangeAt(0);
+  if(!ROOT.contains(r.commonAncestorContainer))return null;var a=offOf(r.startContainer,r.startOffset),b=offOf(r.endContainer,r.endOffset);
+  if(a<0||b<=a)return null;var raw=FULL.slice(a,b);if(!raw.trim())return null;
+  return {s:a,e:b,raw:raw,quote:s.toString().replace(/\s+/g," ").trim()||raw.replace(/\s+/g," ").trim(),range:r.cloneRange(),rect:r.getBoundingClientRect()};}
+function showBar(){SEL=currentSel();if(!SEL){bar.hidden=true;return;}
+  var L=labels(),opts=[];tops().forEach(function(f){opts.push([f.id,L[f.id]+" · "+(f.text||"(empty)").slice(0,60)]);kids(f.id).forEach(function(k){opts.push([k.id,"   "+L[k.id]+" · "+(k.text||"(empty)").slice(0,56)]);});});
+  $("fxsel-target").innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(o[0]===TARGET?" selected":"")+'>'+esc(o[1])+'</option>';}).join("");
+  var w8=editable();$("fxsel-target").hidden=!opts.length||!w8;$("fxsel-quote").hidden=!w8;$("fxsel-quote").disabled=!opts.length;
+  $("fxsel-hint").textContent=!w8?"":opts.length?"Attach this passage as a quote to:":"Write a finding in the sidebar first, then attach quotes to it.";
+  $("fxsel-hint").hidden=!w8;$("fxsel-comment").hidden=!COMMENTS;
+  if(!w8&&!COMMENTS){bar.hidden=true;return;}
+  var w=320,x=Math.min(SEL.rect.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-w-16);
+  bar.style.left=Math.max(8,x)+"px";bar.style.top=(SEL.rect.bottom+window.scrollY+8)+"px";bar.hidden=false;}
+document.addEventListener("mouseup",function(ev){if(ev.target.closest&&(ev.target.closest("#fx")||ev.target.closest("#fxsel")))return;setTimeout(showBar,10);});
+document.addEventListener("keyup",function(ev){if(ev.shiftKey&&!(ev.target.closest&&ev.target.closest("#fx")))setTimeout(showBar,10);});
+document.addEventListener("mousedown",function(ev){if(!bar.contains(ev.target))bar.hidden=true;});
+$("fxsel-quote").onclick=function(){if(!SEL||!editable())return;var fid=$("fxsel-target").value;if(!fid||!F[fid])return;
+  TARGET=fid;put("quotes",{id:uid("q"),finding:fid,s:SEL.s,e:SEL.e,raw:SEL.raw,quote:SEL.quote,section:sectionAt(SEL.s),author:author(),created:nowISO()});
+  window.getSelection().removeAllRanges();bar.hidden=true;
+  var c=document.querySelector('.fx-item[data-id="'+CSS.escape(fid)+'"]');if(c)c.scrollIntoView({block:"nearest",behavior:"smooth"});};
+$("fxsel-comment").onclick=function(){if(!SEL||!COMMENTS)return;var r=SEL.range;bar.hidden=true;
+  COMMENTS.openComposer({range:r}).catch(function(e){if(e&&(e.code==="unavailable"||e.code==="not_granted"||e.code==="capability_disabled"))COMMENTS=null;});};
+document.addEventListener("keydown",function(ev){if(ev.key==="Escape")bar.hidden=true;});
+// Click a highlighted passage → show its finding.
+ROOT.addEventListener("click",function(ev){if(!window.getSelection().isCollapsed)return;var off=-1;
+  if(document.caretRangeFromPoint){var cr=document.caretRangeFromPoint(ev.clientX,ev.clientY);if(cr)off=offOf(cr.startContainer,cr.startOffset);}
+  else if(document.caretPositionFromPoint){var cp=document.caretPositionFromPoint(ev.clientX,ev.clientY);if(cp)off=offOf(cp.offsetNode,cp.offset);}
+  if(off<0)return;var hit=null,best=1e18;shownGroups().forEach(function(u){vals(group(u).Q).forEach(function(q){var a=anchorOf(q);if(a&&off>=a[0]&&off<=a[1]&&a[1]-a[0]<best){best=a[1]-a[0];hit=q;}});});
+  if(hit){if(F[hit.finding])TARGET=hit.finding;render();var c=document.querySelector('.fx-item[data-id="'+CSS.escape(hit.finding)+'"]');if(c)c.scrollIntoView({block:"center",behavior:"smooth"});}});
+// The article's ⓘ URL notes: click pins them open (the site's own script is not loaded).
+[].forEach.call(ROOT.querySelectorAll(".report-url-note-trigger"),function(b){b.addEventListener("click",function(ev){ev.preventDefault();var n=b.closest(".report-url-note");var on=!n.classList.contains("show-note");n.classList.toggle("show-note",on);b.setAttribute("aria-expanded",on);});});
+
+/* ---------- export / import ---------- */
+function exportObj(){var L=labels();
+  function one(f){var qs=quotesOf(f.id);return {id:f.id,label:L[f.id],parent:f.parent||null,text:f.text,kind:f.kind||"finding",derivable:f.derivable||null,status:f.status||"draft",note:f.note||"",
+    author:f.author,created:f.created,updated:f.updated,report_quote:qs.map(function(q){return q.quote;}).join(" … "),
+    quotes:qs.map(function(q){var a=anchorOf(q);return {id:q.id,quote:q.quote,raw:q.raw,s:a?a[0]:-1,e:a?a[1]:-1,section:q.section||"",author:q.author,created:q.created};})};}
+  var out=[];shownGroups().forEach(function(u){useGroup(u);L=labels();tops().forEach(function(f){out.push(one(f));kids(f.id).forEach(function(k){out.push(one(k));});});});useGroup(ME);
+  return {schema:SCHEMA,benchmark_id:SCOPE.benchmark_id,report_sha256:SCOPE.report_sha256,article_sha256:SCOPE.article_sha256,saved_at:nowISO(),n_findings:out.length,findings:out};}
+function flash1(btn,t){var o=btn.textContent;btn.textContent=t;setTimeout(function(){btn.textContent=o;},1600);}
+$("fx-export").onclick=function(){var btn=this,name="urlquery_findings_"+SCOPE.article_sha256.slice(0,12)+"_"+nowISO().slice(0,16).replace(/[:T-]/g,"")+".json",data=JSON.stringify(exportObj(),null,1);
+  if(DOWNLOADS){DOWNLOADS.save({filename:name,data:data}).then(function(){flash1(btn,"Saved");},function(){flash1(btn,"Not saved");});return;}
+  if(window.claude){flash1(btn,"Use Copy JSON");return;}
+  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:"application/json"}));a.download=name;a.click();};
+$("fx-copy").onclick=function(){var btn=this;try{navigator.clipboard.writeText(JSON.stringify(exportObj(),null,1)).then(function(){flash1(btn,"Copied");},function(){flash1(btn,"Copy blocked");});}catch(e){flash1(btn,"Copy blocked");}};
+$("fx-import").onchange=function(){var file=this.files[0],lab=$("fx-import-l");this.value="";if(!file)return;var rd=new FileReader();rd.onload=function(){
+  try{var d=JSON.parse(rd.result);if(d.schema!==SCHEMA||d.benchmark_id!==SCOPE.benchmark_id)throw new Error("this isn't a findings export from this page");
+    var n=0;(d.findings||[]).forEach(function(f){if(!f.id||F[f.id])return;
+      put("findings",{id:f.id,parent:f.parent||null,text:f.text||"",note:f.note||"",kind:f.kind||"finding",derivable:f.derivable||null,status:f.status||"draft",author:f.author||author(),created:f.created||nowISO(),updated:f.updated||nowISO()});
+      (f.quotes||[]).forEach(function(q){if(q.id&&!Q[q.id])put("quotes",{id:q.id,finding:f.id,s:q.s,e:q.e,raw:q.raw,quote:q.quote,section:q.section||"",author:q.author||author(),created:q.created||nowISO()});});n++;});
+    lab.textContent="Imported "+n;}catch(e){lab.textContent="Import failed";storeErr="Import failed: "+e.message;renderStore();}
+  setTimeout(function(){lab.textContent="Import…";},2500);};rd.readAsText(file);};
+
+/* ---------- boot: render at once, switch to the shared store when the viewer grants it ---------- */
+if(lsGet(LS+"_howto")==="closed")$("fx-howto").open=false;
+$("fx-howto").addEventListener("toggle",function(){lsSet(LS+"_howto",this.open?"open":"closed");});
+function resolveNames(){if(!USER)return;var ids={};Object.keys(DATA).concat(PEOPLE).forEach(function(u){if(u!=="local"&&u!=="anon")ids[u]=1;});
+  var list=Object.keys(ids);if(!list.length)return;
+  USER.profiles(list).then(function(ps){var changed=false;Object.keys(ps).forEach(function(i){if(!NAMES[i]||NAMES[i].name!==ps[i].name){NAMES[i]=ps[i];changed=true;}});if(changed)render();});}
+function watchUser(uid){if(SUBS[uid])return;
+  SUBS[uid]=DB.collection("data/users/"+uid).onSnapshot(function(snap){var g={F:{},Q:{}};snap.docs.forEach(function(d){var x=d.data();if(x.type==="quote")g.Q[d.id]=x;else if(x.type==="finding")g.F[d.id]=x;});
+      DATA[uid]=g;if(uid===ME){useGroup(ME);if(EDIT&&!F[EDIT])EDIT=null;if(snap.docs.length)JOINED=true;}render();resolveNames();},
+    function(e){if(uid===ME){storeErr="Lost the connection to storage ("+(e&&e.code)+"). Reload the page.";renderStore();}});}
+var PEOPLE=[];
+function setView(v){VIEW=v;TARGET=null;EDIT=null;renderStore();render();}
+$("fx-view").onchange=function(){setView(this.value);};
+function watchPeople(){DB.collection("participants").onSnapshot(function(snap){PEOPLE=snap.docs.map(function(d){return d.id;});PEOPLE.forEach(watchUser);render();resolveNames();},function(){});}
+function startLocal(){MODE="local";ME="local";$("fx-author").hidden=false;$("fx-author").value=lsGet(LS+"_author")||"";loadLocal();renderStore();render();}
+if(window.claude&&typeof window.claude.use==="function"){
+  MODE="connecting";renderStore();render();
+  Promise.all(["db","user","comments","downloads"].map(function(n){return claude.use(n).catch(function(){return null;});})).then(function(r){
+    DB=r[0];USER=r[1];COMMENTS=r[2];DOWNLOADS=r[3];
+    if(!DB){startLocal();return;}
+    MODE="db";
+    (USER?Promise.all([USER.id(),USER.isOwner()]):Promise.resolve([null,false])).then(function(v){
+      ME=v[0]||"anon";IS_OWNER=!!v[1];if(!v[0])CAN_WRITE=false;useGroup(ME);
+      if(v[0])watchUser(ME);watchPeople();renderStore();render();});
+  });
+}else startLocal();
+})();
+</script>
+</body></html>

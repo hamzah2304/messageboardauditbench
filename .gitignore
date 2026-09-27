@@ -20,6 +20,8 @@ marginal.toml
 /data/augmented
 /data/mythos5
 /data/rubyhack
+/data/transluce
+/data/urlquery
 data/raw_stripped/*
 !data/raw_stripped/.gitkeep
 data/verbatim/*
@@ -30,10 +32,20 @@ data/verbatim_anthropic/*
 # --- raw agent transcripts (multi-MB, not needed to reproduce grades) ---
 baselines/*/transcript.jsonl
 reports/**/transcript.jsonl
+# Raw URLQuery exports can quote recorded secrets. Only reviewed publication copies are tracked.
+/reports/urlquery/*
+!/reports/urlquery/published/
+/reports/urlquery/published/*
+!/reports/urlquery/published/*.md
 
 # --- generated viewers: rebuild with viewers/build_*.py ---
 viewers/*.html
 !viewers/coverage_combined.html
+# Local URLQuery review comments can quote the retained credential evidence too.
+viewers/data/urlquery-*-review.json
+!viewers/transluce_explorer.template.html
+!viewers/urlquery_findings.template.html
+!viewers/urlquery_findings.limits.html
 viewers/scratch/
 # per-report payloads for audit.html; rebuilt by build_audit_ui.py
 viewers/data/audit/

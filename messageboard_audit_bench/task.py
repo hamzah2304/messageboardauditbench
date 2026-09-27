@@ -401,6 +401,8 @@ def messageboard_audit_bench_replay(
         if not meta_path.exists():
             continue
         meta = json.loads(meta_path.read_text())
+        if meta.get("benchmark_id", "messageboard") != "messageboard":
+            raise ValueError("cross-benchmark replay rejected; URLQuery has no approved rubric")
         if not include_failed and meta.get("exit_code") != 0:
             continue
         data_variant = str(meta.get("data_variant", "verbatim"))
@@ -482,6 +484,8 @@ def messageboard_audit_bench_continue(
     """
     cfg = _load_followup_config(config)
     log = read_eval_log(parent_log)
+    if (getattr(log.eval, "metadata", None) or {}).get("benchmark_id", "messageboard") != "messageboard":
+        raise ValueError("cross-benchmark continuation rejected")
     if log.eval.task_args.get("agent") != "react" or (
         log.eval.task_args.get("backend", "inspect") != "inspect"
     ):
