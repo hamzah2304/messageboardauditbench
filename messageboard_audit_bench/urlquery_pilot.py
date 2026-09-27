@@ -29,16 +29,37 @@ OVERRIDES = ("PROMPT", "BUDGET_MIN", "TIMEOUT", "DATA_DIR", "DATA_DIR_OVERRIDE",
              "MIN_RUNTIME_FRACTION", "MBAB_MIN_RUNTIME_FRACTION", "RESUME_FROM")
 
 
-def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | None = None) -> tuple[Path, dict]:
+def load_matrix(path: Path | None) -> list[tuple[str, str, int]]:
+    if path is None:
+        return MATRIX
+    trials = tomllib.loads(path.read_text()).get("trials")
+    if not isinstance(trials, list) or not trials:
+        raise ValueError("matrix config requires nonempty [[trials]]")
+    result = []
+    for row in trials:
+        if not isinstance(row, dict) or set(row) != {"agent", "model", "replicate"}:
+            raise ValueError("matrix trial requires agent, model, replicate only")
+        a, m, r = row["agent"], row["model"], row["replicate"]
+        if a not in ("codex", "claude") or not isinstance(m, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", m):
+            raise ValueError("invalid matrix agent/model")
+        if type(r) is not int or r < 1 or (a, m, r) in result:
+            raise ValueError("invalid or duplicate matrix replicate")
+        result.append((a, m, r))
+    return result
+
+
+def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | None = None,
+         matrix_config: Path | None = None) -> tuple[Path, dict]:
+    configured_matrix = load_matrix(matrix_config)
     selected_agents = set(agents) if agents is not None else {"codex", "claude"}
     if not selected_agents or selected_agents - {"codex", "claude"}:
         raise ValueError("pilot agents must be codex and/or claude")
-    known_models = {model for _, model, _ in MATRIX}
+    known_models = {model for _, model, _ in configured_matrix}
     selected_models = set(models) if models is not None else known_models
     if not selected_models or selected_models - known_models:
         raise ValueError("pilot models must come from the configured matrix")
     matrix = [{"agent": a, "model": m, "replicate": r}
-              for a, m, r in MATRIX if a in selected_agents and m in selected_models]
+              for a, m, r in configured_matrix if a in selected_agents and m in selected_models]
     if not matrix:
         raise ValueError("agent/model filters select no trials")
     dataset = dataset.resolve()
@@ -71,6 +92,9 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
                "image_build_args": {"CLAUDE_VERSION": claude_version, "CODEX_VERSION": "rust-v" + codex_version},
                "budget_minutes": 10, "outer_guard_seconds": 900, "effort": "medium",
                "status": "planned", "grading": "none"}
+    if matrix_config is not None:
+        payload["matrix_source"] = str(matrix_config.resolve())
+        payload["matrix_source_sha256"] = file_sha256(matrix_config)
     (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
     return directory, payload
 
@@ -160,10 +184,11 @@ def main():
     parser.add_argument("--launch", action="store_true")
     parser.add_argument("--agent", choices=("codex", "claude"), action="append",
                         help="Run only this subscription lane; repeat to include both (default: both)")
-    parser.add_argument("--model", choices=sorted({m for _, m, _ in MATRIX}), action="append",
+    parser.add_argument("--matrix-config", type=Path, help="Explicit TOML [[trials]] matrix; default keeps the original four-run matrix")
+    parser.add_argument("--model", action="append",
                         help="Select model(s) from the planned matrix without rerunning other models")
     args = parser.parse_args()
-    directory, payload = plan(args.dataset, agents=args.agent, models=args.model)
+    directory, payload = plan(args.dataset, agents=args.agent, models=args.model, matrix_config=args.matrix_config)
     print(json.dumps({"plan": str(directory / "plan.json"), "launch": args.launch}), flush=True)
     if args.launch:
         launch(directory, payload)

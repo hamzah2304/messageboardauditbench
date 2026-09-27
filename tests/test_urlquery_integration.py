@@ -205,6 +205,30 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     assert len(retry["matrix"]) == 3 and all(r["model"] != "gpt-6-astra" for r in retry["matrix"])
     with pytest.raises(ValueError, match="select no trials"):
         pilot.plan(dataset, agents=["claude"], models=["gpt-6-sol"])
+    custom = Path(__file__).parents[1] / "configs/urlquery-smaller-models.toml"
+    _, smaller = pilot.plan(dataset, matrix_config=custom)
+    assert [r["model"] for r in smaller["matrix"]] == [
+        "gpt-6-luna", "gpt-5.6-terra", "claude-haiku-4-5-20251001", "claude-sonnet-5"]
+    assert len(smaller["matrix_source_sha256"]) == 64
+    assert len(pilot.MATRIX) == 4 and pilot.MATRIX[0][1] == "gpt-6-astra"
+    _, selected = pilot.plan(dataset, matrix_config=custom, models=["claude-sonnet-5"])
+    assert len(selected["matrix"]) == 1
+
+
+@pytest.mark.parametrize("body", [
+    "trials = []", '[[trials]]\nagent="codex"\nmodel="--bad"\nreplicate=1',
+    '[[trials]]\nagent="other"\nmodel="okay"\nreplicate=1',
+    '[[trials]]\nagent="codex"\nmodel="okay"\nreplicate=true',
+    '[[trials]]\nagent="codex"\nmodel="okay"\nreplicate=0',
+    '[[trials]]\nagent="codex"\nmodel="okay"\nreplicate=1\nextra=1',
+    '[[trials]]\nagent="codex"\nmodel="okay"\nreplicate=1\n' * 2,
+])
+def test_explicit_pilot_matrix_rejects_invalid_trials(tmp_path, body):
+    from messageboard_audit_bench.urlquery_pilot import load_matrix
+    path = tmp_path / "matrix.toml"
+    path.write_text(body)
+    with pytest.raises(ValueError):
+        load_matrix(path)
 
 
 @pytest.mark.parametrize("agents", [None, ["claude"]])
