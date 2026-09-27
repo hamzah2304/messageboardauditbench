@@ -475,7 +475,7 @@ def test_final_batch_keeps_one_dataset_pin_and_latest_prompt(tmp_path, monkeypat
     for _, payload in plans:
         config = tomllib.loads(Path(payload["config"]).read_text())
         assert config["dataset_sha256"] == "a" * 64
-        assert config["prompt"] == "urlquery-agents-v5"
+        assert config["prompt"] == "urlquery-agents-v6"
         assert len({row["model"] for row in payload["matrix"]}) == 12
         assert {row["replicate"] for row in payload["matrix"]} == {1, 2}
 
