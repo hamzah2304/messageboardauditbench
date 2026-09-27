@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>urlquery Report Browser</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/http.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">urlquery <span>report browser</span></div>
+  <input id="q" type="search" placeholder="Search id, submitted URL, title, why_included…" autocomplete="off">
+  <div class="annot">
+    <label for="annot-target">Annotating</label>
+    <select id="annot-target"><option value="">— pick a finding —</option></select>
+  </div>
+  <div id="fetch-status" class="fetch-status"></div>
+</header>
+<div class="chips" id="chips"></div>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="stat-row" id="stats"></div>
+    <div id="facets"></div>
+  </aside>
+  <main>
+    <nav class="tabs" id="tabs">
+      <button data-tab="timeline" class="on">Timeline</button>
+      <button data-tab="groups">Groups</button>
+      <button data-tab="bursts">Bursts</button>
+      <button data-tab="sites">Sites graph</button>
+      <button data-tab="table">Reports</button>
+      <button data-tab="findings">Golden findings</button>
+    </nav>
+    <section id="tab-timeline" class="tab on">
+      <div class="controls">
+        <label>Bin <select id="ts-bin"><option>hour</option><option selected>day</option><option>week</option><option>month</option></select></label>
+        <label>Stack by <select id="ts-stack" class="dim-select"></select></label>
+        <button id="ts-apply-zoom" class="ghost">Slice to zoomed range</button>
+        <span class="hint">Click a bar to slice to that bin. Shaded bands are golden incidents.</span>
+      </div>
+      <div id="ts-chart" class="chart tall"></div>
+      <h3 class="sub">Operating clock <span class="hint">UTC hour × weekday, click a cell to slice</span></h3>
+      <div id="clock-chart" class="chart short"></div>
+    </section>
+    <section id="tab-groups" class="tab">
+      <div class="controls">
+        <label>Group by <select id="g-by" class="dim-select"></select></label>
+        <label>then by <select id="g-by2" class="dim-select"><option value="">—</option></select></label>
+        <span class="hint">Click a group to slice to it. Domain, script and payload dimensions need fetched records.</span>
+      </div>
+      <div id="groups"></div>
+    </section>
+    <section id="tab-bursts" class="tab">
+      <div class="controls">
+        <label>Split when gap &gt; <input id="b-gap" type="number" value="30" min="1" style="width:5em"> min</label>
+        <label>Min reports <input id="b-min" type="number" value="3" min="1" style="width:4em"></label>
+        <label>Order <select id="b-order"><option value="n">largest</option><option value="start">chronological</option></select></label>
+        <span class="hint" id="b-note"></span>
+      </div>
+      <div id="bursts"></div>
+    </section>
+    <section id="tab-sites" class="tab">
+      <div class="controls">
+        <label><input type="checkbox" id="s-payload" checked> payload targets</label>
+        <label><input type="checkbox" id="s-http"> HTTP contacts</label>
+        <label>Max edges <input id="s-max" type="number" value="250" style="width:5em"></label>
+        <label>Min reports <input id="s-minn" type="number" value="1" style="width:4em"></label>
+        <label>Exclude <input id="s-exclude" type="text" placeholder="gstatic,googleapis" style="width:12em"></label>
+        <label>Heatmap bin <select id="s-bin"><option>day</option><option selected>week</option><option>month</option></select></label>
+      </div>
+      <div id="s-banner" class="banner"></div>
+      <div class="sites-wrap">
+        <div id="cy" class="cy"></div>
+        <div id="site-info" class="site-info"><p class="hint">Carrier (submitted host) → target (host the decoded payload points at) or contacted host (seen in HTTP). Click a node.</p></div>
+      </div>
+      <div class="legend" id="s-legend"></div>
+      <h3 class="sub">Sites over time <span class="hint">top hosts by reports per bin</span></h3>
+      <div id="heat-chart" class="chart tall"></div>
+    </section>
+    <section id="tab-table" class="tab">
+      <div class="controls">
+        <label>Sort <select id="t-sort"><option value="ts">oldest</option><option value="-ts">newest</option><option value="n_http">most HTTP</option><option value="source">source</option></select></label>
+        <button id="t-add" class="ghost" disabled>Add selected to finding</button>
+        <button id="t-fetch" class="ghost">Fetch raw for slice…</button>
+        <span class="hint" id="t-count"></span>
+        <span class="pager"><button id="t-prev" class="ghost">‹</button><span id="t-page"></span><button id="t-next" class="ghost">›</button></span>
+      </div>
+      <div class="table-wrap"><table class="grid" id="rows"></table></div>
+    </section>
+    <section id="tab-findings" class="tab">
+      <div class="findings-layout">
+        <div class="inc-col">
+          <div class="inc-head"><h3>Incidents</h3><button id="inc-new" class="ghost">+ New</button></div>
+          <div id="inc-list"></div>
+        </div>
+        <div class="find-col" id="find-col"><p class="hint">Create an incident (e.g. “AIHW dashboard escalation, June 2026”), then add findings and attach reports as evidence from anywhere in the browser.</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-head">
+    <div id="d-title"></div>
+    <button id="d-close" class="ghost" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-actions" id="d-actions"></div>
+  <nav class="tabs small" id="d-tabs">
+    <button data-dt="overview" class="on">Overview</button>
+    <button data-dt="payload">Decoded payload</button>
+    <button data-dt="http">HTTP</button>
+    <button data-dt="js">JavaScript</button>
+    <button data-dt="graph">Domain graph</button>
+    <button data-dt="json">Raw JSON</button>
+  </nav>
+  <div class="drawer-body" id="d-body"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
