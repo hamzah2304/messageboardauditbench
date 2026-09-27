@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investigation Runs</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e2de;
+    --accent: #c2410c; --ok: #15803d; --bad: #b91c1c; --warn: #a16207; --code: #f1f0ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1e1e1c; --ink: #ecebe6; --muted: #9a9993; --line: #34332f;
+      --accent: #fb923c; --ok: #4ade80; --bad: #f87171; --warn: #facc15; --code: #262624;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  code, pre, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+  .app { display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
+  aside { border-right: 1px solid var(--line); overflow-y: auto; padding: 16px; background: var(--panel); }
+  main { overflow-y: auto; padding: 20px 28px; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .sub a { color: var(--accent); }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 0 8px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  input, select, textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--ink); font: inherit; }
+  textarea { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 180px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .checks { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink); margin: 0; }
+  .check input { width: auto; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--bg); color: var(--muted); border: none; border-radius: 0; font-weight: 500; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent);
+    color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost, a.button { background: transparent; color: var(--accent); }
+  a.button { padding: 6px 12px; border: 1px solid var(--accent); border-radius: 6px; text-decoration: none; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { padding: 8px; border-radius: 6px; font-size: 12px; margin-bottom: 10px; border: 1px solid; }
+  .note.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: var(--warn); }
+  .note.ok { background: color-mix(in srgb, var(--ok) 10%, transparent); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+  .note.err { background: color-mix(in srgb, var(--bad) 10%, transparent); border-color: var(--bad); white-space: pre-wrap; }
+  .runs { list-style: none; padding: 0; margin: 0; }
+  .runs li { padding: 8px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .runs li:hover { background: var(--bg); }
+  .runs li.sel { border-color: var(--accent); }
+  .meta { font-size: 12px; color: var(--muted); }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
+    background: var(--code); color: var(--muted); }
+  .pill.success { color: var(--ok); } .pill.error, .pill.failed, .pill.interrupted { color: var(--bad); }
+  .pill.running, .pill.starting { color: var(--accent); } .pill.cancelled { color: var(--warn); }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .head .actions { display: flex; gap: 8px; }
+  .stats { display: flex; gap: 24px; margin: 14px 0; flex-wrap: wrap; }
+  .stat .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 8px; flex-wrap: wrap; }
+  .tabs button { background: none; border: none; color: var(--muted); border-bottom: 2px solid transparent;
+    border-radius: 0; padding: 8px 12px; font-weight: 500; }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+  .epochs { display: flex; gap: 6px; margin: 12px 0 0; align-items: center; }
+  .epochs button { padding: 2px 10px; font-size: 12px; background: transparent; color: var(--muted); border-color: var(--line); }
+  .epochs button.on { color: var(--accent); border-color: var(--accent); }
+  .pane { padding-top: 14px; }
+  .doc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 24px; max-width: 920px; }
+  .doc pre { background: var(--code); padding: 8px; overflow-x: auto; }
+  pre.console { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    white-space: pre-wrap; word-break: break-word; max-height: 70vh; overflow: auto; }
+  table { border-collapse: collapse; width: 100%; max-width: 920px; }
+  td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); }
+  .score { font-variant-numeric: tabular-nums; font-weight: 650; }
+  .empty { color: var(--muted); padding: 40px 0; }
+  @media (max-width: 860px) { .app { grid-template-columns: 1fr; height: auto; }
+    aside { border-right: none; border-bottom: 1px solid var(--line); } main { padding: 16px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Investigation runs</h1>
+    <div class="sub">Inspect evals of <code>report_eval_harness/investigation</code>.
+      <a id="viewLink" target="_blank" hidden>All logs in Inspect View ↗</a></div>
+    <div id="auth" class="note"></div>
+    <form id="form">
+      <label>Agent</label>
+      <div class="seg" id="agentSeg">
+        <button type="button" data-agent="claude_code">Claude Code</button>
+        <button type="button" data-agent="react">ReAct</button>
+      </div>
+      <div class="row">
+        <div><label>Corpus</label><select name="corpus" id="corpus"></select></div>
+        <div><label>Prompt</label><select name="prompt" id="promptName"></select></div>
+      </div>
+      <label>Investigator model</label><input name="model" list="models" required>
+      <div class="row">
+        <div><label>Judge model</label><input name="judge_model" list="models"></div>
+        <div data-for="react"><label>Analyst model</label><input name="subagent_model" list="models" placeholder="same as lead"></div>
+        <div data-for="claude_code"><label>Effort</label>
+          <select name="effort"><option value="">default</option><option>low</option><option>medium</option>
+            <option>high</option><option>xhigh</option><option>max</option></select></div>
+      </div>
+      <datalist id="models"></datalist>
+      <div class="row">
+        <div><label>Time limit (min)</label><input name="time_limit_minutes" type="number" min="1"></div>
+        <div><label>Epochs</label><input name="epochs" type="number" min="1" max="20"></div>
+      </div>
+      <div class="row">
+        <div><label>Report min words</label><input name="report_min_words" type="number" min="0"></div>
+        <div><label>Report max words (0 = none)</label><input name="report_max_words" type="number" min="0"></div>
+      </div>
+      <div class="checks">
+        <label class="check" data-for="react"><input type="checkbox" name="subagents"> Analyst subagent</label>
+        <label class="check"><input type="checkbox" name="score"> Score with judge</label>
+      </div>
+      <label>Prompt text <span id="edited" class="pill" hidden>edited: runs as a copy</span></label>
+      <textarea id="promptText" spellcheck="false"></textarea>
+      <div id="formErr" class="note err" hidden></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button type="submit" id="go">Start run</button>
+        <button type="button" class="ghost" id="reset">Reset prompt</button>
+      </div>
+    </form>
+    <h2>Runs</h2>
+    <ul class="runs" id="runs"></ul>
+  </aside>
+  <main id="main"><div class="empty">Start a run or pick one from the list.</div></main>
+</div>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const api = async (path, opts) => {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let m = await r.text(); try { m = JSON.parse(m).detail; } catch {} throw new Error(m); }
+  return r.json();
+};
+const md = text => window.marked ? marked.parse(text) : `<pre>${esc(text)}</pre>`;
+const LIVE = ["starting", "running"];
+const fmt = v => v == null ? "–" : Number(v).toFixed(2);
+
+let agent = "claude_code", selected = null, tab = "report", epoch = 0, originalPrompt = "", pollTimer = null;
+const mainEl = $("#main");
+
+async function init() {
+  const o = await api("/api/options");
+  const auth = $("#auth");
+  auth.className = "note " + (o.auth ? "ok" : "warn");
+  auth.innerHTML = o.auth ? `Model auth: ${esc(o.auth)}`
+    : `No Anthropic credentials. Run <code>claude setup-token</code>, add <code>ANTHROPIC_AUTH_TOKEN=…</code> to <code>.env</code>, restart. (<code>mockllm/model</code> works without.)`;
+  if (o.view_url) { $("#viewLink").href = o.view_url; $("#viewLink").hidden = false; }
+  $("#corpus").innerHTML = o.corpora.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${c.records})</option>`).join("");
+  $("#promptName").innerHTML = o.prompts.map(p => `<option>${esc(p)}</option>`).join("");
+  $("#models").innerHTML = o.models.map(m => `<option>${esc(m)}</option>`).join("");
+  const f = $("#form");
+  for (const [k, v] of Object.entries(o.defaults)) {
+    const el = f.elements[k]; if (!el) continue;
+    if (el.type === "checkbox") el.checked = v === null ? true : !!v; else el.value = v ?? "";
+  }
+  setAgent("claude_code");
+  await loadPrompt();
+  refreshRuns();
+  const hash = decodeURIComponent(location.hash.slice(1)); if (hash) select(hash);
+}
+
+function setAgent(a) {
+  agent = a;
+  for (const b of $("#agentSeg").children) b.classList.toggle("on", b.dataset.agent === a);
+  for (const el of document.querySelectorAll("[data-for]")) el.hidden = el.dataset.for !== a;
+}
+for (const b of $("#agentSeg").children) b.onclick = () => setAgent(b.dataset.agent);
+
+async function loadPrompt() {
+  const p = await api(`/api/prompts/${encodeURIComponent($("#promptName").value)}`);
+  originalPrompt = p.text; $("#promptText").value = p.text; $("#edited").hidden = true;
+}
+$("#promptName").onchange = loadPrompt;
+$("#reset").onclick = () => { $("#promptText").value = originalPrompt; $("#edited").hidden = true; };
+$("#promptText").oninput = () => { $("#edited").hidden = $("#promptText").value === originalPrompt; };
+
+$("#form").onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target, body = { agent };
+  for (const el of f.elements) {
+    if (!el.name || el.closest("[hidden]")) continue;
+    body[el.name] = el.type === "checkbox" ? el.checked : el.type === "number" ? Number(el.value) : el.value;
+  }
+  const text = $("#promptText").value;
+  if (text !== originalPrompt) body.prompt_text = text;
+  $("#go").disabled = true; $("#formErr").hidden = true;
+  try {
+    const { id } = await api("/api/runs", { method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body) });
+    await refreshRuns(); select(id);
+  } catch (err) { $("#formErr").textContent = err.message; $("#formErr").hidden = false; }
+  finally { $("#go").disabled = false; }
+};
+
+async function refreshRuns() {
+  const runs = await api("/api/runs");
+  $("#runs").innerHTML = runs.map(r => {
+    const a = r.task_args || {};
+    return `<li data-id="${esc(r.id)}" class="${r.id === selected ? "sel" : ""}">
+      <div><span class="pill ${esc(r.status)}">${esc(r.status)}</span>
+        <b>${esc(a.corpus ?? "?")}</b> · ${esc(a.agent === "claude_code" ? "Claude Code" : "ReAct")}
+        ${r.scores.strict != null ? `<span class="score" title="strict">${fmt(r.scores.strict)}</span>` : ""}</div>
+      <div class="meta mono">${esc(r.model ?? "")}${r.source === "cli" ? " · cli" : ""}</div>
+      <div class="meta">${esc((r.started || "").replace("T", " ").slice(0, 16))}</div>
+    </li>`;
+  }).join("") || `<li class="meta">No runs yet.</li>`;
+  for (const li of $("#runs").children) if (li.dataset.id) li.onclick = () => select(li.dataset.id);
+}
+
+function select(id) {
+  selected = id; epoch = 0; location.hash = encodeURIComponent(id);
+  mainEl.innerHTML = `
+    <div class="head"><div id="title"></div><div class="actions" id="actions"></div></div>
+    <div id="err"></div>
+    <div class="stats" id="stats"></div>
+    <div class="tabs">${["report", "grades", "console", "prompt", "config"].map(t =>
+      `<button data-tab="${t}">${t}</button>`).join("")}</div>
+    <div class="epochs" id="epochs" hidden></div>
+    ${["report", "grades", "console", "prompt", "config"].map(t => `<div class="pane" id="pane-${t}"></div>`).join("")}`;
+  for (const b of mainEl.querySelectorAll(".tabs button")) b.onclick = () => { tab = b.dataset.tab; showTab(); };
+  showTab(); refreshRuns(); poll();
+}
+
+function showTab() {
+  for (const b of mainEl.querySelectorAll(".tabs button")) b.classList.toggle("on", b.dataset.tab === tab);
+  for (const p of mainEl.querySelectorAll(".pane")) p.hidden = p.id !== `pane-${tab}`;
+  const ep = $("#epochs"); if (ep) ep.hidden = ep.childElementCount < 3 || !["report", "grades"].includes(tab);
+}
+
+async function poll() {
+  clearTimeout(pollTimer);
+  const id = selected; if (!id) return;
+  let run;
+  try { run = await api(`/api/runs/${encodeURIComponent(id)}`); } catch { return; }
+  if (id !== selected) return;
+  render(run);
+  if (LIVE.includes(run.status)) pollTimer = setTimeout(poll, 3000);
+  else refreshRuns();
+}
+
+function elapsed(r) {
+  if (!r.started) return "–";
+  const end = r.completed ? Date.parse(r.completed) : Date.now();
+  const t = Math.max(0, ((end - Date.parse(r.started)) / 1000) | 0);
+  return `${(t / 60) | 0}m ${String(t % 60).padStart(2, "0")}s`;
+}
+
+function render(r) {
+  const a = r.task_args || {};
+  $("#title").innerHTML = `<div><span class="pill ${esc(r.status)}">${esc(r.status)}</span>
+    <b style="font-size:16px;margin-left:6px">${esc(a.corpus)}</b>
+    · ${esc(a.agent === "claude_code" ? "Claude Code" : "ReAct")} · <span class="mono">${esc(r.model)}</span></div>
+    <div class="meta mono">${esc(r.log ?? r.id)}</div>`;
+  $("#actions").innerHTML = (r.view_url ? `<a class="button" target="_blank" href="${esc(r.view_url)}">Transcript in Inspect View ↗</a>` : "")
+    + (LIVE.includes(r.status) && r.source === "webui" ? `<button class="ghost" id="stop">Stop</button>` : "");
+  if ($("#stop")) $("#stop").onclick = async () => { $("#stop").disabled = true; await api(`/api/runs/${encodeURIComponent(r.id)}/stop`, { method: "POST" }); };
+  $("#err").innerHTML = r.error ? `<div class="note err">${esc(r.error)}</div>` : "";
+
+  const s = r.samples[epoch] || r.samples[0];
+  const stat = (k, v) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+  $("#stats").innerHTML = [
+    stat(r.samples.length > 1 ? "strict (mean)" : "strict", fmt(r.scores.strict)),
+    stat(r.samples.length > 1 ? "raw (mean)" : "raw", fmt(r.scores.raw)),
+    stat("elapsed", elapsed(r)),
+    stat("tokens", r.tokens ? r.tokens.toLocaleString() : "–"),
+    stat("report words", s?.report_words ?? "–"),
+  ].join("");
+
+  const ep = $("#epochs");
+  ep.innerHTML = r.samples.length < 2 ? "" : `<span class="meta">Epoch</span>` + r.samples.map((x, i) =>
+    `<button class="${i === epoch ? "on" : ""}" data-i="${i}">${x.epoch} · ${fmt(x.value?.strict)}</button>`).join("");
+  for (const b of ep.querySelectorAll("button")) b.onclick = () => { epoch = +b.dataset.i; render(r); };
+
+  const waiting = LIVE.includes(r.status)
+    ? `<div class="empty">Running. The report and grades appear when the run finishes; follow it live in Inspect View or the console tab.</div>`
+    : `<div class="empty">No report.</div>`;
+  $("#pane-report").innerHTML = (s?.error ? `<div class="note err">${esc(s.error)}</div>` : "")
+    + (s?.report ? `<div class="doc">${md(s.report)}</div>` : waiting);
+  $("#pane-grades").innerHTML = s?.grades && Object.keys(s.grades).length ? `<table><tr><th>claim</th><th>score</th><th>reason</th></tr>${
+    Object.entries(s.grades).map(([k, g]) => `<tr><td class="mono">${esc(k)}</td>
+      <td class="score">${g ? g.score.toFixed(1) : "–"}</td><td>${g ? esc(g.reason) : "unparsed"}</td></tr>`).join("")}</table>`
+    : `<div class="empty">${LIVE.includes(r.status) ? "Not graded yet." : "No grades (unscored run, or no report)."}</div>`;
+  const old = $("#pane-console pre"), stick = !old || old.scrollHeight - old.scrollTop - old.clientHeight < 40;
+  $("#pane-console").innerHTML = r.console != null ? `<pre class="console">${esc(r.console) || "(no output yet)"}</pre>`
+    : `<div class="empty">Run from the CLI: no console captured.</div>`;
+  const pre = $("#pane-console pre"); if (pre && stick) pre.scrollTop = pre.scrollHeight;
+  $("#pane-prompt").innerHTML = s?.prompt ? `<pre class="console">${esc(s.prompt)}</pre>` : `<div class="empty">Shown once the run has finished.</div>`;
+  $("#pane-config").innerHTML = `<pre class="console">${esc(JSON.stringify({ task_args: r.task_args, model: r.model, roles: r.roles, log: r.log }, null, 2))}</pre>`;
+  showTab();
+}
+
+setInterval(refreshRuns, 10000);
+init();
+</script>
+</body>
+</html>
