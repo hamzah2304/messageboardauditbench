@@ -2,12 +2,13 @@
 
 Draft only. Nothing grades with this yet; see finding_sheet_v1.md for the prompt itself.
 
-Scan coverage is computed here, not by the judge: the judge is told which of each item's
-scans the report links, and `coverage` gives the ratios a grade file should record. An
-item's scans are its scan group from scan_groups.json when one exists, otherwise the scans
-Transluce cited. The cited lists are examples, not complete sets (Transluce cites 7 of the
-roughly 2,250 AIHW scans from June 18-21), so groups should be widened before scan coverage
-counts for much.
+Scan coverage is computed here, not by the judge: the judge is told which of each
+sub-finding's listed scans the report links, and `coverage` gives the ratios a grade file
+should record. The listed scans are Transluce's citations (or a scan group from
+scan_groups.json, if one is ever built). They are examples, not complete sets: Transluce
+cites 7 of the roughly 2,250 AIHW scans from June 18-21. Each sub-finding's `scan_note`
+tells the judge whether other scans count, but the ratios here count listed scans only, so
+they understate coverage of general claims.
 
     python benchmarks/urlquery/judge/render_sheet.py F4 [--article A.txt] [--report R.md]
     python benchmarks/urlquery/judge/render_sheet.py --coverage R.md
@@ -79,20 +80,20 @@ def coverage(report: str) -> dict:
 
 def scans_line(group: set[str], linked: set[str] | None) -> str:
     if not group:
-        return "**Scans:** none recorded for this item; no link is required."
+        return "**Scans:** none listed; no link is required."
     if linked is None:
-        return f"**Scans:** {len(group)} evidence this item. (Filled in per report.)"
+        return f"**Scans:** {len(group)} listed. (Filled in per report.)"
     hits = sorted(group & linked)
     if not hits:
-        return f"**Scans:** the report links none of the {len(group)} scans that evidence this item."
+        return "**Scans:** the report does not link " + ("the listed scan." if len(group) == 1 else f"any of the {len(group)} listed scans.")
     return (
-        f"**Scans:** the report links {len(hits)} of the {len(group)} scans that evidence this item: "
+        f"**Scans:** the report links {len(hits)} of the {len(group)} listed scans: "
         + ", ".join(hits)
         + ". Check that a link sits where the report makes this claim."
     )
 
 
-def render_item(f: dict, group: set[str], linked: set[str] | None) -> str:
+def render_item(f: dict, group: set[str], linked: set[str] | None, show_scans: bool) -> str:
     kind = " (a conclusion)" if f["kind"] == "conclusion" else ""
     if f["parent"] is None:
         lines = [f"### Finding {f['id']}{kind}", "", f"**Finding:** {f['text']}", ""]
@@ -104,7 +105,10 @@ def render_item(f: dict, group: set[str], linked: set[str] | None) -> str:
         lines += [f"**In the article:** “{quote}”", ""]
     if f["judge_notes"]:
         lines += [f"**Notes:** {f['judge_notes']}", ""]
-    lines.append(scans_line(group, linked))
+    if show_scans:
+        lines.append(scans_line(group, linked))
+        if f.get("scan_note"):
+            lines += ["", f"**Scan note:** {f['scan_note']}"]
     return "\n".join(lines).rstrip()
 
 
@@ -113,13 +117,14 @@ def render(headline_id: str, article: str, report: str | None) -> str:
     groups = scan_groups(findings)
     group = scored_group(findings, headline_id)
     linked = linked_scans(report) if report is not None else None
-    ids = [f["id"] for f in group]
+    subs = [f["id"] for f in group if f["parent"]]
+    blocks = [render_item(f, groups[f["id"]], linked, show_scans=bool(f["parent"]) or not subs) for f in group]
     return (
         TEMPLATE.read_text()
         .replace("{{SOURCE_ARTICLE}}", article)
         .replace("{{MODEL_REPORT}}", report if report is not None else "{{MODEL_REPORT}}")
-        .replace("{{FINDING_BLOCK}}", "\n\n".join(render_item(f, groups[f["id"]], linked) for f in group))
-        .replace("{{ITEM_IDS}}", ", ".join(ids))
+        .replace("{{FINDING_BLOCK}}", "\n\n".join(blocks))
+        .replace("{{SUB_IDS}}", "(" + ", ".join(subs) + ")" if subs else "(none: this finding has no sub-findings, so return an empty list)")
         .replace("{{HEADLINE_ID}}", headline_id)
     )
 
