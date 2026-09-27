@@ -114,3 +114,12 @@ This addition was published as Sites version 4, static-source commit
 The requested Opus review `a28fcf37-0cf6-4a39-9fe1-ce5f74ee3db6` found no
 actionable issues; all 1,425 tests passed. Access remained restricted to the
 owner and the two previously invited viewers, Adam and ilykxar@gmail.com.
+
+The five focused-swarm reports are indexed in `v3_focus_runs.json` from the
+finished five-model pilot. Their report and archived prompt hashes are pinned
+in `urlquery-sharing.toml` as a fifth prompt group. The collection now has 19
+AI reports; existing report files are byte-for-byte unchanged. Sites version 5
+was published from static-source commit `688dd256cc98275d65dba97f59d7ac09c8a04e26`.
+Access remains limited to Oscar, Adam and ilykxar@gmail.com. Signed-out
+requests to the homepage, new prompt, report HTML and text, and manifest
+returned HTTP 403.
