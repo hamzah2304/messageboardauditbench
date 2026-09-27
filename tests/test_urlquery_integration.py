@@ -47,22 +47,49 @@ def ui_module():
     return module
 
 
-def test_original_ui_reuse_with_inert_source_and_scoped_imports(tmp_path):
+def test_findings_ui_is_inert_and_scopes_imports(tmp_path):
     module = ui_module()
     source = tmp_path / "article.html"
-    source.write_text('<article><h1>Report</h1><script>alert(1)</script><p onclick="evil()">' + "Evidence. " * 150 + '</p><img onerror="bad()" src="remote"><code>&lt;script&gt;not executed&lt;/script&gt;</code></article>')
+    source.write_text(
+        '<html><head><link rel="stylesheet" href="/_next/static/css/site.css"></head><body>'
+        '<div class="sticky top-0"><header>Site nav</header></div><article><h1>Report</h1>'
+        '<script>alert(1)</script><p onclick="evil()">' + "Evidence. " * 150 + '</p>'
+        '<img onerror="bad()" src="remote"><img src="/images/fig.png">'
+        '<a href="javascript:steal()">x</a><a href="/news">news</a>'
+        '<svg><foreignObject><iframe src="x"></iframe></foreignObject><rect onload="svgbad()"/></svg>'
+        '<code>&lt;script&gt;not executed&lt;/script&gt;</code></article><footer>foot</footer></body></html>')
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "site.css").write_text(".a{width:100vw;background:url(https://remote/x.png)}")
+    (assets / "fig.png").write_bytes(b"\x89PNG")
     out = tmp_path / "preview.html"
-    scope = module.build(source, out, [])
+    scope = module.build(source, out, [], assets)
     page = out.read_text()
-    assert "alert(1)" not in page and "onclick=\"evil()" not in page and 'src="remote"' not in page
-    assert "coverage_urlquery_" in page and "urlquery_cov_author" in page
-    assert 'report:"human collusion.wiki report"' not in page
+    article = page[page.index("<article"):page.index("</article>")]
+    for bad in ("alert(1)", "evil()", "bad()", 'src="remote"', "javascript:", "svgbad", "<iframe", "Site nav", "foot<"):
+        assert bad not in article, bad
+    assert "&lt;script&gt;not executed" in article
+    assert 'src="data:image/png;base64,' in article and "https://transluce.org/news" in article
+    assert "var(--fx-vw,100vw)" in page and "https://remote" not in page
+    assert page.count("<script") == 1  # only the extraction UI
     review = tmp_path / "review.json"
-    review.write_text(json.dumps({**scope, "comments": []}))
-    assert module.build(source, out, [review]) == scope
-    review.write_text(json.dumps({**scope, "benchmark_id": "messageboard", "comments": []}))
+    quote = {"id": "q1", "s": 0, "e": 3, "raw": "Rep", "quote": "Rep"}
+    finding = {"id": "f1", "parent": None, "text": "c", "kind": "finding", "derivable": "yes", "quotes": [quote]}
+    sub = {"id": "f2", "parent": "f1", "text": "d", "kind": "finding", "derivable": None, "quotes": []}
+    review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [finding, sub]}))
+    frag = tmp_path / "artifact.html"
+    assert module.build(source, out, [review], assets, frag) == scope
+    assert '"f1"' in out.read_text() and '"q1"' in out.read_text()
+    assert not frag.read_text().startswith("<!doctype") and "</body>" not in frag.read_text()
+    review.write_text(json.dumps({**scope, "benchmark_id": "messageboard", "schema": module.SCHEMA, "findings": []}))
     with pytest.raises(ValueError, match="wrong benchmark"):
-        module.build(source, out, [review])
+        module.build(source, out, [review], assets)
+    review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [{**finding, "derivable": "maybe"}]}))
+    with pytest.raises(ValueError, match="invalid derivable"):
+        module.build(source, out, [review], assets)
+    review.write_text(json.dumps({**scope, "schema": module.SCHEMA, "findings": [{**sub, "parent": "gone"}]}))
+    with pytest.raises(ValueError, match="missing parent"):
+        module.build(source, out, [review], assets)
 
 
 def test_trial_prompt_is_neutral_and_length_config_is_approved():

@@ -176,12 +176,21 @@ recorded credentials, and this repository is public.
 
 ## Manual findings remain a separate step
 
-`viewers/build_urlquery_findings.py --source <cached agent-activity.html>` reuses
-the original selection/comment template without executing the downloaded page.
-Exports and browser state include benchmark and source/rendered-article hashes;
-imports for another benchmark or source version are rejected. The article's
-scripts, SVG, event handlers and remote embeds are not loaded. Quoted code remains
-escaped text. This is an evaluator tool and is never in the agent mount.
+`viewers/build_urlquery_findings.py` (defaults to the cached
+`data/transluce/agent-activity.html`) renders the article as published, using
+Transluce's own stylesheet and figures (cached once in
+`data/transluce/site_assets/`, images inlined), with every script, event handler,
+form, iframe, remote image and site chrome removed; quoted code stays escaped
+text. In the sidebar people write findings in their own words, add
+sub-findings, and attach quotes selected from the article to either level;
+each carries a kind (finding, conclusion or context) and whether the frozen
+scans can check it (yes, partly, no). A hover panel lists what the scan
+data cannot show. `--artifact-out` writes a copy for a claude.ai artifact,
+where each person's findings and quotes live in their own database subtree
+(`data/users/<id>`: only they can write it, every collaborator can read it
+under Everyone's) and comments use claude.ai's comment threads; opened as a file, it saves in the browser.
+Exports use schema `urlquery-findings-v2` and carry benchmark and source/rendered-article hashes;
+imports for another benchmark or source version are rejected. This is an evaluator tool and is never in the agent mount.
 
 The existing candidate approval and feasibility builders accept
 `--benchmark urlquery`. Their inputs live under `benchmarks/urlquery/claims/`
