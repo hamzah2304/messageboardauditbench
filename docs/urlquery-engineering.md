@@ -162,6 +162,18 @@ reviewed publication copies of the initial pilot reports live under
 redacted and archived report hashes retained in their headers.
 The pilot summary links to local report previews, not a public deployment.
 
+## Browsing trajectories
+
+`uv run python scripts/view_urlquery_runs.py` rebuilds unscored Inspect logs from
+the local `runs/urlquery/` directories and opens `inspect view`. There is one log per
+prompt-and-budget group (for example "urlquery-swarm-v4 · 10 min"); each sample is
+one run, named `<model> r<replicate> · <run-id prefix>`, with agent, config, prompt
+hash, termination and report length in its metadata and report words / active
+minutes as sortable columns. `--since 20260927T06` limits it to newer runs and
+`--no-view` only builds. The logs land in the gitignored `logs/urlquery-runs/` and,
+like the run directories, stay local: transcripts include raw scan data with
+recorded credentials, and this repository is public.
+
 ## Manual findings remain a separate step
 
 `viewers/build_urlquery_findings.py --source <cached agent-activity.html>` reuses

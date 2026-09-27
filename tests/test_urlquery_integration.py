@@ -483,3 +483,24 @@ def test_launch_batch_caps_parallelism_orders_long_first_and_blocks_failures(tmp
     assert all(agent != "claude" for _, agent, _ in started[first_failure + 6:])
     assert len(results) == len(started) < 37
     assert any(row[1] == "react" for row in started)
+
+
+def test_view_script_groups_runs_by_prompt_and_budget(tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("view_runs", ROOT / "scripts/view_urlquery_runs.py")
+    view = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(view)
+    for name, prompt, budget, model in [("20260927T061204Z_a", "urlquery-swarm-v4", 10, "gpt-6-sol"),
+                                        ("20260927T061205Z_b", "urlquery-swarm-v4", 30, "gpt-6-sol"),
+                                        ("20260927T061206Z_c", "urlquery-swarm-v4", 10, "claude-opus-4-8"),
+                                        ("20260926T000000Z_old", "urlquery-blind", 10, "gpt-6-sol")]:
+        run = tmp_path / name
+        run.mkdir()
+        (run / "transcript.jsonl").write_text("")
+        (run / "meta.json").write_text(json.dumps({"benchmark_id": "urlquery", "prompt": prompt, "budget_min": budget,
+                                                   "model": model, "replicate": 1, "run_id": name[-1] * 32}))
+    (tmp_path / "not-a-run").mkdir()
+    groups = view.collect(tmp_path, since="20260927")
+    assert sorted(groups) == [("urlquery-swarm-v4", 10), ("urlquery-swarm-v4", 30)]
+    assert sorted(s.id for s in groups[("urlquery-swarm-v4", 10)]) == ["claude-opus-4-8 r1 · cccccc", "gpt-6-sol r1 · aaaaaa"]
