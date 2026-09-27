@@ -99,6 +99,47 @@ def test_rejects_changed_ai_report(tmp_path):
         MODULE["build"](tmp_path, config, tmp_path / "dist")
 
 
+def test_excluded_report_exports_only_a_pinned_redacted_copy(tmp_path):
+    config = fixture_config(tmp_path)
+    archive = tmp_path / "runs/urlquery/trial"
+    archive.mkdir(parents=True)
+    original = b"# AI report\nCredential: private-test-value\nSafe finding\n"
+    (archive / "report.md").write_bytes(original)
+    (archive / "prompt.txt").write_bytes(b"Prompt")
+    digest = hashlib.sha256(original).hexdigest()
+    prompt_digest = hashlib.sha256(b"Prompt").hexdigest()
+    row = {"run_id": "abc", "run_name": "trial", "preview_name": "model_run",
+           "report_label": "Opus", "replicate": 1, "report_path": None,
+           "report_exists": True, "report_sha256": digest,
+           "publication_exclusion": {"matches": [{"line": 2, "category": "credential"}]},
+           "report_finalization": "not_confirmed", "prompt_sha256": prompt_digest,
+           "dataset_sha256": "data", "model_fallback": None}
+    (tmp_path / "runs.json").write_text(json.dumps({"benchmark_id": "urlquery", "attempts": [row]}))
+    config["run_indexes"] = ["runs.json"]
+    config["prompt_groups"] = [{"slug": "prompt_one", "title": "Prompt one", "description": "Test",
+                                "source_run": "trial", "sha256": prompt_digest}]
+    config["redacted_runs"] = [{"run_id": "abc", "sha256": digest, "lines": [2]}]
+    output = tmp_path / "dist"
+    MODULE["build"](tmp_path, config, output)
+    shared = (output / "model_run.txt").read_bytes()
+    assert b"private-test-value" not in shared
+    assert b"Safe finding" in shared and b"source line 2" in shared
+    assert (archive / "report.md").read_bytes() == original
+    page = (output / "model_run.html").read_text()
+    assert "redacted shared copy" in page and "partial report" in page
+    manifest = json.loads((output / "manifest.json").read_text())["reports"][-1]
+    assert manifest["source_sha256"] == digest
+    assert manifest["sha256"] == hashlib.sha256(shared).hexdigest()
+    assert manifest["redaction_lines"] == [2]
+    config["redacted_runs"][0]["lines"] = [1]
+    with pytest.raises(ValueError, match="disagrees"):
+        MODULE["collect"](tmp_path, config)
+    config["redacted_runs"][0]["lines"] = [2]
+    config["redacted_runs"][0]["sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="disagrees"):
+        MODULE["collect"](tmp_path, config)
+
+
 def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path):
     config = fixture_config(tmp_path)
     other = tmp_path / "other.md"

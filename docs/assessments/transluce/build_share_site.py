@@ -49,6 +49,22 @@ def inside(root, value):
     return path
 
 
+def redact_report(raw, line_numbers):
+    """Replace reviewed source lines without changing the archived report."""
+    lines = raw.decode("utf-8").splitlines(keepends=True)
+    if not line_numbers or len(line_numbers) != len(set(line_numbers)):
+        raise ValueError("Redaction lines must be unique and nonempty")
+    for number in line_numbers:
+        if type(number) is not int or number < 1 or number > len(lines):
+            raise ValueError("Invalid redaction line")
+        ending = "\n" if lines[number - 1].endswith("\n") else ""
+        lines[number - 1] = (
+            f"[Shared-copy redaction: source line {number} contained a credential "
+            f"or personal identifier.]" + ending
+        )
+    return "".join(lines).encode("utf-8")
+
+
 def collect(root, config):
     entries = []
     for document in config["documents"]:
@@ -56,49 +72,78 @@ def collect(root, config):
     approved = {r["run_id"]: r["sha256"] for r in config.get("approved_runs", [])}
     if len(approved) != len(config.get("approved_runs", [])):
         raise ValueError("Duplicate sharing approval")
+    redactions = {r["run_id"]: r for r in config.get("redacted_runs", [])}
+    if len(redactions) != len(config.get("redacted_runs", [])):
+        raise ValueError("Duplicate redaction approval")
+    used_redactions = set()
     for name in config["run_indexes"]:
         data = json.loads(inside(root, name).read_text())
         if data["benchmark_id"] != "urlquery":
             raise ValueError("Wrong benchmark in publication index")
         for row in data["attempts"]:
-            if not row.get("report_path"):
+            redaction = redactions.get(row.get("run_id"))
+            if not row.get("report_path") and redaction is None:
                 continue
-            if approved.get(row["run_id"]) != row["report_sha256"]:
+            if redaction is None and approved.get(row["run_id"]) != row["report_sha256"]:
                 raise ValueError("AI report lacks an explicit matching sharing approval")
+            if redaction is not None:
+                excluded = row.get("publication_exclusion") or {}
+                flagged = sorted({m["line"] for m in excluded.get("matches", [])})
+                if (row.get("report_path") or not row.get("report_exists")
+                        or redaction["sha256"] != row["report_sha256"]
+                        or sorted(redaction["lines"]) != flagged or not flagged):
+                    raise ValueError("Redaction approval disagrees with excluded source")
+                used_redactions.add(row["run_id"])
             # Indexes retain original absolute paths. Resolve their report-root
             # suffix here, or the immutable run archive after worktree removal.
-            parts = Path(row["report_path"]).parts
-            markers = [i for i in range(len(parts)-1) if parts[i:i+2] == ("reports", "urlquery")]
-            if len(markers) != 1 or ".." in parts:
-                raise ValueError("AI report must be in reports/urlquery")
-            report_root = (root / "reports/urlquery").resolve()
-            relative = Path(*parts[markers[0]+2:])
-            path = report_root / relative
-            if path.is_file():
-                path = inside(report_root, relative)
+            if row.get("report_path"):
+                parts = Path(row["report_path"]).parts
+                markers = [i for i in range(len(parts)-1) if parts[i:i+2] == ("reports", "urlquery")]
+                if len(markers) != 1 or ".." in parts:
+                    raise ValueError("AI report must be in reports/urlquery")
+                report_root = (root / "reports/urlquery").resolve()
+                relative = Path(*parts[markers[0]+2:])
+                path = report_root / relative
+                if path.is_file():
+                    path = inside(report_root, relative)
+                else:
+                    run_name = row.get("run_name", "")
+                    if not re.fullmatch(r"[A-Za-z0-9_.-]+", run_name) or run_name in {".", ".."}:
+                        raise ValueError("Report missing and no valid archived run")
+                    path = inside((root / "runs/urlquery").resolve(), run_name + "/report.md")
             else:
                 run_name = row.get("run_name", "")
                 if not re.fullmatch(r"[A-Za-z0-9_.-]+", run_name) or run_name in {".", ".."}:
                     raise ValueError("Report missing and no valid archived run")
                 path = inside((root / "runs/urlquery").resolve(), run_name + "/report.md")
+            title = f"{row['report_label']} · run {row['replicate']}"
+            if redaction is not None:
+                title += " · redacted shared copy"
+                if row.get("report_finalization") != "cli_finished":
+                    title += " (partial report)"
             entries.append({"path": path, "slug": row["preview_name"], "kind": "AI report",
                             "report_id": "urlquery-report-" + row["run_id"],
-                            "title": f"{row['report_label']} · run {row['replicate']}",
+                            "title": title,
                             "expected_sha256": row["report_sha256"],
                             "notice": FALLBACK_NOTICE(row),
+                            "redaction_lines": redaction["lines"] if redaction else [],
                             "run_name": row.get("run_name", ""),
                             "prompt_sha256": row["prompt_sha256"],
                             "dataset_sha256": row["dataset_sha256"]})
+    if used_redactions != set(redactions):
+        raise ValueError("Redaction approval has no matching excluded report")
     slugs = set()
     for entry in entries:
         slug = entry["slug"]
         if not re.fullmatch(r"[a-z][a-z0-9_]+", slug) or slug in slugs or slug == "index":
             raise ValueError("Invalid or duplicate report slug")
         slugs.add(slug)
-        entry["raw"] = entry["path"].read_bytes()
-        entry["sha256"] = hashlib.sha256(entry["raw"]).hexdigest()
-        if entry.get("expected_sha256", entry["sha256"]) != entry["sha256"]:
+        source = entry["path"].read_bytes()
+        entry["source_sha256"] = hashlib.sha256(source).hexdigest()
+        if entry.get("expected_sha256", entry["source_sha256"]) != entry["source_sha256"]:
             raise ValueError("Report hash changed since the run index was generated")
+        entry["raw"] = redact_report(source, entry["redaction_lines"]) if entry.get("redaction_lines") else source
+        entry["sha256"] = hashlib.sha256(entry["raw"]).hexdigest()
         if entry["kind"] == "AI report":
             run = entry["run_name"]
             if not re.fullmatch(r"[A-Za-z0-9_.-]+", run) or run in {".", ".."}:
@@ -187,11 +232,18 @@ def render_page(entry, entries):
 
     body = re.sub(r"<(h[123]|p|li|td)>(.*?)</\1>", block, render_body(entry, entries), flags=re.S)
     body = body.replace("<table>", '<div class="tablewrap"><table>').replace("</table>", "</table></div>")
+    notice = NOTICE + entry.get("notice", "")
+    if entry.get("redaction_lines"):
+        notice += (" This shared copy replaces " + str(len(entry["redaction_lines"])) +
+                   " source line(s) containing credentials or personal identifiers. "
+                   "The archived original is unchanged.")
+        if "(partial report)" in entry["title"]:
+            notice += " This report was unfinished when the trial reached its time limit."
     substitutions = {
         "BODY": body, "TOC": "".join(toc), "TITLE": html.escape(entry["title"]),
         "SOURCE": entry["slug"] + ".txt", "SEED": "null",
         "META": json.dumps({"report_id": entry.get("report_id", entry["slug"]), "report_sha256": entry["sha256"]}).replace("<", "\\u003c"),
-        "NOTICE": '<div class="notice">' + html.escape(NOTICE + entry.get("notice", "")) + '</div>',
+        "NOTICE": '<div class="notice">' + html.escape(notice) + '</div>',
     }
     return re.sub(r"__([A-Z]+)__", lambda m: substitutions[m[1]], shell)
 
@@ -275,7 +327,9 @@ def build(root, config, output):
     for entry in entries:
         files[entry["slug"] + ".html"] = render_page(entry, entries).encode()
         files[entry["slug"] + ".txt"] = entry["raw"]
-        manifest.append({k: entry[k] for k in ("slug", "title", "kind", "sha256", "prompt_sha256", "dataset_sha256") if k in entry})
+        manifest.append({k: entry[k] for k in ("slug", "title", "kind", "sha256", "source_sha256",
+                                             "redaction_lines", "prompt_sha256", "dataset_sha256")
+                         if k in entry and (k != "redaction_lines" or entry[k])})
     for prompt in prompts:
         files[prompt["slug"] + ".txt"] = prompt["raw"]
         files[prompt["slug"] + ".html"] = static_page(prompt["title"],
@@ -299,13 +353,23 @@ def build(root, config, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "configs/urlquery-sharing.toml")
+    parser.add_argument("--redactions", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.output is None:
         args.output = primary_root() / "reports/share-site/dist"
     if not (args.output.parent / ".openai/hosting.json").is_file():
         parser.error("Missing existing Sites binding; restore .openai/hosting.json before rebuilding")
-    manifest = build(ROOT, tomllib.loads(args.config.read_text()), args.output)
+    config = tomllib.loads(args.config.read_text())
+    redactions = args.redactions
+    if redactions is None and args.config.resolve() == (ROOT / "configs/urlquery-sharing.toml").resolve():
+        redactions = ROOT / "configs/urlquery-sharing-redactions.toml"
+    if redactions is not None and redactions.is_file():
+        overlay = tomllib.loads(redactions.read_text())
+        if set(overlay) != {"redacted_runs"}:
+            parser.error("Redaction overlay must contain only redacted_runs")
+        config["redacted_runs"] = overlay["redacted_runs"]
+    manifest = build(ROOT, config, args.output)
     print(f"Built {len(manifest)} private reports. Publish only behind verified named-viewer access.")
 
 
