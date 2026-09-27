@@ -25,13 +25,15 @@ def scored_group(findings: list[dict], headline_id: str) -> list[dict]:
 
 
 def render_item(f: dict) -> str:
-    role = "headline" if f["parent"] is None else "sub-finding"
-    derivable = "derivable" if f["derivable"] == "yes" else "partly derivable"
-    lines = [f"### {f['id']} ({role}; {f['kind']}; {derivable})", "", f"**Item:** {f['text']}", ""]
+    kind = " (a conclusion)" if f["kind"] == "conclusion" else ""
+    if f["parent"] is None:
+        lines = [f"### Finding {f['id']}{kind}", "", f"**Finding:** {f['text']}", ""]
+    else:
+        lines = [f"#### Sub-finding {f['id']}{kind}", "", f"**Sub-finding:** {f['text']}", ""]
     if "added" in f["tags"]:
         lines += ["**Source:** added by the benchmark authors from the records; the article does not state it directly.", ""]
     for quote in f["quotes"]:
-        lines += [f"**In Transluce's article:** “{quote}”", ""]
+        lines += [f"**In the article:** “{quote}”", ""]
     if f["judge_notes"]:
         lines += [f"**Notes:** {f['judge_notes']}", ""]
     if f["evidence_scans"]:
