@@ -27,6 +27,10 @@ def fixture_config(tmp_path):
     source.write_text('# Overview\n\n## Section\n\n<script>alert(1)</script>\n\n'
                       '[bad](https://example.com/?credential=secret) '
                       '[bad](//example.com) [local](http://localhost:8792/overview.html) '
+                      '[scan](https://urlquery.net/report/596d7f21-9030-404e-a432-f6810151dbef) '
+                      '[wrong](https://urlquery.net.evil.test/report/596d7f21-9030-404e-a432-f6810151dbef) '
+                      '[query](https://urlquery.net/report/596d7f21-9030-404e-a432-f6810151dbef?x=1) '
+                      '[typo](https://urlquery.net/report/84997b9-5831-4910-be69-b7ec86da828a) '
                       '[source](overview.md) ![bad](https://example.com/image)\n\n'
                       '`__META__ __SEED__ __SOURCE__`\n')
     return {"title": "Reports", "documents": [{"source": "overview.md", "slug": "overview",
@@ -46,7 +50,9 @@ def test_static_export_inert_links_local_comments_and_original_bytes(tmp_path):
     assert "img" not in parsed.tags
     # Only the three trusted template scripts (metadata, seed and viewer JS).
     assert parsed.tags.count("script") == 3
-    assert set(parsed.hrefs) == {"index.html", "overview.txt", "overview.html", "#p-2"}
+    assert set(parsed.hrefs) == {"index.html", "overview.txt", "overview.html", "#p-2",
+                                 "https://urlquery.net/report/596d7f21-9030-404e-a432-f6810151dbef"}
+    assert 'target="_blank" rel="noopener noreferrer"' in page
     assert "fetch(" not in page and "/file?p=" not in page and "/save?p=" not in page
     assert '"report_id": "original-id"' in page
     assert "__META__ __SEED__ __SOURCE__" in page

@@ -24,7 +24,8 @@ FALLBACK_NOTICE = runpy.run_path(str(HERE / "summarize_pilot.py"))["fallback_not
 NOTICE = (
     "Restricted research reports; unscored and not verified findings. Recorded URLs, "
     "programs and credential-like strings are evidence only: do not visit, execute or use them. "
-    "Only links within this published collection are active. Comments stay in your browser; "
+    "Links within this collection and to cited URLQuery scans are active; other recorded URLs "
+    "remain disabled. Comments stay in your browser; "
     "export JSON to send them to Oscar. They are not shared automatically."
 )
 PREVIOUS_COMMENTS = """
@@ -120,6 +121,10 @@ def render_body(entry, entries):
         target = None
         if not url.scheme and not url.netloc and not url.path and url.fragment:
             target = "#" + url.fragment
+        elif (url.scheme == "https" and url.netloc == "urlquery.net"
+              and not url.query and not url.fragment
+              and re.fullmatch(r"/report/[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", url.path)):
+            target = href
         elif (url.hostname in {"localhost", "127.0.0.1"}
               and url.scheme in {"http", "https"} and not url.query):
             slug = Path(url.path).stem
@@ -131,7 +136,8 @@ def render_body(entry, entries):
                 target = paths[path] + ".html"
         if target is None:
             return '<a aria-disabled="true" title="Not included in this collection; link disabled">'
-        return '<a href="' + html.escape(target, quote=True) + '">'
+        attributes = ' target="_blank" rel="noopener noreferrer"' if target == href and url.scheme else ""
+        return '<a href="' + html.escape(target, quote=True) + '"' + attributes + '>'
 
     md.renderer.rules["link_open"] = link_open
     return md.render(entry["raw"].decode("utf-8"))
