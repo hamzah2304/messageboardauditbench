@@ -4,7 +4,7 @@
 <style>
   :root{--bg:#f6f6f2;--ink:#17181a;--muted:#666a70;--line:#dcded9;--grid:#e9eae5}
   *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,sans-serif}
-  main{max-width:1040px;margin:auto;padding:32px 24px 60px}h1{font:600 29px/1.2 Georgia,serif;margin:0 0 6px}
+  main{max-width:1180px;margin:auto;padding:32px 24px 60px}h1{font:600 29px/1.2 Georgia,serif;margin:0 0 6px}
   h2{font:600 19px/1.25 Georgia,serif;margin:28px 0 10px}p{color:var(--muted);margin:0 0 16px;max-width:80ch}
   .panel{background:#fff;border:1px solid var(--line);border-radius:5px;padding:16px 12px 8px;overflow-x:auto}
   svg{display:block;min-width:720px;width:100%;height:auto}svg text{font:11px system-ui,sans-serif;fill:var(--muted)}
@@ -44,14 +44,13 @@ const hasPending=groups.some(g=>g.budgets.some(q=>q.runs.length&&q.score==null))
 if(!hasPending)svg.setAttribute('viewBox','0 0 990 490');
 const el=(tag,attrs={},parent=svg)=>{let node=document.createElementNS(N,tag);for(let [k,v] of Object.entries(attrs))node.setAttribute(k,v);parent.appendChild(node);return node};
 const label=(x,y,t,attrs={})=>{let a=el('text',{x,y,...attrs});a.textContent=t;return a};
-const costs=D.runs.map(r=>r.cost_usd).filter(x=>x>0), lo=costs.length?Math.pow(10,Math.floor(Math.log10(Math.min(...costs)))):.01,
-  hi=costs.length?Math.pow(10,Math.ceil(Math.log10(Math.max(...costs)))):10;
+const lo=.03,hi=20,yLo=.15,yHi=.55;
 const left=180,right=740,plotTop=35,bottom=400,strip1=445,strip2=470;
-const X=x=>left+(Math.log(x/lo)/Math.log(hi/lo))*(right-left),Y=y=>bottom-y*(bottom-plotTop);
+const X=x=>left+(Math.log(x/lo)/Math.log(hi/lo))*(right-left),Y=y=>bottom-(y-yLo)/(yHi-yLo)*(bottom-plotTop);
 for(let p=Math.ceil(Math.log10(lo));p<=Math.floor(Math.log10(hi));p++){
   let x=X(10**p);el('line',{x1:x,x2:x,y1:plotTop,y2:hasPending?strip2+10:bottom,class:'grid'});label(x,hasPending?strip2+27:bottom+27,'$'+(10**p),{'text-anchor':'middle',class:'tick'});
 }
-for(let v=0;v<=1.0001;v+=.25){let y=Y(v);el('line',{x1:left,x2:right,y1:y,y2:y,class:'grid'});label(left-12,y+4,v.toFixed(2),{'text-anchor':'end',class:'tick'})}
+for(let v=.2;v<=.5001;v+=.1){let y=Y(v);el('line',{x1:left,x2:right,y1:y,y2:y,class:'grid'});label(left-12,y+4,v.toFixed(2),{'text-anchor':'end',class:'tick'})}
 el('line',{x1:left,x2:right,y1:bottom,y2:bottom,class:'axis'});label(18,plotTop+120,'Performance (0–1)',{transform:'rotate(-90 18 '+(plotTop+120)+')'});
 label((left+right)/2,hasPending?strip2+53:bottom+53,'Estimated cost per run (USD, log scale)',{'text-anchor':'middle'});
 if(hasPending){label(left,strip1-12,'Pending grades');label(left-12,strip1+4,'10 min',{'text-anchor':'end'});label(left-12,strip2+4,'30 min',{'text-anchor':'end'})}
@@ -72,7 +71,7 @@ for(const side of ['left','right']){
   let sideGroups=labelled.filter(g=>leftNames.has(g.label)===(side==='left')),prior=145;
   for(const g of sideGroups){const q=g.budgets[1],cy=Y(q.score),c=colors[g.provider];
     const defaultY=Math.max(cy+4,prior+18),stored=savedLabels[g.label];prior=defaultY;
-    const pos={x:stored?.x??(side==='left'?160:760),y:stored?.y??defaultY};
+    const pos={x:stored?.x??(side==='left'?135:760),y:stored?.y??defaultY};
     const path=el('path',{stroke:c,'stroke-width':.8,opacity:.7,fill:'none'});
     const name=label(pos.x,pos.y,g.label,{class:'model-label',style:`fill:${c};font-size:11px`});
     const update=()=>{const x=Number(name.getAttribute('x')),y=Number(name.getAttribute('y'));
