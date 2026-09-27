@@ -158,9 +158,14 @@ CLAUDE_ENV=()
 AGENT_SECRET_MOUNTS=()
 if [ "$AGENT" = claude ]; then
   mkdir -p "$SECRETS/claude"
-  # Preferred: a long-lived setup token. Copied refresh credentials otherwise
+  # A batch-specific token takes precedence over shared login defaults.
+  # Otherwise prefer a long-lived setup token. Copied refresh credentials
   # rotate under parallel trials and are deliberately never mounted for another agent.
-  if [ -s "$ROOT/runs/.claude-oauth-token" ]; then
+  if [ -n "${MBAB_CLAUDE_TOKEN_FILE:-}" ]; then
+    [ -s "$MBAB_CLAUDE_TOKEN_FILE" ] || { echo "explicit Claude token file missing" >&2; exit 1; }
+    export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$MBAB_CLAUDE_TOKEN_FILE")"
+    CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
+  elif [ -s "$ROOT/runs/.claude-oauth-token" ]; then
     export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$ROOT/runs/.claude-oauth-token")"
     CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
   elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
@@ -174,11 +179,16 @@ if [ "$AGENT" = claude ]; then
   fi
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/claude:/home/agent/.claude")
 fi
-# ReAct scaffold: OpenRouter key from runs/.openrouter_key.<model with / -> _> (per-model), else env, else runs/.openrouter_key (all gitignored).
+# ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
 if [ "$AGENT" = react ]; then
-  [ -s "$ROOT/runs/.openrouter_key.${MODEL//\//_}" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key.${MODEL//\//_}")"
-  [ -z "${OPENROUTER_API_KEY:-}" ] && [ -s "$ROOT/runs/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key")"
+  if [ -n "${MBAB_OPENROUTER_KEY_FILE:-}" ]; then
+    [ -s "$MBAB_OPENROUTER_KEY_FILE" ] || { echo "explicit OpenRouter key file missing" >&2; exit 1; }
+    export OPENROUTER_API_KEY="$(cat "$MBAB_OPENROUTER_KEY_FILE")"
+  else
+    [ -s "$ROOT/runs/.openrouter_key.${MODEL//\//_}" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key.${MODEL//\//_}")"
+    [ -z "${OPENROUTER_API_KEY:-}" ] && [ -s "$ROOT/runs/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key")"
+  fi
   [ -n "${OPENROUTER_API_KEY:-}" ] || { echo "no OpenRouter key: export OPENROUTER_API_KEY or write runs/.openrouter_key" >&2; exit 1; }
   REACT_ENV=(-e OPENROUTER_API_KEY)
 fi

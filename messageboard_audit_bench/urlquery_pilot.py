@@ -88,6 +88,7 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
         raise ValueError("pilot config must be for the URLQuery benchmark")
     # Dataset version can change without changing prompt/model/time conditions.
     config = re.sub(r'^data_variant = .*$', f'data_variant = "urlquery/{dataset.name}"', config, flags=re.M)
+    config = re.sub(r'^dataset_sha256 = .*\n?', '', config, flags=re.M)
     config += f'\ndataset_sha256 = "{metadata["dataset_sha256"]}"\n'
     claude_version = tomllib.loads(config).get("claude_cli_version")
     if not isinstance(claude_version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", claude_version):

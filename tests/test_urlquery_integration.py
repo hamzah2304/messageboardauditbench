@@ -464,6 +464,22 @@ def test_ablation_batch_plans_every_arm(tmp_path, monkeypatch):
     assert all(len(p["batch_source_sha256"]) == 64 for _, p in plans)
 
 
+def test_final_batch_keeps_one_dataset_pin_and_latest_prompt(tmp_path, monkeypatch):
+    import tomllib
+
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-final-batch.toml")
+    assert concurrency == 12
+    assert sum(len(p["matrix"]) for _, p in plans) == 48
+    assert [p["budget_minutes"] for _, p in plans] == [30, 10]
+    for _, payload in plans:
+        config = tomllib.loads(Path(payload["config"]).read_text())
+        assert config["dataset_sha256"] == "a" * 64
+        assert config["prompt"] == "urlquery-agents-v5"
+        assert len({row["model"] for row in payload["matrix"]}) == 12
+        assert {row["replicate"] for row in payload["matrix"]} == {1, 2}
+
+
 @pytest.mark.parametrize("body", [
     "max_parallel = 0\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
     "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=0\nmodels=['codex:gpt-6-sol']",
