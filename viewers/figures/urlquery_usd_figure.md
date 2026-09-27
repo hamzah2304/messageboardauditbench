@@ -1,6 +1,6 @@
 # URLQuery v6: performance versus USD per run
 
-Open [the interactive figure](urlquery_usd_figure.html). It is built from the final
+Open [the USD figure](urlquery_usd_figure.html) or [the capability figure](urlquery_capability_figure.html). Both are built from the final
 `urlquery-agents-v6-10` and `urlquery-agents-v6-30` runs (12 models, two
 replicates per budget). Each model-budget mark shows mean score against mean
 USD cost over valid runs, on a log USD axis. Individual runs are not drawn.
@@ -10,6 +10,14 @@ runs and reasons. One Sonnet 5 report had only 194 words against a requested
 2,400-word minimum, so 47 of 48 graded reports enter the plotted results.
 Drag model names in the figure to adjust their placement; positions are saved
 in this browser. **Reset labels** restores the default layout.
+Both plots focus the score axis on 0.15–0.55; the underlying scores remain on
+the 0–1 scale. The USD plot spans $0.03–$20 per run.
+
+The capability plot uses the repository's Epoch Capabilities Index snapshot
+retrieved 2026-09-07. Eight of the twelve models have a value. Gemini 3.8 Flash
+and Muse Spark 1.3 use the previous generation's value as a marked proxy;
+GPT-6 Sol, GPT-6 Luna, Opus 4.6, and DeepSeek V4 Flash lack a value and are
+omitted from that plot. Their report scores remain in the table.
 
 Rebuild after data or presentation changes:
 
