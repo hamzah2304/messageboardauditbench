@@ -162,12 +162,17 @@ The pilot summary links to local report previews, not a public deployment.
 
 ## Manual findings remain a separate step
 
-`viewers/build_urlquery_findings.py --source <cached agent-activity.html>` reuses
-the original selection/comment template without executing the downloaded page.
-Exports and browser state include benchmark and source/rendered-article hashes;
-imports for another benchmark or source version are rejected. The article's
-scripts, SVG, event handlers and remote embeds are not loaded. Quoted code remains
-escaped text. This is an evaluator tool and is never in the agent mount.
+`viewers/build_urlquery_findings.py` (defaults to the cached
+`data/transluce/agent-activity.html`) renders the article as published, using
+Transluce's own stylesheet and figures (cached once in
+`data/transluce/site_assets/`, images inlined), with every script, event handler,
+form, iframe, remote image and site chrome removed; quoted code stays escaped
+text. A sidebar turns a selected passage into a finding: a rewritten checkable
+sentence, a kind (finding, conclusion or context), whether the frozen scans can
+check it (yes, partly, joint, no), optional extra passages and a note. A hover
+panel lists what the scan data cannot show. Exports use schema
+`urlquery-findings-v1` and carry benchmark and source/rendered-article hashes;
+imports for another benchmark or source version are rejected. This is an evaluator tool and is never in the agent mount.
 
 The existing candidate approval and feasibility builders accept
 `--benchmark urlquery`. Their inputs live under `benchmarks/urlquery/claims/`

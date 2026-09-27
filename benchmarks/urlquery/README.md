@@ -8,7 +8,8 @@ rubric sheets or human reference summary yet. Preserve the manual workflow:
 
 1. Extract candidate findings from the inert Transluce article in
    `viewers/urlquery_findings.html` (generated with
-   `viewers/build_urlquery_findings.py`). Export the selection/comments JSON.
+   `viewers/build_urlquery_findings.py`). Select a passage, rewrite it as one
+   checkable finding, mark whether the scans can check it, then Export JSON.
 2. Write candidates in `claims/new_claims.json` with their verbatim source quote,
    source/report hash and exact frozen dataset hash. Reuse
    `viewers/build_new_claims_ui.py --benchmark urlquery` for approval.

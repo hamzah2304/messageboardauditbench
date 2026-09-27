@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>URLQuery findings extraction</title>
+<style>__SITE_CSS__</style>
+<style>
+/* The article's inline URL notes were positioned by the site's scripts; show them under the ⓘ instead. */
+.margin-note.report-url-note{position:relative}
+.margin-note.report-url-note .note-content{position:absolute!important;top:1.6em!important;left:0!important;width:min(560px,60vw);max-width:none}
+.margin-note.report-url-note:hover .note-content,.margin-note.report-url-note:focus-within .note-content,.margin-note.report-url-note.show-note .note-content{display:block!important}
+.report-url-note-close{display:none!important}
+:root{--fx-vw:calc(100vw - 420px)}
+body{padding-right:420px!important}
+#fx{position:fixed;top:0;right:0;bottom:0;width:408px;overflow:auto;background:#FAFAF7;border-left:1px solid #E0DDD4;z-index:9000;font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2328}
+#fx .hd{position:sticky;top:0;background:#F4F3EE;border-bottom:1px solid #E0DDD4;padding:10px 12px;z-index:2}
+#fx h2{font-size:15px;margin:0 0 6px;color:#29377f;display:flex;align-items:center;gap:8px}
+#fx .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#fx button,#fx .btn{border:1px solid #d0cdc4;background:#fff;border-radius:7px;padding:4px 9px;font:600 12px system-ui;cursor:pointer;color:#333}
+#fx button.pri{background:#29377f;color:#fff;border-color:#29377f}
+#fx button:focus-visible,#fxpop button:focus-visible,.fx-card:focus-visible{outline:2px solid #3f5ac2;outline-offset:2px}
+#fx .store{font-size:11px;color:#666;margin-top:6px}
+#fx .store.err{color:#991B1B;font-weight:700}
+#fx .howto{margin:10px 12px;background:#fff;border:1px solid #E0DDD4;border-radius:8px;padding:8px 10px}
+#fx .howto summary{font-weight:700;cursor:pointer}
+#fx .howto ol{margin:6px 0 2px 18px;padding:0;list-style:decimal}#fx .howto li{margin:3px 0}
+#fx .filt{padding:4px 12px;font-size:12px;color:#555;display:flex;gap:10px;flex-wrap:wrap}
+#fx .list{padding:0 12px 20px}
+.fx-card{background:#fff;border:1px solid #E0DDD4;border-left:5px solid #9aa3c7;border-radius:0 9px 9px 0;padding:9px 11px;margin:9px 0;cursor:pointer}
+.fx-card.sel{box-shadow:0 0 0 3px #ffd76b}
+.fx-card.d-yes{border-left-color:#2E7D6B}.fx-card.d-partly{border-left-color:#C28A1E}.fx-card.d-joint{border-left-color:#6B5BA8}.fx-card.d-no{border-left-color:#991B1B}
+.fx-card.rejected{opacity:.5}
+.fx-card .top{display:flex;gap:6px;align-items:center;font-size:11px;color:#666;flex-wrap:wrap}
+.fx-card .fid{font-weight:800;color:#29377f}
+.fx-card .sec{font-size:11px;color:#777;margin-top:2px}
+.fx-card .claim{font-size:13.5px;margin:4px 0;color:#111}
+.fx-card .q{font:11.5px/1.4 ui-monospace,Menlo,monospace;background:#F6F5F0;border-radius:5px;padding:4px 7px;margin:4px 0;max-height:70px;overflow:hidden}
+.fx-card .q.lost{background:#FEE2E2;color:#7f1d1d}
+.fx-card .note{font-size:12px;color:#444;margin-top:3px}
+.fx-card .acts{display:flex;gap:6px;margin-top:6px}
+.bdg{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;background:#eee;color:#333}
+.bdg.yes{background:#D1FAE5;color:#065F46}.bdg.partly{background:#FEF3C7;color:#92400E}.bdg.joint{background:#EDE9FE;color:#4C1D95}.bdg.no{background:#FEE2E2;color:#991B1B}.bdg.unset{background:#f1f1f1;color:#777}
+.bdg.lost{background:#991B1B;color:#fff}
+/* Data-limits hover: opens on hover and on keyboard focus. */
+.tip{position:relative;display:inline-flex}
+.tip>.tip-btn{border:1px solid #c9b27a!important;background:#FFF6DC!important;color:#6b4e00!important;border-radius:999px!important;padding:1px 8px!important;font:700 11px system-ui!important;cursor:help!important}
+.tip>.tip-body{display:none;position:absolute;right:0;top:calc(100% + 6px);width:380px;max-height:70vh;overflow:auto;background:#fff;border:1px solid #d9cfae;border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:10px 12px;z-index:9999;font:12.5px/1.5 system-ui;color:#222;text-align:left}
+.tip.left>.tip-body{right:auto;left:0}
+.tip:hover>.tip-body,.tip:focus-within>.tip-body{display:block}
+.lim p{margin:0 0 6px}.lim ul{margin:0 0 6px 16px;padding:0}.lim li{margin:0 0 5px}.lim-h{font-weight:800;color:#6b4e00}.lim-k{font-size:11.5px;color:#555;border-top:1px solid #eee;padding-top:6px}
+.lim code{font-size:11px}
+#fxq{position:absolute;z-index:9500;display:none;background:#29377f;color:#fff;border:none;border-radius:7px;padding:6px 11px;font:700 12px system-ui;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.25)}
+#fxpop{position:absolute;z-index:9600;display:none;background:#fff;border:1px solid #d0cdc4;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:12px;width:380px;font:13px/1.4 system-ui;color:#222}
+#fxpop label{display:block;font-weight:700;font-size:12px;margin-top:8px}
+#fxpop .hint{font-weight:400;color:#666;font-size:11.5px}
+#fxpop textarea,#fxpop select,#fxpop input{width:100%;box-sizing:border-box;border:1px solid #d0cdc4;border-radius:6px;padding:6px;font:13px system-ui;margin-top:3px}
+#fxpop .q{font:11.5px/1.4 ui-monospace,Menlo,monospace;background:#F6F5F0;border-radius:5px;padding:5px 7px;max-height:90px;overflow:auto}
+#fxpop .seg{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+#fxpop .seg label{margin:0;font-weight:600;border:1px solid #d0cdc4;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px}
+#fxpop .seg input{width:auto;margin:0 4px 0 0}
+#fxpop .r{display:flex;gap:6px;margin-top:10px}
+#fxpop .r button{flex:1;border:none;border-radius:7px;padding:8px;font-weight:700;cursor:pointer}
+#fxpop .add{background:#29377f;color:#fff}#fxpop .cancel{background:#eee;color:#444}
+#fxpop .err{color:#991B1B;font-size:12px;margin-top:6px;display:none}
+::highlight(fx-yes){background:#CDEFE2}::highlight(fx-partly){background:#FCEBC0}::highlight(fx-joint){background:#E4DEFA}::highlight(fx-no){background:#F9D4D4}::highlight(fx-unset){background:#E3E7F5}::highlight(fx-act){background:#ffd76b}
+@media print{:root{--fx-vw:100vw}#fx,#fxq,#fxpop{display:none!important}body{padding-right:0!important}}
+</style>
+</head><body>
+__PAGE__
+<aside id="fx" aria-label="Findings extraction">
+ <div class="hd">
+  <h2>Findings <span id="fx-count" style="font-weight:600;color:#666;font-size:12px"></span>
+   <span class="tip" style="margin-left:auto"><button type="button" class="tip-btn" aria-describedby="fx-lim">⚠ Data limits</button><div class="tip-body" id="fx-lim" role="tooltip">__LIMITS__</div></span></h2>
+  <div class="row">
+   <button type="button" class="pri" id="fx-export" title="Download all findings as JSON">Export JSON</button>
+   <button type="button" id="fx-copy">Copy JSON</button>
+   <label class="btn" for="fx-import" title="Load a previous export (merges by finding id)">Import…</label><input type="file" id="fx-import" accept="application/json,.json" hidden>
+   <input id="fx-author" placeholder="your name" aria-label="Your name (author)" style="width:92px;border:1px solid #d0cdc4;border-radius:6px;padding:4px 6px;font:12px system-ui">
+  </div>
+  <div class="store" id="fx-store" role="status"></div>
+ </div>
+ <details class="howto" id="fx-howto" open><summary>How to extract a finding</summary>
+  <ol>
+   <li><b>Select</b> the words in the report that state one finding: a fact the report asserts, such as a date, count, target or technique.</li>
+   <li>Click <b>＋ Extract finding</b> (or press <kbd>E</kbd>).</li>
+   <li><b>Rewrite it</b> as one standalone, checkable sentence: who or what, when, and how many. If the finding bundles several facts, split it into several findings.</li>
+   <li>Mark whether the <b>scan data can check it</b>. Hover <b>⚠ Data limits</b> for what is missing.</li>
+   <li>If more evidence for the same finding appears later in the text, select it and pick <b>Add to an existing finding</b>.</li>
+   <li><b>Export JSON</b> and give the file to the agent, which turns it into <code>claims/new_claims.json</code> candidates. Nothing here is approved automatically.</li>
+  </ol>
+ </details>
+ <div class="filt" id="fx-filt"></div>
+ <div class="list" id="fx-list"></div>
+</aside>
+<button id="fxq" type="button">＋ Extract finding</button>
+<div id="fxpop" role="dialog" aria-label="Extract finding">
+ <div style="font-weight:800" id="fxpop-title">New finding</div>
+ <label>Selected passage</label><div class="q" id="fxpop-q"></div>
+ <label for="fxpop-target">Save as</label>
+ <select id="fxpop-target"></select>
+ <div id="fxpop-new">
+  <label for="fxpop-claim">Finding <span class="hint">one checkable sentence, in your words</span></label>
+  <textarea id="fxpop-claim" rows="3" placeholder="e.g. On May 28, 2026, agents sent 12 vulnerability probes to api.datausa.io after malformed queries returned errors."></textarea>
+  <label>Kind</label>
+  <div class="seg" id="fxpop-kind">
+   <label><input type="radio" name="fxk" value="finding" checked>Finding (observed)</label>
+   <label><input type="radio" name="fxk" value="conclusion">Conclusion (inference)</label>
+   <label><input type="radio" name="fxk" value="context">Context (don't score)</label>
+  </div>
+  <label>Checkable from the scan data?
+   <span class="tip left"><button type="button" class="tip-btn" aria-describedby="fxpop-lim">⚠ what's missing</button><div class="tip-body" id="fxpop-lim" role="tooltip">__LIMITS__</div></span></label>
+  <div class="seg" id="fxpop-der">
+   <label><input type="radio" name="fxd" value="yes">yes</label>
+   <label><input type="radio" name="fxd" value="partly">partly</label>
+   <label><input type="radio" name="fxd" value="joint">joint (+wiki)</label>
+   <label><input type="radio" name="fxd" value="no">no</label>
+   <label><input type="radio" name="fxd" value="" checked>unsure</label>
+  </div>
+ </div>
+ <label for="fxpop-note">Note <span class="hint">optional: what's missing, record IDs, doubts</span></label>
+ <textarea id="fxpop-note" rows="2"></textarea>
+ <div class="err" id="fxpop-err"></div>
+ <div class="r"><button type="button" class="cancel" id="fxpop-cancel">Cancel (Esc)</button><button type="button" class="add" id="fxpop-save">Save (⌘↵)</button></div>
+</div>
+<script>
+__EMBED__
+(function(){
+"use strict";
+var LS="urlquery_findings_"+SCOPE.article_sha256.slice(0,16), LSA="urlquery_findings_author";
+var ROOT=document.querySelector("article");
+var $=function(id){return document.getElementById(id);};
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+
+/* ---------- storage (errors are shown, never swallowed) ---------- */
+var S=null, storeOK=true, storeMsg="";
+try{S=JSON.parse(localStorage.getItem(LS)||"null");}catch(e){storeOK=false;storeMsg="Cannot read browser storage ("+e.name+"). Findings will not persist — export often.";}
+if(!S||!Array.isArray(S.findings))S={findings:[],seedhash:null};
+if(S.seedhash!==SEEDHASH){ // merge an imported seed without dropping local work
+  var have={};S.findings.forEach(function(f){have[f.id]=1;});
+  SEED.forEach(function(f){if(!have[f.id])S.findings.push(JSON.parse(JSON.stringify(f)));});
+  S.seedhash=SEEDHASH;
+}
+function save(){
+  try{localStorage.setItem(LS,JSON.stringify(S));storeOK=true;storeMsg="";}
+  catch(e){storeOK=false;storeMsg="Save failed ("+e.name+"). Your last change is only in this tab — Export JSON now.";}
+  renderStore();
+}
+function renderStore(){var el=$("fx-store");
+  if(!storeOK){el.className="store err";el.textContent=storeMsg;return;}
+  el.className="store";el.textContent="Auto-saved in this browser only (key "+LS+"). Not visible to other browsers or to the agent until you export.";}
+
+/* ---------- text offsets over the article ---------- */
+var nodes=[],starts=[],FULL="";
+(function walk(n){for(var c=n.firstChild;c;c=c.nextSibling){if(c.nodeType===3){starts.push(FULL.length);nodes.push(c);FULL+=c.nodeValue;}else if(c.nodeType===1&&c.tagName!=="SCRIPT"&&c.tagName!=="STYLE")walk(c);}})(ROOT);
+var nodeIdx=new Map();nodes.forEach(function(n,i){nodeIdx.set(n,i);});
+function locate(off){var lo=0,hi=nodes.length-1,a=0;while(lo<=hi){var m=(lo+hi)>>1;if(starts[m]<=off){a=m;lo=m+1;}else hi=m-1;}return[nodes[a],off-starts[a]];}
+function rangeFor(s,e){var a=locate(s),b=locate(e),r=document.createRange();try{r.setStart(a[0],Math.min(a[1],a[0].nodeValue.length));r.setEnd(b[0],Math.min(b[1],b[0].nodeValue.length));}catch(x){return null;}return r;}
+function offOf(node,o){if(node.nodeType!==3){var t=node.childNodes[o]||node;var w=document.createTreeWalker(t,NodeFilter.SHOW_TEXT);var f=w.nextNode();if(!f)return -1;node=f;o=0;}var i=nodeIdx.get(node);return i==null?-1:starts[i]+o;}
+// Re-anchor: trust stored offsets only if the text still matches; otherwise search for the quote.
+function anchor(sp){
+  if(sp.s>=0&&FULL.slice(sp.s,sp.e)===sp.raw)return true;
+  var p=FULL.indexOf(sp.raw);if(p>=0){sp.s=p;sp.e=p+sp.raw.length;return true;}
+  sp.s=-1;sp.e=-1;return false;}
+function sectionAt(off){var r=rangeFor(off,off);if(!r)return"";var el=r.startContainer.parentElement,last="";
+  var hs=ROOT.querySelectorAll("h1,h2,h3,summary");for(var i=0;i<hs.length;i++){if(hs[i].compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING||hs[i].contains(el))last=hs[i].textContent.trim();}
+  return last.slice(0,140);}
+S.findings.forEach(function(f){f.spans.forEach(anchor);});
+
+/* ---------- highlights ---------- */
+var HL=(typeof Highlight!=="undefined"&&window.CSS&&CSS.highlights);
+function paint(){if(!HL)return;["yes","partly","joint","no","unset"].forEach(function(k){CSS.highlights.set("fx-"+k,new Highlight());});
+  S.findings.forEach(function(f){if(f.status==="rejected")return;f.spans.forEach(function(sp){if(sp.s>=0){var r=rangeFor(sp.s,sp.e);if(r)CSS.highlights.get("fx-"+(f.derivable||"unset")).add(r);}});});}
+function flash(sp){var r=rangeFor(sp.s,sp.e);if(!r)return;for(var d=r.startContainer.parentElement;d;d=d.parentElement){if(d.tagName==="DETAILS")d.open=true;}var el=r.startContainer.parentElement;if(el)el.scrollIntoView({block:"center",behavior:"smooth"});
+  if(HL){var h=new Highlight();h.add(r);CSS.highlights.set("fx-act",h);setTimeout(function(){CSS.highlights.delete("fx-act");},1600);}}
+
+/* ---------- sidebar ---------- */
+var filter="all", selected=null;
+function ordered(){return S.findings.slice().sort(function(a,b){return (a.spans[0].s<0?1e12:a.spans[0].s)-(b.spans[0].s<0?1e12:b.spans[0].s);});}
+function label(f){return "F"+String(ordered().indexOf(f)+1).padStart(2,"0");}
+var DL={yes:"checkable",partly:"partly checkable",joint:"joint (+wiki)",no:"not checkable",unset:"unsure"};
+function render(){
+  var all=ordered(),lost=all.filter(function(f){return f.spans.some(function(s){return s.s<0;});}).length;
+  $("fx-count").textContent=all.length+" extracted"+(lost?" · "+lost+" unanchored":"");
+  var counts={all:all.length};all.forEach(function(f){var k=f.derivable||"unset";counts[k]=(counts[k]||0)+1;});
+  $("fx-filt").innerHTML=["all","yes","partly","joint","no","unset"].filter(function(k){return k==="all"||counts[k];}).map(function(k){
+    return '<label><input type="radio" name="fxf" value="'+k+'"'+(filter===k?" checked":"")+'> '+(k==="all"?"all":DL[k])+" ("+counts[k]+")</label>";}).join("");
+  [].forEach.call(document.querySelectorAll("input[name=fxf]"),function(x){x.onchange=function(){filter=x.value;render();};});
+  var shown=all.filter(function(f){return filter==="all"||(f.derivable||"unset")===filter;});
+  $("fx-list").innerHTML=shown.map(function(f){var d=f.derivable||"unset",lostHere=f.spans.some(function(s){return s.s<0;});
+    return '<div class="fx-card d-'+d+(f.status==="rejected"?" rejected":"")+(selected===f.id?" sel":"")+'" tabindex="0" data-id="'+esc(f.id)+'">'
+     +'<div class="top"><span class="fid">'+label(f)+'</span><span class="bdg '+d+'">'+DL[d]+'</span><span class="bdg">'+esc(f.kind)+'</span>'
+     +(lostHere?'<span class="bdg lost" title="The quoted text no longer appears in this article version">anchor not found</span>':'')
+     +'<span style="margin-left:auto">'+esc(f.author)+'</span></div>'
+     +(f.section?'<div class="sec">§ '+esc(f.section)+'</div>':'')
+     +'<div class="claim">'+esc(f.claim)+'</div>'
+     +f.spans.map(function(sp,i){return '<div class="q'+(sp.s<0?" lost":"")+'" data-jump="'+i+'" title="Jump to passage">“'+esc(sp.quote.slice(0,260))+'”</div>';}).join("")
+     +(f.note?'<div class="note">'+esc(f.note)+'</div>':'')
+     +'<div class="acts"><button type="button" data-act="edit">Edit</button><button type="button" data-act="reject">'+(f.status==="rejected"?"Restore":"Reject")+'</button><button type="button" data-act="del">Delete</button></div></div>';}).join("")
+   ||'<p style="color:#888">No findings yet. Select a passage in the report to start.</p>';
+  [].forEach.call(document.querySelectorAll(".fx-card"),function(c){var f=byId(c.dataset.id);
+    c.onclick=function(ev){var j=ev.target.closest("[data-jump]"),a=ev.target.closest("[data-act]");
+      if(a){ev.stopPropagation();act(f,a.dataset.act);return;}
+      select(f.id,false);var sp=f.spans[j?+j.dataset.jump:0];if(sp&&sp.s>=0)flash(sp);};
+    c.onkeydown=function(ev){if(ev.key==="Enter"&&ev.target===c){c.click();}};});
+  paint();
+}
+function byId(id){for(var i=0;i<S.findings.length;i++)if(S.findings[i].id===id)return S.findings[i];return null;}
+function select(id,scroll){selected=id;render();var c=document.querySelector('.fx-card[data-id="'+CSS.escape(id)+'"]');if(c&&scroll)c.scrollIntoView({block:"center",behavior:"smooth"});}
+function act(f,a){
+  if(a==="del"){if(confirm("Delete "+label(f)+"? This cannot be undone (unless you exported)."))S.findings.splice(S.findings.indexOf(f),1);}
+  else if(a==="reject"){f.status=f.status==="rejected"?"draft":"rejected";f.updated=new Date().toISOString();}
+  else if(a==="edit"){openPop(null,f);return;}
+  save();render();}
+
+/* ---------- selection → form ---------- */
+var SEL=null,EDIT=null,qb=$("fxq"),pop=$("fxpop");
+function currentSel(){var s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return null;var r=s.getRangeAt(0);
+  if(!ROOT.contains(r.commonAncestorContainer))return null;var a=offOf(r.startContainer,r.startOffset),b=offOf(r.endContainer,r.endOffset);
+  if(a<0||b<=a)return null;var raw=FULL.slice(a,b);if(!raw.trim())return null;
+  return {s:a,e:b,raw:raw,quote:s.toString().replace(/\s+/g," ").trim()||raw.replace(/\s+/g," ").trim(),rect:r.getBoundingClientRect()};}
+document.addEventListener("mouseup",function(ev){if(ev.target.closest&&(ev.target.closest("#fx")||ev.target.closest("#fxpop")))return;
+  setTimeout(function(){SEL=currentSel();if(!SEL){qb.style.display="none";return;}
+    qb.style.left=(SEL.rect.left+window.scrollX)+"px";qb.style.top=(SEL.rect.bottom+window.scrollY+6)+"px";qb.style.display="block";},10);});
+qb.onclick=function(){if(SEL)openPop(SEL,null);};
+function openPop(sel,f){EDIT=f;SEL=sel||SEL;qb.style.display="none";$("fxpop-err").style.display="none";
+  var tgt=$("fxpop-target");
+  if(f){$("fxpop-title").textContent="Edit "+label(f);tgt.innerHTML='<option value="">'+label(f)+'</option>';tgt.disabled=true;
+    $("fxpop-q").textContent=f.spans.map(function(s){return s.quote;}).join(" … ");$("fxpop-claim").value=f.claim;$("fxpop-note").value=f.note||"";
+    setRadio("fxk",f.kind);setRadio("fxd",f.derivable||"");}
+  else{$("fxpop-title").textContent="New finding";tgt.disabled=false;
+    tgt.innerHTML='<option value="">New finding</option>'+ordered().map(function(x){return '<option value="'+esc(x.id)+'">Add to an existing finding: '+label(x)+' — '+esc(x.claim.slice(0,50))+'</option>';}).join("");
+    $("fxpop-q").textContent=sel.quote;$("fxpop-claim").value=sel.quote;$("fxpop-note").value="";setRadio("fxk","finding");setRadio("fxd","");}
+  toggleNew();
+  var y=f?(f.spans[0].s>=0?(rangeFor(f.spans[0].s,f.spans[0].e).getBoundingClientRect().bottom+window.scrollY+8):window.scrollY+80):(sel.rect.bottom+window.scrollY+8);
+  var x=f?Math.max(12,window.innerWidth-420-400):Math.min(sel.rect.left+window.scrollX,window.innerWidth-420-392);
+  pop.style.left=Math.max(12,x)+"px";pop.style.top=y+"px";pop.style.display="block";
+  (f?$("fxpop-claim"):tgt).focus();
+  if(!f){$("fxpop-claim").focus();$("fxpop-claim").select();}}
+function setRadio(n,v){[].forEach.call(document.querySelectorAll("input[name="+n+"]"),function(x){x.checked=(x.value===(v||""));});}
+function getRadio(n){var x=document.querySelector("input[name="+n+"]:checked");return x?x.value:"";}
+function toggleNew(){$("fxpop-new").style.display=$("fxpop-target").value?"none":"";}
+$("fxpop-target").onchange=toggleNew;
+function closePop(){pop.style.display="none";EDIT=null;}
+$("fxpop-cancel").onclick=closePop;
+function author(){var a=($("fx-author").value||"me").trim().toLowerCase().replace(/[^a-z0-9_-]/g,"_").slice(0,60)||"me";try{localStorage.setItem(LSA,a);}catch(e){}return a;}
+$("fxpop-save").onclick=function(){
+  var now=new Date().toISOString(),err=$("fxpop-err"),claim=$("fxpop-claim").value.trim(),note=$("fxpop-note").value.trim();
+  if(EDIT){if(!claim){err.textContent="Write the finding as a sentence.";err.style.display="block";return;}
+    EDIT.claim=claim;EDIT.note=note;EDIT.kind=getRadio("fxk");EDIT.derivable=getRadio("fxd")||null;EDIT.updated=now;select(EDIT.id,true);}
+  else{var span={s:SEL.s,e:SEL.e,raw:SEL.raw,quote:SEL.quote},target=$("fxpop-target").value;
+    if(target){var t=byId(target);t.spans.push(span);t.spans.sort(function(a,b){return a.s-b.s;});if(note)t.note=(t.note?t.note+"\n":"")+note;t.updated=now;select(t.id,true);}
+    else{if(!claim){err.textContent="Write the finding as a sentence.";err.style.display="block";return;}
+      var au=author(),f={id:au+"-"+Date.now().toString(36),author:au,section:sectionAt(SEL.s),claim:claim,kind:getRadio("fxk"),derivable:getRadio("fxd")||null,
+        note:note,status:"draft",spans:[span],created:now,updated:now};S.findings.push(f);select(f.id,true);}
+    window.getSelection().removeAllRanges();}
+  save();render();closePop();};
+document.addEventListener("keydown",function(ev){
+  if(pop.style.display==="block"){if(ev.key==="Escape"){closePop();}else if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){$("fxpop-save").click();}return;}
+  var tag=(ev.target.tagName||"").toLowerCase();if(tag==="input"||tag==="textarea"||tag==="select")return;
+  if((ev.key==="e"||ev.key==="E")&&!ev.metaKey&&!ev.ctrlKey){var s=currentSel();if(s){ev.preventDefault();SEL=s;openPop(s,null);}}});
+document.addEventListener("mousedown",function(ev){if(pop.style.display==="block"&&!pop.contains(ev.target)&&!ev.target.closest("#fx")){/* keep the form open; Cancel or Esc closes it */}
+  if(ev.target!==qb&&!pop.contains(ev.target))qb.style.display="none";});
+// Click a highlighted passage → select its finding in the sidebar.
+ROOT.addEventListener("click",function(ev){if(!window.getSelection().isCollapsed)return;var off=-1;
+  if(document.caretRangeFromPoint){var cr=document.caretRangeFromPoint(ev.clientX,ev.clientY);if(cr)off=offOf(cr.startContainer,cr.startOffset);}
+  else if(document.caretPositionFromPoint){var cp=document.caretPositionFromPoint(ev.clientX,ev.clientY);if(cp)off=offOf(cp.offsetNode,cp.offset);}
+  if(off<0)return;var hit=null,best=1e18;S.findings.forEach(function(f){f.spans.forEach(function(sp){if(sp.s>=0&&off>=sp.s&&off<=sp.e&&sp.e-sp.s<best){best=sp.e-sp.s;hit=f;}});});
+  if(hit)select(hit.id,true);});
+// The article's ⓘ URL notes: click pins them open (the site's own script is not loaded).
+[].forEach.call(ROOT.querySelectorAll(".report-url-note-trigger"),function(b){b.addEventListener("click",function(ev){ev.preventDefault();var n=b.closest(".report-url-note");var on=!n.classList.contains("show-note");n.classList.toggle("show-note",on);b.setAttribute("aria-expanded",on);});});
+
+/* ---------- export / import ---------- */
+function exportObj(){return {schema:SCHEMA,benchmark_id:SCOPE.benchmark_id,report_sha256:SCOPE.report_sha256,article_sha256:SCOPE.article_sha256,
+  saved_at:new Date().toISOString(),n_findings:S.findings.length,
+  findings:ordered().map(function(f){return {id:f.id,label:label(f),author:f.author,section:f.section,claim:f.claim,kind:f.kind,derivable:f.derivable,status:f.status,note:f.note,
+    report_quote:f.spans.map(function(s){return s.quote;}).join(" … "),spans:f.spans.map(function(s){return {s:s.s,e:s.e,raw:s.raw,quote:s.quote};}),created:f.created,updated:f.updated};})};}
+$("fx-export").onclick=function(){var b=new Blob([JSON.stringify(exportObj(),null,1)],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(b);a.download="urlquery_findings_"+SCOPE.article_sha256.slice(0,12)+"_"+new Date().toISOString().slice(0,16).replace(/[:T]/g,"")+".json";a.click();};
+$("fx-copy").onclick=function(){var t=this;(navigator.clipboard?navigator.clipboard.writeText(JSON.stringify(exportObj(),null,1)):Promise.reject()).then(function(){t.textContent="Copied";},function(){t.textContent="Copy failed";}).then(function(){setTimeout(function(){t.textContent="Copy JSON";},1400);});};
+$("fx-import").onchange=function(){var file=this.files[0];if(!file)return;var rd=new FileReader();rd.onload=function(){
+  try{var d=JSON.parse(rd.result);if(d.schema!==SCHEMA||d.benchmark_id!==SCOPE.benchmark_id)throw new Error("not a urlquery findings export");
+    if(d.article_sha256!==SCOPE.article_sha256&&!confirm("This export was made against a different article version. Import anyway? Unmatched passages will show 'anchor not found'."))return;
+    var added=0,updated=0;(d.findings||[]).forEach(function(f){var cur=byId(f.id);if(!f.spans||!f.spans.length)return;f.spans.forEach(anchor);
+      if(!cur){S.findings.push(f);added++;}else if((f.updated||"")>(cur.updated||"")){S.findings[S.findings.indexOf(cur)]=f;updated++;}});
+    save();render();alert("Imported: "+added+" new, "+updated+" updated.");}
+  catch(e){alert("Import failed: "+e.message);}};rd.readAsText(file);this.value="";};
+
+try{$("fx-author").value=localStorage.getItem(LSA)||"";}catch(e){}
+try{if(localStorage.getItem(LS+"_howto")==="closed")$("fx-howto").open=false;}catch(e){}
+$("fx-howto").addEventListener("toggle",function(){try{localStorage.setItem(LS+"_howto",this.open?"open":"closed");}catch(e){}});
+renderStore();render();save();
+})();
+</script>
+</body></html>
