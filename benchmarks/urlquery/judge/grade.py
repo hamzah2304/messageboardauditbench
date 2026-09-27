@@ -312,6 +312,10 @@ def main() -> None:
         except anthropic.APIError as exc:
             result = {"status": "api_error", "error": f"{type(exc).__name__}: {exc}"[:500]}
         with write_lock:
+            prev = files[d.name]["findings"].get(h)
+            if prev and prev.get("status") != "ok":  # keep the history of failed attempts
+                earlier = prev.pop("previous_attempts", [])
+                result["previous_attempts"] = earlier + [{k: v for k, v in prev.items() if k != "raw"}]
             files[d.name]["findings"][h] = result
             write(d.name)
         tag = result["status"] if result["status"] != "ok" else f"{result['score']:.1f}"
@@ -330,6 +334,8 @@ def main() -> None:
         list(pool.map(do, rest))
 
     print(f"done: spend ${judge.spend:.2f}")
+    for name in files:
+        write(name)
     for name, body in files.items():
         print(f"  {name[17:70]:54} mean {body.get('score_mean')}  scored {body.get('n_scored')}/{body.get('n_findings')}"
               f"  unscored {body.get('unscored')}")
