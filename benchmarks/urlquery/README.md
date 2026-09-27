@@ -23,6 +23,16 @@ records the changed prompt context in each grade's article hash.
       --launch runs/urlquery/final-20260927-agents-v6/launch.json \
       --omit-article --workers 8
 
+For the final 2026-09-27 run, use a **single judge**: GPT-6 Astra at high
+reasoning effort via synchronous OpenRouter chat-completion calls. The direct
+API runner reads both plans from the final launch file and saves to a separate
+judge directory; it never reuses Claude scores. Run it again as the remaining
+trials finish, with up to 32 concurrent calls:
+
+    .venv/bin/python benchmarks/urlquery/judge/grade_openrouter.py \
+      --launch runs/urlquery/final-20260927-agents-v6/launch.json \
+      --workers 32
+
 Validate grades by hand with `viewers/build_urlquery_audit_ui.py` (local page, or
 `--artifact PATH` for a shared, redacted claude.ai page whose audits save per auditor).
 
