@@ -80,8 +80,9 @@ def instruction(low: int, high: int) -> str:
         f"{high:,} words is a strict upper limit. Do not exceed it. "
         "The authoritative count is len(text.split()): whitespace-separated units "
         "in the entire raw Markdown file, including headings, tables, citations, "
-        "code and appendices. Aim near the midpoint. Run report_length to check it "
-        "yourself. Before finishing, shorten report.md if it exceeds the upper limit.\n"
+        "code and appendices. Aim near the midpoint. The current report and "
+        "TL;DR counts are reported whenever report.md changes. Before finishing, "
+        "shorten report.md if it exceeds the upper limit.\n"
     )
 
 
@@ -103,18 +104,31 @@ def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
     return text if embedded_length else text + instruction(low, high)
 
 
-def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
-    """Return a manual status message and whether the report is not overlong."""
-    if not high:
-        return "", True
-    try:
-        count = len(path.read_text(errors="replace").split())
-    except OSError:
-        return (
-            f"Report length: report.md is missing or unreadable; target "
-            f"{low:,}–{high:,} words.",
-            True,
-        )
+TLDR_HEADING = re.compile(r"^\s*(?:#+\s*)?(?:\*\*)?(?:\d+[.)]\s*)?tl;?dr\b", re.IGNORECASE)
+NEXT_HEADING = re.compile(
+    r"^\s*(?:#+\s|\*\*?\d+[.)]\s|\d+[.)]\s+[A-Z]|\*\*[^*\n]{1,80}\*\*:?\s*$)"
+)
+
+
+def tldr_words(text: str) -> int | None:
+    """Count words after the first TL;DR heading and before the next heading."""
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines) if TLDR_HEADING.match(line)), None)
+    if start is None:
+        return None
+    body: list[str] = []
+    for line in lines[start + 1 :]:
+        if NEXT_HEADING.match(line):
+            break
+        body.append(line)
+    heading_rest = TLDR_HEADING.sub("", lines[start], count=1)
+    heading_rest = re.sub(r"^[\s:*\-\u2013\u2014.]+", "", heading_rest)
+    return len((heading_rest + " " + " ".join(body)).split())
+
+
+def describe_count(text: str, low: int, high: int) -> str:
+    """Describe the report and TL;DR counts using the scoring convention."""
+    count = len(text.split())
     if count == 0:
         status = "empty report"
     elif count < low:
@@ -123,11 +137,27 @@ def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
         status = f"ABOVE maximum; remove at least {count - high:,} words"
     else:
         status = "within range"
+    tldr = tldr_words(text)
+    tldr_note = "" if tldr is None else f" TL;DR: {tldr:,} words (limit 200)."
     return (
         f"Report length: {count:,} words; target {low:,}–{high:,}; strict upper "
-        f"limit {high:,}; {status}.",
-        count <= high,
+        f"limit {high:,}; {status}.{tldr_note}"
     )
+
+
+def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
+    """Return a manual status message and whether the report is not overlong."""
+    if not high:
+        return "", True
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return (
+            f"Report length: report.md is missing or unreadable; target "
+            f"{low:,}–{high:,} words.",
+            True,
+        )
+    return describe_count(text, low, high), len(text.split()) <= high
 
 
 def overlong_feedback(path: Path, low: int, high: int) -> str:
@@ -164,6 +194,32 @@ def overlong_feedback_if_changed(
         saved.write(fingerprint)
         saved.flush()
         return overlong_feedback(path, low, high) if changed else ""
+
+
+def count_feedback_if_changed(
+    path: Path, low: int, high: int, *, cache: Path | None = None
+) -> str:
+    """Return the count once per observed content change, including within range."""
+    if not high:
+        return ""
+    if cache is None:
+        key = hashlib.sha256(str(path.absolute()).encode()).hexdigest()
+        cache = Path(tempfile.gettempdir()) / f"mbab-report-count-{key}.json"
+    with cache.open("a+") as saved:
+        fcntl.flock(saved, fcntl.LOCK_EX)
+        try:
+            current = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            return ""
+        saved.seek(0)
+        fingerprint = json.dumps([current, low, high])
+        if saved.read() == fingerprint:
+            return ""
+        saved.seek(0)
+        saved.truncate()
+        saved.write(fingerprint)
+        saved.flush()
+    return feedback(path, low, high)[0]
 
 
 def env_limits() -> tuple[int, int]:
@@ -212,6 +268,7 @@ def main() -> None:
     parser.add_argument("--template", type=Path)
     parser.add_argument("--budget-min", type=int, default=20)
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
+    parser.add_argument("--always", action="store_true")
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
     args = parser.parse_args()
     low, high = (
@@ -236,7 +293,11 @@ def main() -> None:
         reason = stop_reason(args.report, low, high)
         print(json.dumps({"decision": "block", "reason": reason} if reason else {}))
     elif args.hook:
-        note = overlong_feedback_if_changed(args.report, low, high)
+        note = (
+            count_feedback_if_changed(args.report, low, high)
+            if args.always
+            else overlong_feedback_if_changed(args.report, low, high)
+        )
         if not note:
             print("{}")
         else:
