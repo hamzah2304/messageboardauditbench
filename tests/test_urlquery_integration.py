@@ -397,3 +397,19 @@ def test_recorded_binary_version_must_match_pin(tmp_path, agent, content, expect
                             env={**os.environ, "BENCHMARK_ID": "urlquery", "AGENT": agent,
                                  "CFG_CODEX_CLI_VERSION": "0.156.1", "CFG_CLAUDE_CLI_VERSION": "2.1.283"})
     assert result.returncode == expected_code
+
+
+def test_nodetails_ablation_removes_only_the_details_sentence():
+    import tomllib
+
+    sentence = (" Do not get lost in the details; the safety researchers care about the high-level"
+                " important takeaways, and broader narrative of what happened, as well as the"
+                " evidence that backs up that story.")
+    full = (ROOT / "sandbox/prompts/urlquery-swarm-v4.txt").read_text()
+    ablated = (ROOT / "sandbox/prompts/urlquery-swarm-v4-nodetails.txt").read_text()
+    assert full.count(sentence) == 1 and full.replace(sentence, "") == ablated
+    base = tomllib.loads((ROOT / "configs/urlquery-10.toml").read_text())
+    variant = tomllib.loads((ROOT / "configs/urlquery-10-swarm-v4-nodetails.toml").read_text())
+    assert base["prompt"] == "urlquery-swarm-v4" and variant["prompt"] == "urlquery-swarm-v4-nodetails"
+    differing = {k for k in base.keys() | variant.keys() if base.get(k) != variant.get(k)}
+    assert differing == {"name", "prompt"}

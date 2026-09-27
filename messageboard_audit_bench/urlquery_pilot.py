@@ -49,7 +49,7 @@ def load_matrix(path: Path | None) -> list[tuple[str, str, int]]:
 
 
 def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | None = None,
-         matrix_config: Path | None = None) -> tuple[Path, dict]:
+         matrix_config: Path | None = None, trial_config: Path | None = None) -> tuple[Path, dict]:
     configured_matrix = load_matrix(matrix_config)
     selected_agents = set(agents) if agents is not None else {"codex", "claude"}
     if not selected_agents or selected_agents - {"codex", "claude"}:
@@ -71,7 +71,10 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
     experiment = "pilot-" + stamp + "-" + uuid.uuid4().hex[:8]
     directory = shared / "runs/urlquery" / experiment
-    config = (root / "configs/urlquery-10.toml").read_text()
+    config_source = trial_config or root / "configs/urlquery-10.toml"
+    config = config_source.read_text()
+    if trial_config is not None and tomllib.loads(config).get("benchmark_id") != "urlquery":
+        raise ValueError("pilot config must be for the URLQuery benchmark")
     # Dataset version can change without changing prompt/model/time conditions.
     config = re.sub(r'^data_variant = .*$', f'data_variant = "urlquery/{dataset.name}"', config, flags=re.M)
     config += f'\ndataset_sha256 = "{metadata["dataset_sha256"]}"\n'
@@ -95,12 +98,17 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
     if matrix_config is not None:
         payload["matrix_source"] = str(matrix_config.resolve())
         payload["matrix_source_sha256"] = file_sha256(matrix_config)
+    if trial_config is not None:
+        payload["trial_config_source"] = str(trial_config.resolve())
+        payload["trial_config_source_sha256"] = file_sha256(trial_config)
     (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
     return directory, payload
 
 
-def launch(directory: Path, payload: dict) -> list[dict]:
+def launch(directory: Path, payload: dict, parallel_all: bool = False) -> list[dict]:
     root = repo_root()
+    payload["parallel_all"] = parallel_all
+    (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
     env = {k: v for k, v in os.environ.items() if k not in OVERRIDES}
     env.update(CONFIG=payload["config"], IMAGE=payload["image"])
     build_args = [arg for key, value in sorted(payload["image_build_args"].items())
@@ -110,12 +118,10 @@ def launch(directory: Path, payload: dict) -> list[dict]:
     subprocess.run([str(root / ".venv/bin/python"), "scripts/check_urlquery_isolation.py", payload["dataset_path"],
                     "--image", env["IMAGE"], "--output", str(directory / "input-isolation.json")], cwd=root, check=True)
 
-    def lane(agent):
+    def lane(trials):
         results = []
-        for trial in payload["matrix"]:
-            if trial["agent"] != agent:
-                continue
-            model, replicate = trial["model"], trial["replicate"]
+        for trial in trials:
+            agent, model, replicate = trial["agent"], trial["model"], trial["replicate"]
             log_path = directory / f"{agent}-{model}-r{replicate}.log"
             started = time.time()
             timed_out = False
@@ -167,9 +173,13 @@ def launch(directory: Path, payload: dict) -> list[dict]:
                 break
         return results
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    if parallel_all:
+        lanes = [[trial] for trial in payload["matrix"]]
+    else:
         agents = list(dict.fromkeys(trial["agent"] for trial in payload["matrix"]))
-        results = [row for lane_results in pool.map(lane, agents) for row in lane_results]
+        lanes = [[trial for trial in payload["matrix"] if trial["agent"] == agent] for agent in agents]
+    with ThreadPoolExecutor(max_workers=len(lanes)) as pool:
+        results = [row for lane_results in pool.map(lane, lanes) for row in lane_results]
     (directory / "results.json").write_text(json.dumps(results, indent=2) + "\n")
     payload["status"] = "finished" if len(results) == len(payload["matrix"]) else "stopped_with_unlaunched_trials"
     (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
@@ -185,13 +195,16 @@ def main():
     parser.add_argument("--agent", choices=("codex", "claude"), action="append",
                         help="Run only this subscription lane; repeat to include both (default: both)")
     parser.add_argument("--matrix-config", type=Path, help="Explicit TOML [[trials]] matrix; default keeps the original four-run matrix")
+    parser.add_argument("--config", type=Path, help="URLQuery trial config; default configs/urlquery-10.toml")
+    parser.add_argument("--parallel-all", action="store_true", help="Run every selected trial concurrently")
     parser.add_argument("--model", action="append",
                         help="Select model(s) from the planned matrix without rerunning other models")
     args = parser.parse_args()
-    directory, payload = plan(args.dataset, agents=args.agent, models=args.model, matrix_config=args.matrix_config)
+    directory, payload = plan(args.dataset, agents=args.agent, models=args.model,
+                              matrix_config=args.matrix_config, trial_config=args.config)
     print(json.dumps({"plan": str(directory / "plan.json"), "launch": args.launch}), flush=True)
     if args.launch:
-        launch(directory, payload)
+        launch(directory, payload, parallel_all=args.parallel_all)
 
 
 if __name__ == "__main__":
