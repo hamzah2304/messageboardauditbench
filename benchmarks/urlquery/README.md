@@ -55,9 +55,20 @@ configured separately. Rebuild with
 compound findings are split, overlapping ones merged, task and data-source
 findings grouped under F2, wording tightened and judge notes added where the
 review set a scoring rule. Only findings the frozen scans can support remain
-(`derivable: yes`), so v2 has 12 findings and 48 sub-findings. It keeps v1's
+(`derivable: yes`), yielding an initial 12 findings and 48 sub-findings. It keeps v1's
 schema and adds `revised_from` (the v1 IDs each finding came from), a
 `removed` list with the reason for each dropped v1 finding, and the
 `synthesis` tag. `claims/derive_findings_v2.py` records how v2 was derived
 from v1. Further revisions are made in the review artifact and exported over
 the file, so the script will not overwrite it without `--force`.
+
+The current v2 appends F13 (outgoing headers through scanner settings, four
+sub-findings) and F14 (Mapillary image comparison and canvas encoding, five
+sub-findings), for **14 findings and 57 sub-findings**. These entries use the
+existing `added` tag, carry supporting scan IDs and outcome limits, and leave
+`quotes` and `revised_from` empty because they are independent additions.
+Their `derivable: yes` judgments concern what the cited scan records support;
+the exact frozen input was unavailable during this review, so membership and
+field availability in `urlquery/2026-09-26-v1` still require verification before
+grading. No scan programs were executed or requests replayed. The derivation
+script records the original review and does not regenerate these additions.
