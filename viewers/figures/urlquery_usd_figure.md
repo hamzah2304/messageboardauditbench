@@ -8,6 +8,8 @@ The runtime cutoff is strictly more than 5 minutes for 10-minute runs and
 strictly more than 15 minutes for 30-minute runs. The data file records excluded
 runs and reasons. One Sonnet 5 report had only 194 words against a requested
 2,400-word minimum, so 47 of 48 graded reports enter the plotted results.
+Drag model names in the figure to adjust their placement; positions are saved
+in this browser. **Reset labels** restores the default layout.
 
 Rebuild after data or presentation changes:
 
