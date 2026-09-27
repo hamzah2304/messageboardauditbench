@@ -3,8 +3,24 @@
 This directory is separate from `benchmark/`, which belongs to the original
 MessageBoardAuditBench. Nothing here may be mounted into an investigation trial.
 
-The initial subscription runs are unscored. There are no approved findings,
-rubric sheets or human reference summary yet. Preserve the manual workflow:
+## Judge
+
+The canonical judge prompt is `judge/finding_sheet_v1.md`: one call per headline
+finding in `claims/findings_v1.json`, scoring each sub-finding 0–1 in quarter steps and
+the finding 0–1 on the six-anchor scale. `judge/render_sheet.py` fills it and computes
+which listed scans a report links. `judge/grade.py` runs it (default judge
+`claude-opus-5-5`, effort `xhigh`, synchronous API; a refusal or unparseable answer is
+recorded as unscored, never zero, and there is no fallback judge). Grades land in the
+gitignored `reports/urlquery/graded/judge_<model>/`, since they quote reports.
+
+    uv run python benchmarks/urlquery/judge/grade.py --batch runs/urlquery/<batch-dir>
+
+Validate grades by hand with `viewers/build_urlquery_audit_ui.py` (local page, or
+`--artifact PATH` for a shared, redacted claude.ai page whose audits save per auditor).
+
+## Building findings
+
+Preserve the manual workflow:
 
 1. Extract candidate findings from the inert Transluce article in
    `viewers/urlquery_findings.html` (generated with
