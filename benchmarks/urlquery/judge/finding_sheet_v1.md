@@ -36,7 +36,6 @@ Credit the finding however the report phrases it; the article's exact wording is
 - As confident as the item, or a light hedge (“likely”, “probably”) on an item stated plainly: no effect.
 - A heavy hedge on an item stated plainly, one that leaves the reader undecided (“may or may not”, “we cannot tell whether”): at most 0.5 for a sub-finding. On the main claim, it means the claim was not drawn.
 - Asserting as certain what the item hedges: at most 0.5. If the stronger claim is false, it is also a contradiction (below) and scores 0.
-- Transluce's reading is a reference, not the only defensible one. For a conclusion the records leave open, a report that is more cautious than the item, or argues for a different reading from the evidence it cites, is not marked down for that difference.
 
 **Scans.** A sub-finding needs a supporting scan linked where the report makes the claim for full credit. Linking one of the listed scans is the strongest support. Follow the scan note on whether another scan counts: for general claims, many scans of the same activity work equally well; for a single event, only a few do. Sub-findings with no listed scans need no link.
 
