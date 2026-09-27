@@ -35,6 +35,7 @@ from messageboard_audit_bench.native_telemetry import event_coverage, hook_cover
 from messageboard_audit_bench.provenance import host_provenance
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
+    count_words,
     describe_count,
     limits,
     measure,
@@ -373,7 +374,7 @@ def _minimum_runtime_continuation(
 
 def _overlong_revision(report: str, maximum: int) -> str | None:
     """Return the single native correction prompt, only above the hard target."""
-    count = len(report.split())
+    count = count_words(report)
     if not maximum or count <= maximum:
         return None
     return (
@@ -505,7 +506,7 @@ def inspect_native_agent(
             )
             if not seeded.success:
                 raise RuntimeError(f"could not seed {REPORT_PATH}: {seeded.stderr}")
-            state.metadata["seed_report_words"] = len(seed_report.split())
+            state.metadata["seed_report_words"] = count_words(seed_report)
         selected = inspect_agent(
             agent,
             claude_disallowed_tools=claude_disallowed_tools,

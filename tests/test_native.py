@@ -370,6 +370,12 @@ def test_native_solver_rejects_invalid_minimum_runtime_fraction(
         native.inspect_native_agent("claude", 60, min_runtime_fraction=fraction)
 
 
+def test_native_overlong_revision_excludes_inline_links() -> None:
+    report = "one [scan](https://urlquery.net/report/id) two"
+    assert native._overlong_revision(report, 2) is None
+    assert "report.md is 2 words" in native._overlong_revision(report, 1)
+
+
 @pytest.mark.asyncio
 async def test_native_solver_pings_one_overlong_report_and_resumes_same_agent(
     monkeypatch,
