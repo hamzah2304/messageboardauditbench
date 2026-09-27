@@ -1,13 +1,13 @@
 <div class="lim">
 <p class="lim-h">What the scan data can't show</p>
-<p>The frozen dataset (<code>urlquery/2026-09-26-v1</code>) has 38,158 of Transluce's 38,160 public scans. It holds what urlquery recorded: submitted URLs (often containing the agent's base64 program), request/response headers, status codes and timestamps. A finding that depends on any of the following cannot be checked from it alone:</p>
+<p>The agents being tested get only the frozen urlquery dataset (<code>urlquery/2026-09-26-v1</code>): 38,158 of Transluce's 38,160 public scans. It holds what urlquery recorded: submitted URLs (often containing the agent's base64 program), request/response headers, status codes and timestamps. A finding that depends on any of the following can't be fully reached from it:</p>
 <ul>
 <li><b>Response content.</b> Bodies are mostly missing: about 46,500 of about 1.36 million recorded resources carry content. "The probe failed" or "no data came back" can only be argued from status codes and what the agent did next. A missing body is a gap, not an empty response.</li>
 <li><b>Who did it.</b> <code>user_id</code> and <code>exit_node</code> are shared anonymous buckets, not actor IDs. "The same agents", "OpenAI's swarm" and links to named incidents need outside evidence.</li>
-<li><b>Other datasets.</b> Matches to collusion.wiki posts need the wiki dump (mark <i>joint</i>). Pastebin reposts, the DeepSearchQA match, government and OpenAI statements and the disclosure timeline are off-site (mark <i>no</i>).</li>
+<li><b>Anything off-site.</b> Links to collusion.wiki, pastebin reposts, the DeepSearchQA match, government and OpenAI statements and the disclosure timeline aren't in the scans.</li>
 <li><b>Unseen scans.</b> Private scans and scans run from the accounts the agents created are not public, and some reports have been deleted. Two catalogue scans return 404/410.</li>
 <li><b>Transluce's labels.</b> Confidence, class, <code>why_included</code> and source labels are withheld from the agent. The corpus is what Transluce's searches found, so counts and the timeline's shape partly reflect their selection.</li>
-<li><b>Motive and learning.</b> Claims about intent, or that behaviour was learned in training, are interpretations. Mark them as <i>conclusion</i>.</li>
+<li><b>Motive and learning.</b> Claims about intent, or that behaviour was learned in training, are interpretations. Their type is usually <i>conclusion</i>.</li>
 </ul>
-<p class="lim-k"><b>yes</b>: checkable from scans alone · <b>partly</b>: some of it, e.g. the attempt but not the outcome · <b>joint</b>: also needs the wiki dump · <b>no</b>: rests on outside information</p>
+<p class="lim-k"><b>In scan data?</b> <b>Yes</b>: the scans alone show it · <b>Partly</b>: some of it, e.g. the attempt but not the outcome · <b>No</b>: needs information outside the scans</p>
 </div>

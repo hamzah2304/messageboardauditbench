@@ -26,7 +26,7 @@ ROOT = HERE.parent
 SITE = "https://transluce.org"
 DEFAULT_ASSETS = ROOT / "data/transluce/site_assets"
 SCHEMA = "urlquery-findings-v2"
-DERIVABLE = {"yes", "partly", "joint", "no", None}
+DERIVABLE = {"yes", "partly", "no", None}
 KINDS = {"finding", "conclusion", "context"}
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}

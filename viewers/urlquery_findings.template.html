@@ -38,7 +38,12 @@ body{padding-right:440px!important}
 #fx .list{padding:4px 14px 40px;display:grid;gap:10px}
 .fx-item{background:var(--card);border:1px solid var(--line);border-left:4px solid #9aa3c7;border-radius:0 8px 8px 0;padding:8px 10px;display:grid;gap:5px}
 .fx-item.sub{border-left-width:3px;margin-left:16px;background:#fbfbfd}
-.fx-item.d-yes{border-left-color:#2e7d6b}.fx-item.d-partly{border-left-color:#c28a1e}.fx-item.d-joint{border-left-color:#6b5ba8}.fx-item.d-no{border-left-color:var(--bad)}
+.fx-item.d-yes{border-left-color:#2e7d6b}.fx-item.d-partly{border-left-color:#c28a1e}.fx-item.d-no{border-left-color:var(--bad)}
+.fx-item .tags{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:11.5px;color:var(--muted)}
+#fx .fx-item .tags select{width:100%;min-width:0}
+.fx-group{font:700 12px Inter,system-ui,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+#fx .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}#fx .seg button{border:none;border-radius:0;padding:3px 10px}#fx .seg button.on{background:var(--accent);color:#fff}
+.legend{display:grid;gap:3px;margin-top:4px;font-size:12px}.legend b{color:var(--ink)}
 .fx-item.target{box-shadow:0 0 0 2px var(--accent)}
 .fx-item.rejected{opacity:.55}
 .fx-item .top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
@@ -73,7 +78,7 @@ body{padding-right:440px!important}
 #fxsel button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
 #fxsel button:disabled{opacity:.45}
 #fxsel .hint{color:var(--muted);font-size:11.5px}
-::highlight(fx-yes){background:#cdefe2}::highlight(fx-partly){background:#fcebc0}::highlight(fx-joint){background:#e4defa}::highlight(fx-no){background:#f9d4d4}::highlight(fx-unset){background:#e3e7f5}::highlight(fx-act){background:#ffd76b}
+::highlight(fx-yes){background:#cdefe2}::highlight(fx-partly){background:#fcebc0}::highlight(fx-no){background:#f9d4d4}::highlight(fx-unset){background:#e3e7f5}::highlight(fx-act){background:#ffd76b}
 [hidden]{display:none!important}
 @media (max-width:900px){:root{--fx-vw:100vw}body{padding-right:0!important}#fx{position:static;width:auto;border-left:none;border-top:1px solid var(--line)}}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -90,6 +95,7 @@ __PAGE__
    <label class="btn" for="fx-import" id="fx-import-l" title="Load an export (adds findings not already here)">Import…</label><input type="file" id="fx-import" accept="application/json,.json" hidden>
    <input type="text" id="fx-author" placeholder="your name" aria-label="Your name" style="width:100px" hidden>
   </div>
+  <div class="row" id="fx-viewrow" hidden><span class="store">Show:</span><span class="seg" role="group" aria-label="Whose findings to show"><button type="button" id="fx-v-mine" class="on" aria-pressed="true">Mine</button><button type="button" id="fx-v-all" aria-pressed="false">Everyone's</button></span></div>
   <div class="store" id="fx-store" role="status"></div>
  </div>
  <details class="howto" id="fx-howto" open><summary>How this works</summary>
@@ -97,8 +103,13 @@ __PAGE__
    <li><b>Write a finding</b> below in your own words: one claim the report makes that a good investigation should also reach.</li>
    <li>Add <b>sub-findings</b> for the specific facts inside it, such as dates, counts, targets and techniques.</li>
    <li><b>Attach quotes.</b> Click a finding or sub-finding to make it the target. Then select the supporting text in the report and click <b>Attach quote</b>. One finding can have several quotes.</li>
-   <li>Set the <b>kind</b> and whether the <b>scan data can check it</b>. Hover <b>⚠ Data limits</b> to see what's missing.</li>
-   <li><b>Comment</b> by selecting text and clicking <b>Comment</b>, or with claude.ai's comment button. Comments stay separate from findings.</li>
+   <li>Tag each one with two dropdowns:
+    <div class="legend">
+     <div><b>Type</b> says what sort of claim it is. <b>Finding</b>: something the report observed. <b>Conclusion</b>: an inference the report draws from what it observed. <b>Context</b>: background that shouldn't be scored.</div>
+     <div><b>In scan data?</b> asks whether an AI agent given only the urlquery scans could reach it. <b>Yes</b>: the scans alone show it. <b>Partly</b>: some of it, e.g. the attempt is visible but not whether it worked. <b>No</b>: it needs outside information, such as news, statements or other sites. Hover <b>⚠ Data limits</b> for what's missing.</div>
+    </div></li>
+   <li><b>Your findings are private.</b> Other people can't see them, and you can't see theirs, so everyone extracts independently. The page owner can compare everyone's afterwards.</li>
+   <li><b>Comment</b> by selecting text and clicking <b>Comment</b>, or with claude.ai's comment button. Comments are visible to everyone with access, so don't put findings in them.</li>
   </ol>
  </details>
  <div class="new">
@@ -127,28 +138,38 @@ function nowISO(){return new Date().toISOString();}
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
 
-/* ---------- state: F{id:finding} and Q{id:quote}, from the shared db or this browser ---------- */
-var F={},Q={},MODE="local",CAN_WRITE=true,CAN_WRITE_KNOWN=false,DB=null,USER=null,ME=null,COMMENTS=null,DOWNLOADS=null,NAMES={},storeErr="";
+/* ---------- state ----------
+   Each person's findings and quotes live in their own private db subtree, data/users/<id>.
+   DATA[uid] = {F:{id:finding}, Q:{id:quote}}; F and Q point at the group being shown or rendered. */
+var DATA={},ME="local",MODE="local",CAN_WRITE=true,IS_OWNER=false,VIEW="mine",DB=null,USER=null,COMMENTS=null,DOWNLOADS=null,NAMES={},storeErr="",JOINED=false,SUBS={};
+var F={},Q={};
+function group(uid){return DATA[uid]||(DATA[uid]={F:{},Q:{}});}
+function useGroup(uid){var g=group(uid);F=g.F;Q=g.Q;}
 function loadLocal(){var s=null;try{s=JSON.parse(lsGet(LS)||"null");}catch(e){}
-  F={};Q={};if(s){F=s.findings||{};Q=s.quotes||{};}
-  SEED.findings.forEach(function(f){if(!F[f.id])F[f.id]=f;});SEED.quotes.forEach(function(q){if(!Q[q.id])Q[q.id]=q;});}
-function saveLocal(){storeErr=lsSet(LS,JSON.stringify({findings:F,quotes:Q}))?"":"Couldn't save in this browser. Export JSON now so you don't lose work.";renderStore();}
-function put(coll,doc){var m=coll==="findings"?F:Q;doc=JSON.parse(JSON.stringify(doc));m[doc.id]=doc;
-  if(MODE==="db"){DB.collection(coll).doc(doc.id).set(doc).then(function(){if(storeErr){storeErr="";renderStore();}},writeFail);}else saveLocal();
+  var g=group("local");if(s){g.F=s.findings||{};g.Q=s.quotes||{};}
+  SEED.findings.forEach(function(f){if(!g.F[f.id])g.F[f.id]=f;});SEED.quotes.forEach(function(q){if(!g.Q[q.id])g.Q[q.id]=q;});useGroup("local");}
+function saveLocal(){var g=group("local");storeErr=lsSet(LS,JSON.stringify({findings:g.F,quotes:g.Q}))?"":"Couldn't save in this browser. Export JSON now so you don't lose work.";renderStore();}
+function myColl(){return DB.collection("data/users/"+ME);}
+function put(coll,doc){var g=group(ME),m=coll==="findings"?g.F:g.Q;doc=JSON.parse(JSON.stringify(doc));m[doc.id]=doc;
+  if(MODE==="db"){
+    if(!JOINED){JOINED=true;DB.doc("participants/"+ME).set({joined:nowISO()}).catch(function(){JOINED=false;});}
+    myColl().doc(doc.id).set(Object.assign({type:coll==="findings"?"finding":"quote"},doc)).then(function(){if(storeErr){storeErr="";renderStore();}},writeFail);}
+  else saveLocal();
   render();}
-function del(coll,id){var m=coll==="findings"?F:Q;delete m[id];
-  if(MODE==="db"){DB.collection(coll).doc(id).delete().catch(writeFail);}else saveLocal();}
+function del(coll,id){var g=group(ME),m=coll==="findings"?g.F:g.Q;delete m[id];
+  if(MODE==="db"){myColl().doc(id).delete().catch(writeFail);}else saveLocal();}
 function writeFail(e){var c=e&&e.code;
-  if(c==="invalid_argument"&&!CAN_WRITE_KNOWN)CAN_WRITE=false;
-  storeErr=c==="quota_exceeded"?"The shared store is full. Delete rejected items, or ask the owner to archive old ones.":c==="invalid_argument"?"":"Couldn't save ("+(c||"error")+"). Try again in a moment.";
+  if(c==="invalid_argument")CAN_WRITE=false;
+  storeErr=c==="quota_exceeded"?"Storage for this page is full. Delete rejected findings, or ask the owner to archive old ones.":c==="invalid_argument"?"":"Couldn't save ("+(c||"error")+"). Try again in a moment.";
   renderStore();render();}
-function author(){if(MODE==="db")return ME||"unknown";var a=($("fx-author").value||"").trim().slice(0,60)||"me";lsSet(LS+"_author",a);return a;}
-function authorName(a){if(MODE==="db")return (NAMES[a]&&NAMES[a].name)||"Someone";return a||"me";}
+function author(){if(MODE==="db")return ME;var a=($("fx-author").value||"").trim().slice(0,60)||"me";lsSet(LS+"_author",a);return a;}
+function authorName(a){if(MODE==="db")return a===ME?"you":((NAMES[a]&&NAMES[a].name)||"Someone");return a||"me";}
+function editable(){return CAN_WRITE&&VIEW==="mine";}
 function renderStore(){var el=$("fx-store");
   if(storeErr){el.className="store err";el.textContent=storeErr;return;}
-  if(!CAN_WRITE){el.className="store ro";el.textContent="View only: you can read and comment. To add findings, ask the owner for Contributor or Editor access.";return;}
+  if(!CAN_WRITE){el.className="store ro";el.textContent=MODE==="db"&&!ME?"Sign in to claude.ai to add findings. You can still read and comment.":"View only: you can read and comment. To add findings, ask the owner for Editor access.";return;}
   el.className="store";
-  el.textContent=MODE==="db"?"Shared: everyone with access sees changes live, and Claude can read them.":MODE==="connecting"?"Connecting to shared storage…":"Local copy: saved in this browser only. Export JSON to share.";}
+  el.textContent=MODE==="db"?(VIEW==="all"?"Showing everyone's findings, read-only. Switch to Mine to edit yours.":"Private: only you can see your findings"+(IS_OWNER?". Switch to Everyone's to compare.":", plus the page owner when comparing.")):MODE==="connecting"?"Connecting…":"Local copy: saved in this browser only. Export JSON to share.";}
 
 /* ---------- text offsets over the article ---------- */
 var nodes=[],starts=[],FULL="";
@@ -173,8 +194,8 @@ function labels(){var L={};tops().forEach(function(f,i){L[f.id]="F"+(i+1);kids(f
 
 /* ---------- highlights ---------- */
 var HL=(typeof Highlight!=="undefined"&&window.CSS&&CSS.highlights);
-function paint(){if(!HL)return;var sets={};["yes","partly","joint","no","unset"].forEach(function(k){sets[k]=new Highlight();CSS.highlights.set("fx-"+k,sets[k]);});
-  vals(Q).forEach(function(q){var f=F[q.finding];if(!f||f.status==="rejected")return;var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(r)sets[f.derivable||"unset"].add(r);});}
+function paint(){if(!HL)return;var sets={};["yes","partly","no","unset"].forEach(function(k){sets[k]=new Highlight();CSS.highlights.set("fx-"+k,sets[k]);});
+  shownGroups().forEach(function(u){var g=group(u);vals(g.Q).forEach(function(q){var f=g.F[q.finding];if(!f||f.status==="rejected")return;var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(r)sets[f.derivable==="joint"?"unset":(f.derivable||"unset")].add(r);});});}
 function flash(q){var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(!r)return;
   for(var d=r.startContainer.parentElement;d;d=d.parentElement){if(d.tagName==="DETAILS")d.open=true;}
   var el=r.startContainer.parentElement;if(el)el.scrollIntoView({block:"center",behavior:"smooth"});
@@ -182,45 +203,55 @@ function flash(q){var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(!r
 
 /* ---------- sidebar ---------- */
 var TARGET=null,EDIT=null,DRAFT={},ARM=null,filter="all";
-var DL={yes:"checkable",partly:"partly",joint:"joint (+wiki)",no:"not checkable",unset:"checkable?"};
-var KL={finding:"finding",conclusion:"conclusion",context:"context"};
-function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=qs.filter(function(q){return !anchorOf(q);}).length,ro=CAN_WRITE?"":" disabled";
+var DL={unset:"Not decided yet",yes:"Yes: the scans alone show it",partly:"Partly: e.g. the attempt, not the outcome",no:"No: needs outside information"};
+var DS={unset:"undecided",yes:"yes",partly:"partly",no:"no"};
+var KL={finding:"Finding: observed in the report",conclusion:"Conclusion: an inference the report draws",context:"Context: background, not scored"};
+function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=qs.filter(function(q){return !anchorOf(q);}).length,mine=editable(f),ro=mine?"":" disabled";
   var h='<div class="fx-item d-'+d+(isSub?" sub":"")+(TARGET===f.id?" target":"")+(f.status==="rejected"?" rejected":"")+'" data-id="'+esc(f.id)+'" tabindex="0">'
    +'<div class="top"><span class="fid" data-act="target" title="Make this the quote target">'+L[f.id]+'</span>'
-   +'<select data-act="derivable" aria-label="Checkable from the scan data"'+ro+'>'+["unset","yes","partly","joint","no"].map(function(k){return '<option value="'+k+'"'+(d===k?" selected":"")+'>'+DL[k]+'</option>';}).join("")+'</select>'
-   +'<select data-act="kind" aria-label="Kind"'+ro+'>'+["finding","conclusion","context"].map(function(k){return '<option value="'+k+'"'+((f.kind||"finding")===k?" selected":"")+'>'+KL[k]+'</option>';}).join("")+'</select>'
    +(f.status==="rejected"?'<span class="bdg">rejected</span>':'')
    +(lost?'<span class="bdg lost" title="Quoted text no longer found in this article version">'+lost+' unanchored</span>':'')
-   +'<span class="who">'+esc(authorName(f.author))+'</span></div>';
+   +'<span class="who">'+esc(authorName(f.author))+'</span></div>'
+   +'<div class="tags"><label for="k-'+esc(f.id)+'" title="What sort of claim this is">Type</label><select id="k-'+esc(f.id)+'" data-act="kind"'+ro+'>'+["finding","conclusion","context"].map(function(k){return '<option value="'+k+'"'+((f.kind||"finding")===k?" selected":"")+'>'+KL[k]+'</option>';}).join("")+'</select>'
+   +'<label for="d-'+esc(f.id)+'" title="Could an agent given only the urlquery scans reach this?">In scan data?</label><select id="d-'+esc(f.id)+'" data-act="derivable"'+ro+'>'+["unset","yes","partly","no"].map(function(k){return '<option value="'+k+'"'+(d===k?" selected":"")+'>'+DL[k]+'</option>';}).join("")+'</select></div>';
   if(EDIT===f.id){var dv=DRAFT[f.id]||{text:f.text,note:f.note||""};
     h+='<textarea data-act="edit-text" rows="3" aria-label="Finding text" placeholder="'+(isSub?"A specific fact: date, count, target or technique":"The finding, in your own words")+'">'+esc(dv.text)+'</textarea><textarea data-act="edit-note" rows="2" placeholder="Note (optional): doubts, record IDs, what is missing" aria-label="Note">'+esc(dv.note)+'</textarea>'
       +'<div class="acts"><button type="button" class="pri" data-act="save">Save</button><button type="button" data-act="cancel">Cancel</button></div>';}
   else{h+='<div class="txt'+(f.text?"":" empty")+'" data-act="target">'+esc(f.text||"(empty: click Edit)")+'</div>'+(f.note?'<div class="note">'+esc(f.note)+'</div>':'');}
-  if(TARGET===f.id&&CAN_WRITE)h+='<div class="tgt">Quote target: select text in the report, then click Attach quote.</div>';
-  h+=qs.map(function(q){var a=anchorOf(q);return '<div class="fx-q'+(a?"":" lost")+'"><span class="qt" data-q="'+esc(q.id)+'" title="Show in report">“'+esc(String(q.quote||"").slice(0,300))+'”</span>'+(CAN_WRITE?'<button type="button" class="x" data-act="unquote" data-q="'+esc(q.id)+'" aria-label="Remove quote">×</button>':'')+'</div>';}).join("");
-  if(CAN_WRITE&&EDIT!==f.id){h+='<div class="acts">'+(isSub?'':'<button type="button" data-act="sub">＋ Sub-finding</button>')+'<button type="button" data-act="edit">Edit</button>'
+  if(TARGET===f.id&&mine)h+='<div class="tgt">Quote target: select text in the report, then click Attach quote.</div>';
+  h+=qs.map(function(q){var a=anchorOf(q);return '<div class="fx-q'+(a?"":" lost")+'"><span class="qt" data-q="'+esc(q.id)+'" title="Show in report">“'+esc(String(q.quote||"").slice(0,300))+'”</span>'+(mine?'<button type="button" class="x" data-act="unquote" data-q="'+esc(q.id)+'" aria-label="Remove quote">×</button>':'')+'</div>';}).join("");
+  if(mine&&EDIT!==f.id){h+='<div class="acts">'+(isSub?'':'<button type="button" data-act="sub">＋ Sub-finding</button>')+'<button type="button" data-act="edit">Edit</button>'
      +'<button type="button" data-act="reject">'+(f.status==="rejected"?"Restore":"Reject")+'</button>'
      +'<button type="button" class="danger" data-act="delete">'+(ARM===f.id?"Click again to delete":"Delete")+'</button></div>';}
   return h+'</div>';}
+function shownGroups(){if(VIEW!=="all")return [ME];return Object.keys(DATA).filter(function(u){return u===ME||Object.keys(DATA[u].F).length;}).sort(function(a,b){return a===ME?-1:b===ME?1:0;});}
+function findQuote(id){for(var u in DATA){if(DATA[u].Q[id])return DATA[u].Q[id];}return null;}
 function visible(f){if(filter==="all")return true;var m=function(x){return (x.derivable||"unset")===filter;};return m(f)||kids(f.id).some(m);}
 function render(){
-  var L=labels(),all=vals(F).length,nq=vals(Q).length;
-  $("fx-count").textContent=all+" finding"+(all===1?"":"s")+" · "+nq+" quote"+(nq===1?"":"s");
-  var counts={all:all};vals(F).forEach(function(f){var d=f.derivable||"unset";counts[d]=(counts[d]||0)+1;});
-  $("fx-filt").innerHTML=["all","yes","partly","joint","no","unset"].filter(function(k){return k==="all"||counts[k];}).map(function(k){
-    return '<label><input type="radio" name="fxf" value="'+k+'"'+(filter===k?" checked":"")+'> '+(k==="all"?"all":DL[k])+' ('+counts[k]+')</label>';}).join("");
+  var groups=shownGroups(),all=0,nq=0,counts={};
+  groups.forEach(function(u){useGroup(u);all+=vals(F).length;nq+=vals(Q).length;vals(F).forEach(function(f){var d=f.derivable||"unset";counts[d]=(counts[d]||0)+1;});});
+  counts.all=all;
+  $("fx-count").textContent=all+" finding"+(all===1?"":"s")+" · "+nq+" quote"+(nq===1?"":"s")+(VIEW==="all"?" · "+groups.length+" people":"");
+  $("fx-filt").innerHTML=["all","yes","partly","no","unset"].filter(function(k){return k==="all"||counts[k];}).map(function(k){
+    return '<label><input type="radio" name="fxf" value="'+k+'"'+(filter===k?" checked":"")+'> '+(k==="all"?"all":"in data: "+DS[k])+' ('+counts[k]+')</label>';}).join("");
   var ae=document.activeElement,focused=ae&&ae.closest&&ae.closest("#fx-list")&&ae.tagName==="TEXTAREA"?ae.getAttribute("data-act"):null;
-  $("fx-list").innerHTML=tops().filter(visible).map(function(f){return itemHTML(f,L,false)+kids(f.id).map(function(k){return itemHTML(k,L,true);}).join("");}).join("")
-    ||'<p style="color:var(--muted);margin:6px 0">No findings yet. Write the first one above.</p>';
+  $("fx-list").innerHTML=groups.map(function(u){useGroup(u);var L=labels();
+      var body=tops().filter(visible).map(function(f){return itemHTML(f,L,false)+kids(f.id).map(function(k){return itemHTML(k,L,true);}).join("");}).join("");
+      return (VIEW==="all"?'<div class="fx-group">'+esc(authorName(u))+' · '+vals(F).length+'</div>'+(body||'<p style="color:var(--muted);margin:0">Nothing yet.</p>'):body);}).join("")
+    ||'<p style="color:var(--muted);margin:6px 0">'+(VIEW==="all"?"Nobody has added findings yet.":"No findings yet. Write the first one above.")+'</p>';
+  useGroup(ME);
   if(EDIT){var ta=document.querySelector('.fx-item[data-id="'+CSS.escape(EDIT)+'"] textarea[data-act="'+(focused||"edit-text")+'"]');
     if(ta&&(focused||EDIT!==render.lastFocus)){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);render.lastFocus=EDIT;}}
-  $("fx-add").disabled=!CAN_WRITE;$("fx-new").disabled=!CAN_WRITE;$("fx-import-l").hidden=!CAN_WRITE;
+  $("fx-add").disabled=!editable();$("fx-new").disabled=!editable();$("fx-import-l").hidden=!editable();
+  $("fx-viewrow").hidden=!(MODE==="db"&&IS_OWNER);$("fx-v-mine").classList.toggle("on",VIEW==="mine");$("fx-v-all").classList.toggle("on",VIEW==="all");
+  $("fx-v-mine").setAttribute("aria-pressed",VIEW==="mine");$("fx-v-all").setAttribute("aria-pressed",VIEW==="all");
   paint();
 }
 $("fx-filt").addEventListener("change",function(ev){if(ev.target.name==="fxf"){filter=ev.target.value;render();}});
 function setTarget(id){TARGET=(TARGET===id?null:id);render();}
-$("fx-list").addEventListener("click",function(ev){var item=ev.target.closest(".fx-item");if(!item)return;var f=F[item.dataset.id];if(!f)return;
-  var qEl=ev.target.closest(".qt");if(qEl){flash(Q[qEl.dataset.q]);return;}
+$("fx-list").addEventListener("click",function(ev){var item=ev.target.closest(".fx-item");if(!item)return;
+  var qEl=ev.target.closest(".qt");if(qEl){flash(findQuote(qEl.dataset.q));return;}
+  var f=F[item.dataset.id];if(!f||!editable())return;
   var a=ev.target.closest("[data-act]"),act=a&&a.dataset.act;
   if(act==="target"){setTarget(f.id);return;}
   if(act==="edit"){EDIT=f.id;DRAFT[f.id]={text:f.text,note:f.note||""};render();return;}
@@ -235,13 +266,13 @@ $("fx-list").addEventListener("click",function(ev){var item=ev.target.closest(".
 });
 $("fx-list").addEventListener("input",function(ev){var item=ev.target.closest(".fx-item"),act=ev.target.dataset.act;if(!item||!act)return;var d=DRAFT[item.dataset.id]||(DRAFT[item.dataset.id]={text:"",note:""});
   if(act==="edit-text")d.text=ev.target.value;if(act==="edit-note")d.note=ev.target.value;});
-$("fx-list").addEventListener("change",function(ev){var item=ev.target.closest(".fx-item"),act=ev.target.dataset.act;if(!item||!F[item.dataset.id])return;var f=F[item.dataset.id];
+$("fx-list").addEventListener("change",function(ev){var item=ev.target.closest(".fx-item"),act=ev.target.dataset.act;if(!item||!F[item.dataset.id]||!editable())return;var f=F[item.dataset.id];
   if(act==="derivable")put("findings",Object.assign({},f,{derivable:ev.target.value==="unset"?null:ev.target.value,updated:nowISO()}));
   if(act==="kind")put("findings",Object.assign({},f,{kind:ev.target.value,updated:nowISO()}));});
 $("fx-list").addEventListener("keydown",function(ev){var item=ev.target.closest(".fx-item");if(!item)return;
   if(ev.target.tagName==="TEXTAREA"){if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();item.querySelector('[data-act="save"]').click();}if(ev.key==="Escape"){item.querySelector('[data-act="cancel"]').click();}return;}
-  if(ev.target===item&&ev.key==="Enter")setTarget(item.dataset.id);});
-function addFinding(){var t=$("fx-new").value.trim();if(!t||!CAN_WRITE)return;var f={id:uid("f"),parent:null,text:t,note:"",kind:"finding",derivable:null,status:"draft",author:author(),created:nowISO(),updated:nowISO()};
+  if(ev.target===item&&ev.key==="Enter"&&editable())setTarget(item.dataset.id);});
+function addFinding(){var t=$("fx-new").value.trim();if(!t||!editable())return;var f={id:uid("f"),parent:null,text:t,note:"",kind:"finding",derivable:null,status:"draft",author:author(),created:nowISO(),updated:nowISO()};
   $("fx-new").value="";TARGET=f.id;put("findings",f);}
 $("fx-add").onclick=addFinding;
 $("fx-new").addEventListener("keydown",function(ev){if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();addFinding();}});
@@ -255,16 +286,16 @@ function currentSel(){var s=window.getSelection();if(!s||s.isCollapsed||!s.range
 function showBar(){SEL=currentSel();if(!SEL){bar.hidden=true;return;}
   var L=labels(),opts=[];tops().forEach(function(f){opts.push([f.id,L[f.id]+" · "+(f.text||"(empty)").slice(0,60)]);kids(f.id).forEach(function(k){opts.push([k.id,"   "+L[k.id]+" · "+(k.text||"(empty)").slice(0,56)]);});});
   $("fxsel-target").innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(o[0]===TARGET?" selected":"")+'>'+esc(o[1])+'</option>';}).join("");
-  $("fxsel-target").hidden=!opts.length||!CAN_WRITE;$("fxsel-quote").hidden=!CAN_WRITE;$("fxsel-quote").disabled=!opts.length;
-  $("fxsel-hint").textContent=!CAN_WRITE?"":opts.length?"Attach this passage as a quote to:":"Write a finding in the sidebar first, then attach quotes to it.";
-  $("fxsel-hint").hidden=!CAN_WRITE;$("fxsel-comment").hidden=!COMMENTS;
-  if(!CAN_WRITE&&!COMMENTS){bar.hidden=true;return;}
+  var w8=editable();$("fxsel-target").hidden=!opts.length||!w8;$("fxsel-quote").hidden=!w8;$("fxsel-quote").disabled=!opts.length;
+  $("fxsel-hint").textContent=!w8?"":opts.length?"Attach this passage as a quote to:":"Write a finding in the sidebar first, then attach quotes to it.";
+  $("fxsel-hint").hidden=!w8;$("fxsel-comment").hidden=!COMMENTS;
+  if(!w8&&!COMMENTS){bar.hidden=true;return;}
   var w=320,x=Math.min(SEL.rect.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-w-16);
   bar.style.left=Math.max(8,x)+"px";bar.style.top=(SEL.rect.bottom+window.scrollY+8)+"px";bar.hidden=false;}
 document.addEventListener("mouseup",function(ev){if(ev.target.closest&&(ev.target.closest("#fx")||ev.target.closest("#fxsel")))return;setTimeout(showBar,10);});
 document.addEventListener("keyup",function(ev){if(ev.shiftKey&&!(ev.target.closest&&ev.target.closest("#fx")))setTimeout(showBar,10);});
 document.addEventListener("mousedown",function(ev){if(!bar.contains(ev.target))bar.hidden=true;});
-$("fxsel-quote").onclick=function(){if(!SEL||!CAN_WRITE)return;var fid=$("fxsel-target").value;if(!fid||!F[fid])return;
+$("fxsel-quote").onclick=function(){if(!SEL||!editable())return;var fid=$("fxsel-target").value;if(!fid||!F[fid])return;
   TARGET=fid;put("quotes",{id:uid("q"),finding:fid,s:SEL.s,e:SEL.e,raw:SEL.raw,quote:SEL.quote,section:sectionAt(SEL.s),author:author(),created:nowISO()});
   window.getSelection().removeAllRanges();bar.hidden=true;
   var c=document.querySelector('.fx-item[data-id="'+CSS.escape(fid)+'"]');if(c)c.scrollIntoView({block:"nearest",behavior:"smooth"});};
@@ -275,8 +306,8 @@ document.addEventListener("keydown",function(ev){if(ev.key==="Escape")bar.hidden
 ROOT.addEventListener("click",function(ev){if(!window.getSelection().isCollapsed)return;var off=-1;
   if(document.caretRangeFromPoint){var cr=document.caretRangeFromPoint(ev.clientX,ev.clientY);if(cr)off=offOf(cr.startContainer,cr.startOffset);}
   else if(document.caretPositionFromPoint){var cp=document.caretPositionFromPoint(ev.clientX,ev.clientY);if(cp)off=offOf(cp.offsetNode,cp.offset);}
-  if(off<0)return;var hit=null,best=1e18;vals(Q).forEach(function(q){var a=anchorOf(q);if(a&&off>=a[0]&&off<=a[1]&&a[1]-a[0]<best){best=a[1]-a[0];hit=q;}});
-  if(hit&&F[hit.finding]){TARGET=hit.finding;render();var c=document.querySelector('.fx-item[data-id="'+CSS.escape(hit.finding)+'"]');if(c)c.scrollIntoView({block:"center",behavior:"smooth"});}});
+  if(off<0)return;var hit=null,best=1e18;shownGroups().forEach(function(u){vals(group(u).Q).forEach(function(q){var a=anchorOf(q);if(a&&off>=a[0]&&off<=a[1]&&a[1]-a[0]<best){best=a[1]-a[0];hit=q;}});});
+  if(hit){if(F[hit.finding])TARGET=hit.finding;render();var c=document.querySelector('.fx-item[data-id="'+CSS.escape(hit.finding)+'"]');if(c)c.scrollIntoView({block:"center",behavior:"smooth"});}});
 // The article's ⓘ URL notes: click pins them open (the site's own script is not loaded).
 [].forEach.call(ROOT.querySelectorAll(".report-url-note-trigger"),function(b){b.addEventListener("click",function(ev){ev.preventDefault();var n=b.closest(".report-url-note");var on=!n.classList.contains("show-note");n.classList.toggle("show-note",on);b.setAttribute("aria-expanded",on);});});
 
@@ -285,7 +316,7 @@ function exportObj(){var L=labels();
   function one(f){var qs=quotesOf(f.id);return {id:f.id,label:L[f.id],parent:f.parent||null,text:f.text,kind:f.kind||"finding",derivable:f.derivable||null,status:f.status||"draft",note:f.note||"",
     author:f.author,created:f.created,updated:f.updated,report_quote:qs.map(function(q){return q.quote;}).join(" … "),
     quotes:qs.map(function(q){var a=anchorOf(q);return {id:q.id,quote:q.quote,raw:q.raw,s:a?a[0]:-1,e:a?a[1]:-1,section:q.section||"",author:q.author,created:q.created};})};}
-  var out=[];tops().forEach(function(f){out.push(one(f));kids(f.id).forEach(function(k){out.push(one(k));});});
+  var out=[];shownGroups().forEach(function(u){useGroup(u);L=labels();tops().forEach(function(f){out.push(one(f));kids(f.id).forEach(function(k){out.push(one(k));});});});useGroup(ME);
   return {schema:SCHEMA,benchmark_id:SCOPE.benchmark_id,report_sha256:SCOPE.report_sha256,article_sha256:SCOPE.article_sha256,saved_at:nowISO(),n_findings:out.length,findings:out};}
 function flash1(btn,t){var o=btn.textContent;btn.textContent=t;setTimeout(function(){btn.textContent=o;},1600);}
 $("fx-export").onclick=function(){var btn=this,name="urlquery_findings_"+SCOPE.article_sha256.slice(0,12)+"_"+nowISO().slice(0,16).replace(/[:T-]/g,"")+".json",data=JSON.stringify(exportObj(),null,1);
@@ -304,21 +335,28 @@ $("fx-import").onchange=function(){var file=this.files[0],lab=$("fx-import-l");t
 /* ---------- boot: render at once, switch to the shared store when the viewer grants it ---------- */
 if(lsGet(LS+"_howto")==="closed")$("fx-howto").open=false;
 $("fx-howto").addEventListener("toggle",function(){lsSet(LS+"_howto",this.open?"open":"closed");});
-function resolveNames(){if(!USER)return;var ids={};vals(F).forEach(function(f){if(f.author)ids[f.author]=1;});
-  USER.profiles(Object.keys(ids)).then(function(ps){var changed=false;Object.keys(ps).forEach(function(i){if(!NAMES[i]||NAMES[i].name!==ps[i].name){NAMES[i]=ps[i];changed=true;}});if(changed)render();});}
-function startLocal(){MODE="local";$("fx-author").hidden=false;$("fx-author").value=lsGet(LS+"_author")||"";loadLocal();renderStore();render();}
+function resolveNames(){if(!USER)return;var ids={};Object.keys(DATA).forEach(function(u){if(u!=="local")ids[u]=1;});
+  var list=Object.keys(ids);if(!list.length)return;
+  USER.profiles(list).then(function(ps){var changed=false;Object.keys(ps).forEach(function(i){if(!NAMES[i]||NAMES[i].name!==ps[i].name){NAMES[i]=ps[i];changed=true;}});if(changed)render();});}
+function watchUser(uid){if(SUBS[uid])return;
+  SUBS[uid]=DB.collection("data/users/"+uid).onSnapshot(function(snap){var g={F:{},Q:{}};snap.docs.forEach(function(d){var x=d.data();if(x.type==="quote")g.Q[d.id]=x;else if(x.type==="finding")g.F[d.id]=x;});
+      DATA[uid]=g;if(uid===ME){useGroup(ME);if(EDIT&&!F[EDIT])EDIT=null;if(snap.docs.length)JOINED=true;}render();resolveNames();},
+    function(e){if(uid===ME){storeErr="Lost the connection to storage ("+(e&&e.code)+"). Reload the page.";renderStore();}});}
+var PSUB=null;
+function setView(v){VIEW=v;TARGET=null;EDIT=null;
+  if(v==="all"&&!PSUB){PSUB=DB.collection("participants").onSnapshot(function(snap){snap.docs.forEach(function(d){watchUser(d.id);});},function(){});}
+  renderStore();render();}
+$("fx-v-mine").onclick=function(){setView("mine");};$("fx-v-all").onclick=function(){setView("all");};
+function startLocal(){MODE="local";ME="local";$("fx-author").hidden=false;$("fx-author").value=lsGet(LS+"_author")||"";loadLocal();renderStore();render();}
 if(window.claude&&typeof window.claude.use==="function"){
   MODE="connecting";renderStore();render();
   Promise.all(["db","user","comments","downloads"].map(function(n){return claude.use(n).catch(function(){return null;});})).then(function(r){
     DB=r[0];USER=r[1];COMMENTS=r[2];DOWNLOADS=r[3];
     if(!DB){startLocal();return;}
-    MODE="db";F={};Q={};
-    (USER?Promise.all([USER.id(),USER.can("data.write")]):Promise.resolve([null,null])).then(function(v){ME=v[0];
-      if(v[1]===false){CAN_WRITE=false;CAN_WRITE_KNOWN=true;}else if(v[1]===true)CAN_WRITE_KNOWN=true;renderStore();render();});
-    ["findings","quotes"].forEach(function(coll){DB.collection(coll).onSnapshot(function(snap){var m={};snap.docs.forEach(function(d){m[d.id]=d.data();});
-      if(coll==="findings")F=m;else Q=m;if(EDIT&&!F[EDIT])EDIT=null;render();resolveNames();},
-      function(e){storeErr="Lost the live connection ("+(e&&e.code)+"). Reload the page.";renderStore();});});
-    renderStore();
+    MODE="db";
+    (USER?Promise.all([USER.id(),USER.isOwner()]):Promise.resolve([null,false])).then(function(v){
+      ME=v[0]||"anon";IS_OWNER=!!v[1];if(!v[0])CAN_WRITE=false;useGroup(ME);
+      if(v[0])watchUser(ME);renderStore();render();});
   });
 }else startLocal();
 })();
