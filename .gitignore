@@ -30,8 +30,11 @@ data/verbatim_anthropic/*
 # --- raw agent transcripts (multi-MB, not needed to reproduce grades) ---
 baselines/*/transcript.jsonl
 reports/**/transcript.jsonl
-# URLQuery reports can quote recorded secrets; publication requires a separate review.
-/reports/urlquery
+# Raw URLQuery exports can quote recorded secrets. Only reviewed publication copies are tracked.
+/reports/urlquery/*
+!/reports/urlquery/published/
+/reports/urlquery/published/*
+!/reports/urlquery/published/*.md
 
 # --- generated viewers: rebuild with viewers/build_*.py ---
 viewers/*.html

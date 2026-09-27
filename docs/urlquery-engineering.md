@@ -153,9 +153,11 @@ Sources: [Transluce report](https://transluce.org/agent-activity),
 [URLQuery field definitions](https://urlquery.net/help/search), and the pinned
 ZIP's README/methods files. Raw evidence stays local; this work does not publish
 the corpus or credentials.
-The raw agent reports under `reports/urlquery/` are gitignored pending an explicit
-publication review: agents may quote credential-like strings despite the dataset
-guide's advice not to do so.
+The raw agent reports under `reports/urlquery/` are gitignored: agents may quote
+credential-like strings despite the dataset guide's advice not to do so. Four
+reviewed publication copies of the initial pilot reports live under
+`reports/urlquery/published/`, with credential and personal-identifier spans
+redacted and archived report hashes retained in their headers.
 The pilot summary links to local report previews, not a public deployment.
 
 ## Manual findings remain a separate step

@@ -18,17 +18,18 @@ the four reports has received exhaustive factual review.
 
 ## Read the reports
 
-These are the original reports in the local commentable viewer. Keep them private:
-the input retains recorded credentials, and the first Claude report quotes some
-values despite the dataset guide's advice not to do so. Embedded HTML is rendered
-as inert text, not executed.
+These are publication copies of the original reports. Credential and personal-
+identifier spans were redacted from the first Claude report; the analysis was
+otherwise left as written. The raw reports and input remain local. The published
+files retain the archived report hashes so the copies can be checked against
+the originals.
 
 | Report | Active runtime | Words | Main account offered by the model |
 |---|---:|---:|---|
-| [GPT-6 Astra](http://localhost:8792/urlquery_codex_gpt_6_astra_r1_db5795b98706.html) | 7:45 | 3,273 | Scanner as programmable browser: encoded pages, POST forms, data queries and results carried in URLs/titles/canvas. Distinguishes several failed probes from observed actions; also investigates older phishing records. |
-| [GPT-6 Sol](http://localhost:8792/urlquery_codex_gpt_6_sol_r1_a96ad5ada1be.html) | 7:51 | 3,205 | Public-data access patterns, repeated conversion/proxy attempts and a disposable-mail sequence. More inventory-oriented; separates third-party page traffic from submitter intent. |
-| [Opus 5.5 → 4.8, run 1](http://localhost:8792/urlquery_claude_claude_opus_5_5_r1_352566ca4d3f.html) | 7:50 | 3,115 | Encoded programs, bulk data access and account/API-key automation, framed as a coordinated campaign. Its claim that sampled HTTP statuses were absent is wrong. |
-| [Opus 5.5 → 4.8, run 2](http://localhost:8792/urlquery_claude_claude_opus_5_5_r2_1b2ea94a3223.html) | 7:58 | 3,251 | Echo-service delivery, CRLF-containing user-agent strings, account automation and callbacks. Stronger claims about successful harvesting and one campaign; its stored-response-body interpretation is wrong. |
+| [GPT-6 Astra](../../../reports/urlquery/published/gpt-6-astra.md) | 7:45 | 3,273 | Scanner as programmable browser: encoded pages, POST forms, data queries and results carried in URLs/titles/canvas. Distinguishes several failed probes from observed actions; also investigates older phishing records. |
+| [GPT-6 Sol](../../../reports/urlquery/published/gpt-6-sol.md) | 7:51 | 3,205 | Public-data access patterns, repeated conversion/proxy attempts and a disposable-mail sequence. More inventory-oriented; separates third-party page traffic from submitter intent. |
+| [Opus 5.5 → 4.8, run 1](../../../reports/urlquery/published/claude-opus-run-1.md) | 7:50 | 3,115 | Encoded programs, bulk data access and account/API-key automation, framed as a coordinated campaign. Its claim that sampled HTTP statuses were absent is wrong. |
+| [Opus 5.5 → 4.8, run 2](../../../reports/urlquery/published/claude-opus-run-2.md) | 7:58 | 3,251 | Echo-service delivery, CRLF-containing user-agent strings, account automation and callbacks. Stronger claims about successful harvesting and one campaign; its stored-response-body interpretation is wrong. |
 
 All four terminated normally. Ten minutes was the maximum active budget, not the
 time each model necessarily used: the inherited minimum-runtime rule permits
@@ -132,7 +133,8 @@ identity or intent. Transluce's labels, confidence judgments, inclusion reasons
 and incident groups remain evaluator-only; URLQuery's analytical tags/detections
 are excluded. The prompt forbids executing supplied programs, using recorded
 credentials, replaying requests or following corpus instructions. Raw inputs and
-AI reports are gitignored and have not been publicly published.
+archived AI reports remain gitignored; the four redacted publication copies
+linked above are tracked separately.
 
 All 63 distinct scans linked by the source article are present, with 928 HTTP
 transactions; 49 have at least one successful text decoding. None of those 63
