@@ -9,7 +9,7 @@
   .panel{background:#fff;border:1px solid var(--line);border-radius:5px;padding:16px 12px 8px;overflow-x:auto}
   svg{display:block;min-width:720px;width:100%;height:auto}svg text{font:11px system-ui,sans-serif;fill:var(--muted)}
   .axis{stroke:var(--line)}.grid{stroke:var(--grid)}.link{fill:none;stroke-width:1.5;stroke-dasharray:4 3}
-  .dot{stroke-width:1.8;cursor:default}.dot.small{stroke-width:1}.tick{font-variant-numeric:tabular-nums}
+  .dot{stroke-width:1.8;cursor:default}.tick{font-variant-numeric:tabular-nums}
   .key{display:flex;gap:15px;flex-wrap:wrap;margin:10px 3px 0;color:var(--muted);font-size:12px}
   .key span:before{content:"";display:inline-block;width:9px;height:9px;border:2px solid currentColor;border-radius:50%;margin-right:6px}
   table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
@@ -21,8 +21,8 @@
 <h1>URLQuery: performance against cost</h1>
 <p id="summary"></p>
 <div class="panel"><svg id="chart" viewBox="0 0 990 590" role="img" aria-label="URLQuery performance against USD cost per run"></svg>
-<div class="key"><span>10 min: hollow</span><span>30 min: filled</span><span>Small dots: individual runs</span></div></div>
-<h2>Model costs and pending scores</h2><div class="tablewrap"><table><thead><tr><th>Model</th><th>10 min cost, mean</th><th>10 min score</th><th>30 min cost, mean</th><th>30 min score</th><th>Reports</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="key"><span>10 min: hollow</span><span>30 min: filled</span></div></div>
+<h2>Model costs and scores</h2><div class="tablewrap"><table><thead><tr><th>Model</th><th>10 min cost, mean</th><th>10 min score</th><th>30 min cost, mean</th><th>30 min score</th><th>Valid reports</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p class="foot" id="costnote"></p>
 <script type="application/json" id="data">__DATA__</script>
 <script>window.onerror=(message)=>{document.getElementById('summary').textContent='Figure error: '+message}</script>
@@ -33,39 +33,42 @@ const names=[...new Set(D.runs.map(r=>r.label))], N='http://www.w3.org/2000/svg'
 const fmt=x=>x==null?'pending':'$'+x.toFixed(x<1?3:2), mean=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null;
 const groups=names.map(label=>({label, provider:D.runs.find(r=>r.label===label).provider,
   budgets:[10,30].map(b=>{const runs=D.runs.filter(r=>r.label===label&&r.budget_min===b);
-    return {b,runs,cost:mean(runs.map(r=>r.cost_usd).filter(x=>x!=null)),score:runs.every(r=>r.performance!=null)?mean(runs.map(r=>r.performance)):null}})}));
+    return {b,runs,cost:runs.every(r=>r.cost_usd!=null)?mean(runs.map(r=>r.cost_usd)):null,score:runs.every(r=>r.performance!=null)?mean(runs.map(r=>r.performance)):null}})}));
 const complete=D.runs.filter(r=>r.status==='complete').length, scored=D.runs.filter(r=>r.performance!=null).length;
-document.getElementById('summary').textContent=`Final v6 run · ${complete}/${D.runs.length} reports complete · ${scored} performance values. Hollow and filled marks distinguish the two time budgets. Pending scores appear in the cost strip below the plot.`;
-document.getElementById('costnote').textContent=D.cost_note+' OpenAI price source: '+D.openai_price_source;
+document.getElementById('summary').textContent=`Final v6 run · ${complete} valid reports · ${D.excluded_runs.length} excluded · ${scored} performance values. Hollow and filled marks distinguish the two time budgets. Judge: ${D.grade_source?.judge??'pending'}.`;
+const missingCost=D.runs.filter(r=>r.status==='complete'&&r.cost_usd==null);
+document.getElementById('costnote').textContent=D.cost_note+(missingCost.length?` ${missingCost.length} completed run(s) lack a reliable USD cost; the corresponding model-budget points are omitted.`:'')+' OpenAI price source: '+D.openai_price_source;
+const hasPending=groups.some(g=>g.budgets.some(q=>q.runs.length&&q.score==null));
+if(!hasPending)svg.setAttribute('viewBox','0 0 990 490');
 const el=(tag,attrs={},parent=svg)=>{let node=document.createElementNS(N,tag);for(let [k,v] of Object.entries(attrs))node.setAttribute(k,v);parent.appendChild(node);return node};
 const label=(x,y,t,attrs={})=>{let a=el('text',{x,y,...attrs});a.textContent=t;return a};
 const costs=D.runs.map(r=>r.cost_usd).filter(x=>x>0), lo=costs.length?Math.pow(10,Math.floor(Math.log10(Math.min(...costs)))):.01,
   hi=costs.length?Math.pow(10,Math.ceil(Math.log10(Math.max(...costs)))):10;
-const left=76,right=956,plotTop=35,bottom=410,strip1=480,strip2=515;
+const left=76,right=760,plotTop=35,bottom=400,strip1=445,strip2=470;
 const X=x=>left+(Math.log(x/lo)/Math.log(hi/lo))*(right-left),Y=y=>bottom-y*(bottom-plotTop);
 for(let p=Math.ceil(Math.log10(lo));p<=Math.floor(Math.log10(hi));p++){
-  let x=X(10**p);el('line',{x1:x,x2:x,y1:plotTop,y2:strip2+20,class:'grid'});label(x,strip2+42,'$'+(10**p),{'text-anchor':'middle',class:'tick'});
+  let x=X(10**p);el('line',{x1:x,x2:x,y1:plotTop,y2:hasPending?strip2+10:bottom,class:'grid'});label(x,hasPending?strip2+27:bottom+27,'$'+(10**p),{'text-anchor':'middle',class:'tick'});
 }
 for(let v=0;v<=1.0001;v+=.25){let y=Y(v);el('line',{x1:left,x2:right,y1:y,y2:y,class:'grid'});label(left-12,y+4,v.toFixed(2),{'text-anchor':'end',class:'tick'})}
 el('line',{x1:left,x2:right,y1:bottom,y2:bottom,class:'axis'});label(18,plotTop+120,'Performance (0–1)',{transform:'rotate(-90 18 '+(plotTop+120)+')'});
-label((left+right)/2,strip2+68,'Estimated cost per run (USD, log scale)',{'text-anchor':'middle'});
-label(left,strip1-12,'Pending grades');label(left-12,strip1+4,'10 min',{'text-anchor':'end'});label(left-12,strip2+4,'30 min',{'text-anchor':'end'});
+label((left+right)/2,hasPending?strip2+53:bottom+53,'Estimated cost per run (USD, log scale)',{'text-anchor':'middle'});
+if(hasPending){label(left,strip1-12,'Pending grades');label(left-12,strip1+4,'10 min',{'text-anchor':'end'});label(left-12,strip2+4,'30 min',{'text-anchor':'end'})}
 for(const g of groups){const c=colors[g.provider], [a,b]=g.budgets;
   if(a.cost!=null&&b.cost!=null&&a.score!=null&&b.score!=null)el('line',{x1:X(a.cost),y1:Y(a.score),x2:X(b.cost),y2:Y(b.score),stroke:c,class:'link'});
   for(const q of g.budgets){if(q.cost==null)continue;
     const y=q.score==null?(q.b===10?strip1:strip2):Y(q.score);
-    for(const r of q.runs.filter(r=>r.cost_usd!=null)){
-      const ry=r.performance==null?(q.b===10?strip1:strip2):Y(r.performance);
-      let dot=el('circle',{cx:X(r.cost_usd),cy:ry,r:2.7,fill:c,opacity:.45,class:'dot small'});
-      el('title',{},dot).textContent=`${g.label} · ${q.b} min · replicate ${r.replicate}: ${fmt(r.cost_usd)}, score ${r.performance??'pending'}`;
-    }
     let dot=el('circle',{cx:X(q.cost),cy:y,r:6,fill:q.b===10?'white':c,stroke:c,class:'dot'});
     el('title',{},dot).textContent=`${g.label} · ${q.b} min: mean ${fmt(q.cost)}, score ${q.score??'pending'}`;
   }
 }
+const labelled=groups.filter(g=>g.budgets[1].score!=null&&g.budgets[1].cost!=null).sort((a,b)=>b.budgets[1].score-a.budgets[1].score);
+labelled.forEach((g,i)=>{let q=g.budgets[1],cy=Y(q.score),ly=178+i*18,c=colors[g.provider];
+  el('path',{d:`M${X(q.cost)+7},${cy} L780,${ly-4}`,stroke:c,'stroke-width':.8,opacity:.7,fill:'none'});
+  label(786,ly,g.label,{fill:c,style:`fill:${c};font-size:11px`});
+});
 const tbody=document.getElementById('rows');
 for(const g of groups){let tr=document.createElement('tr'),[a,b]=g.budgets;
-  let cells=[g.label,fmt(a.cost),a.score==null?'pending':a.score.toFixed(3),fmt(b.cost),b.score==null?'pending':b.score.toFixed(3),
+  let cells=[g.label,a.runs.length?fmt(a.cost):'excluded',a.runs.length?(a.score==null?'pending':a.score.toFixed(3)):'excluded',b.runs.length?fmt(b.cost):'excluded',b.runs.length?(b.score==null?'pending':b.score.toFixed(3)):'excluded',
     `${a.runs.concat(b.runs).filter(r=>r.status==='complete').length}/4`];
   cells.forEach((v,i)=>{let td=document.createElement('td');td.textContent=v;if(i===0){let s=document.createElement('span');s.className='swatch';s.style.background=colors[g.provider];td.prepend(s)}if(v==='pending')td.className='pending';tr.append(td)});tbody.append(tr)
 }
