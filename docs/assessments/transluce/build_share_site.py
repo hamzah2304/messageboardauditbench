@@ -87,12 +87,19 @@ def collect(root, config):
             if redaction is None and approved.get(row["run_id"]) != row["report_sha256"]:
                 raise ValueError("AI report lacks an explicit matching sharing approval")
             if redaction is not None:
-                excluded = row.get("publication_exclusion") or {}
-                flagged = sorted({m["line"] for m in excluded.get("matches", [])})
-                if (row.get("report_path") or not row.get("report_exists")
-                        or redaction["sha256"] != row["report_sha256"]
-                        or sorted(redaction["lines"]) != flagged or not flagged):
+                if (redaction["sha256"] != row["report_sha256"]
+                        or not redaction["lines"]):
                     raise ValueError("Redaction approval disagrees with excluded source")
+                if row.get("report_path"):
+                    if approved.get(row["run_id"]) != row["report_sha256"]:
+                        raise ValueError("Redacted report lacks matching sharing approval")
+                else:
+                    if not row.get("report_exists"):
+                        raise ValueError("Redaction approval disagrees with excluded source")
+                    excluded = row.get("publication_exclusion") or {}
+                    flagged = sorted({m["line"] for m in excluded.get("matches", [])})
+                    if sorted(redaction["lines"]) != flagged or not flagged:
+                        raise ValueError("Redaction approval disagrees with excluded source")
                 used_redactions.add(row["run_id"])
             # Indexes retain original absolute paths. Resolve their report-root
             # suffix here, or the immutable run archive after worktree removal.
@@ -119,7 +126,7 @@ def collect(root, config):
             title = f"{row['report_label']} · run {row['replicate']}"
             if redaction is not None:
                 title += " · redacted shared copy"
-                if row.get("report_finalization") != "cli_finished":
+                if row.get("report_finalization") not in {None, "cli_finished"}:
                     title += " (partial report)"
             entries.append({"path": path, "slug": row["preview_name"], "kind": "AI report",
                             "report_id": "urlquery-report-" + row["run_id"],

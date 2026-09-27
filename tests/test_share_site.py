@@ -184,6 +184,11 @@ def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path
     assert '<h2>AI reports by prompt</h2>' in homepage and '<h2>Writeups</h2>' in homepage
     assert 'href="prompt_one.html"' in homepage and 'href="model_run.html"' in homepage
     assert json.loads((output / "manifest.json").read_text())["prompts"][0]["sha256"] == prompt_digest
+    config["redacted_runs"] = [{"run_id": "abc", "sha256": digest, "lines": [1]}]
+    MODULE["build"](tmp_path, config, output)
+    assert (output / "model_run.txt").read_bytes() != (archive / "report.md").read_bytes()
+    assert "redacted shared copy" in (output / "model_run.html").read_text()
+    del config["redacted_runs"]
     (archive / "prompt.txt").write_text("Changed prompt")
     with pytest.raises(ValueError, match="Archived prompt"):
         MODULE["build"](tmp_path, config, output)
