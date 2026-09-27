@@ -37,11 +37,14 @@ outside the mount. See [preprocessing documentation](../../docs/urlquery-enginee
 ## Consolidated findings (draft v1)
 
 `claims/findings_v1.json` merges three annotators' extractions into 12 findings
-and 51 sub-findings, plus 14 excluded article sentences with the reason each
+and 53 sub-findings, plus 14 excluded article sentences with the reason each
 cannot be reached from the frozen scans (wiki/DseWiki, external news, other
-incidents, Transluce's own labels). Each item has a `kind`, a `derivable` tag,
-a suggested `importance` weight, exact article quotes, and `evidence_scans`:
-the scan IDs Transluce links for that statement, all present in
-`urlquery/2026-09-26-v1`. Rebuild with
-`uv run python benchmarks/urlquery/claims/build_findings_v1.py`. Under review;
-not yet a scoring rubric.
+incidents, Transluce's own labels). Headline findings are deliberately general;
+dates, counts and specifics are sub-findings. Each item has a `kind`, a
+`derivable` tag, `tags`, full-sentence article quotes, `evidence_scans` (the
+scan IDs Transluce links for that statement, all present in
+`urlquery/2026-09-26-v1`) and `judge_notes`, scoring instructions that are
+empty unless an item needs one (for example, penalise a report that says a
+hacking attempt succeeded). The file carries no weights: the judge is
+configured separately. Rebuild with
+`uv run python benchmarks/urlquery/claims/build_findings_v1.py`. Under review.
