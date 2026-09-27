@@ -20,10 +20,18 @@ from typing import Any
 DEFAULT_MIN_RUNTIME_FRACTION = 0.75
 _STATE_FILE = Path("/work/.mbab-runtime-policy.json")
 _REFUSAL = re.compile(
-    r"\b(?:i (?:can(?:not|'t)|won't)|unable to|cannot assist|can't assist|"
-    r"must refuse|policy prevents)\b",
+    # Match an explicit refusal of this task, not inability described in an
+    # investigation or an ordinary decision such as "I won't speculate".
+    r"\A\s*(?:(?:i['’]m sorry|sorry)[,.!]?\s*)?"
+    r"i\s+(?:(?:cannot|can['’]t|will not|won['’]t)\s+"
+    r"(?:help|assist)(?:\s+you)?\s+with|must\s+refuse)\s+"
+    r"(?:this|that|the|your)\s+(?:request|task)\b",
     re.IGNORECASE,
 )
+_TERMINAL_STATUSES = frozenset({
+    "error", "api_error", "failed", "failure", "refusal", "refused",
+    "rejected", "content_filter", "safety",
+})
 
 
 def fraction(value: str | float | None) -> float:
@@ -77,13 +85,11 @@ def _terminal(event: dict[str, Any]) -> bool:
     at terminal/status fields and the final assistant message, not arbitrary
     prompt or transcript text.
     """
-    for key in ("is_error", "error", "status", "stop_reason", "reason", "type"):
+    if event.get("is_error") is True or event.get("error"):
+        return True
+    for key in ("status", "stop_reason", "reason", "type"):
         value = event.get(key)
-        if value is True:
-            return True
-        if isinstance(value, str) and any(
-            token in value.lower() for token in ("error", "refusal", "reject", "fail")
-        ):
+        if isinstance(value, str) and value.strip().lower() in _TERMINAL_STATUSES:
             return True
     message = event.get("last_assistant_message") or event.get("assistant_message")
     if isinstance(message, str) and _REFUSAL.search(message):
