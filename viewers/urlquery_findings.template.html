@@ -95,7 +95,7 @@ __PAGE__
    <label class="btn" for="fx-import" id="fx-import-l" title="Load an export (adds findings not already here)">Import…</label><input type="file" id="fx-import" accept="application/json,.json" hidden>
    <input type="text" id="fx-author" placeholder="your name" aria-label="Your name" style="width:100px" hidden>
   </div>
-  <div class="row" id="fx-viewrow" hidden><span class="store">Show:</span><span class="seg" role="group" aria-label="Whose findings to show"><button type="button" id="fx-v-mine" class="on" aria-pressed="true">Mine</button><button type="button" id="fx-v-all" aria-pressed="false">Everyone's</button></span></div>
+  <div class="row" id="fx-viewrow" hidden><label for="fx-view" style="font-weight:700">Showing</label><select id="fx-view" style="flex:1;min-width:0;padding:4px 6px;font-size:12.5px"></select></div>
   <div class="store" id="fx-store" role="status"></div>
  </div>
  <details class="howto" id="fx-howto" open><summary>How this works</summary>
@@ -108,11 +108,11 @@ __PAGE__
      <div><b>Type</b> says what sort of claim it is. <b>Finding</b>: something the report observed. <b>Conclusion</b>: an inference the report draws from what it observed. <b>Context</b>: background that shouldn't be scored.</div>
      <div><b>In scan data?</b> asks whether an AI agent given only the urlquery scans could reach it. <b>Yes</b>: the scans alone show it. <b>Partly</b>: some of it, e.g. the attempt is visible but not whether it worked. <b>No</b>: it needs outside information, such as news, statements or other sites. Hover <b>⚠ Data limits</b> for what's missing.</div>
     </div></li>
-   <li><b>Mine</b> shows the findings you wrote, which only you can edit. <b>Everyone's</b> shows all collaborators' findings, grouped by person and read-only. If you want to extract independently, stay on Mine until you're done.</li>
+   <li>Use <b>Showing</b> at the top to switch between your own findings and anyone else's, one person at a time, or everyone together. You can edit only your own; other people's are read-only, and the highlights in the report follow whoever is selected. To extract independently, stay on your own until you're done.</li>
    <li><b>Comment</b> by selecting text and clicking <b>Comment</b>, or with claude.ai's comment button. Comments are visible to everyone with access, so don't put findings in them.</li>
   </ol>
  </details>
- <div class="new">
+ <div class="new" id="fx-newbox">
   <label for="fx-new" style="font-weight:700">New finding</label>
   <textarea id="fx-new" rows="2" placeholder="e.g. Agents tried to hack three public data providers (UNM, Data USA, AIHW) between May and June 2026."></textarea>
   <div class="row"><button type="button" class="pri" id="fx-add">Add finding</button><span class="store">⌘↵ adds it</span></div>
@@ -169,7 +169,7 @@ function renderStore(){var el=$("fx-store");
   if(storeErr){el.className="store err";el.textContent=storeErr;return;}
   if(!CAN_WRITE){el.className="store ro";el.textContent=MODE==="db"&&!ME?"Sign in to claude.ai to add findings. You can still read and comment.":"View only: you can read and comment. To add findings, ask the owner for Editor access.";return;}
   el.className="store";
-  el.textContent=MODE==="db"?(VIEW==="all"?"Showing everyone's findings, read-only. Switch to Mine to edit yours.":"Showing your findings. Only you can edit them; everyone with access can read them under Everyone's."):MODE==="connecting"?"Connecting…":"Local copy: saved in this browser only. Export JSON to share.";}
+  el.textContent=MODE==="db"?(VIEW!=="mine"?"Read-only: "+(VIEW==="all"?"everyone's findings":authorName(VIEW)+"'s findings")+". Switch Showing to You to edit yours.":"Showing your findings. Only you can edit them; everyone with access can read them."):MODE==="connecting"?"Connecting…":"Local copy: saved in this browser only. Export JSON to share.";}
 
 /* ---------- text offsets over the article ---------- */
 var nodes=[],starts=[],FULL="";
@@ -224,7 +224,12 @@ function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=q
      +'<button type="button" data-act="reject">'+(f.status==="rejected"?"Restore":"Reject")+'</button>'
      +'<button type="button" class="danger" data-act="delete">'+(ARM===f.id?"Click again to delete":"Delete")+'</button></div>';}
   return h+'</div>';}
-function shownGroups(){if(VIEW!=="all")return [ME];return Object.keys(DATA).filter(function(u){return u===ME||Object.keys(DATA[u].F).length;}).sort(function(a,b){return a===ME?-1:b===ME?1:0;});}
+function shownGroups(){if(VIEW==="mine")return [ME];if(VIEW!=="all")return [VIEW];return Object.keys(DATA).filter(function(u){return u===ME||Object.keys(DATA[u].F).length;}).sort(function(a,b){return a===ME?-1:b===ME?1:0;});}
+function renderPicker(){var sel=$("fx-view");if(document.activeElement===sel)return;
+  var n=function(u){return DATA[u]?Object.keys(DATA[u].F).length:0;};
+  var others=PEOPLE.filter(function(u){return u!==ME;}).sort(function(a,b){return authorName(a).localeCompare(authorName(b));});
+  var opts=[["mine","You ("+n(ME)+")"]].concat(others.map(function(u){return [u,authorName(u)+" ("+n(u)+")"];}),[["all","Everyone ("+PEOPLE.concat(PEOPLE.indexOf(ME)<0?[ME]:[]).reduce(function(s,u){return s+n(u);},0)+")"]]);
+  sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(VIEW===o[0]?" selected":"")+'>'+esc(o[1])+'</option>';}).join("");}
 function findQuote(id){for(var u in DATA){if(DATA[u].Q[id])return DATA[u].Q[id];}return null;}
 function visible(f){if(filter==="all")return true;var m=function(x){return (x.derivable||"unset")===filter;};return m(f)||kids(f.id).some(m);}
 function render(){
@@ -242,9 +247,8 @@ function render(){
   useGroup(ME);
   if(EDIT){var ta=document.querySelector('.fx-item[data-id="'+CSS.escape(EDIT)+'"] textarea[data-act="'+(focused||"edit-text")+'"]');
     if(ta&&(focused||EDIT!==render.lastFocus)){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);render.lastFocus=EDIT;}}
-  $("fx-add").disabled=!editable();$("fx-new").disabled=!editable();$("fx-import-l").hidden=!editable();
-  $("fx-viewrow").hidden=!(MODE==="db"&&ME!=="anon");$("fx-v-mine").classList.toggle("on",VIEW==="mine");$("fx-v-all").classList.toggle("on",VIEW==="all");
-  $("fx-v-mine").setAttribute("aria-pressed",VIEW==="mine");$("fx-v-all").setAttribute("aria-pressed",VIEW==="all");
+  $("fx-newbox").hidden=MODE==="db"&&VIEW!=="mine";$("fx-add").disabled=!editable();$("fx-new").disabled=!editable();$("fx-import-l").hidden=!editable();
+  $("fx-viewrow").hidden=!(MODE==="db"&&ME!=="anon");if(MODE==="db")renderPicker();
   paint();
 }
 $("fx-filt").addEventListener("change",function(ev){if(ev.target.name==="fxf"){filter=ev.target.value;render();}});
@@ -335,18 +339,17 @@ $("fx-import").onchange=function(){var file=this.files[0],lab=$("fx-import-l");t
 /* ---------- boot: render at once, switch to the shared store when the viewer grants it ---------- */
 if(lsGet(LS+"_howto")==="closed")$("fx-howto").open=false;
 $("fx-howto").addEventListener("toggle",function(){lsSet(LS+"_howto",this.open?"open":"closed");});
-function resolveNames(){if(!USER)return;var ids={};Object.keys(DATA).forEach(function(u){if(u!=="local")ids[u]=1;});
+function resolveNames(){if(!USER)return;var ids={};Object.keys(DATA).concat(PEOPLE).forEach(function(u){if(u!=="local"&&u!=="anon")ids[u]=1;});
   var list=Object.keys(ids);if(!list.length)return;
   USER.profiles(list).then(function(ps){var changed=false;Object.keys(ps).forEach(function(i){if(!NAMES[i]||NAMES[i].name!==ps[i].name){NAMES[i]=ps[i];changed=true;}});if(changed)render();});}
 function watchUser(uid){if(SUBS[uid])return;
   SUBS[uid]=DB.collection("data/users/"+uid).onSnapshot(function(snap){var g={F:{},Q:{}};snap.docs.forEach(function(d){var x=d.data();if(x.type==="quote")g.Q[d.id]=x;else if(x.type==="finding")g.F[d.id]=x;});
       DATA[uid]=g;if(uid===ME){useGroup(ME);if(EDIT&&!F[EDIT])EDIT=null;if(snap.docs.length)JOINED=true;}render();resolveNames();},
     function(e){if(uid===ME){storeErr="Lost the connection to storage ("+(e&&e.code)+"). Reload the page.";renderStore();}});}
-var PSUB=null;
-function setView(v){VIEW=v;TARGET=null;EDIT=null;
-  if(v==="all"&&!PSUB){PSUB=DB.collection("participants").onSnapshot(function(snap){snap.docs.forEach(function(d){watchUser(d.id);});},function(){});}
-  renderStore();render();}
-$("fx-v-mine").onclick=function(){setView("mine");};$("fx-v-all").onclick=function(){setView("all");};
+var PEOPLE=[];
+function setView(v){VIEW=v;TARGET=null;EDIT=null;renderStore();render();}
+$("fx-view").onchange=function(){setView(this.value);};
+function watchPeople(){DB.collection("participants").onSnapshot(function(snap){PEOPLE=snap.docs.map(function(d){return d.id;});PEOPLE.forEach(watchUser);render();resolveNames();},function(){});}
 function startLocal(){MODE="local";ME="local";$("fx-author").hidden=false;$("fx-author").value=lsGet(LS+"_author")||"";loadLocal();renderStore();render();}
 if(window.claude&&typeof window.claude.use==="function"){
   MODE="connecting";renderStore();render();
@@ -356,7 +359,7 @@ if(window.claude&&typeof window.claude.use==="function"){
     MODE="db";
     (USER?Promise.all([USER.id(),USER.isOwner()]):Promise.resolve([null,false])).then(function(v){
       ME=v[0]||"anon";IS_OWNER=!!v[1];if(!v[0])CAN_WRITE=false;useGroup(ME);
-      if(v[0])watchUser(ME);renderStore();render();});
+      if(v[0])watchUser(ME);watchPeople();renderStore();render();});
   });
 }else startLocal();
 })();
