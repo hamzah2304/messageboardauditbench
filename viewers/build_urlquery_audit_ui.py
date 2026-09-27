@@ -374,9 +374,148 @@ def load_reports(heads, grade_dir: Path):
     return reports, warn, tot
 
 
+# Credentials and personal addresses a report may have copied out of the scans. The artifact
+# build masks them in the report text, the judge's quotes and its reasons before anything
+# leaves this machine; the local page shows the reports as they are.
+SECRET_PARAM = re.compile(r"(?i)\b(api[_-]?key|apikey|access[_-]?token|token|secret|password|passwd|"
+                          r"subscription[_-]?key|client[_-]?secret|auth|bearer|key|sig|signature)"
+                          r"(\s*[=:]\s*|\s+)(?!\[redacted)([^\s&\"'<>)\]`,;]{8,})")
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+LONG = re.compile(r"[A-Za-z0-9_\-+/|]{32,}={0,2}")
+
+
+def redact(text: str, counts: dict | None = None) -> str:
+    def bump(k):
+        if counts is not None:
+            counts[k] = counts.get(k, 0) + 1
+
+    def param(m):
+        bump("credential parameter")
+        return f"{m.group(1)}{m.group(2)}[redacted]"
+
+    def long_(m):
+        v = m.group(0)
+        if UUID.match(v) or not (re.search(r"[A-Za-z]", v) and re.search(r"[0-9]", v)):
+            return v
+        bump("long token or encoded blob")
+        return "[redacted]"
+
+    def email(m):
+        bump("email address")
+        return "[email redacted]"
+    text = SECRET_PARAM.sub(param, text or "")
+    text = EMAIL.sub(email, text)
+    return LONG.sub(long_, text)
+
+
+ARTIFACT_RULES = [{"path": "audits", "read": "interact", "write": "admin"},
+                  {"path": "audits/{self}", "write": "interact"}]
+
+
+def artifact_template() -> str:
+    """The same page, reading its data inline and saving to the artifact's db."""
+    t = TEMPLATE
+    swaps = [
+        ("""  if (!PEND[rk]) PEND[rk] = fetch(fileURL(D.data_dir + '/' + rk + '.json'))
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })""",
+         """  if (!PEND[rk]) PEND[rk] = Promise.resolve(D.details[rk])"""),
+        ("f.src = fileURL(D.article_html);", "f.srcdoc = D.article_doc;"),
+        (t[t.index("async function saveNow() {"):t.index("function mergeInto(dst, src) {")], ARTIFACT_SAVE),
+        (t[t.index("async function load() {"):t.index("/* ---------- helpers ---------- */")], ARTIFACT_LOAD),
+        ("""  const inp = document.getElementById('who-in'), n = inp.value.trim().slice(0, 40);
+  if (!n) { document.getElementById('who-err').hidden = false; inp.focus(); return; }""",
+         """  if (ART_ID) { document.getElementById('intro').hidden = true; try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {} renderWho(); if (lastFocus && lastFocus.focus) lastFocus.focus(); return; }
+  const inp = document.getElementById('who-in'), n = inp.value.trim().slice(0, 40);
+  if (!n) { document.getElementById('who-err').hidden = false; inp.focus(); return; }"""),
+        ("  const inp = document.getElementById('who-in'); inp.value = ME;",
+         "  document.querySelector('.whoin').hidden = !!ART_ID;\n  const inp = document.getElementById('who-in'); inp.value = ME;"),
+        ("document.getElementById('where').textContent = 'Saved to ' + AUDIT_PATH + ' through the local viewer (python3 scripts/html_viewer.py). If the viewer is not running, a copy is kept in this browser only and the header turns red; nothing reaches the agent until the file on disk is written.';",
+         "document.getElementById('where').textContent = 'Saved in this artifact, under your claude.ai account: everyone with Contributor or Editor access sees everyone\\'s judgements, and each person can change only their own. If saving fails the header turns red and your work is kept in this browser only. Report text has credentials and email addresses masked.';"),
+        ("try { ME = localStorage.getItem(WHO_KEY) || ''; } catch (e) { ME = ''; }", "let ART_ID = null;"),
+    ]
+    for a, b in swaps:
+        assert t.count(a) == 1, a[:70]
+        t = t.replace(a, b)
+    return t
+
+
+ARTIFACT_SAVE = """async function saveNow() {
+  state.updated_at = new Date().toISOString();
+  const mine = mkBkt(state, ME); let lsErr = '';
+  try { localStorage.setItem(LS_KEY, JSON.stringify(mine)); } catch (e) { lsErr = ' (browser copy also failed)'; }
+  if (!DBX || !ART_ID) { setStatus('NOT SAVED: shared storage is not available in this view; kept in this browser only' + lsErr, true); return; }
+  try {
+    await DBX.doc('audits/' + ART_ID).set({entries: mine.entries, paragraphs: mine.paragraphs, notes: mine.notes,
+      judge: D.judge, updated_at: state.updated_at});
+    setStatus('saved ' + new Date().toLocaleTimeString() + lsErr, !!lsErr);
+  } catch (e) {
+    const why = e && e.code === 'invalid_argument' ? 'you need Contributor or Editor access to save' : (e && (e.code || e.message)) || 'error';
+    setStatus('NOT SAVED (' + why + '); kept in this browser only', true);
+  }
+}
+"""
+
+ARTIFACT_LOAD = """let DBX = null, USERX = null;
+async function load() {
+  try { USERX = await claude.use('user'); } catch (e) { USERX = null; }
+  try { DBX = await claude.use('db'); } catch (e) { DBX = null; }
+  if (USERX) { try { ART_ID = await USERX.id(); } catch (e) { ART_ID = null; } }
+  let local = null; try { local = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
+  if (!DBX || !ART_ID) {
+    ME = 'you (this browser only)'; if (local) mergeInto(mkBkt(state, ME), local);
+    setStatus('shared storage is not available in this view: judgements stay in this browser', true); return;
+  }
+  ME = ART_ID;
+  async function names(ids) {
+    if (!USERX) return;
+    try { const ps = await USERX.profiles(ids); for (const id of ids) NAMES[id] = (ps[id] && ps[id].name) || (id === ART_ID ? 'you' : 'another auditor'); } catch (e) {}
+  }
+  return new Promise(resolve => {
+    let first = true;
+    DBX.collection('audits').onSnapshot(async snap => {
+      const others = snap.docChanges().some(c => c.doc.id !== ART_ID);
+      if (!first && !others) return;
+      const next = {version: 3, schema: 'urlquery-judge-audit-v1', judge: D.judge, updated_at: state.updated_at, auditors: {}};
+      for (const d of snap.docs) { const v = d.data() || {}; next.auditors[d.id] = {entries: v.entries || {}, paragraphs: v.paragraphs || {}, notes: v.notes || {}}; }
+      if (state.auditors[ME]) mergeInto(mkBkt(next, ME), state.auditors[ME]);
+      let pushLocal = false;
+      if (first && local) { const before = JSON.stringify(next.auditors[ME] || {}); mergeInto(mkBkt(next, ME), local); pushLocal = JSON.stringify(next.auditors[ME]) !== before; }
+      state = next;
+      await names(Object.keys(state.auditors).concat([ART_ID]));
+      if (first) { first = false; setStatus('loaded ' + countAll(state) + ' saved items'); if (pushLocal) scheduleSave(); resolve(); }
+      else { renderStats(); renderList(); }
+    }, err => { setStatus('live updates stopped (' + (err && err.code) + '); reload the page', true); if (first) { first = false; resolve(); } });
+  });
+}
+"""
+
+
+def build_artifact(path: Path, data: dict, reports: list) -> None:
+    counts: dict = {}
+    details = {}
+    for r in reports:
+        d = json.loads((DATA_DIR / f"{r['key']}.json").read_text())
+        raw = d["text"]
+        d["text"] = redact(raw, counts)
+        doc = Doc(d["text"])
+        for iid, it in d["items"].items():
+            it["quote"], it["reason"] = redact(it["quote"], counts), redact(it["reason"], counts)
+            it["ranges"], it["match"] = doc.find(it["quote"]) if it["quote"] else ([], "empty")
+        details[r["key"]] = d
+    art = dict(data, audit_path="artifact:db/audits", data_dir="", article_html="",
+               details=details, article_doc=ARTICLE_HTML.read_text(), artifact=True)
+    payload = json.dumps(art, ensure_ascii=False).replace("</", "<\\/")
+    page = artifact_template().replace("__DATA__", payload).replace("/*__FONTS__*/", "")
+    path.write_text(page)
+    print(f"artifact page {path} ({path.stat().st_size / 1e6:.2f} MB); redacted {counts}")
+    print("  publish with capabilities:", json.dumps({"db": {"rules": ARTIFACT_RULES}, "user": {"scopes": ["profile"]}}))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--judge", default=os.getenv("JUDGE", "claude-opus-5-5"))
+    ap.add_argument("--artifact", type=Path, help="also write a self-contained, redacted page for a claude.ai artifact")
     args = ap.parse_args()
     judge_slug = slug(args.judge)
     grade_dir = GRADED / f"judge_{judge_slug}"
@@ -411,6 +550,8 @@ def main():
     print(f"{OUT}: {len(reports)} reports, {len(heads)} findings + {n_sub} sub-findings; "
           f"shell {OUT.stat().st_size / 1e6:.2f} MB + {det / 1e6:.2f} MB in {DATA_DIR.name}/")
     print(f"  finding states {states}; quote matches {tot}")
+    if args.artifact:
+        build_artifact(args.artifact, data, reports)
     print(f"  scales from {SHEET.name}: finding {[a['key'] for a in fin_scale]}, "
           f"sub-finding {[a['key'] for a in sub_scale]}")
     print(f"  article {ARTICLE_HTML.stat().st_size / 1e6:.2f} MB; audit file {audit_path}")
@@ -723,6 +864,7 @@ function bkt(st, who) { return (st.auditors && st.auditors[who]) || null; }
 function mkBkt(st, who) { const a = bkt(st, who) || (st.auditors[who] = fresh()); for (const m of MAPS) a[m] = a[m] || {}; return a; }
 function myMap(map) { const b = bkt(state, ME); return (b && b[map]) || {}; }
 function auditors() { return Object.keys(state.auditors).sort(); }
+const NAMES = {}; function nm(w) { return NAMES[w] || w; }
 function ekey(rk, iid) { return RBY[rk].run + '/' + iid; }
 function entry(rk, iid) { return myMap('entries')[ekey(rk, iid)] || null; }
 function entryOf(who, rk, iid) { const b = bkt(state, who); return (b && b.entries[ekey(rk, iid)]) || null; }
@@ -848,7 +990,7 @@ function renderStats() {
 /* ---------- who is auditing, and the intro panel ---------- */
 function renderWho() {
   const b = document.getElementById('who-btn');
-  b.textContent = ME ? 'auditor: ' + ME : 'who are you?'; b.classList.toggle('active', !!ME);
+  b.textContent = ME ? 'auditor: ' + nm(ME) : 'who are you?'; b.classList.toggle('active', !!ME);
 }
 function setMe(n) { ME = n; try { localStorage.setItem(WHO_KEY, n); } catch (e) {} renderWho(); renderAll(); }
 function buildIntro() {
@@ -1084,7 +1226,7 @@ function othersRow(rk, iid, e, sub) {
   if (!rows.length) return null;
   const box = el('div', 'other');
   for (const [w, o] of rows) {
-    const line = el('div', 'oline'); line.appendChild(el('span', 'who', w + ' said'));
+    const line = el('div', 'oline'); line.appendChild(el('span', 'who', nm(w) + ' said'));
     if (o.corrected != null) line.appendChild(el('span', 'sc ' + scoreClass(o.corrected), sub ? fmtQ(o.corrected) : fmtScore(o.corrected)));
     if (o.verdict) line.appendChild(el('span', 'cat', (CAT[o.verdict] || [o.verdict])[0]));
     if (o.contra_wrong) line.appendChild(el('span', 'cat', '⚑ contradicted flag wrong'));
