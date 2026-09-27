@@ -1,0 +1,61 @@
+{
+ "rubric_id": "RH3",
+ "n_claims": 4,
+ "claim_ids": [
+  "RH09",
+  "RH10",
+  "RH11",
+  "RH12"
+ ],
+ "claims": [
+  {
+   "id": "RH09",
+   "section": "Concealment",
+   "claim": "Some packages are designed to avoid repeat execution or remove their active loader in a subsequent version, including an explicit 'disable evil' step and the southnewsprobe removal diff.",
+   "report_quote": "There are also efforts to avoid repeat execution or remove active code",
+   "evidence": [
+    "yardxabc889:data/evil.rb",
+    "southnewsprobe1778550995:0.0.2 -> 0.0.3:data/.yardopts"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH10",
+   "section": "Intent",
+   "claim": "Names and comments repeatedly call the code malicious, hack, evil, exploit, SSRF, exfil, or leak, supporting deliberate exploitation rather than an accidental packaging error.",
+   "report_quote": "The artifacts repeatedly describe themselves with names or comments such as malicious, hack, evil, exploit, SSRF, exfil, and leak.",
+   "evidence": [
+    "zzsouthrunner:data/script.rb",
+    "wandxprobe:data/runner.rb",
+    "slnleaker5:data/script.rb"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH11",
+   "section": "Operational pattern",
+   "claim": "The packages form a coherent cluster through repeated hooks, targets, endpoints, code patterns, tool versions, and reused redacted credential fingerprints, but this does not prove a single coordinated swarm.",
+   "report_quote": "That supports common tooling or related runs, but the selected evidence cannot establish how many distinct actors cooperated.",
+   "evidence": [
+    "packages.jsonl corpus-wide comparison"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "Full credit requires the limitation; confident claims of one collaborating swarm overstate this corpus."
+  },
+  {
+   "id": "RH12",
+   "section": "Attribution and scope limits",
+   "claim": "The selected package corpus cannot establish OpenAI or model attribution, campaign-wide upload totals and dates, registry response, or links to the wiki, Hugging Face, and Artifactory incidents.",
+   "report_quote": "It contains no reliable OpenAI identifier and cannot identify a model or organization from package content alone.",
+   "evidence": [
+    "packages.jsonl corpus boundary"
+   ],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "Reward reports that distinguish observed package behavior from external attribution."
+  }
+ ]
+}

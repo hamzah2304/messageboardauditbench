@@ -15,6 +15,7 @@ bytes reach the judge either way.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -22,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from messageboard_audit_bench.incidents import registered_mode_specs
 from messageboard_audit_bench.runtime import repo_root
 
 SYSTEM = (
@@ -53,6 +55,8 @@ class ModeSpec:
     prefix: str         # rubric_id prefix: R1..R6, V1..V8, TLDR, TLDRH
     numbered: bool      # False when the single sheet's rubric_id carries no number
     tldr_only: bool     # the summary alone is what this rubric judges
+    directory: str | None = None  # optional subdirectory under benchmark/rubrics
+    answer_key: str = "human_report.txt"  # relative to benchmark/
 
 
 MODES: dict[str, ModeSpec] = {
@@ -65,6 +69,10 @@ MODES: dict[str, ModeSpec] = {
     # a sheet with no {{HUMAN_REPORT}} placeholder
     "origin": ModeSpec("origin", "origin", 1, 0.0, 1.0, "ORIGIN", False, False),
 }
+_registered_modes = registered_mode_specs()
+if duplicates := MODES.keys() & _registered_modes.keys():
+    raise ValueError(f"registered incident modes collide with built-ins: {sorted(duplicates)}")
+MODES.update({name: ModeSpec(**values) for name, values in _registered_modes.items()})
 
 
 def sanitise(value: str) -> str:
@@ -115,15 +123,22 @@ def _check_variant(variant: str | None) -> None:
         raise ValueError(f"unknown rubric variant {variant!r}; expected one of {VARIANTS}")
 
 
-def _rubrics_dir(variant: str | None = None) -> Path:
+def _rubrics_dir(variant: str | None = None, mode: str | None = None) -> Path:
     _check_variant(variant)
     d = repo_root() / "benchmark" / "rubrics"
-    return d / variant if variant else d
+    d = d / variant if variant else d
+    directory = MODES[mode].directory if mode else None
+    return d / directory if directory else d
 
 
-def human_report(variant: str | None = None) -> str:
+def human_report(variant: str | None = None, mode: str | None = None) -> str:
     _check_variant(variant)
-    name = f"human_report_{variant}.txt" if variant else "human_report.txt"
+    if mode and MODES[mode].answer_key != "human_report.txt":
+        if variant:
+            raise ValueError(f"rubric {mode!r} has no {variant!r} provider variant")
+        name = MODES[mode].answer_key
+    else:
+        name = f"human_report_{variant}.txt" if variant else "human_report.txt"
     return (repo_root() / "benchmark" / name).read_text()
 
 
@@ -133,7 +148,7 @@ def load_sheets(mode: str, variant: str | None = None) -> tuple[list[dict], dict
     The .md is the whole prompt, with {{HUMAN_REPORT}} and {{MODEL_REPORT}} placeholders;
     the .json is the machine-readable claim set the aggregation reads grading_mode from.
     """
-    spec, d = MODES[mode], _rubrics_dir(variant)
+    spec, d = MODES[mode], _rubrics_dir(variant, mode)
     sets = [
         json.loads((d / f"{spec.sheet_set}_{i}.json").read_text())
         for i in range(1, spec.n_sheets + 1)
@@ -144,6 +159,29 @@ def load_sheets(mode: str, variant: str | None = None) -> tuple[list[dict], dict
         for i in range(1, spec.n_sheets + 1)
     }
     return sets, templates
+
+
+def rubric_digest(mode: str, variant: str | None = None) -> str:
+    """Digest the exact sheets and answer key that define a grade."""
+    spec = MODES[mode]
+    directory = _rubrics_dir(variant, mode)
+    paths = [
+        path
+        for index in range(1, spec.n_sheets + 1)
+        for path in (
+            directory / f"{spec.sheet}_{index}.md",
+            directory / f"{spec.sheet_set}_{index}.json",
+        )
+    ]
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(str(path.relative_to(repo_root())).encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    digest.update(b"answer-key\0")
+    digest.update(human_report(variant, mode).encode())
+    return digest.hexdigest()
 
 
 def extract_tldr(report_md: str) -> tuple[str, str]:
@@ -174,7 +212,9 @@ def build_prompt(
         _, templates = load_sheets(mode, variant)
     if MODES[mode].tldr_only:
         report_md, _how = extract_tldr(report_md)
-    filled = templates[rubric_id].replace("{{HUMAN_REPORT}}", human_report(variant))
+    filled = templates[rubric_id].replace(
+        "{{HUMAN_REPORT}}", human_report(variant, mode)
+    )
     prefix, sep, tail = filled.partition("{{MODEL_REPORT}}")
     if not sep:
         raise ValueError(f"{mode}/{rubric_id}: sheet has no {{{{MODEL_REPORT}}}} placeholder")
@@ -250,6 +290,7 @@ def aggregate(
         "title": title,
         "grader": judge,
         "rubric": mode,
+        "rubric_sha256": rubric_digest(mode, variant),
         "total": total,
         "max": count,
         "per_rubric": per_rubric,
@@ -267,7 +308,9 @@ def aggregate(
     out["accuracy"] = round(total / count, 3) if count else 0
     # tldrh returns one item keyed TLDRH, not per-claim ids, so there is nothing to split
     # by grading mode; emitting the split would put two zeroes where a reader expects scores.
-    if mode != "tldrh":
+    # The historical `tldr` grades included by_mode despite extracting only the
+    # summary. Preserve those committed bytes; current holistic modes omit it.
+    if mode == "tldr" or not MODES[mode].tldr_only:
         if sets is None:
             sets, _ = load_sheets(mode, variant)
         grading_mode = {

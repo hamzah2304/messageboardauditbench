@@ -12,11 +12,15 @@ uv sync --frozen
 scripts/build_data.sh
 scripts/build_data.sh --verify
 scripts/doctor.sh
+uv run python scripts/incident_pipeline.py check --docker
 ```
 
-The build downloads the public archive and checks the generated datasets against
-committed checksums. A mismatch must be resolved before comparing new scores with
-published results. Do not rebuild the shared data while trials are reading it.
+The build downloads the public wiki archive and dispatches every registered
+incident builder, then checks the generated datasets against committed checksums.
+The Mythos builder removes
+the release's editorial metadata row before it reaches an agent. A mismatch must
+be resolved before comparing new scores with published results. Do not rebuild
+the shared data while trials are reading it.
 
 If the upstream host is unreachable or has moved, the build does not depend on it.
 Any copy of `full-wiki-logs.zip` works, because the pinned SHA256 in
@@ -29,6 +33,26 @@ MBAB_DUMP_URL=https://example.org/full-wiki-logs.zip scripts/build_data.sh  # a 
 
 Both are verified against the same digest, and a copy that does not match is
 rejected. `scripts/fetch_data.sh` prints these instructions on a failed download.
+The Mythos transcript has the same source-independent escape hatch:
+
+```bash
+MBAB_MYTHOS5_TRANSCRIPT=/path/to/transcript.jsonl scripts/build_data.sh
+```
+
+The local file must match the source digest pinned in
+`scripts/build_mythos5_data.py`.
+
+RubyHack is rebuilt from the 23 preserved Diffend pages cited by the
+investigation. Each page is canonicalized only by removing its changing CSRF
+token, then checked against a pinned digest. For an offline build, place those
+pages under their builder-generated filenames and set:
+
+```bash
+MBAB_RUBYHACK_SOURCE_DIR=/path/to/diffend-pages scripts/build_data.sh
+```
+
+The builder extracts package diff lines and redacts embedded RubyGems API keys;
+it never writes the source HTML into the repository.
 
 The Python package needs the checkout's configs, sandbox and grading assets.
 A wheel installed by itself is insufficient: run from the checkout root or set
@@ -71,17 +95,52 @@ compatible `--model` and its provider key. For a short setup check, use
 `-T time_limit_minutes=1 -T min_runtime_fraction=0 --epochs 1`; it still makes
 paid agent and grader calls and is not a benchmark result.
 
-Each sample runs the existing `v2` finding sheets and `tldrh` summary sheet by
-default, followed by process and length diagnostics. The two rubric scores and
+Each wiki sample runs the `v2` finding sheets and `tldrh` summary sheet by
+default; `config=mythos5` selects `m5` and `m5tldrh`, while
+`config=rubyhack` selects `rh` and `rhtldrh`. Process and length
+diagnostics follow both pairs. The two rubric scores and
 per-finding grades appear in the `.eval` log. The judge defaults to
 `openai/gpt-5.6-sol`; `--model-role grader=...` overrides it. Reproducing a
 published comparison requires its recorded judge, prompts and data version.
 The sheet mean differs from the figures' strict score: they transform each
 finding credit `s` to `max(2s - 1, 0)` before averaging.
 
+To see the registered maturity, defaults, rubrics, and results status for every
+incident, or exact commands for one of them:
+
+```bash
+uv run python scripts/incident_pipeline.py list
+uv run python scripts/incident_pipeline.py guide rubyhack
+```
+
 To select one rubric use `-T rubric=v2` or `-T rubric=tldrh`; comma-separated
 modes run together. `-T rubric=legacy` selects the older starter rubric only.
 To defer all scoring, use Inspect's `--no-score`, then `inspect score LOG.eval`.
+
+The Mythos 5 integration is a runnable transfer-study draft:
+
+```bash
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=mythos5 -T time_limit_minutes=30 \
+  --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
+```
+
+Do not present its score as comparable with the published wiki cells until the
+documented contamination and judge-independence questions have been resolved.
+
+The RubyHack package-forensics incident runs the same way. Its selected corpus
+is much smaller, so start with the 10-minute condition and an independent judge:
+
+```bash
+uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+  -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
+  --model openai/gpt-5.6-sol \
+  --model-role grader=anthropic/claude-fable-5-1
+```
+
+The selected package diffs do not independently establish OpenAI attribution or
+campaign-wide totals. The RubyHack rubrics reward reports that preserve those
+limits.
 
 ## Ablations
 

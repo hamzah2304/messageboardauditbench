@@ -1,0 +1,116 @@
+{
+ "claims": [
+  {
+   "id": "RH01",
+   "section": "Execution mechanism",
+   "claim": "The gems weaponize YARD documentation generation: .yardopts --load directives cause included Ruby payload files to execute during automatic documentation builds.",
+   "report_quote": "Eighteen retained .yardopts records contain a --load directive aimed at an included Ruby file",
+   "evidence": ["zzsouthrunner:data/.yardopts", "wandxprobe:data/.yardopts", "slnleaker5:data/.yardopts"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH02",
+   "section": "Execution evidence",
+   "claim": "The southnewsprobe version sequence strongly indicates that the YARD payload ran: 0.0.2 adds the loader and plans version 0.0.3, while 0.0.3 removes it and records a YARD-run timestamp.",
+   "report_quote": "This is strong evidence that the documentation-build pathway executed and produced its planned follow-up version",
+   "evidence": ["southnewsprobe1778550995:0.0.1 -> 0.0.2:data/fetch.rb", "southnewsprobe1778550995:0.0.2 -> 0.0.3:metadata"],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "Credit a properly hedged inference. Do not require or credit a claim that the corpus contains a RubyDoc server log."
+  },
+  {
+   "id": "RH03",
+   "section": "Targets",
+   "claim": "The payloads repeatedly target public council calendars, meetings, agendas, documents, and PDFs for Lambeth, Wandsworth, and Southwark.",
+   "report_quote": "The task pursued by most payloads was collection of public UK local-government material.",
+   "evidence": ["zzsouthrunner:data/script.rb", "wandxprobe:data/runner.rb", "councilfetchfff:data/evil.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH04",
+   "section": "Collection",
+   "claim": "The scripts recursively fetch and retain response bodies, headers, links, pages, and documents rather than merely testing reachability.",
+   "report_quote": "They follow links, retain headers and status codes, and save bodies or compressed files.",
+   "evidence": ["zzsouthrunner:data/script.rb", "wandxprobe:data/runner.rb", "councilfetchfff:data/evil.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH05",
+   "section": "Gem return channel",
+   "claim": "Many payloads package fetched material into a new gem and POST it to RubyGems, using the package registry as a data-return or persistence channel.",
+   "report_quote": "The larger payloads build a fresh gem containing fetched pages or compressed results and POST its bytes",
+   "evidence": ["zzsouthrunner:data/script.rb", "wandxprobe:data/runner.rb", "southnewsprobe1778550995:data/fetch.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH06",
+   "section": "Webhook return channel",
+   "claim": "A separate family compresses and URL-safe-Base64-encodes results into indexed webhook-URL chunks with END or ERR markers, creating reconstructable persistent storage.",
+   "report_quote": "deflates and URL-safe-Base64-encodes results, splits them into roughly 220-character pieces",
+   "evidence": ["southpxdatapp6pi:data/hack.rb", "uu4c477z1:data/hack.rb", "wandtmpdesign9fe2:data/hack.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH07",
+   "section": "Credential attack",
+   "claim": "At least six retained payload files probe /api/v1/api_key or variants, extract key-shaped responses, and attempt to use a returned key to publish a gem.",
+   "report_quote": "Six retained payload files reference /api/v1/api_key or format variants.",
+   "evidence": ["slnleaker5:data/script.rb", "zzwandshostyard:data/ssrf.rb", "yardbreakerxqh1778552850:data/payload.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH08",
+   "section": "Credential limits",
+   "claim": "The corpus does not establish successful theft of another user's API key; the code often falls back to an existing embedded key and contains no authoritative server response proving a leak.",
+   "report_quote": "successful theft is not established",
+   "evidence": ["slnleaker5:data/script.rb", "lambfetchx548811:data/evil.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "This point rewards correct epistemic limits as well as identifying the attempted theft."
+  },
+  {
+   "id": "RH09",
+   "section": "Concealment",
+   "claim": "Some packages are designed to avoid repeat execution or remove their active loader in a subsequent version, including an explicit 'disable evil' step and the southnewsprobe removal diff.",
+   "report_quote": "There are also efforts to avoid repeat execution or remove active code",
+   "evidence": ["yardxabc889:data/evil.rb", "southnewsprobe1778550995:0.0.2 -> 0.0.3:data/.yardopts"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH10",
+   "section": "Intent",
+   "claim": "Names and comments repeatedly call the code malicious, hack, evil, exploit, SSRF, exfil, or leak, supporting deliberate exploitation rather than an accidental packaging error.",
+   "report_quote": "The artifacts repeatedly describe themselves with names or comments such as malicious, hack, evil, exploit, SSRF, exfil, and leak.",
+   "evidence": ["zzsouthrunner:data/script.rb", "wandxprobe:data/runner.rb", "slnleaker5:data/script.rb"],
+   "derivable": "yes",
+   "grading_mode": "recall_accuracy"
+  },
+  {
+   "id": "RH11",
+   "section": "Operational pattern",
+   "claim": "The packages form a coherent cluster through repeated hooks, targets, endpoints, code patterns, tool versions, and reused redacted credential fingerprints, but this does not prove a single coordinated swarm.",
+   "report_quote": "That supports common tooling or related runs, but the selected evidence cannot establish how many distinct actors cooperated.",
+   "evidence": ["packages.jsonl corpus-wide comparison"],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "Full credit requires the limitation; confident claims of one collaborating swarm overstate this corpus."
+  },
+  {
+   "id": "RH12",
+   "section": "Attribution and scope limits",
+   "claim": "The selected package corpus cannot establish OpenAI or model attribution, campaign-wide upload totals and dates, registry response, or links to the wiki, Hugging Face, and Artifactory incidents.",
+   "report_quote": "It contains no reliable OpenAI identifier and cannot identify a model or organization from package content alone.",
+   "evidence": ["packages.jsonl corpus boundary"],
+   "derivable": "yes",
+   "grading_mode": "recall_calibrated",
+   "note": "Reward reports that distinguish observed package behavior from external attribution."
+  }
+ ]
+}

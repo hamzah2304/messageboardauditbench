@@ -16,9 +16,24 @@ import socket
 import sys
 from pathlib import Path
 
-
 REQUIRED_DATA_FILES = frozenset({"events.jsonl", "labels.jsonl", "pages.jsonl", "revisions.jsonl"})
+SUPPORTED_DATA_FILE_SETS = (
+    REQUIRED_DATA_FILES,
+    frozenset({"transcript.jsonl"}),
+    frozenset({"packages.jsonl"}),
+)
 ALLOWED_DATA_AUXILIARY_FILES = frozenset({".gitkeep"})
+
+
+def expected_data_file_sets() -> tuple[frozenset[str], ...]:
+    """Use the host-declared incident shape, with legacy shapes as a fallback."""
+    declared = os.environ.get("MBAB_DATA_FILES")
+    if not declared:
+        return SUPPORTED_DATA_FILE_SETS
+    names = frozenset(name.strip() for name in declared.split(",") if name.strip())
+    if not names or any("/" in name or not name.endswith(".jsonl") for name in names):
+        return ()
+    return (names,)
 
 
 def file_digest_and_jsonl_count(path: Path) -> tuple[str, int]:
@@ -40,7 +55,24 @@ def file_digest_and_jsonl_count(path: Path) -> tuple[str, int]:
 
 
 def _network_interfaces() -> list[str]:
-    return sorted(name for _index, name in socket.if_nameindex())
+    """Return interfaces that the kernel currently marks administratively up.
+
+    Docker Desktop's Linux VM exposes inert tunnel device names even in a
+    container created with ``--network none``.  Their IFF_UP bit is clear and
+    they cannot carry traffic, so treating their mere presence as a network
+    escape makes the preflight reject an isolated container.
+    """
+    interfaces: list[str] = []
+    for _index, name in socket.if_nameindex():
+        try:
+            flags = int((Path("/sys/class/net") / name / "flags").read_text(), 16)
+        except (OSError, ValueError):
+            # Fail closed when the kernel does not expose an interface's flags.
+            interfaces.append(name)
+            continue
+        if flags & 0x1:  # Linux IFF_UP
+            interfaces.append(name)
+    return sorted(interfaces)
 
 
 def _is_readonly_mount(path: Path) -> bool:
@@ -65,20 +97,30 @@ def preflight(
     data = work / "data"
     visible = sorted(str(path.relative_to(work)) for path in work.rglob("*") if path.is_file() or path.is_symlink())
     problems: list[str] = []
-    allowed_visible = {f"data/{name}" for name in REQUIRED_DATA_FILES | ALLOWED_DATA_AUXILIARY_FILES}
+    supported_files = frozenset(
+        path.name for path in data.iterdir() if path.name not in ALLOWED_DATA_AUXILIARY_FILES
+    ) if data.is_dir() else frozenset()
+    expected_sets = expected_data_file_sets()
+    required_files = next(
+        (files for files in expected_sets if supported_files == files),
+        frozenset(),
+    )
+    allowed_names = required_files | ALLOWED_DATA_AUXILIARY_FILES
+    allowed_visible = {f"data/{name}" for name in allowed_names}
     if set(visible) - allowed_visible:
         problems.append(f"unexpected /work visibility: {visible!r}")
     if not data.is_dir():
         problems.append("/work/data is missing")
     data_files = {path.name for path in data.iterdir()} if data.is_dir() else set()
-    if not REQUIRED_DATA_FILES <= data_files or data_files - (REQUIRED_DATA_FILES | ALLOWED_DATA_AUXILIARY_FILES):
-        problems.append(f"data files are {sorted(data_files)!r}, expected required {sorted(REQUIRED_DATA_FILES)!r}")
+    if not required_files:
+        expected = [sorted(files) for files in expected_sets]
+        problems.append(f"data files are {sorted(data_files)!r}, expected one of {expected!r}")
     data_readonly = _is_readonly_mount(data)
     if require_readonly_mount and not data_readonly:
         problems.append("/work/data is not a read-only mount")
 
     files: dict[str, dict[str, int | str]] = {}
-    for name in sorted(REQUIRED_DATA_FILES):
+    for name in sorted(required_files):
         path = data / name
         if not path.is_file() or path.is_symlink():
             problems.append(f"{name} is absent, not a regular file, or a symlink")

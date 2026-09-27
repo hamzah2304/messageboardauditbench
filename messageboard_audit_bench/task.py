@@ -49,6 +49,13 @@ from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
 from messageboard_audit_bench.grading.core import variant_for_data
 from messageboard_audit_bench.grading.scorer import sheet_scorer
+from messageboard_audit_bench.incidents import (
+    config_names,
+    data_variants,
+    default_rubrics,
+    incident,
+    incident_for_variant,
+)
 from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
@@ -64,9 +71,10 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "7-A"
+EVAL_VERSION = "8-A"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_CONFIGS = ("blind", "context", "blind-anthropic")
+_CONFIGS = config_names()
+_DATA_VARIANTS = data_variants()
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20
@@ -95,10 +103,10 @@ def _load_config(config_name: str) -> dict:
     return cfg
 
 
-def _time_limit(time_limit_minutes: int | None) -> int:
-    value = (
-        DEFAULT_TIME_LIMIT_MINUTES if time_limit_minutes is None else time_limit_minutes
-    )
+def _time_limit(
+    time_limit_minutes: int | None, default: int = DEFAULT_TIME_LIMIT_MINUTES
+) -> int:
+    value = default if time_limit_minutes is None else time_limit_minutes
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("time_limit_minutes must be a positive integer")
     return value
@@ -140,7 +148,7 @@ def _prompt_for(
     min_runtime_fraction: float | None = None,
 ) -> str:
     cfg = _load_config(config_name)
-    budget_minutes = _time_limit(time_limit_minutes)
+    budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
     return render_prompt(text, budget_minutes, *limits(cfg)) + (
@@ -168,6 +176,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
         data_dir = targets.pop()
     elif targets:
         raise RuntimeError(f"data/{data_variant} symlinks point at several directories")
+    expected_files = ",".join(incident_for_variant(data_variant).corpus["files"])
     return SandboxEnvironmentSpec(
         type="isolated-docker",
         config=ComposeConfig(
@@ -183,6 +192,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                     user="1000:1000",
                     cap_drop=["ALL"],
                     security_opt=["no-new-privileges:true"],
+                    environment={"MBAB_DATA_FILES": expected_files},
                     working_dir="/work",
                     volumes=[f"{data_dir}:/work/data:ro"],
                 )
@@ -196,7 +206,8 @@ def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) ->
     scorers = [process_metrics(), report_length()]
     if rubric == "legacy":
         return [rubric_scorer(judge=judge), *scorers]
-    modes = [mode.strip() for mode in (rubric or "").split(",") if mode.strip()]
+    default_rubric = default_rubrics(data_variant or "verbatim")
+    modes = [mode.strip() for mode in (rubric or default_rubric).split(",") if mode.strip()]
     if len(modes) != len(set(modes)):
         raise ValueError("rubric must not contain duplicate modes")
     return [
@@ -215,7 +226,7 @@ def messageboard_audit_bench(
     time_limit_minutes: int | None = None,
     min_runtime_fraction: float = 0.75,
     judge: str = "openai/gpt-5.6-sol",
-    rubric: str | None = "v2,tldrh",
+    rubric: str | None = None,
     data_variant: str | None = None,
 ) -> Task:
     """Run one sandboxed message-board audit.
@@ -228,22 +239,24 @@ def messageboard_audit_bench(
             Native runs select their model with Inspect's ``--model`` option.
         config: Named prompt/data/effort configuration from ``configs/``.
         time_limit_minutes: Trial budget in minutes. Overrides the named
-            config's 20-minute default. Native runs have a separate
+            config's declared default. Native runs have a separate
             five-minute outer guard for cleanup and log recovery.
         min_runtime_fraction: Fraction of the agent budget that must elapse
             before normal completion is accepted. Defaults to ``0.75``; set
             ``0`` to disable this continuation policy for an ablation.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
-        rubric: Comma-separated sheet modes; defaults to coverage (``v2``)
-            and summary quality (``tldrh``). Use Inspect's ``--no-score`` to
-            defer grading, or ``legacy`` for the old starter rubric.
+        rubric: Comma-separated sheet modes; defaults to the finding and
+            summary rubrics for the selected incident (``v2,tldrh`` for the
+            wiki, ``m5,m5tldrh`` for Mythos 5, and ``rh,rhtldrh`` for
+            RubyHack). Use Inspect's ``--no-score``
+            to defer grading, or ``legacy`` for the old starter rubric.
         data_variant: Override the config's dataset, including
             ``verbatim_anthropic`` for the provider attribution ablation.
     """
     cfg = _load_config(config)
     if data_variant is not None:
-        if data_variant not in {"verbatim", "verbatim_anthropic", "raw_stripped"}:
+        if data_variant not in _DATA_VARIANTS:
             raise ValueError(f"unsupported data_variant {data_variant!r}")
         cfg = {**cfg, "data_variant": data_variant}
     if agent not in _SUPPORTED_AGENTS:
@@ -268,13 +281,14 @@ def messageboard_audit_bench(
         raise ValueError(
             "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
         )
-    budget_min = _time_limit(time_limit_minutes)
+    budget_min = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
     minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
         budget_min * 60, runtime_fraction
     )
     cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
     sample_metadata = {
+        "incident": incident_for_variant(cfg["data_variant"]).id,
         "agent": agent,
         "scaffold": _scaffold(agent, backend),
         "backend": backend,
@@ -346,6 +360,7 @@ def messageboard_audit_bench(
         version=EVAL_VERSION,
         metadata={
             "benchmark": "MessageBoardAuditBench",
+            "incident": incident_for_variant(cfg["data_variant"]).id,
             "backend": backend,
             "scaffold": _scaffold(agent, backend),
             "config": config,
@@ -372,21 +387,24 @@ def messageboard_audit_bench_replay(
     runs_glob: str = "*",
     include_failed: bool = True,
     judge: str = "openai/gpt-5.6-sol",
-    rubric: str | None = "v2,tldrh",
+    rubric: str | None = None,
 ) -> Task:
     """Import local run artifacts into Inspect without rerunning agents."""
     samples = []
+    incidents: set[str] = set()
     for d in sorted((repo_root() / "runs").glob(runs_glob)):
         if not (d / "transcript.jsonl").exists():
             continue
         meta_path = d / "meta.json"
         # Nonzero exits can still contain a valuable partial trajectory. The
         # replay solver records the exit status and missing-report state.
-        if not meta_path.exists() or (
-            not include_failed
-            and json.loads(meta_path.read_text()).get("exit_code") != 0
-        ):
+        if not meta_path.exists():
             continue
+        meta = json.loads(meta_path.read_text())
+        if not include_failed and meta.get("exit_code") != 0:
+            continue
+        data_variant = str(meta.get("data_variant", "verbatim"))
+        incidents.add(incident_for_variant(data_variant).id)
         agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
         samples.append(
             Sample(
@@ -394,15 +412,29 @@ def messageboard_audit_bench_replay(
                 if (d / "work" / "prompt.txt").exists()
                 else "",
                 id=d.name,
-                metadata={"run_dir": str(d), "agent": agent},
+                metadata={
+                    "run_dir": str(d),
+                    "agent": agent,
+                    "data_variant": data_variant,
+                },
             )
         )
     if not samples:
         raise RuntimeError(f"no runs matched runs/{runs_glob}")
+    if len(incidents) != 1:
+        raise ValueError(
+            "a replay task cannot mix incidents; narrow runs_glob to one incident"
+        )
+    selected_incident = next(iter(incidents))
+    data_variant = (
+        str(incident(selected_incident).corpus["primary_variant"])
+        if selected_incident != "wiki"
+        else None
+    )
     return Task(
         dataset=samples,
         solver=replay(),
-        scorer=_scorers(judge, rubric),
+        scorer=_scorers(judge, rubric, data_variant),
         version=EVAL_VERSION,
         metadata={"benchmark": "MessageBoardAuditBench", "mode": "replay"},
     )
@@ -429,7 +461,7 @@ def messageboard_audit_bench_continue(
     parent_epochs: str = "all",
     config: str = "followup-5k",
     judge: str = "openai/gpt-5.6-sol",
-    rubric: str | None = "v2,tldrh",
+    rubric: str | None = None,
 ) -> Task:
     """Continue finished ReAct samples with a follow-up request.
 

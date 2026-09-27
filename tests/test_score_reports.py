@@ -8,13 +8,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from score_reports import combine  # noqa: E402
+from score_reports import combine, main, markdown  # noqa: E402
 
 
 def _write(folder: Path, key: str, rubric: str, scores, judge="claude-fable-5-1"):
     folder.mkdir(parents=True, exist_ok=True)
     body = {"report": key, "grader": judge, "rubric": rubric}
-    if rubric == "tldrh":
+    if rubric in {"tldrh", "m5tldrh", "rhtldrh"}:
         body["accuracy"] = scores
     else:
         body["scores"] = {f"N{i:02d}": {"score": s} for i, s in enumerate(scores)}
@@ -29,6 +29,66 @@ def test_headline_is_seventy_thirty_over_the_strict_transform(tmp_path) -> None:
     assert row["coverage_strict"] == 0.375  # (1.0 + 0.5 + 0 + 0) / 4
     assert row["coverage_raw"] == 0.625
     assert row["headline"] == round(0.7 * 0.375 + 0.3 * 0.6, 4)
+
+
+def test_formula_accepts_mythos_finding_and_summary_directories(tmp_path) -> None:
+    _write(tmp_path / "m5", "run1", "m5", [1.0, 0.75, 0.5])
+    _write(tmp_path / "m5tldrh", "run1", "m5tldrh", 0.8)
+
+    row = combine(tmp_path / "m5", tmp_path / "m5tldrh")["reports"][0]
+
+    assert row["coverage_strict"] == 0.5
+    assert row["headline"] == 0.59
+
+
+def test_formula_accepts_rubyhack_finding_and_summary_directories(tmp_path) -> None:
+    _write(tmp_path / "rh", "run1", "rh", [1.0, 0.75, 0.5])
+    _write(tmp_path / "rhtldrh", "run1", "rhtldrh", 0.8)
+
+    row = combine(tmp_path / "rh", tmp_path / "rhtldrh")["reports"][0]
+
+    assert row["coverage_strict"] == 0.5
+    assert row["headline"] == 0.59
+
+
+def test_result_markdown_exposes_components_and_headline(tmp_path) -> None:
+    _write(tmp_path / "rh", "run1", "rh", [1.0, 0.75, 0.5])
+    _write(tmp_path / "rhtldrh", "run1", "rhtldrh", 0.8)
+
+    rendered = markdown(combine(tmp_path / "rh", tmp_path / "rhtldrh"), "RubyHack")
+
+    assert "# RubyHack" in rendered
+    assert "| run1 | 0.750 | 0.500 | 0.667 | 0.800 | 0.590 |" in rendered
+    assert "Judge(s): claude-fable-5-1" in rendered
+
+
+def test_registered_incident_writes_reviewable_result_artifacts(
+    tmp_path, monkeypatch
+) -> None:
+    grades = tmp_path / "grades"
+    _write(grades / "rh", "run1", "rh", [1.0])
+    _write(grades / "rhtldrh", "run1", "rhtldrh", 0.8)
+    json_out = tmp_path / "results/scores.json"
+    markdown_out = tmp_path / "results/README.md"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_reports.py",
+            str(grades),
+            "--incident",
+            "rubyhack",
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+            "--json",
+        ],
+    )
+
+    assert main() == 0
+    assert json.loads(json_out.read_text())["incident"] == "rubyhack"
+    assert "RubyHack malicious-package investigation" in markdown_out.read_text()
 
 
 def test_the_three_finding_numbers_stay_distinct(tmp_path) -> None:

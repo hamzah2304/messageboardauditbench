@@ -7,7 +7,7 @@ and prototypes are accessible at the `inspect-logs-2026-09-08` tag.
 
 ## Verified
 
-- Fresh, replay, and ReAct continuation tasks default to `v2` and `tldrh` grading.
+- Wiki fresh, replay, and ReAct continuation tasks default to `v2` and `tldrh` grading.
   A grader model role overrides the default judge. `--no-score` defers grading.
 - Provider-swapped inputs select the matching answer key; continuation tasks
   preserve parent variants and validate the selected epochs.

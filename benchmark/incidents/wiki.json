@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "id": "wiki",
+  "title": "collusion.wiki investigation",
+  "maturity": "published",
+  "investigation_url": "https://collusion.wiki/index.html",
+  "corpus": {
+    "primary_variant": "verbatim",
+    "variants": ["raw_stripped", "verbatim", "verbatim_anthropic"],
+    "files": ["events.jsonl", "labels.jsonl", "pages.jsonl", "revisions.jsonl"],
+    "builder": null,
+    "build_command": "scripts/build_data.sh",
+    "blindness": "Investigator classifications and labels are stripped; only source records and report-verbatim evidence are mounted.",
+    "limitations": []
+  },
+  "runtime": {
+    "configs": ["blind", "context", "blind-anthropic"],
+    "default_config": "blind",
+    "default_minutes": 20
+  },
+  "grading": {
+    "finding_mode": "v2",
+    "summary_mode": "tldrh",
+    "claims_file": "benchmark/claims/claims_v2.json",
+    "answer_key": "benchmark/human_report.txt",
+    "rubric_builder": "benchmark/rubrics/build_rubrics_v2.py"
+  },
+  "review": {
+    "interest": "Original benchmark incident and published comparison set.",
+    "validity_risks": [],
+    "publication_requirements": []
+  },
+  "results": {
+    "status": "published",
+    "path": "benchmark/figures/combined_score.json"
+  }
+}

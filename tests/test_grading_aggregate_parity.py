@@ -14,7 +14,7 @@ GRADED = repo_root() / "benchmark" / "graded"
 # fields aggregate() derives rather than passes through
 DERIVED = ("total", "max", "accuracy", "contradiction", "n_contradicted", "worst")
 # fields later versions of the grader added; a rebuilt dict may carry them, nothing else
-ADDITIVE = {"rubric"}
+ADDITIVE = {"rubric", "rubric_sha256"}
 
 
 def grade_files() -> list[Path]:

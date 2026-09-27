@@ -42,7 +42,7 @@ read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 # In a worktree the data files are symlinks to the primary checkout; bind-mount the real
 # directory, or the container sees dangling links to host paths.
-DATA_DIR="$(python3 -c 'import os,sys; print(os.path.dirname(os.path.realpath(sys.argv[1])))' "$DATA_DIR/revisions.jsonl")"
+DATA_DIR="$(python3 -c 'import glob,os,sys; files=glob.glob(os.path.join(sys.argv[1], "*.jsonl")); assert files, "no JSONL inputs"; print(os.path.dirname(os.path.realpath(files[0])))' "$DATA_DIR")"
 
 # Always ask Docker to build: layer caching makes unchanged launches cheap and
 # ensures the recorded image contains this worktree's exact helper scripts.
