@@ -108,7 +108,7 @@ __PAGE__
      <div><b>Type</b> says what sort of claim it is. <b>Finding</b>: something the report observed. <b>Conclusion</b>: an inference the report draws from what it observed. <b>Context</b>: background that shouldn't be scored.</div>
      <div><b>In scan data?</b> asks whether an AI agent given only the urlquery scans could reach it. <b>Yes</b>: the scans alone show it. <b>Partly</b>: some of it, e.g. the attempt is visible but not whether it worked. <b>No</b>: it needs outside information, such as news, statements or other sites. Hover <b>⚠ Data limits</b> for what's missing.</div>
     </div></li>
-   <li><b>Your findings are private.</b> Other people can't see them, and you can't see theirs, so everyone extracts independently. The page owner can compare everyone's afterwards.</li>
+   <li><b>Mine</b> shows the findings you wrote, which only you can edit. <b>Everyone's</b> shows all collaborators' findings, grouped by person and read-only. If you want to extract independently, stay on Mine until you're done.</li>
    <li><b>Comment</b> by selecting text and clicking <b>Comment</b>, or with claude.ai's comment button. Comments are visible to everyone with access, so don't put findings in them.</li>
   </ol>
  </details>
@@ -169,7 +169,7 @@ function renderStore(){var el=$("fx-store");
   if(storeErr){el.className="store err";el.textContent=storeErr;return;}
   if(!CAN_WRITE){el.className="store ro";el.textContent=MODE==="db"&&!ME?"Sign in to claude.ai to add findings. You can still read and comment.":"View only: you can read and comment. To add findings, ask the owner for Editor access.";return;}
   el.className="store";
-  el.textContent=MODE==="db"?(VIEW==="all"?"Showing everyone's findings, read-only. Switch to Mine to edit yours.":"Private: only you can see your findings"+(IS_OWNER?". Switch to Everyone's to compare.":", plus the page owner when comparing.")):MODE==="connecting"?"Connecting…":"Local copy: saved in this browser only. Export JSON to share.";}
+  el.textContent=MODE==="db"?(VIEW==="all"?"Showing everyone's findings, read-only. Switch to Mine to edit yours.":"Showing your findings. Only you can edit them; everyone with access can read them under Everyone's."):MODE==="connecting"?"Connecting…":"Local copy: saved in this browser only. Export JSON to share.";}
 
 /* ---------- text offsets over the article ---------- */
 var nodes=[],starts=[],FULL="";
@@ -243,7 +243,7 @@ function render(){
   if(EDIT){var ta=document.querySelector('.fx-item[data-id="'+CSS.escape(EDIT)+'"] textarea[data-act="'+(focused||"edit-text")+'"]');
     if(ta&&(focused||EDIT!==render.lastFocus)){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);render.lastFocus=EDIT;}}
   $("fx-add").disabled=!editable();$("fx-new").disabled=!editable();$("fx-import-l").hidden=!editable();
-  $("fx-viewrow").hidden=!(MODE==="db"&&IS_OWNER);$("fx-v-mine").classList.toggle("on",VIEW==="mine");$("fx-v-all").classList.toggle("on",VIEW==="all");
+  $("fx-viewrow").hidden=!(MODE==="db"&&ME!=="anon");$("fx-v-mine").classList.toggle("on",VIEW==="mine");$("fx-v-all").classList.toggle("on",VIEW==="all");
   $("fx-v-mine").setAttribute("aria-pressed",VIEW==="mine");$("fx-v-all").setAttribute("aria-pressed",VIEW==="all");
   paint();
 }

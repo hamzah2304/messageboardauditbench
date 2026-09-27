@@ -172,9 +172,9 @@ sub-findings, and attach quotes selected from the article to either level;
 each carries a kind (finding, conclusion or context) and whether the frozen
 scans can check it (yes, partly, no). A hover panel lists what the scan
 data cannot show. `--artifact-out` writes a copy for a claude.ai artifact,
-where each person's findings and quotes live in their own private database
-subtree (`data/users/<id>`; only the artifact owner can read everyone's, to
-compare) and comments use claude.ai's comment threads; opened as a file, it saves in the browser.
+where each person's findings and quotes live in their own database subtree
+(`data/users/<id>`: only they can write it, every collaborator can read it
+under Everyone's) and comments use claude.ai's comment threads; opened as a file, it saves in the browser.
 Exports use schema `urlquery-findings-v2` and carry benchmark and source/rendered-article hashes;
 imports for another benchmark or source version are rejected. This is an evaluator tool and is never in the agent mount.
 
