@@ -75,17 +75,28 @@ def collect(root, config):
     redactions = {r["run_id"]: r for r in config.get("redacted_runs", [])}
     if len(redactions) != len(config.get("redacted_runs", [])):
         raise ValueError("Duplicate redaction approval")
+    originals = {r["run_id"]: r["sha256"] for r in config.get("original_runs", [])}
+    if len(originals) != len(config.get("original_runs", [])) or set(originals) & set(redactions):
+        raise ValueError("Duplicate or conflicting original report approval")
     used_redactions = set()
+    used_originals = set()
     for name in config["run_indexes"]:
         data = json.loads(inside(root, name).read_text())
         if data["benchmark_id"] != "urlquery":
             raise ValueError("Wrong benchmark in publication index")
         for row in data["attempts"]:
             redaction = redactions.get(row.get("run_id"))
-            if not row.get("report_path") and redaction is None:
+            original = originals.get(row.get("run_id"))
+            if not row.get("report_path") and redaction is None and original is None:
                 continue
-            if redaction is None and approved.get(row["run_id"]) != row["report_sha256"]:
+            if redaction is None and original is None and approved.get(row["run_id"]) != row["report_sha256"]:
                 raise ValueError("AI report lacks an explicit matching sharing approval")
+            if original is not None:
+                excluded = row.get("publication_exclusion") or {}
+                if (row.get("report_path") or not row.get("report_exists")
+                        or not excluded.get("matches") or original != row["report_sha256"]):
+                    raise ValueError("Original report approval disagrees with excluded source")
+                used_originals.add(row["run_id"])
             if redaction is not None:
                 if (redaction["sha256"] != row["report_sha256"]
                         or not redaction["lines"]):
@@ -139,6 +150,8 @@ def collect(root, config):
                             "dataset_sha256": row["dataset_sha256"]})
     if used_redactions != set(redactions):
         raise ValueError("Redaction approval has no matching excluded report")
+    if used_originals != set(originals):
+        raise ValueError("Original report approval has no matching excluded report")
     slugs = set()
     for entry in entries:
         slug = entry["slug"]
@@ -361,6 +374,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "configs/urlquery-sharing.toml")
     parser.add_argument("--redactions", type=Path)
+    parser.add_argument("--originals", type=Path,
+                        help="Explicit hash-pinned approval to export archived reports without redaction")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.output is None:
@@ -368,14 +383,22 @@ def main():
     if not (args.output.parent / ".openai/hosting.json").is_file():
         parser.error("Missing existing Sites binding; restore .openai/hosting.json before rebuilding")
     config = tomllib.loads(args.config.read_text())
+    if args.originals is not None and args.redactions is not None:
+        parser.error("Choose either original or redacted report copies")
     redactions = args.redactions
-    if redactions is None and args.config.resolve() == (ROOT / "configs/urlquery-sharing.toml").resolve():
+    if (redactions is None and args.originals is None
+            and args.config.resolve() == (ROOT / "configs/urlquery-sharing.toml").resolve()):
         redactions = ROOT / "configs/urlquery-sharing-redactions.toml"
     if redactions is not None and redactions.is_file():
         overlay = tomllib.loads(redactions.read_text())
         if set(overlay) != {"redacted_runs"}:
             parser.error("Redaction overlay must contain only redacted_runs")
         config["redacted_runs"] = overlay["redacted_runs"]
+    if args.originals is not None:
+        overlay = tomllib.loads(args.originals.read_text())
+        if set(overlay) != {"original_runs"}:
+            parser.error("Original overlay must contain only original_runs")
+        config["original_runs"] = overlay["original_runs"]
     manifest = build(ROOT, config, args.output)
     print(f"Built {len(manifest)} private reports. Publish only behind verified named-viewer access.")
 

@@ -131,6 +131,17 @@ def test_excluded_report_exports_only_a_pinned_redacted_copy(tmp_path):
     assert manifest["source_sha256"] == digest
     assert manifest["sha256"] == hashlib.sha256(shared).hexdigest()
     assert manifest["redaction_lines"] == [2]
+    del config["redacted_runs"]
+    config["original_runs"] = [{"run_id": "abc", "sha256": digest}]
+    MODULE["build"](tmp_path, config, output)
+    assert (output / "model_run.txt").read_bytes() == original
+    full = json.loads((output / "manifest.json").read_text())["reports"][-1]
+    assert full["sha256"] == full["source_sha256"] == digest
+    config["original_runs"][0]["sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="disagrees"):
+        MODULE["collect"](tmp_path, config)
+    del config["original_runs"]
+    config["redacted_runs"] = [{"run_id": "abc", "sha256": digest, "lines": [2]}]
     config["redacted_runs"][0]["lines"] = [1]
     with pytest.raises(ValueError, match="disagrees"):
         MODULE["collect"](tmp_path, config)
