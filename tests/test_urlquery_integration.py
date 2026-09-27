@@ -402,7 +402,7 @@ def test_recorded_binary_version_must_match_pin(tmp_path, agent, content, expect
 def test_nodetails_ablation_removes_only_the_details_sentence():
     import tomllib
 
-    sentence = (" Do not get lost in the details; the safety researchers care about the high-level"
+    sentence = (" Do not get lost in the details, the safety researchers care about the high level"
                 " important takeaways, and broader narrative of what happened, as well as the"
                 " evidence that backs up that story.")
     full = (ROOT / "sandbox/prompts/urlquery-swarm-v4.txt").read_text()
@@ -413,3 +413,73 @@ def test_nodetails_ablation_removes_only_the_details_sentence():
     assert base["prompt"] == "urlquery-swarm-v4" and variant["prompt"] == "urlquery-swarm-v4-nodetails"
     differing = {k for k in base.keys() | variant.keys() if base.get(k) != variant.get(k)}
     assert differing == {"name", "prompt"}
+
+
+def _fake_pilot_inputs(tmp_path, monkeypatch):
+    from messageboard_audit_bench import urlquery_pilot as pilot
+    dataset = tmp_path / "data/urlquery/test-v1"
+    dataset.mkdir(parents=True)
+    monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
+    monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
+        "benchmark_id": "urlquery", "dataset_sha256": "a" * 64, "dataset_version": "test-v1"})
+    return pilot, dataset
+
+
+def test_ablation_batch_plans_every_arm(tmp_path, monkeypatch):
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    max_parallel, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-v4-ablation-batch.toml")
+    assert max_parallel == 6 and len(plans) == 5
+    assert sum(len(p["matrix"]) for _, p in plans) == 3 + 16 + 16 + 1 + 1
+    long_plan = plans[0][1]
+    assert (long_plan["budget_minutes"], long_plan["outer_guard_seconds"]) == (30, 35 * 60)
+    assert all(p["budget_minutes"] == 10 and p["outer_guard_seconds"] == 900 for _, p in plans[1:])
+    assert plans[3][1]["matrix"] == [{"agent": "react", "model": "google/gemini-3.8-flash", "replicate": 1}]
+    assert all(len(p["batch_source_sha256"]) == 64 for _, p in plans)
+
+
+@pytest.mark.parametrize("body", [
+    "max_parallel = 0\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=0\nmodels=['codex:gpt-6-sol']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['gpt-6-sol']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/missing.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['react:../x']",
+])
+def test_batch_rejects_invalid_arms(tmp_path, body):
+    from messageboard_audit_bench.urlquery_pilot import load_batch
+    path = tmp_path / "batch.toml"
+    path.write_text(body)
+    with pytest.raises(ValueError):
+        load_batch(path)
+
+
+def test_launch_batch_caps_parallelism_orders_long_first_and_blocks_failures(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    _, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-v4-ablation-batch.toml")
+    monkeypatch.setattr(pilot, "_prepare", lambda directory, payload: {})
+    monkeypatch.setattr(pilot, "_collect_reports", lambda: None)
+    lock, live, peak, started = threading.Lock(), [0], [0], []
+
+    def fake_trial(directory, payload, env, trial):
+        with lock:
+            live[0] += 1
+            peak[0] = max(peak[0], live[0])
+            started.append((payload["budget_minutes"], trial["agent"], trial["model"]))
+        time.sleep(0.01)
+        with lock:
+            live[0] -= 1
+        # The first Claude Opus 4.6 trial fails as an auth/capacity error would.
+        stop = trial["model"] == "claude-opus-4-6"
+        return {"agent": trial["agent"], "requested_model": trial["model"]}, stop
+
+    monkeypatch.setattr(pilot, "_run_trial", fake_trial)
+    results = pilot.launch_batch(plans, 6)
+    assert peak[0] <= 6
+    assert [budget for budget, _, _ in started[:3]] == [30, 30, 30]
+    first_failure = next(i for i, row in enumerate(started) if row[2] == "claude-opus-4-6")
+    # Claude trials already in flight may finish; none start well after the failure.
+    assert all(agent != "claude" for _, agent, _ in started[first_failure + 6:])
+    assert len(results) == len(started) < 37
+    assert any(row[1] == "react" for row in started)
