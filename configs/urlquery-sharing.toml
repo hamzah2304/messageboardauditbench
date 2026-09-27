@@ -1,6 +1,6 @@
 # Explicit publication allowlist. No directory crawling or raw dataset exports.
 title = "URLQuery benchmark reports"
-run_indexes = ["docs/assessments/transluce/pilot_runs.json", "docs/assessments/transluce/smaller_runs.json"]
+run_indexes = ["docs/assessments/transluce/pilot_runs.json", "docs/assessments/transluce/smaller_runs.json", "docs/assessments/transluce/v2_prompt_runs.json"]
 
 [[prompt_groups]]
 slug = "prompt_urlquery_blind"
@@ -16,7 +16,21 @@ description = "Follow-up pilot: TL;DR, timeline and analysis for AI safety resea
 sha256 = "df46bf05f40c797636a18a86832bf62b9759575ea30c4fce4a4bfbe58203ee02"
 source_run = "20260927T000755Z_codex_gpt-6-luna_r1_urlquery-10_f35252d6076e"
 
-# Current eight reports approved for restricted collaborator sharing only.
+[[prompt_groups]]
+slug = "prompt_urlquery_weird_v2"
+title = "Prompt 3 · weird-v2 — unusual activity"
+description = "Asks whether anything unusual is happening, with findings organized into incidents and a synthesis."
+sha256 = "03c3938c946ecf3aaaab3fbc3df6d88933d48cbc93e71759322dffc75c9226f4"
+source_run = "20260927T005941Z_codex_gpt-6-astra_r1_urlquery-10-weird-v2_0473673ec37d"
+
+[[prompt_groups]]
+slug = "prompt_urlquery_swarm_v2"
+title = "Prompt 4 · swarm-v2 — agent-swarm hypothesis"
+description = "Adds an explicit question about evidence of agent swarms collaborating in the wild; the hypothesis is supplied by the prompt, not a verified finding."
+sha256 = "3471286625ba21335a44ce4a61efd3ab674043615d5b97a00b6068cdf924d32c"
+source_run = "20260927T010230Z_codex_gpt-6-astra_r1_urlquery-10-swarm-v2_3ea4f3ec6a25"
+
+# Current fourteen reports approved for restricted collaborator sharing only.
 # Never auto-fill this list when new runs are collected.
 [[approved_runs]]
 run_id = "db5795b9870649a69bd3d443aa2d5f4a"
@@ -49,6 +63,30 @@ sha256 = "c6f662ac0400dc27977ff8080b4def1487219252065a7427e2bfb031d9e0f394"
 [[approved_runs]]
 run_id = "c963515137c541349bfe83c248e15e5e"
 sha256 = "520276bb4b1179b0236a83c50b568b84bf9235b8a2147fe675e34602c2927c2f"
+
+[[approved_runs]]
+run_id = "e7d6c6ab5d024b49aaeaa5671a435a38"
+sha256 = "e2322132b4d3c25beb7db1610d74a4881968f5ea1a4434399e3d532a14ea7ba1"
+
+[[approved_runs]]
+run_id = "0473673ec37d4f4693dbe740aeb1dfce"
+sha256 = "15cf4ee6a21b0f333da89be902ebe27149f6edf851aa341efaaf3d2b1afe4a67"
+
+[[approved_runs]]
+run_id = "4506f5a312964a90995cc5580dd95c30"
+sha256 = "31ca313521df607f3a39190a0c7b1cf1e37a9f9cee5c60de04e4fc97268ea7d9"
+
+[[approved_runs]]
+run_id = "3ea4f3ec6a254b61874f7ee4d2c8a8db"
+sha256 = "db4699e373f0017ec233a08edacce1715a9560db693b49b48a2dc13bef8edec7"
+
+[[approved_runs]]
+run_id = "e6bdd390a66744748088fba270df28cc"
+sha256 = "4dc392046e20d47af59b10ac57312155ec2ebd4fb99c6781b9a4fe2a3ef346b3"
+
+[[approved_runs]]
+run_id = "2e5b3ced9ce3469cbbbad212c3a28fce"
+sha256 = "9cd8d5baa14aadb9a29af4365b03b8214069c22f1d16bfed208e235956707af2"
 
 [[documents]]
 source = "docs/assessments/transluce/smaller_models.md"

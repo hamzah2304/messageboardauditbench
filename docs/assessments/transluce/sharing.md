@@ -96,3 +96,21 @@ All were fixed; the follow-up found no actionable issues. The user approved
 publication to the existing owner-plus-Adam audience. Deployment succeeded on
 2026-09-27 at 01:30 UTC without changing access. Signed-out checks of the homepage
 and the new exact-prompt download returned HTTP 401.
+
+The six additional `weird-v2`/`swarm-v2` reports are indexed in
+`v2_prompt_runs.json`, with the original experiment-manifest hash and per-report
+and per-prompt hashes. This is a publication selection, not a replacement for
+the launch histories: those runs used a parallel handoff and a results schema
+that the older `summarize_pilot.py` does not accept. The original plans were not
+edited, and its finished-plan guard was not relaxed. Collected report bytes,
+archived prompt bytes, metadata and model-identity observations were checked
+against all six archived runs before adding their explicit sharing approvals.
+The collection now has 14 AI reports across four prompt groups and six writeups.
+The Opus runs in the two new groups observed Opus 4.8 without fallback; the older
+Opus 5.5-to-4.8 reports retain their fallback labels.
+
+This addition was published as Sites version 4, static-source commit
+`636098b9f70ab4a9454dcb94391c39e5ea21f571`, on 2026-09-27 at 01:46 UTC.
+The requested Opus review `a28fcf37-0cf6-4a39-9fe1-ce5f74ee3db6` found no
+actionable issues; all 1,425 tests passed. Access remained restricted to the
+owner and the two previously invited viewers, Adam and ilykxar@gmail.com.
