@@ -17,6 +17,11 @@ from messageboard_audit_bench.runtime import repo_root
 from messageboard_audit_bench.urlquery_data import primary_root
 
 
+def fallback_chain(requested: str, fallback: dict | None) -> list[str]:
+    fallback = fallback or {}
+    return fallback.get("chain") or ([requested, fallback["fallback_model"]] if fallback.get("fallback_model") else [])
+
+
 def summarize(experiments: list[Path], reports_root: Path) -> dict:
     shared_runs = (primary_root() / "runs/urlquery").resolve()
     reports_root = reports_root.resolve()
@@ -80,8 +85,10 @@ def summarize(experiments: list[Path], reports_root: Path) -> dict:
                 if not (run / "report.md").exists() or file_sha256(path) != file_sha256(run / "report.md"):
                     raise ValueError("export differs from archived report")
                 slug = re.sub(r"[^a-z0-9_]", "_", f"urlquery_{result['agent']}_{result['requested_model']}_r{result['replicate']}_{metadata['run_id'][:12]}")
-                chain = (metadata.get("model_fallback") or {}).get("chain")
+                chain = fallback_chain(result["requested_model"], metadata.get("model_fallback"))
                 label = " → ".join(chain) + " (fallback)" if chain else result["requested_model"]
+                if metadata.get("model_fallback") and not chain:
+                    label += " (fallback, chain unknown)"
                 row.update(report_label=label, report_path=str(path), report_sha256=file_sha256(path),
                            preview_name=slug, report_url=f"http://localhost:8792/{slug}.html")
             attempts.append(row)
@@ -91,6 +98,19 @@ def summarize(experiments: list[Path], reports_root: Path) -> dict:
     return {"benchmark_id": "urlquery", "dataset_sha256": hashes.pop(), "grading": "none",
             "plans": plans, "attempts": attempts, "report_count": sum("report_path" in row for row in attempts),
             "summary_script_sha256": file_sha256(Path(__file__)), "interpretation": __doc__}
+
+
+def fallback_notice(row: dict) -> str:
+    fallback = row.get("model_fallback") or {}
+    if not fallback:
+        return ""
+    chain = fallback_chain(row["requested_model"], fallback)
+    if not chain:
+        return " Provider fallback metadata is present, but its model chain is unavailable."
+    category = (str(fallback["category"]) + " ") if fallback.get("category") else ""
+    reason = f" after a {category}safety refusal" if fallback.get("trigger") == "refusal" else ""
+    return (f" Requested {row['requested_model']}; observed fallback chain: "
+            + " → ".join(chain) + reason + ". This is not a single-model run.")
 
 
 def main():
@@ -109,7 +129,7 @@ def main():
                                 "--report-id", "urlquery-report-" + row["run_id"],
                                 "--title", f"{row['report_label']} · run {row['replicate']} · unscored",
                                 "--notice", f"{row['report_label']} · run {row['replicate']}. Original, unscored report; claims are not verified. Keep private: recorded credential values may appear."
-                                + (" The requested Opus 5.5 switched to Opus 4.8 after a cyber-safety refusal; this is not a pure Opus 5.5 run." if row["model_fallback"] else "")],
+                                + fallback_notice(row)],
                                cwd=root, check=True)
     args.output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"attempts": len(data["attempts"]), "reports": data["report_count"]}))

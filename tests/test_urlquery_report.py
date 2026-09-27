@@ -129,12 +129,20 @@ def test_summary_requires_export_provenance(report_fixture, missing):
         summarize([experiment], reports)
 
 
-def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatch, tmp_path):
+@pytest.mark.parametrize("chain", [["claude-opus-5-5", "claude-opus-4-8"],
+                                   ["claude-sonnet-5", "claude-sonnet-4-6"]])
+@pytest.mark.parametrize("missing_chain", [False, True])
+def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatch, tmp_path, chain, missing_chain):
     _, experiment, run, reports = report_fixture
     scripts = Path(__file__).parents[1] / "docs/assessments/transluce"
     meta = json.loads((run / "meta.json").read_text())
-    meta["model_fallback"] = {"chain": ["claude-opus-5-5", "claude-opus-4-8"]}
+    meta["model_fallback"] = {"chain": chain, "trigger": "refusal"}
+    if missing_chain:
+        meta["model_fallback"] = {"fallback_model": chain[-1], "trigger": "refusal"}
     (run / "meta.json").write_text(json.dumps(meta))
+    results = json.loads((experiment / "results.json").read_text())
+    results[0]["requested_model"] = chain[0]
+    (experiment / "results.json").write_text(json.dumps(results))
     module = runpy.run_path(str(scripts / "summarize_pilot.py"))
     main = module["main"]
     monkeypatch.setitem(main.__globals__, "repo_root", lambda: reports.parent.parent)
@@ -146,7 +154,11 @@ def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatc
     main()
     command = commands[0]
     notice = command[command.index("--notice") + 1]
-    assert "switched to Opus 4.8 after a cyber-safety refusal" in notice
+    assert " → ".join(chain) in command[command.index("--title") + 1]
+    assert " → ".join(chain) + " after a safety refusal" in notice
+    assert "Requested " + chain[0] in notice
+    if "sonnet" in chain[0]:
+        assert "opus" not in notice.lower()
     preview = runpy.run_path(str(scripts / "build_preview.py"))["main"]
     monkeypatch.setitem(preview.__globals__, "ROOT", tmp_path)
     (tmp_path / "viewers").mkdir()
@@ -157,3 +169,15 @@ def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatc
     html = (tmp_path / "viewers/test.html").read_text()
     assert "&lt;img src=x onerror=bad()&gt;" in html
     assert "<img src=x" not in html
+
+
+@pytest.mark.parametrize(("fallback", "contains", "absent"), [
+    (None, "", "fallback chain"),
+    ({"chain": ["first", "second"], "trigger": "capacity"}, "first → second", "refusal"),
+    ({"fallback_model": "second", "trigger": "refusal", "category": "cyber"}, "after a cyber safety refusal", "chain: ."),
+    ({"trigger": "unknown"}, "model chain is unavailable", "chain: ."),
+])
+def test_fallback_notice_edge_cases(fallback, contains, absent):
+    script = Path(__file__).parents[1] / "docs/assessments/transluce/summarize_pilot.py"
+    notice = runpy.run_path(str(script))["fallback_notice"]({"requested_model": "first", "model_fallback": fallback})
+    assert contains in notice and absent not in notice
