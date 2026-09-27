@@ -78,9 +78,11 @@ an evidence-checked finding rubric.
 | Logs | `logs/` | `logs/urlquery/` |
 
 `configs/urlquery-10.toml` sets ten minutes including writing, medium effort, a
-3,000–3,500 word target, acceptance up to 3,600 words, and minimum runtime fraction
-0.75. The source report had 3,135 prose words under the follow-up's documented
-counting rule. The active process is stopped at ten minutes; the fifteen-minute
+2,400–2,900 word target, acceptance up to 3,000 words, and minimum runtime fraction
+0.75. The target matches the source report's findings prose: 2,633 words across the
+introduction, key findings, executive summary, the three incident sections and the
+six timeline descriptions, excluding the appendix (421) and footnotes (81) that the
+earlier 3,135-word count included (`docs/assessments/transluce/source_word_count.json`). The active process is stopped at ten minutes; the fifteen-minute
 outer setting is not permission for additional investigation.
 The active timeout has a one-second termination grace. Deadline stops are
 recorded as `active_time_limit`, distinct from harness errors; their reports are
