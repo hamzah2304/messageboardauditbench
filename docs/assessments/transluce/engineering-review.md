@@ -129,3 +129,33 @@ The final third review (`e216738a-efc2-4ee4-9af3-2a451d6bb55d`) reported no
 actionable issues. Final full checks for that checkpoint: ruff clean, 1,394 tests
 passed. Artifact HTTP and JavaScript/HTML structural checks passed; a live browser
 visual inspection was unavailable.
+
+## Smaller-model follow-up checkpoint
+
+The user then requested one ten-minute Haiku, Sonnet, Luna and Terra run.
+The explicit matrix extension preserves the original default matrix, records
+the expanded plan/source hash, and validates model/agent/replicate fields.
+No live runner or planner was edited after launch.
+
+Review `0bad1eeb-0ffe-48f0-9b4c-9687ca54fcde` prompted a generic fallback notice
+instead of Opus-specific wording, plus a Sonnet regression case. Its lane-stop
+concern was accepted and documented; Haiku and Luna both started successfully.
+Its matrix-archive suggestion was adapted: the existing per-run code snapshot
+already contains `configs/urlquery-smaller-models.toml`, verified to match plan
+SHA `668bfec259ea0effcf3cb5ad974ddb82000c9ba7ebcc246d0675b02cbd9a2290`.
+The source is also tracked at launch revision `94acf67`; no provenance is lost
+when the worktree is removed.
+
+Follow-up `a7798385-ebfe-401d-90d4-a646447c211b` led to regeneration of the
+earlier run index with the updated script hash, exact lane-stop wording, and
+tests for absent/non-refusal/incomplete fallback metadata. Category information
+is preserved without hardcoding a model.
+
+Final review `a505aa93-8bd1-4148-bd84-946791606c1b` found one low-priority edge
+case: titles did not reconstruct a missing chain from `fallback_model`, though
+notices did. Accepted and fixed through a shared chain helper, explicit unknown
+chain labels, and Opus/Sonnet render tests with and without chain metadata.
+The existing archived runs were unaffected. Ruff and 1,408 tests pass. This last
+small correction was tested, not sent through a fourth review round, following
+the three-round limit. No residual disagreement remains; independent review did
+not recheck the last correction.
