@@ -16,7 +16,7 @@ def hook_config(agent: str, path: str = '/telemetry/events.jsonl') -> dict:
         'PreToolUse': [{'hooks': [recorder('PreToolUse')]}],
         'PostToolUse': [{'hooks': [recorder('PostToolUse'),
             {'type': 'command', 'command': '/sandbox/time_left.sh'},
-            {'type': 'command', 'command': 'python3 /sandbox/report_length.py --hook PostToolUse'}]}],
+            {'type': 'command', 'command': 'python3 /sandbox/report_length.py --hook PostToolUse --always'}]}],
         'Stop': [{'hooks': [{'type': 'command', 'command': 'python3 /sandbox/runtime_policy.py --hook Stop'}]}],
     }
     if agent == 'claude':

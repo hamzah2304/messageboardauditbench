@@ -9,6 +9,7 @@ from inspect_ai.scorer import Target
 
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
+    count_feedback_if_changed,
     feedback,
     instruction,
     limits,
@@ -16,6 +17,7 @@ from messageboard_audit_bench.report_length import (
     overlong_feedback_if_changed,
     render_prompt,
     stop_reason,
+    tldr_words,
 )
 from messageboard_audit_bench.scorer import report_length
 from messageboard_audit_bench.solver import _fold
@@ -86,6 +88,27 @@ def test_only_overlong_reports_trigger_hook_feedback(tmp_path: Path) -> None:
         report, 2, 3, cache=cache
     )
     assert overlong_feedback_if_changed(report, 2, 3, cache=cache) == ""
+
+
+def test_count_feedback_reports_each_change_but_not_other_tool_calls(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    cache = tmp_path / "count-cache"
+    assert count_feedback_if_changed(report, 2, 3, cache=cache) == ""
+    report.write_text("## TL;DR\n\none two\n\n## Timeline\nthree")
+    first = count_feedback_if_changed(report, 2, 8, cache=cache)
+    assert "7 words" in first
+    assert "TL;DR: 2 words" in first
+    assert count_feedback_if_changed(report, 2, 8, cache=cache) == ""
+    report.write_text("## TL;DR\n\none two three\n\n## Timeline\nfour")
+    assert "TL;DR: 3 words" in count_feedback_if_changed(report, 2, 8, cache=cache)
+    assert count_feedback_if_changed(report, 0, 0, cache=cache) == ""
+
+
+def test_tldr_word_count_stops_at_next_heading() -> None:
+    assert tldr_words("no headings here") is None
+    assert tldr_words("## 1. TL;DR\n\none two\n\n## 2. Timeline\nthree") == 2
+    assert tldr_words("**TL;DR**\n\na b c\n\n**Timeline**\nd") == 3
+    assert tldr_words("1. TL;DR: a b\nc\n2. Timeline\nd e f") == 3
 
 
 def test_stop_ping_is_overlong_only_and_happens_once(

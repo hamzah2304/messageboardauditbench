@@ -21,7 +21,7 @@ The final `result` event carries the totals.
 import argparse, http.client, json, os, subprocess, sys, time, urllib.request, urllib.error, uuid
 from pathlib import Path
 
-from report_length import env_limits, overlong_feedback_if_changed
+from report_length import count_feedback_if_changed, env_limits
 from runtime_policy import stop_reason as completion_stop_reason
 
 TOOLS = [
@@ -225,7 +225,7 @@ def main():
             args = c["_args"]
             out = ("[could not parse tool arguments as JSON]" if "_raw" in args else run_tool(c["function"]["name"], args, a.cwd))
             out += time_left_note()
-            note = overlong_feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
+            note = count_feedback_if_changed(Path(a.cwd) / "report.md", *env_limits())
             if note:
                 out += "\n\n[" + note + "]"
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})
