@@ -48,3 +48,16 @@ empty unless an item needs one (for example, penalise a report that says a
 hacking attempt succeeded). The file carries no weights: the judge is
 configured separately. Rebuild with
 `uv run python benchmarks/urlquery/claims/build_findings_v1.py`. Under review.
+
+## Reviewed findings (v2)
+
+`claims/findings_v2.json` applies the first review of v1 (Hugo, 44 comments):
+compound findings are split, overlapping ones merged, task and data-source
+findings grouped under F2, wording tightened and judge notes added where the
+review set a scoring rule. Only findings the frozen scans can support remain
+(`derivable: yes`), so v2 has 12 findings and 48 sub-findings. It keeps v1's
+schema and adds `revised_from` (the v1 IDs each finding came from), a
+`removed` list with the reason for each dropped v1 finding, and the
+`synthesis` tag. `claims/derive_findings_v2.py` records how v2 was derived
+from v1. Further revisions are made in the review artifact and exported over
+the file, so the script will not overwrite it without `--force`.
