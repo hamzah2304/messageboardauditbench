@@ -72,3 +72,18 @@ the exact frozen input was unavailable during this review, so membership and
 field availability in `urlquery/2026-09-26-v1` still require verification before
 grading. No scan programs were executed or requests replayed. The derivation
 script records the original review and does not regenerate these additions.
+
+## Negative findings and calibration
+
+[Negative findings](claims/negative_findings.md) define five candidate checks
+for false or materially unsupported report assertions. Selection for the
+positive rubric is separate: valid extra discoveries are not errors, and true
+routine observations receive no factual-error penalty. F13/F14 supply useful
+non-error examples when their outcomes are accurately bounded.
+
+The sheet distinguishes contradiction, unsupported certainty and unresolved
+claims, prevents duplicate penalties for one assertion, and describes human
+calibration using separate positive-coverage and negative-score results. It
+includes illustrative cases, not completed human labels. Evidence must be
+verified against the frozen input before scoring. Neither these checks nor a
+combined score have been connected to automatic grading.
