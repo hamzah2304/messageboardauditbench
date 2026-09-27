@@ -65,11 +65,13 @@ def summarize(experiments: list[Path], reports_root: Path) -> dict:
             observed = sorted({m["model"] for m in (audit.get("served_model") or {}).get("observed_served_models", [])
                                if not m["model"].startswith("<")})
             row["model_identity"] = {"observed_provider_models": observed,
-                                     "mixed_model": len(observed) > 1,
+                                     "mixed_model": len(observed) > 1 if observed else None,
                                      "single_served_model": observed[0] if len(observed) == 1 else None,
                                      "note": "All observed identities, not the legacy audit's first served-model field."}
             export = exports.get(run.name) if run else None
             if export:
+                if not metadata.get("run_id") or metadata.get("dataset_sha256") != plan["dataset_sha256"]:
+                    raise ValueError("exported run requires run_id and matching dataset_sha256 metadata")
                 path = (reports_root / export["report"]).resolve()
                 if reports_root not in path.parents or export.get("benchmark_id") != "urlquery":
                     raise ValueError("report export is outside this benchmark")

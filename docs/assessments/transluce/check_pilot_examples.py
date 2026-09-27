@@ -39,6 +39,7 @@ def check(dataset: Path) -> dict:
         address = unquote(row["url"]["addr"])
         rows.append({
             "scan_id": row["scan_id"], "transaction_index": row["transaction_index"],
+            "timestamp": row.get("timestamp") if isinstance(row.get("timestamp"), (int, float)) and row["timestamp"] > 0 else None,
             "method": row["request"]["method"], "status_code": response["status_code"],
             # Host and fixed booleans only: never emit query strings or payloads.
             "fqdn": row["url"]["fqdn"],

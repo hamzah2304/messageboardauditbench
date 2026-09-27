@@ -58,7 +58,9 @@ Sol's mail example is similarly checkable: scan
 later URL containing account-JSON fields; `6125f779-b94e-40cd-b544-3eb7914c4b0e`
 has a token POST returning 200 and a later `TOKEN` marker; and
 `e6b5c7bc-41c9-4937-a941-cdaa7019fd2e` records a messages GET returning 200 and
-an empty `hydra:member` list in a later logged URL. These support narrow claims
+an empty `hydra:member` list in a later logged URL. Here “later” follows recorded
+timestamps, not transaction indices: that scan's output is at index 0, after
+the GET at index 2 by timestamp. These support narrow claims
 about interactions and output—not ownership of a recipient server, compromise
 or motive.
 
@@ -85,6 +87,12 @@ also includes uncertainty language. Those claims need their own evidence checks.
 This overview has not checked every count, interpretation or attribution in any
 of the four reports.
 
+Both refuted analyses came from the Opus **4.8** segments, not 5.5. In the archived
+`transcript.jsonl` files, run 1's wrong-field command is line 7513, tool call
+`toolu_01VarQd898m4EmwPnWq9fJLM`; run 2's 1,500,000-row loop is line 3342 and
+its embedded-body report edit is line 7378, tool call
+`toolu_01GfGCRrCPNumVhMgJZkNiZw`. All carry `message.model=claude-opus-4-8`.
+
 ## What we downloaded and gave the agents
 
 We attempted all 38,160 unique scan IDs in the released catalog associated with
@@ -107,7 +115,7 @@ the source report or annotated catalog.
 | Agent-visible file | Contents and transformation |
 |---|---|
 | `scans.jsonl` — 38,158 rows | Original IDs/times, submitted/initial/final URLs, titles, opaque submitter IDs, scanner settings and original submission tags. |
-| `http.jsonl` — 642,094 rows | Requests/responses in original within-scan order, headers, cookies, status codes and recorded POST-body references. Destination IPs remain destination IPs, not actor addresses. |
+| `http.jsonl` — 642,094 rows | Requests/responses in original source-array order (not necessarily chronological), timestamps, headers, cookies, status codes and POST-body references. Destination IPs are not actor addresses. |
 | `decoded_text.jsonl` — 211,607 rows | Generic percent/Base64 decodings with original field pointers and transformation chains. No execution or incident labeling. |
 | `resources.jsonl` — 2,029,855 rows; `content/` — 24,856 files | Resource/console metadata and embedded content stored as inert text, with explicit availability. Repeated references can share a file. These are not two million captured bodies. |
 | `README.txt`; `manifest.json` | Neutral schema/citation guide and exact file hashes/counts. No human findings or grading rubric. |
@@ -144,7 +152,13 @@ hashes. Dataset SHA-256:
 
 We reused the Docker subscription runner, time/report hooks, collection and comment
 UI—not identical instructions or an identical image for every run. This compares
-the checked-in ten-minute configs; historical runs may have explicit overrides.
+the original ten-minute config with the archived configs used for these runs;
+historical runs may have explicit overrides.
+
+After execution, concurrent commit `b43a510` changed the next-run configuration to
+`urlquery-blind-v2`, restoring the original TL;DR/Timeline/Analysis structure with
+scan-specific adaptations. None of the four reports used that replacement prompt.
+The earlier prompt is retained under `sandbox/prompts/superseded/`.
 
 | Setting | Original ten-minute config | Recorded-scan runs |
 |---|---|---|
@@ -172,6 +186,13 @@ resolved startup: Sol used Codex 0.156.1; both Claude runs used Claude Code 2.1.
 Astra's successful initial run on Codex 0.153.4 was retained. There was no paid-API
 fallback. The later Opus 5.5→4.8 safety fallbacks are distinct from client failures.
 
+The two Claude retries also have different recorded OCI image-index IDs
+(`6c82e450…` versus `f65155b8…`). Each trial invokes a Docker build. Comparing
+their archived `image.inspect.json` files shows identical `Config`, `RootFS`
+layers, architecture and creation time; differences are the index ID/descriptor,
+repository digest, tag time and build-identity metadata. This supports matching
+runtime content, not identical image-index bytes; both IDs remain in the index.
+
 ## What is ready, and what still needs a decision?
 
 The new benchmark has separate data, runs, reports, logs, findings and rubric
@@ -191,7 +212,11 @@ unmeasured.
 
 Before scoring, I recommend a new, versioned neutral schema guide with examples
 of `response.status_code`, URL address objects and request-versus-response resource
-pointers. Do not silently edit this frozen input. Also decide whether the benchmark
+pointers. Transaction indices are not chronological: use valid timestamps for
+event order, but treat zero/missing timestamps as unknown, not epoch-zero events.
+Array order alone cannot establish chronology when timestamps are missing.
+Later runs also use the replacement prompt described above. Do not silently edit
+this frozen input. Also decide whether the benchmark
 measures requested-model products including provider safety fallbacks, or requires
 one served model. For the latter, mixed-model runs should be invalidated rather
 than attributed to 5.5.
@@ -204,8 +229,10 @@ the selected retry used `03be5de`. The [run index](pilot_runs.json) links both
 launch plans, all six attempts, resolved configs, image IDs, CLI versions, report
 hashes and local paths. Successful reports share rendered prompt SHA-256
 `1060e0550c465e96f5ca951dd91bddde01393ee8b388cebcee4d92fcdd69e7e2`.
-See [trial config](../../../configs/urlquery-10.toml) and
-[prompt template](../../../sandbox/prompts/urlquery-blind.txt) for exact wording.
+The [current next-run config](../../../configs/urlquery-10.toml) now selects the
+replacement prompt. For this experiment's wording, see
+[the archived prompt template](../../../sandbox/prompts/superseded/urlquery-blind.txt)
+and each run's `prompt.txt`, `config.source.toml` and `config.rendered.json`.
 
 The local dataset is
 `/Users/oscargilg/Dev/messageboardauditbench/data/urlquery/2026-09-26-v1`;
@@ -224,5 +251,8 @@ regenerate evaluator checks without new model calls:
 
 Opus 5.5 was requested through Claude Companion at preprocessing, runner and
 client-compatibility checkpoints. The [audit record](engineering-review.md)
-documents findings and resolutions. Final report review is in progress;
-reviewer-requested identity is not independently verified provider identity.
+documents findings and resolutions. Three final report-review rounds ended with
+no actionable issues. Ruff passed and all 1,394 tests passed at that checkpoint.
+Artifact HTTP and HTML/JavaScript checks passed; live browser visual inspection
+was unavailable. Reviewer-requested identity is not independently verified
+provider identity.

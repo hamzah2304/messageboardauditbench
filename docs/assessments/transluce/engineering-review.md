@@ -91,4 +91,41 @@ edits were made only after the original pilot processes had finished.
 - Follow-up: `89aee55b-5f31-4f33-8c67-ba56cea9988f`.
 - Final compatibility review: `9b9a287e-34ab-4b8f-993a-7b266d2af7da`.
 
-The results-report checkpoint remains pending until the retry results exist.
+## Results-report checkpoint
+
+The first review (`14bde052-7bf6-459a-a2a1-674b14486d06`) raised four issues.
+All substantive recommendations were accepted:
+
+- Add timestamps to selected evidence checks. Original transaction-array order
+  is not reliably chronological; the report now makes that distinction and
+  recommends documenting it in the next versioned input guide.
+- Attribute the two refuted analyses to the observed Opus 4.8 segments, with
+  transcript line/tool-call pointers, not to requested Opus 5.5.
+- Explain differing retry image IDs. Archived inspections differ in OCI index,
+  digest/tag/build metadata but have identical runtime config and filesystem
+  layers. Each trial invokes a build; no claim of byte-identical image indexes
+  is made.
+- Require complete exported-report identity metadata and test evidence checks,
+  safe output and the render/escaped-notice path. The initial finding that no
+  example-check test existed was stale by review completion, but the requested
+  security and render coverage was still useful and was added.
+
+The report index also avoids promoting the legacy first-served-model audit field
+to a single-model claim. Both Claude trials requested 5.5 and fell back to 4.8
+after cyber-safety refusals; no replacement trials were launched. Provider-served
+OpenAI identities remain unknown.
+
+The second review (`47e8dc24-d743-4130-8a4a-1b4f13d1a4b7`) caught two provenance
+statements invalidated by a concurrent prompt-change commit (`b43a510`). Both
+were accepted and corrected: the comparison describes archived run configs,
+the old prompt link points to `superseded/`, and the report says explicitly that
+none of these runs used the replacement prompt. The concurrent change is
+preserved, not reverted or retroactively attributed to these runs.
+
+Its third finding was accepted: nonpositive/missing timestamps are emitted as
+null in evaluator checks. The guide recommendation now distinguishes valid
+timestamps from missing chronology; source-array order does not repair that gap.
+The final third review (`e216738a-efc2-4ee4-9af3-2a451d6bb55d`) reported no
+actionable issues. Final full checks for that checkpoint: ruff clean, 1,394 tests
+passed. Artifact HTTP and JavaScript/HTML structural checks passed; a live browser
+visual inspection was unavailable.

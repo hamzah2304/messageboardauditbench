@@ -1,5 +1,6 @@
 import json
 import runpy
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,7 @@ def test_summary_keeps_failures_and_unknown_served_identity(report_fixture):
     data = summarize([experiment], reports)
     assert len(data["attempts"]) == 2 and data["report_count"] == 1
     assert data["attempts"][0]["provider_served_model"]["served"] is None
+    assert data["attempts"][0]["model_identity"]["mixed_model"] is None
     assert data["attempts"][0]["cli_version"] == "codex-cli 0.156.1"
     assert data["attempts"][0]["report_url"].startswith("http://localhost:8792/urlquery_")
     assert data["attempts"][1]["metadata_available"] is False
@@ -94,6 +96,18 @@ def test_selected_checks_distinguish_request_and_response_content(tmp_path, monk
     assert result["embedded_content_by_source"] == {"request_body": 1, "response_body": 1, "final.dom": 1}
     assert result["opus1_status_sample"]["wrong_status_field"] == {"None": 1}
     assert result["opus1_status_sample"]["correct_status_code_field"] == {"200": 1}
+    # Selected rows expose safe booleans and timestamps, never evidence payloads.
+    http.update(scan_id="e6b5c7bc-41c9-4937-a941-cdaa7019fd2e", timestamp=123)
+    http["url"].update(addr='host/path?secret=DO_NOT_EMIT&x="hydra:member":[]', fqdn="host")
+    http["request"] = {"method": "GET"}
+    (tmp_path / "http.jsonl").write_text(json.dumps(http) + "\n")
+    result = check(tmp_path)
+    assert "DO_NOT_EMIT" not in json.dumps(result)
+    assert result["selected_http_rows"][0]["timestamp"] == 123
+    assert result["selected_http_rows"][0]["url_contains_empty_mail_members"] is True
+    http["timestamp"] = 0
+    (tmp_path / "http.jsonl").write_text(json.dumps(http) + "\n")
+    assert check(tmp_path)["selected_http_rows"][0]["timestamp"] is None
 
 
 def test_summary_rejects_unfinished_plan(report_fixture):
@@ -103,3 +117,43 @@ def test_summary_rejects_unfinished_plan(report_fixture):
     (experiment / "plan.json").write_text(json.dumps(plan))
     with pytest.raises(ValueError, match="finished"):
         summarize([experiment], reports)
+
+
+@pytest.mark.parametrize("missing", ["run_id", "dataset_sha256"])
+def test_summary_requires_export_provenance(report_fixture, missing):
+    summarize, experiment, run, reports = report_fixture
+    meta = json.loads((run / "meta.json").read_text())
+    del meta[missing]
+    (run / "meta.json").write_text(json.dumps(meta))
+    with pytest.raises(ValueError, match="exported run requires"):
+        summarize([experiment], reports)
+
+
+def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatch, tmp_path):
+    _, experiment, run, reports = report_fixture
+    scripts = Path(__file__).parents[1] / "docs/assessments/transluce"
+    meta = json.loads((run / "meta.json").read_text())
+    meta["model_fallback"] = {"chain": ["claude-opus-5-5", "claude-opus-4-8"]}
+    (run / "meta.json").write_text(json.dumps(meta))
+    module = runpy.run_path(str(scripts / "summarize_pilot.py"))
+    main = module["main"]
+    monkeypatch.setitem(main.__globals__, "repo_root", lambda: reports.parent.parent)
+    monkeypatch.setitem(module["summarize"].__globals__, "primary_root", lambda: reports.parent.parent)
+    commands = []
+    monkeypatch.setattr(module["subprocess"], "run", lambda args, **kwargs: commands.append(args))
+    monkeypatch.setattr(sys, "argv", ["summary", "--experiment", str(experiment),
+                                     "--output", str(tmp_path / "index.json"), "--render"])
+    main()
+    command = commands[0]
+    notice = command[command.index("--notice") + 1]
+    assert "switched to Opus 4.8 after a cyber-safety refusal" in notice
+    preview = runpy.run_path(str(scripts / "build_preview.py"))["main"]
+    monkeypatch.setitem(preview.__globals__, "ROOT", tmp_path)
+    (tmp_path / "viewers").mkdir()
+    monkeypatch.setattr(sys, "argv", ["preview", "--source", str(run / "report.md"),
+                                     "--output-name", "test", "--report-id", "test",
+                                     "--notice", notice + "<img src=x onerror=bad()>"])
+    preview()
+    html = (tmp_path / "viewers/test.html").read_text()
+    assert "&lt;img src=x onerror=bad()&gt;" in html
+    assert "<img src=x" not in html
