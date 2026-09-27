@@ -307,3 +307,11 @@ def test_cli_uses_shared_site_and_requires_existing_binding(tmp_path, monkeypatc
     binding.write_text('{"project_id":"existing"}')
     main()
     assert (tmp_path / "reports/share-site/dist/index.html").is_file()
+    additions = tmp_path / "additions.toml"
+    additions.write_text("run_indexes=[]\nprompt_groups=[]\napproved_runs=[]\n")
+    monkeypatch.setattr(sys, "argv", ["build_share_site.py", "--config", str(config),
+                                    "--additions", str(additions)])
+    main()
+    additions.write_text("run_indexes=[]\n")
+    with pytest.raises(SystemExit, match="2"):
+        main()

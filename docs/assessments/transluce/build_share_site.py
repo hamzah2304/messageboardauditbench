@@ -421,6 +421,8 @@ def build(root, config, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "configs/urlquery-sharing.toml")
+    parser.add_argument("--additions", type=Path,
+                        help="Additional prompt groups, run indexes and approved reports")
     parser.add_argument("--redactions", type=Path)
     parser.add_argument("--originals", type=Path,
                         help="Explicit hash-pinned approval to export archived reports without redaction")
@@ -431,6 +433,15 @@ def main():
     if not (args.output.parent / ".openai/hosting.json").is_file():
         parser.error("Missing existing Sites binding; restore .openai/hosting.json before rebuilding")
     config = tomllib.loads(args.config.read_text())
+    additions = args.additions
+    if additions is None and args.config.resolve() == (ROOT / "configs/urlquery-sharing.toml").resolve():
+        additions = ROOT / "configs/urlquery-sharing-agents-v5.toml"
+    if additions is not None and additions.is_file():
+        overlay = tomllib.loads(additions.read_text())
+        if set(overlay) != {"run_indexes", "prompt_groups", "approved_runs"}:
+            parser.error("Sharing additions must contain run_indexes, prompt_groups and approved_runs")
+        for key in ("run_indexes", "prompt_groups", "approved_runs"):
+            config[key] = [*config.get(key, []), *overlay[key]]
     if args.originals is not None and args.redactions is not None:
         parser.error("Choose either original or redacted report copies")
     redactions = args.redactions
