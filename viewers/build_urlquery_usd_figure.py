@@ -93,7 +93,7 @@ def cost_of(model: str, usage: dict) -> tuple[float | None, str | None]:
 
 
 def exclusion_reasons(meta: dict) -> list[str]:
-    """Apply the final batch's requested report length and runtime floor."""
+    """Apply the requested report length and strict 5/15-minute runtime floor."""
     reasons = []
     if meta.get("data_manifest_status") != "verified":
         reasons.append("dataset_not_verified")
@@ -102,8 +102,10 @@ def exclusion_reasons(meta: dict) -> list[str]:
         reasons.append("below_requested_word_minimum")
     if not meta.get("report_length_compliant"):
         reasons.append("report_length_not_accepted")
-    if meta.get("minimum_runtime_reached") is not True:
-        reasons.append("below_minimum_runtime")
+    runtime_floor = {10: 300, 30: 900}.get(meta.get("budget_min"))
+    wall_seconds = meta.get("wall_seconds")
+    if runtime_floor is None or not isinstance(wall_seconds, (int, float)) or wall_seconds <= runtime_floor:
+        reasons.append("below_runtime_cutoff")
     if meta.get("termination") not in ("normal", "active_time_limit"):
         reasons.append("unexpected_termination")
     return reasons

@@ -4,9 +4,10 @@ Open [the interactive figure](urlquery_usd_figure.html). It is built from the fi
 `urlquery-agents-v6-10` and `urlquery-agents-v6-30` runs (12 models, two
 replicates per budget). Each model-budget mark shows mean score against mean
 USD cost over valid runs, on a log USD axis. Individual runs are not drawn.
-The data file records excluded runs and reasons: five ended before the required
-75% runtime, and one Sonnet 5 report had only 194 words against a requested
-2,400-word minimum. Thus 42 of 48 graded reports enter the plotted results.
+The runtime cutoff is strictly more than 5 minutes for 10-minute runs and
+strictly more than 15 minutes for 30-minute runs. The data file records excluded
+runs and reasons. One Sonnet 5 report had only 194 words against a requested
+2,400-word minimum, so 47 of 48 graded reports enter the plotted results.
 
 Rebuild after data or presentation changes:
 
