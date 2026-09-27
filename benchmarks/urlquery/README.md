@@ -33,3 +33,15 @@ Raw downloads, the annotated catalog and acquisition audits live once in the
 primary checkout's ignored `data/transluce/`. Frozen agent files live under
 `data/urlquery/<version>/`; their evaluator-only provenance sidecar is adjacent,
 outside the mount. See [preprocessing documentation](../../docs/urlquery-engineering.md).
+
+## Consolidated findings (draft v1)
+
+`claims/findings_v1.json` merges three annotators' extractions into 12 findings
+and 51 sub-findings, plus 14 excluded article sentences with the reason each
+cannot be reached from the frozen scans (wiki/DseWiki, external news, other
+incidents, Transluce's own labels). Each item has a `kind`, a `derivable` tag,
+a suggested `importance` weight, exact article quotes, and `evidence_scans`:
+the scan IDs Transluce links for that statement, all present in
+`urlquery/2026-09-26-v1`. Rebuild with
+`uv run python benchmarks/urlquery/claims/build_findings_v1.py`. Under review;
+not yet a scoring rubric.

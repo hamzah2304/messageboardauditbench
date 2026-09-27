@@ -52,6 +52,8 @@ body{padding-right:440px!important}
 .fx-item .txt{font-size:13.5px;color:#111;white-space:pre-wrap;cursor:pointer}
 .fx-item .txt.empty{color:var(--muted);font-style:italic}
 .fx-item .note{font-size:12px;color:#444;white-space:pre-wrap}
+.fx-item .ev{font-size:11px;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap;font-variant-numeric:tabular-nums}.fx-item .ev a{font-family:ui-monospace,Menlo,monospace;color:var(--accent)}
+.fx-item .note{white-space:pre-wrap}
 .fx-item .tgt{font-size:11px;font-weight:700;color:var(--accent)}
 .fx-q{display:flex;gap:6px;align-items:flex-start;font:11.5px/1.4 ui-monospace,Menlo,monospace;background:#f3f4f8;border-radius:5px;padding:4px 7px}
 .fx-q .qt{flex:1;cursor:pointer;max-height:64px;overflow:hidden}
@@ -163,7 +165,7 @@ function writeFail(e){var c=e&&e.code;
   storeErr=c==="quota_exceeded"?"Storage for this page is full. Delete rejected findings, or ask the owner to archive old ones.":c==="invalid_argument"?"":"Couldn't save ("+(c||"error")+"). Try again in a moment.";
   renderStore();render();}
 function author(){if(MODE==="db")return ME;var a=($("fx-author").value||"").trim().slice(0,60)||"me";lsSet(LS+"_author",a);return a;}
-function authorName(a){if(MODE==="db")return a===ME?"you":((NAMES[a]&&NAMES[a].name)||"Someone");return a||"me";}
+function authorName(a){if(a==="final")return "Final list (Claude)";if(MODE==="db")return a===ME?"you":((NAMES[a]&&NAMES[a].name)||"Someone");return a||"me";}
 function editable(){return CAN_WRITE&&VIEW==="mine";}
 function renderStore(){var el=$("fx-store");
   if(storeErr){el.className="store err";el.textContent=storeErr;return;}
@@ -195,7 +197,7 @@ function labels(){var L={};tops().forEach(function(f,i){L[f.id]="F"+(i+1);kids(f
 /* ---------- highlights ---------- */
 var HL=(typeof Highlight!=="undefined"&&window.CSS&&CSS.highlights);
 function paint(){if(!HL)return;var sets={};["yes","partly","no","unset"].forEach(function(k){sets[k]=new Highlight();CSS.highlights.set("fx-"+k,sets[k]);});
-  shownGroups().forEach(function(u){var g=group(u);vals(g.Q).forEach(function(q){var f=g.F[q.finding];if(!f||f.status==="rejected")return;var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(r)sets[f.derivable==="joint"?"unset":(f.derivable||"unset")].add(r);});});}
+  shownGroups().forEach(function(u){var g=group(u);vals(g.Q).forEach(function(q){var f=g.F[q.finding];if(!f||(f.status==="rejected"&&f.author!=="final"))return;var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(r)sets[f.status==="rejected"?"no":f.derivable==="joint"?"unset":(f.derivable||"unset")].add(r);});});}
 function flash(q){var a=anchorOf(q);if(!a)return;var r=rangeFor(a[0],a[1]);if(!r)return;
   for(var d=r.startContainer.parentElement;d;d=d.parentElement){if(d.tagName==="DETAILS")d.open=true;}
   var el=r.startContainer.parentElement;if(el)el.scrollIntoView({block:"center",behavior:"smooth"});
@@ -209,7 +211,7 @@ var KL={finding:"Finding: observed in the report",conclusion:"Conclusion: an inf
 function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=qs.filter(function(q){return !anchorOf(q);}).length,mine=editable(f),ro=mine?"":" disabled";
   var h='<div class="fx-item d-'+d+(isSub?" sub":"")+(TARGET===f.id?" target":"")+(f.status==="rejected"?" rejected":"")+'" data-id="'+esc(f.id)+'" tabindex="0">'
    +'<div class="top"><span class="fid" data-act="target" title="Make this the quote target">'+L[f.id]+'</span>'
-   +(f.status==="rejected"?'<span class="bdg">rejected</span>':'')
+   +(f.status==="rejected"?'<span class="bdg">'+(f.author==="final"?"excluded":"rejected")+'</span>':'')
    +(lost?'<span class="bdg lost" title="Quoted text no longer found in this article version">'+lost+' unanchored</span>':'')
    +'<span class="who">'+esc(authorName(f.author))+'</span></div>'
    +'<div class="tags"><label for="k-'+esc(f.id)+'" title="What sort of claim this is">Type</label><select id="k-'+esc(f.id)+'" data-act="kind"'+ro+'>'+["finding","conclusion","context"].map(function(k){return '<option value="'+k+'"'+((f.kind||"finding")===k?" selected":"")+'>'+KL[k]+'</option>';}).join("")+'</select>'
@@ -218,6 +220,8 @@ function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=q
     h+='<textarea data-act="edit-text" rows="3" aria-label="Finding text" placeholder="'+(isSub?"A specific fact: date, count, target or technique":"The finding, in your own words")+'">'+esc(dv.text)+'</textarea><textarea data-act="edit-note" rows="2" placeholder="Note (optional): doubts, record IDs, what is missing" aria-label="Note">'+esc(dv.note)+'</textarea>'
       +'<div class="acts"><button type="button" class="pri" data-act="save">Save</button><button type="button" data-act="cancel">Cancel</button></div>';}
   else{h+='<div class="txt'+(f.text?"":" empty")+'" data-act="target">'+esc(f.text||"(empty: click Edit)")+'</div>'+(f.note?'<div class="note">'+esc(f.note)+'</div>':'');}
+  if(f.evidence_scans&&f.evidence_scans.length)h+='<div class="ev">Evidence scans: '+f.evidence_scans.map(function(s){return '<a href="https://urlquery.net/report/'+esc(s)+'" target="_blank" rel="noopener noreferrer" title="'+esc(s)+'">'+esc(s.slice(0,8))+'</a>';}).join(" ")+'</div>';
+  if(COMMENTS)h+='<div class="acts"><button type="button" data-act="comment" title="Start a comment thread on this finding">Comment</button></div>';
   if(TARGET===f.id&&mine)h+='<div class="tgt">Quote target: select text in the report, then click Attach quote.</div>';
   h+=qs.map(function(q){var a=anchorOf(q);return '<div class="fx-q'+(a?"":" lost")+'"><span class="qt" data-q="'+esc(q.id)+'" title="Show in report">“'+esc(String(q.quote||"").slice(0,300))+'”</span>'+(mine?'<button type="button" class="x" data-act="unquote" data-q="'+esc(q.id)+'" aria-label="Remove quote">×</button>':'')+'</div>';}).join("");
   if(mine&&EDIT!==f.id){h+='<div class="acts">'+(isSub?'':'<button type="button" data-act="sub">＋ Sub-finding</button>')+'<button type="button" data-act="edit">Edit</button>'
@@ -227,7 +231,7 @@ function itemHTML(f,L,isSub){var d=f.derivable||"unset",qs=quotesOf(f.id),lost=q
 function shownGroups(){if(VIEW==="mine")return [ME];if(VIEW!=="all")return [VIEW];return Object.keys(DATA).filter(function(u){return u===ME||Object.keys(DATA[u].F).length;}).sort(function(a,b){return a===ME?-1:b===ME?1:0;});}
 function renderPicker(){var sel=$("fx-view");if(document.activeElement===sel)return;
   var n=function(u){return DATA[u]?Object.keys(DATA[u].F).length:0;};
-  var others=PEOPLE.filter(function(u){return u!==ME;}).sort(function(a,b){return authorName(a).localeCompare(authorName(b));});
+  var others=PEOPLE.filter(function(u){return u!==ME;}).sort(function(a,b){return a==="final"?-1:b==="final"?1:authorName(a).localeCompare(authorName(b));});
   var opts=[["mine","You ("+n(ME)+")"]].concat(others.map(function(u){return [u,authorName(u)+" ("+n(u)+")"];}),[["all","Everyone ("+PEOPLE.concat(PEOPLE.indexOf(ME)<0?[ME]:[]).reduce(function(s,u){return s+n(u);},0)+")"]]);
   sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(VIEW===o[0]?" selected":"")+'>'+esc(o[1])+'</option>';}).join("");}
 function findQuote(id){for(var u in DATA){if(DATA[u].Q[id])return DATA[u].Q[id];}return null;}
@@ -255,6 +259,7 @@ $("fx-filt").addEventListener("change",function(ev){if(ev.target.name==="fxf"){f
 function setTarget(id){TARGET=(TARGET===id?null:id);render();}
 $("fx-list").addEventListener("click",function(ev){var item=ev.target.closest(".fx-item");if(!item)return;
   var qEl=ev.target.closest(".qt");if(qEl){flash(findQuote(qEl.dataset.q));return;}
+  if(ev.target.closest('[data-act="comment"]')){if(COMMENTS)COMMENTS.openComposer({element:item}).catch(function(e){if(e&&(e.code==="unavailable"||e.code==="not_granted"))COMMENTS=null;render();});return;}
   var f=F[item.dataset.id];if(!f||!editable())return;
   var a=ev.target.closest("[data-act]"),act=a&&a.dataset.act;
   if(act==="target"){setTarget(f.id);return;}
