@@ -310,7 +310,48 @@ COLLECTION_STYLE = """
 .collection .writeups{grid-template-columns:repeat(3,minmax(0,1fr))}
 .collection .writeups h3{font-size:21px}.collection footer{margin-top:32px;border-top:1px solid var(--line);padding-top:18px;font-size:14px;color:var(--muted)}
 .collection pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.65}
+.collection .comment-export{margin:22px 0;padding:18px 20px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.collection .comment-export p{margin:0 0 12px;color:var(--muted)}
+.collection .comment-export .small{margin:8px 0 0}
 @media(max-width:760px){.collection .groups{grid-template-columns:1fr}.collection{padding:24px 18px}.collection h1{font-size:30px}}
+"""
+
+COLLECTION_EXPORT = """
+function collectComments(storage, ids){
+ const reports=[];let commentCount=0;
+ for(let i=0;i<storage.length;i++){
+  const key=storage.key(i);if(!key)continue;
+  const split=key.lastIndexOf(':'),id=key.slice(0,split),hash=key.slice(split+1);
+  if(split<0||!ids.has(id)||!/^[0-9a-f]{64}$/.test(hash))continue;
+  try{
+   const d=JSON.parse(storage.getItem(key));
+   if(d?.report_id!==id||d.report_sha256!==hash||!Array.isArray(d.comments)||!d.comments.length)continue;
+   reports.push(d);commentCount+=d.comments.length;
+  }catch(e){}
+ }
+ reports.sort((a,b)=>a.report_id.localeCompare(b.report_id)||a.report_sha256.localeCompare(b.report_sha256));
+ return {format:'urlquery-comments-bundle-v1',exported_at:new Date().toISOString(),comment_count:commentCount,reports};
+}
+const reportIds=new Set(__IDS__);
+const exportButton=document.getElementById('export-all-comments');
+const exportStatus=document.getElementById('export-all-status');
+function refreshExport(){
+ try{
+  const bundle=collectComments(localStorage,reportIds);
+  exportButton.disabled=!bundle.comment_count;
+  exportStatus.textContent=bundle.comment_count+' saved comments across '+bundle.reports.length+' report versions in this browser.';
+ }catch(e){exportButton.disabled=true;exportStatus.textContent='Browser storage is unavailable here.';}
+}
+exportButton.onclick=()=>{
+ try{
+  const bundle=collectComments(localStorage,reportIds);
+  if(!bundle.comment_count){refreshExport();return;}
+  const url=URL.createObjectURL(new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='urlquery-all-comments.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(e){exportStatus.textContent='Could not export comments from this browser.';}
+};
+refreshExport();
 """
 
 
@@ -330,13 +371,20 @@ def render_index(config, entries, prompts):
         if entry["kind"] == "overview":
             writeups.setdefault(entry.get("group", "Other writeups"), []).append(entry)
     writeup_sections = ''.join('<section class="group"><h3>' + html.escape(group) + '</h3>' + links(rows) + '</section>' for group, rows in writeups.items())
+    report_ids = [entry.get("report_id", entry["slug"]) for entry in entries]
+    export_script = COLLECTION_EXPORT.replace("__IDS__", json.dumps(report_ids).replace("<", "\\u003c"))
     return static_page(config["title"], '<h1>' + html.escape(config["title"]) +
                        '</h1><p class="intro">' + str(sum(e["kind"] == "AI report" for e in entries)) + ' AI investigations, grouped by the prompt they received. '
                        'Reports are unscored; different prompts mean this is not a controlled model comparison.</p>'
+                       '<section class="comment-export"><h2>Collect your comments</h2>'
+                       '<p>Download all comments saved in this browser for these reports, including earlier report versions.</p>'
+                       '<button id="export-all-comments" type="button">Export all comments</button>'
+                       '<p id="export-all-status" class="small" role="status"></p></section>'
                        '<nav class="jump" aria-label="Page sections"><a href="#ai-reports">AI reports by prompt</a><a href="#writeups">Writeups</a></nav>'
                        '<section id="ai-reports"><h2>AI reports by prompt</h2><div class="groups">' + ''.join(sections) + '</div></section>'
                        '<section id="writeups"><h2>Writeups</h2><div class="groups writeups">' + writeup_sections + '</div></section>'
-                       '<footer><p>' + html.escape(NOTICE) + '</p><a href="manifest.json">Publication hashes</a></footer>', COLLECTION_STYLE)
+                       '<footer><p>' + html.escape(NOTICE) + '</p><a href="manifest.json">Publication hashes</a></footer>'
+                       '<script>' + export_script + '</script>', COLLECTION_STYLE)
 
 
 def build(root, config, output):

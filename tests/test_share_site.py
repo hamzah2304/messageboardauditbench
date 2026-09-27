@@ -194,6 +194,8 @@ def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path
     homepage = (output / "index.html").read_text()
     assert '<h2>AI reports by prompt</h2>' in homepage and '<h2>Writeups</h2>' in homepage
     assert 'href="prompt_one.html"' in homepage and 'href="model_run.html"' in homepage
+    assert 'id="export-all-comments"' in homepage
+    assert 'urlquery-report-abc' in homepage
     assert json.loads((output / "manifest.json").read_text())["prompts"][0]["sha256"] == prompt_digest
     config["redacted_runs"] = [{"run_id": "abc", "sha256": digest, "lines": [1]}]
     MODULE["build"](tmp_path, config, output)
@@ -270,6 +272,24 @@ const values={
 const storage={length:Object.keys(values).length,key:i=>Object.keys(values)[i],getItem:k=>values[k]};
 const found=previousComments(storage,{report_id:'report',report_sha256:'new'});
 if(found.length!==1||found[0].comments[0].note!=='Keep this')process.exit(1);
+"""
+    subprocess.run(["node", "--input-type=commonjs"], input=source, text=True, check=True)
+
+
+def test_collects_comments_across_reports_and_earlier_versions():
+    source = MODULE["COLLECTION_EXPORT"].split("const reportIds=")[0] + """
+const hash1='a'.repeat(64),hash2='b'.repeat(64),hash3='c'.repeat(64);
+const values={
+ ['report-one:'+hash1]:JSON.stringify({report_id:'report-one',report_sha256:hash1,comments:[{note:'First'}]}),
+ ['report-one:'+hash2]:JSON.stringify({report_id:'report-one',report_sha256:hash2,comments:[{note:'Earlier'}]}),
+ ['report-two:'+hash3]:JSON.stringify({report_id:'report-two',report_sha256:hash3,comments:[{note:'Second'}]}),
+ ['other:'+hash1]:JSON.stringify({report_id:'other',report_sha256:hash1,comments:[{note:'Unrelated'}]}),
+ ['report-two:'+hash1]:'invalid JSON'
+};
+const storage={length:Object.keys(values).length,key:i=>Object.keys(values)[i],getItem:k=>values[k]};
+const bundle=collectComments(storage,new Set(['report-one','report-two']));
+if(bundle.comment_count!==3||bundle.reports.length!==3||bundle.format!=='urlquery-comments-bundle-v1')process.exit(1);
+if(!bundle.reports.some(r=>r.comments[0].note==='Earlier'))process.exit(1);
 """
     subprocess.run(["node", "--input-type=commonjs"], input=source, text=True, check=True)
 
