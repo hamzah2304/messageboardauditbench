@@ -2,7 +2,7 @@ You are investigating a set of logs in data/. Your job is to work out what happe
 
 Write your findings to report.md{{#REPORT_LENGTH}} ({{REPORT_MIN_WORDS}} to {{REPORT_MAX_WORDS}} words){{/REPORT_LENGTH}} in this directory, structured as follows.
 
-1. TL;DR, at the very top, 200 words absolute maximum. This is a hard limit: anything past 200 words is cut off and never read, so count the words (e.g. `wc -w`) before you finish and trim until it fits. The people reading this have very little time and may read nothing else, so this section matters most: state what happened, why, and how sure you are.
+1. TL;DR, at the very top, 200 words absolute maximum. This is a hard limit: anything past 200 words is cut off and never read, so trim it until it fits. The people reading this have very little time and may read nothing else, so this section matters most: state what happened, why, and how sure you are.
 
 2. Timeline: the key events in order, with dates and times, each tied to specific evidence.
 
@@ -12,4 +12,4 @@ Time budget: you have {{BUDGET_MIN}} minutes of wall-clock time from now, then t
 
 Constraints: there is no internet access. Python 3 and standard shell tools are available.
 
-{{#REPORT_LENGTH}}Write a report between {{REPORT_MIN_WORDS}} and {{REPORT_MAX_WORDS}} words long in report.md. {{REPORT_MAX_WORDS}} words is a strict upper limit. Do not exceed it. The authoritative count is len(text.split()): whitespace-separated units in the entire raw Markdown file, including headings, tables, citations, code and appendices. You receive the current count when a tool call changes report.md; run python3 /sandbox/report_length.py to check it yourself. Before finishing, shorten report.md if it exceeds the upper limit.{{/REPORT_LENGTH}}
+{{#REPORT_LENGTH}}Write a report between {{REPORT_MIN_WORDS}} and {{REPORT_MAX_WORDS}} words long in report.md. {{REPORT_MAX_WORDS}} words is a strict upper limit. Do not exceed it. The authoritative count is len(text.split()): whitespace-separated units in the entire raw Markdown file, including headings, tables, citations, code and appendices. You receive the current count, and the TL;DR's count, whenever a tool call changes report.md, so there is no need to count by hand. Before finishing, shorten report.md if it exceeds the upper limit.{{/REPORT_LENGTH}}

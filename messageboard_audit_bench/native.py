@@ -33,7 +33,12 @@ from inspect_swe import claude_code, codex_cli
 from messageboard_audit_bench.audit import trajectory_metrics
 from messageboard_audit_bench.native_telemetry import event_coverage, hook_coverage
 from messageboard_audit_bench.provenance import host_provenance
-from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
+from messageboard_audit_bench.report_length import (
+    acceptance_limits,
+    describe_count,
+    limits,
+    measure,
+)
 
 REPORT_PATH = "/work/report.md"
 RUNTIME_POLICY_STATE_PATH = "/work/.mbab-runtime-policy.json"
@@ -68,7 +73,7 @@ def _hook_config() -> dict:
                         {
                             "type": "command",
                             "command": (
-                                "python3 /sandbox/report_length.py --hook PostToolUse"
+                                "python3 /sandbox/report_length.py --hook PostToolUse --always"
                             ),
                         },
                     ]
@@ -111,8 +116,9 @@ def _hook_config() -> dict:
 
 
 def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
-    """Append the same time/overlength context after native ReAct tools."""
+    """Append time and changed report counts after native ReAct tools."""
     definition = ToolDef(base)
+    last_report: str | None = None
     parameters = deepcopy(definition.parameters)
     # OpenAI-compatible strict tool validation requires every declared object
     # property to appear in ``required``. Inspect's text_editor models its
@@ -125,6 +131,7 @@ def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
 
     @wraps(base)
     async def execute(*args, **kwargs):
+        nonlocal last_report
         result = await base(*args, **kwargs)
         await sandbox().exec(["touch", "/tmp/mbab-post-tool-hook-fired"])
         deadline = int(env["MBAB_DEADLINE_EPOCH"])
@@ -144,12 +151,12 @@ def _with_react_feedback(base: Tool, env: dict[str, str]) -> Tool:
                 " Minimum-runtime policy: continue meaningful work for about "
                 f"{minimum_left} more minute(s); do not idle or sleep."
             )
-        report, _ = await _read_report()
-        overlong = _overlong_revision(
-            report, int(env.get("MBAB_REPORT_MAX_WORDS", "0"))
-        )
-        if overlong:
-            note += " " + overlong
+        report, read_error = await _read_report()
+        maximum = int(env.get("MBAB_REPORT_MAX_WORDS", "0"))
+        if read_error is None and maximum and report != last_report:
+            minimum = int(env.get("MBAB_REPORT_MIN_WORDS", "0"))
+            note += " " + describe_count(report, minimum, maximum)
+            last_report = report
         return f"{result}\n\n[{note}]"
 
     return ToolDef(
