@@ -85,6 +85,7 @@ def collect(root, config):
                             "title": f"{row['report_label']} · run {row['replicate']}",
                             "expected_sha256": row["report_sha256"],
                             "notice": FALLBACK_NOTICE(row),
+                            "run_name": row.get("run_name", ""),
                             "prompt_sha256": row["prompt_sha256"],
                             "dataset_sha256": row["dataset_sha256"]})
     slugs = set()
@@ -97,6 +98,13 @@ def collect(root, config):
         entry["sha256"] = hashlib.sha256(entry["raw"]).hexdigest()
         if entry.get("expected_sha256", entry["sha256"]) != entry["sha256"]:
             raise ValueError("Report hash changed since the run index was generated")
+        if entry["kind"] == "AI report":
+            run = entry["run_name"]
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", run) or run in {".", ".."}:
+                raise ValueError("AI report needs its archived run to verify the actual prompt")
+            prompt = inside((root / "runs/urlquery").resolve(), run + "/prompt.txt")
+            if hashlib.sha256(prompt.read_bytes()).hexdigest() != entry["prompt_sha256"]:
+                raise ValueError("Archived prompt for this report disagrees with its run index")
     return entries
 
 
@@ -182,24 +190,96 @@ def render_page(entry, entries):
     return re.sub(r"__([A-Z]+)__", lambda m: substitutions[m[1]], shell)
 
 
+def collect_prompts(root, config, entries):
+    prompts, hashes, slugs = [], set(), {e["slug"] for e in entries} | {"index", "manifest"}
+    for group in config.get("prompt_groups", []):
+        slug, digest, run = group["slug"], group["sha256"], group["source_run"]
+        if (not re.fullmatch(r"[a-z][a-z0-9_]+", slug) or slug in slugs
+                or not re.fullmatch(r"[0-9a-f]{64}", digest) or digest in hashes
+                or not re.fullmatch(r"[A-Za-z0-9_.-]+", run) or run in {".", ".."}):
+            raise ValueError("Invalid or duplicate prompt group")
+        path = inside((root / "runs/urlquery").resolve(), run + "/prompt.txt")
+        raw = path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise ValueError("Archived prompt does not match the configured hash")
+        prompts.append({**group, "raw": raw})
+        slugs.add(slug)
+        hashes.add(digest)
+    used = {e["prompt_sha256"] for e in entries if e["kind"] == "AI report"}
+    if used != hashes:
+        raise ValueError("Every AI report must belong to exactly one nonempty prompt group")
+    return prompts
+
+
+def static_page(title, body, extra_style=""):
+    style = re.search(r"<style>(.*?)</style>", SHELL, re.S)[1]
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>' + html.escape(title) + '</title><style>' + style + extra_style +
+            '</style></head><body><main class="collection">' + body + '</main></body></html>').encode()
+
+
+COLLECTION_STYLE = """
+.collection{max-width:1100px;margin:auto;padding:40px 24px 60px}
+.collection h1{font-size:36px}.collection h2{margin-top:36px}
+.collection .intro{color:var(--muted);max-width:78ch}
+.collection .jump{display:flex;gap:24px;flex-wrap:wrap;margin:20px 0}
+.collection .groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.collection .group{padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.collection h3{margin:0 0 12px;font:600 23px/1.25 Georgia,serif}
+.collection .group p{margin:12px 0;color:var(--muted)}
+.collection ul{padding-left:22px;margin-bottom:0}.collection li{margin-bottom:10px}
+.collection .writeups{grid-template-columns:repeat(3,minmax(0,1fr))}
+.collection .writeups h3{font-size:21px}.collection footer{margin-top:32px;border-top:1px solid var(--line);padding-top:18px;font-size:14px;color:var(--muted)}
+.collection pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.65}
+@media(max-width:760px){.collection .groups{grid-template-columns:1fr}.collection{padding:24px 18px}.collection h1{font-size:30px}}
+"""
+
+
+def render_index(config, entries, prompts):
+    def links(rows):
+        return '<ul>' + ''.join('<li><a href="' + e["slug"] + '.html">' + html.escape(e["title"]) + '</a></li>' for e in rows) + '</ul>'
+
+    sections = []
+    for prompt in prompts:
+        rows = [e for e in entries if e.get("prompt_sha256") == prompt["sha256"]]
+        sections.append('<section class="group"><h3>' + html.escape(prompt["title"]) +
+                        '</h3><p>' + html.escape(prompt["description"]) + '</p><p><a href="' +
+                        prompt["slug"] + '.html">Read the exact prompt</a> · ' + str(len(rows)) +
+                        ' reports</p>' + links(rows) + '</section>')
+    writeups = {}
+    for entry in entries:
+        if entry["kind"] == "overview":
+            writeups.setdefault(entry.get("group", "Other writeups"), []).append(entry)
+    writeup_sections = ''.join('<section class="group"><h3>' + html.escape(group) + '</h3>' + links(rows) + '</section>' for group, rows in writeups.items())
+    return static_page(config["title"], '<h1>' + html.escape(config["title"]) +
+                       '</h1><p class="intro">' + str(sum(e["kind"] == "AI report" for e in entries)) + ' AI investigations, grouped by the prompt they received. '
+                       'Reports are unscored; different prompts mean this is not a controlled model comparison.</p>'
+                       '<nav class="jump" aria-label="Page sections"><a href="#ai-reports">AI reports by prompt</a><a href="#writeups">Writeups</a></nav>'
+                       '<section id="ai-reports"><h2>AI reports by prompt</h2><div class="groups">' + ''.join(sections) + '</div></section>'
+                       '<section id="writeups"><h2>Writeups</h2><div class="groups writeups">' + writeup_sections + '</div></section>'
+                       '<footer><p>' + html.escape(NOTICE) + '</p><a href="manifest.json">Publication hashes</a></footer>', COLLECTION_STYLE)
+
+
 def build(root, config, output):
     entries = collect(root, config)
+    prompts = collect_prompts(root, config, entries)
     files = {}
     manifest = []
     for entry in entries:
         files[entry["slug"] + ".html"] = render_page(entry, entries).encode()
         files[entry["slug"] + ".txt"] = entry["raw"]
         manifest.append({k: entry[k] for k in ("slug", "title", "kind", "sha256", "prompt_sha256", "dataset_sha256") if k in entry})
-    links = "".join('<li><a href="' + e["slug"] + '.html">' + html.escape(e["title"]) + '</a></li>' for e in entries)
-    style = re.search(r"<style>(.*?)</style>", SHELL, re.S)[1]
-    files["index.html"] = ('<!doctype html><html lang="en"><meta charset="utf-8">'
-                           '<meta name="viewport" content="width=device-width,initial-scale=1">'
-                           '<title>' + html.escape(config["title"]) + '</title><style>' + style +
-                           '</style><main style="max-width:900px;margin:auto;padding:40px 24px">'
-                           '<h1>' + html.escape(config["title"]) + '</h1><p>' + html.escape(NOTICE) +
-                           '</p><p>The two pilot batches used different prompts; these are not scored model comparisons.</p>'
-                           '<ul>' + links + '</ul><p><a href="manifest.json">Publication hashes</a></p></main></html>').encode()
-    files["manifest.json"] = (json.dumps({"reports": manifest}, indent=2) + "\n").encode()
+    for prompt in prompts:
+        files[prompt["slug"] + ".txt"] = prompt["raw"]
+        files[prompt["slug"] + ".html"] = static_page(prompt["title"],
+            '<a href="index.html#ai-reports">All reports by prompt</a><h1>' + html.escape(prompt["title"]) +
+            '</h1><p>This is the exact archived task prompt supplied to the agents, including the rendered runtime instructions; not the provider system prompt.</p>'
+            '<p><a href="' + prompt["slug"] + '.txt">Download exact text</a></p><p>SHA-256: <code>' + prompt["sha256"] +
+            '</code></p><pre>' + html.escape(prompt["raw"].decode("utf-8")) + '</pre>', COLLECTION_STYLE)
+    files["index.html"] = render_index(config, entries, prompts)
+    files["manifest.json"] = (json.dumps({"reports": manifest, "prompts": [
+        {k: p[k] for k in ("slug", "title", "sha256")} for p in prompts]}, indent=2) + "\n").encode()
     # Fail closed on stale files or symlinks; never sweep/delete arbitrary output.
     output.mkdir(parents=True, exist_ok=True)
     for path in output.iterdir():

@@ -18,6 +18,17 @@ then explicitly update the sharing approvals and run:
 .venv/bin/python docs/assessments/transluce/build_share_site.py
 ```
 
+The homepage groups AI reports by their full rendered `prompt_sha256`.
+`prompt_groups` names each cohort and pins the hash and an archived `source_run`.
+The exporter verifies that run's `prompt.txt` before publishing readable and
+byte-identical text versions. These are the task prompts actually supplied,
+including rendered runtime instructions, not provider system prompts or current
+templates. Every AI report must match one configured, nonempty prompt group.
+Document `group` fields organize the writeups independently. Existing report
+URLs, source bytes and comment anchors do not change when the index is regrouped.
+Each report's own archived `prompt.txt` is also checked against its run-index
+hash, preventing a mislabelled index from assigning it to a different cohort.
+
 The private static source is the **primary checkout's** `reports/share-site/`,
 not a task worktree's directory, with public-output directory `dist/`. The builder
 defaults to that shared location and refuses a missing Sites binding. It remains
@@ -74,3 +85,12 @@ The first publication is Sites version 2, static-source commit
 requests to the index, report HTML, raw `.txt` and manifest returned HTTP 401.
 Sites access was then restricted to the owner plus Adam's email-bound viewer
 grant. An access read-back confirmed the grant; Adam's own sign-in was not tested.
+
+Homepage regrouping is prepared as Sites version 3, static-source commit
+`6c2d0ba7783b12838e5a2a2dd9085e3a7b1e2b91`. It adds two exact task-prompt pages,
+groups the eight reports by prompt hash, and separates six writeups into three
+categories. All 1,425 tests pass. The initial Opus review
+`074ca36e-bdc0-4f89-8d67-3171f2a508d3` raised three accepted robustness issues:
+fixed budget prose, per-report prompt verification and unsafe-config test gaps.
+All were fixed; the follow-up found no actionable issues. Publication awaits
+confirmation to deploy to the existing owner-plus-Adam audience.

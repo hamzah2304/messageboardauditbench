@@ -102,11 +102,16 @@ def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path
     archive = tmp_path / "runs/urlquery/trial"
     archive.mkdir(parents=True)
     (archive / "report.md").write_text("# AI report\n")
+    prompt = b"Exact task prompt\n<script>inert</script>\n"
+    (archive / "prompt.txt").write_bytes(prompt)
+    prompt_digest = hashlib.sha256(prompt).hexdigest()
+    config["prompt_groups"] = [{"slug": "prompt_one", "title": "Prompt one", "description": "First cohort",
+                                "source_run": "trial", "sha256": prompt_digest}]
     digest = hashlib.sha256((archive / "report.md").read_bytes()).hexdigest()
     row = {"report_path": "/former/worktree/reports/urlquery/group/model.md",
            "run_name": "trial", "preview_name": "model_run", "report_label": "Opus fallback",
            "replicate": 1, "report_sha256": digest, "run_id": "abc",
-           "prompt_sha256": "prompt", "dataset_sha256": "data", "requested_model": "opus",
+           "prompt_sha256": prompt_digest, "dataset_sha256": "data", "requested_model": "opus",
            "model_fallback": {"models": ["opus", "older"], "trigger": "refusal", "category": "cyber"}}
     index = {"benchmark_id": "urlquery", "attempts": [{"report_exists": False}, row]}
     index_path = tmp_path / "runs.json"
@@ -124,7 +129,23 @@ def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path
     assert (output / "model_run.txt").read_bytes() == (archive / "report.md").read_bytes()
     assert "fallback" in (output / "model_run.html").read_text()
     manifest = json.loads((output / "manifest.json").read_text())["reports"][-1]
-    assert manifest["prompt_sha256"] == "prompt" and manifest["dataset_sha256"] == "data"
+    assert manifest["prompt_sha256"] == prompt_digest and manifest["dataset_sha256"] == "data"
+    assert (output / "prompt_one.txt").read_bytes() == prompt
+    prompt_page = (output / "prompt_one.html").read_text()
+    assert "&lt;script&gt;inert&lt;/script&gt;" in prompt_page
+    homepage = (output / "index.html").read_text()
+    assert '<h2>AI reports by prompt</h2>' in homepage and '<h2>Writeups</h2>' in homepage
+    assert 'href="prompt_one.html"' in homepage and 'href="model_run.html"' in homepage
+    assert json.loads((output / "manifest.json").read_text())["prompts"][0]["sha256"] == prompt_digest
+    (archive / "prompt.txt").write_text("Changed prompt")
+    with pytest.raises(ValueError, match="Archived prompt"):
+        MODULE["build"](tmp_path, config, output)
+    (archive / "prompt.txt").write_bytes(prompt)
+    row["prompt_sha256"] = "f" * 64
+    index_path.write_text(json.dumps(index))
+    with pytest.raises(ValueError, match="disagrees"):
+        MODULE["collect"](tmp_path, config)
+    row["prompt_sha256"] = prompt_digest
     row["report_path"] = "/outside/secret.md"
     index_path.write_text(json.dumps(index))
     with pytest.raises(ValueError, match="reports/urlquery"):
@@ -133,6 +154,46 @@ def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path
     index_path.write_text(json.dumps(index))
     with pytest.raises(ValueError, match="Wrong benchmark"):
         MODULE["collect"](tmp_path, config)
+
+
+def test_prompt_groups_cover_each_report_exactly_once(tmp_path):
+    archive = tmp_path / "runs/urlquery/trial"
+    archive.mkdir(parents=True)
+    (archive / "prompt.txt").write_text("Prompt")
+    digest = hashlib.sha256(b"Prompt").hexdigest()
+    group = {"slug": "prompt_one", "sha256": digest, "source_run": "trial"}
+    entries = [{"slug": "report_one", "kind": "AI report", "prompt_sha256": digest}]
+    with pytest.raises(ValueError, match="exactly one"):
+        MODULE["collect_prompts"](tmp_path, {}, entries)
+    with pytest.raises(ValueError, match="duplicate"):
+        MODULE["collect_prompts"](tmp_path, {"prompt_groups": [group, group]}, entries)
+    with pytest.raises(ValueError, match="exactly one"):
+        MODULE["collect_prompts"](tmp_path, {"prompt_groups": [group]}, [])
+    group["slug"] = "report_one"
+    with pytest.raises(ValueError, match="duplicate"):
+        MODULE["collect_prompts"](tmp_path, {"prompt_groups": [group]}, entries)
+
+
+@pytest.mark.parametrize(("key", "value"), [
+    ("source_run", ".."), ("source_run", "."), ("source_run", "a/b"),
+    ("slug", "index"), ("slug", "manifest"), ("slug", "Bad-Slug"),
+    ("sha256", "A" * 64), ("sha256", "abc"),
+])
+def test_prompt_groups_reject_unsafe_config(tmp_path, key, value):
+    group = {"slug": "prompt_one", "sha256": "a" * 64, "source_run": "trial", key: value}
+    with pytest.raises(ValueError, match="Invalid"):
+        MODULE["collect_prompts"](tmp_path, {"prompt_groups": [group]}, [])
+
+
+def test_prompt_groups_reject_escaped_symlink(tmp_path):
+    secret = tmp_path / "outside.txt"
+    secret.write_text("Not an archived prompt")
+    archive = tmp_path / "runs/urlquery/trial"
+    archive.mkdir(parents=True)
+    (archive / "prompt.txt").symlink_to(secret)
+    group = {"slug": "prompt_one", "sha256": "a" * 64, "source_run": "trial"}
+    with pytest.raises(ValueError, match="inside"):
+        MODULE["collect_prompts"](tmp_path, {"prompt_groups": [group]}, [])
 
 
 def test_earlier_comment_versions_can_be_recovered():
