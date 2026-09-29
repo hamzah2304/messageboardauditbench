@@ -71,7 +71,9 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-EVAL_VERSION = "8-A"
+# Bump when the agent-visible task, eligibility rule, or default grading changes.
+# See docs/benchmark-versions.md for the run-version history and comparison rules.
+EVAL_VERSION = "9-A"
 _CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _CONFIGS = config_names()
 _DATA_VARIANTS = data_variants()

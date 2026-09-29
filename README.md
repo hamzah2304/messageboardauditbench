@@ -86,6 +86,9 @@ This checkout contains the round-4 benchmark and the followup and provider-swap
 ablations used for the blog. Earlier rounds, seed baselines, prototype results,
 and superseded design notes are available in Git history at
 [`inspect-logs-2026-09-08`](https://github.com/hamzah2304/messageboardauditbench/tree/inspect-logs-2026-09-08).
+The [benchmark version history](docs/benchmark-versions.md) records the Inspect
+task version used for the [LessWrong post](https://www.lesswrong.com/posts/wt4kk6vFPEhkXvF8Q/how-good-are-slop-vestigators)
+and the version used by new runs from this checkout.
 
 The headline score is **70% finding coverage and 30% holistic TLDR assessment**.
 Finding coverage is the mean of `max(2s - 1, 0)` across the 38 findings; the TLDR
