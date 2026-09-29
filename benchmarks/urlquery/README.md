@@ -5,13 +5,14 @@ MessageBoardAuditBench. Nothing here may be mounted into an investigation trial.
 
 ## Judge
 
-The reviewed judge prompt is `judge/finding_sheet_reviewed.md`. It reads
-`claims/findings_reviewed.json`: 12 headline findings and 47 sub-findings,
-including the narrower wording from the data audit. `judge/grade.py` scores one
-headline and its children per call. The judge defaults to `claude-opus-5-5` at
-`xhigh` effort; refusals and invalid answers remain unscored. Grade files go to
-the ignored `reports/urlquery/graded/judge_<model>/` and carry prompt, rubric,
-article-context, and report hashes so a later run only reuses matching grades.
+The canonical reviewed rubric is `claims/findings_reviewed.json`: 13 headline
+findings and 51 sub-findings. F1–F12 incorporate the data and fairness audits;
+F13 is the separately sourced header-injection finding, recorded in
+`claims/header_injection.json`. `judge/render_sheet.py` combines the rubric with
+`judge/finding_sheet_reviewed.md`, scoring one headline and its children per
+call. The source report that suggested F13 is not treated as evidence in its
+judge prompt. Grade files go to ignored `reports/urlquery/graded/` directories
+and carry prompt, rubric, article-context, and report hashes.
 
 Use `--launch` to select completed reports from **both** plans referenced by the
 ongoing final launcher. Re-run the same command as more reports finish. The
@@ -25,13 +26,19 @@ records the changed prompt context in each grade's article hash.
 
 For the final 2026-09-27 run, use a **single judge**: GPT-6 Astra at high
 reasoning effort via synchronous OpenRouter chat-completion calls. The direct
-API runner reads both plans from the final launch file and saves to a separate
-judge directory; it never reuses Claude scores. Run it again as the remaining
-trials finish, with up to 32 concurrent calls:
+API runner reads both plans from the final launch file; it never reuses Claude
+scores. The original 48-report F1–F12 regrade is preserved in
+`reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v2/`. F13 was judged
+alone with the same model and effort in
+`reports/urlquery/graded/judge_gpt_6_astra_high_f13_only/`, then combined into
+`reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v3/` without changing
+the earlier 576 judgments. To reproduce that F13-only pass and combination:
 
     .venv/bin/python benchmarks/urlquery/judge/grade_openrouter.py \
       --launch runs/urlquery/final-20260927-agents-v6/launch.json \
-      --workers 32
+      --findings F13 --workers 32 \
+      --output reports/urlquery/graded/judge_gpt_6_astra_high_f13_only
+    .venv/bin/python benchmarks/urlquery/judge/combine_f13_grades.py
 
 Validate grades by hand with `viewers/build_urlquery_audit_ui.py` (local page, or
 `--artifact PATH` for a shared, redacted claude.ai page whose audits save per auditor).
