@@ -191,6 +191,10 @@ if [ "$AGENT" = react ]; then
   fi
   [ -n "${OPENROUTER_API_KEY:-}" ] || { echo "no OpenRouter key: export OPENROUTER_API_KEY or write runs/.openrouter_key" >&2; exit 1; }
   REACT_ENV=(-e OPENROUTER_API_KEY)
+  if [ -n "${CFG_OPENROUTER_PROVIDER_ONLY:-}" ]; then
+    export MBAB_OPENROUTER_PROVIDER_ONLY="$CFG_OPENROUTER_PROVIDER_ONLY"
+    REACT_ENV+=(-e MBAB_OPENROUTER_PROVIDER_ONLY)
+  fi
 fi
 if [ "$AGENT" = codex ]; then
   mkdir -p "$SECRETS/codex"
