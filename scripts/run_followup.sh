@@ -7,7 +7,7 @@
 #   ONLY=codex|react  MATCH='sol|glm'  EPOCHS=1,3  CONFIG=followup-5k  scripts/run_followup.sh
 #
 # Codex trials resume through `RESUME_FROM=<parent run dir> run_trial.sh` (native CLI resume).
-# ReAct trials continue through the messageboard_audit_bench_continue Inspect task, unscored
+# ReAct trials continue through the german_wiki_report_continue Inspect task, unscored
 # like round 4 (reports are graded afterwards by the rubric scripts).
 # Claude Code round-4 runs kept no session store and are not continued here.
 # Systems run in parallel; a system's replicates run one after another, as in round 4.
@@ -118,7 +118,7 @@ for entry in "${REACT_SYSTEMS[@]}"; do
   fi
   key="${OPENROUTER_API_KEY:-$(openrouter_key_for "${model#openrouter/}")}"
   [ -n "$key" ] || { echo "no OpenRouter key for $model" >&2; exit 1; }
-  cmd=(uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_continue
+  cmd=(uv run inspect eval messageboard_audit_bench/german_wiki_report_continue
        -T "parent_log=$log" -T "parent_epochs=$epochs" -T "config=$CONFIG"
        --max-samples 1 --max-sandboxes 1 --max-connections "$conns" --max-retries 5
        --timeout 900 --attempt-timeout 600 --retry-on-error=2 --log-model-api --log-refusals --no-score

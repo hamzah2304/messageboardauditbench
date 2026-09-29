@@ -5,7 +5,7 @@ fresh checkout can install it with `uv sync` and run its registered task as:
 
 ```bash
 scripts/build_data.sh
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=claude -T config=blind \
   -T time_limit_minutes=30 \
   -T min_runtime_fraction=0.75 \
@@ -23,7 +23,7 @@ are covered:
 
 - `pyproject.toml` provides PEP 517 packaging and declares `inspect_ai`.
 - The package has an `inspect_ai` entry point and exports the `@task` functions.
-- The task has a stable sample ID, version `10-A`, and run metadata. The
+- The task has a stable sample ID, version `10.0`, and run metadata. The
   [version history](benchmark-versions.md) identifies the LessWrong runs separately.
 - The source archive and generated variants are checked against committed
   SHA-256 digests, so upstream drift fails loudly.

@@ -1,11 +1,12 @@
-# URLQuery benchmark
+# Transluce report (URLQuery)
 
-An agent investigates a frozen snapshot of urlquery.net scans that Transluce linked
+The Transluce report benchmark: Inspect task `transluce_report`, storage id `urlquery`
+(the name this directory, its data and its run records keep). An agent investigates a frozen snapshot of urlquery.net scans that Transluce linked
 to autonomous agent activity, and writes a report. A judge scores the report against
 13 reviewed headline findings. This directory holds the evaluator-only material:
 the manifest, the findings rubric and the judge. Nothing here is mounted into a trial.
 
-The benchmark shares the original MessageBoardAuditBench harness and differs only
+The benchmark shares the German wiki report's harness and differs only
 where its evidence does. The shared parts are the config format, prompt rendering,
 the Inspect-native sandbox and agents, the subscription runner
 (`sandbox/docker/run_trial.sh`) and the grading plumbing. The URLQuery-specific parts
@@ -19,16 +20,18 @@ are listed in [`benchmark.json`](benchmark.json):
 - **Rubric and judge:** the reviewed findings rubric and judge prompt, the
   headline weights, and the default judge.
 
-`messageboard_audit_bench.benchmarks` reads the manifest. The Inspect task version,
-`1-A`, lives there too; see [the version history](../../docs/benchmark-versions.md).
+`messageboard_audit_bench.benchmarks` reads the manifest. The benchmark version, `1.0`,
+lives there too. To run a specific version, use
+`uv run python scripts/run_eval.py transluce-report --version <MAJOR.MINOR> -- ...`; see
+[the version history](../../docs/benchmark-versions.md).
 
 ## Run trials
 
 A single trial goes through Inspect, like the original benchmark:
 
-    uv run inspect eval messageboard_audit_bench/urlquery_audit_bench \
+    uv run inspect eval messageboard_audit_bench/transluce_report \
       -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
-    uv run inspect eval messageboard_audit_bench/urlquery_audit_bench \
+    uv run inspect eval messageboard_audit_bench/transluce_report \
       -T agent=claude --model anthropic/claude-opus-5-5          # Inspect-native, no network
 
 With `backend=subscription`, the runner installs the exact CLI versions the config pins
@@ -68,10 +71,10 @@ treated as evidence in its prompt.
 The prompt and arithmetic are `messageboard_audit_bench.grading.findings`. Two entry
 points share them:
 
-- **Inspect.** `urlquery_audit_bench` scores each fresh trial. `urlquery_grade_reports`
+- **Inspect.** `transluce_report` scores each fresh trial. `transluce_report_grade`
   grades finished run directories:
 
-      uv run inspect eval messageboard_audit_bench/urlquery_grade_reports \
+      uv run inspect eval messageboard_audit_bench/transluce_report_grade \
         -T launch=runs/urlquery/final-20260927-agents-v6/launch.json \
         -T judge=openrouter/openai/gpt-6-astra
 

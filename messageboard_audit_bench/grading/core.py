@@ -110,7 +110,7 @@ def variant_for_data(data_variant: str | None) -> str | None:
     if data_variant and data_variant.startswith("urlquery"):
         raise ValueError(
             "cross-benchmark grading rejected: URLQuery reports are graded by their own "
-            "finding rubric (urlquery_grade_reports), not the message-board sheets"
+            "finding rubric (transluce_report_grade), not the message-board sheets"
         )
     return VARIANT_FOR_DATA.get(data_variant or "")
 
@@ -124,7 +124,7 @@ def require_original_benchmark_folder(folder: Path) -> None:
         if resolved == foreign or foreign in resolved.parents:
             raise ValueError(
                 "cross-benchmark grading rejected: URLQuery reports are graded by their own "
-                "finding rubric (urlquery_grade_reports)"
+                "finding rubric (transluce_report_grade)"
             )
     for directory in (resolved, *resolved.parents):
         conditions = directory / "CONDITIONS.json"

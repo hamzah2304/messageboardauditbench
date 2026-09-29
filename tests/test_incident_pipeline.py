@@ -12,7 +12,7 @@ from messageboard_audit_bench.incidents import (
     incident_for_variant,
     incidents,
 )
-from messageboard_audit_bench.task import messageboard_audit_bench
+from messageboard_audit_bench.task import incident_task
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import incident_pipeline as pipeline  # noqa: E402
@@ -44,7 +44,7 @@ def test_incident_config_defaults_reach_the_actual_task() -> None:
     expected = {"wiki": 20, "mythos5": 20, "rubyhack": 10}
     for incident_id, minutes in expected.items():
         item = incidents()[incident_id]
-        task = messageboard_audit_bench(config=item.runtime["default_config"])
+        task = incident_task(item.runtime["default_config"])
         assert task.dataset[0].metadata["budget_min"] == minutes
         assert task.dataset[0].metadata["data_variant"] == item.corpus["primary_variant"]
         assert len(task.scorer) == 4

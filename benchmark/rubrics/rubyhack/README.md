@@ -33,11 +33,15 @@ sheets plus the incident-specific TL;DR sheet from the shared grading scale.
 
 Build and run:
 
+RubyHack is a draft for its own eval, not a config of the German wiki report, so it
+has no Inspect task yet. Pilot it through the subscription runner, which takes any
+config, then grade the collected report with the `rh` and `rhtldrh` sheets
+(`german_wiki_report_grade -T rubric=rh`; the sheet grader is shared):
+
 ```bash
 scripts/build_data.sh
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
-  --model openai/gpt-5.6-sol --model-role grader=anthropic/claude-fable-5-1
+CONFIG=rubyhack BUDGET_MIN=10 sandbox/docker/run_trial.sh react moonshotai/kimi-k3 1
+uv run python scripts/incident_pipeline.py check rubyhack   # offline validation, no model calls
 ```
 
 Use a non-OpenAI judge for claims involving OpenAI attribution. A score should

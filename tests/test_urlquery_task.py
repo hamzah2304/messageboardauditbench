@@ -37,21 +37,21 @@ def test_each_task_accepts_only_its_own_configs():
     with pytest.raises(ValueError, match="unknown messageboard config"):
         task_module.messageboard_audit_bench(config="urlquery-agents-v6-30")
     with pytest.raises(ValueError, match="unknown urlquery config"):
-        task_module.urlquery_audit_bench(config="blind")
+        task_module.transluce_report(config="blind")
     with pytest.raises(ValueError, match="belongs to 'messageboard'"):
         from messageboard_audit_bench.configs import validate_config
         validate_config({"name": "blind"}, "urlquery")
 
 
 def test_native_task_mounts_the_pinned_snapshot_and_declares_it_to_preflight():
-    task = task_module.urlquery_audit_bench(agent="codex")
-    assert task.version == benchmarks.SPECS["urlquery"].eval_version == "1-A"
+    task = task_module.transluce_report(agent="codex")
+    assert task.version == benchmarks.SPECS["urlquery"].eval_version == "1.0"
     assert task.version != task_module.EVAL_VERSION
     sample = task.dataset[0]
     assert sample.id == "codex:inspect:urlquery-agents-v6-30:30m"
     assert sample.metadata["benchmark_id"] == "urlquery" and "incident" not in sample.metadata
     assert sample.metadata["dataset_sha256"] == MANIFEST["dataset"]["sha256"]
-    assert task.metadata["benchmark"] == "URLQuery agent-activity audit"
+    assert task.metadata["benchmark"] == "Transluce report"
     service = task.sandbox.config.services["default"]
     assert service.network_mode == "none"
     assert service.environment == {"MBAB_BENCHMARK_ID": "urlquery",
@@ -69,7 +69,7 @@ def test_subscription_task_uses_the_shared_runner_with_the_config_pins(monkeypat
         return task_module.replay()
 
     monkeypatch.setattr(task_module, "subscription_agent", capture)
-    task = task_module.urlquery_audit_bench(
+    task = task_module.transluce_report(
         agent="react", backend="subscription", subscription_model="moonshotai/kimi-k3",
         config="urlquery-agents-v6-10",
     )
@@ -86,7 +86,7 @@ def test_both_tasks_are_registered_under_the_package_entry_point():
 
     entry_point = next(ep for ep in entry_points(group="inspect_ai") if ep.name == "messageboard_audit_bench")
     assert entry_point.value == "messageboard_audit_bench"
-    for name in ("urlquery_audit_bench", "urlquery_grade_reports"):
+    for name in ("transluce_report", "transluce_report_grade", "urlquery_audit_bench", "urlquery_grade_reports"):
         assert registry_info(getattr(package, name)).name == f"messageboard_audit_bench/{name}"
 
 
@@ -100,14 +100,14 @@ def test_grade_task_reads_finished_run_dirs(tmp_path, monkeypatch):
     (good / "meta.json").write_text(json.dumps({"benchmark_id": "urlquery", "data_variant": "urlquery/x"}))
     (runs / "20260927T211426Z_codex_gpt-6-sol_r1_urlquery-agents-v6-30_aaaaaaaaaaaa").mkdir()  # no report
     monkeypatch.setattr(benchmarks, "primary_root", lambda: tmp_path)
-    task = grading_task.urlquery_grade_reports(runs="2026*")
+    task = grading_task.transluce_report_grade(runs="2026*")
     assert [s.id for s in task.dataset] == [good.name]
     assert task.dataset[0].metadata["model"] == "gpt-6-astra"
     assert task.dataset[0].input == "# Report\n"
 
     (good / "meta.json").write_text(json.dumps({"benchmark_id": "messageboard"}))
     with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
-        grading_task.urlquery_grade_reports(runs="2026*")
+        grading_task.transluce_report_grade(runs="2026*")
 
 
 def _state(report: str) -> TaskState:
@@ -183,12 +183,12 @@ def test_native_urlquery_builds_the_pinned_clis_and_codex_lockdown(monkeypatch):
     assert f"ARG CLAUDE_VERSION={cfg['claude_cli_version']}" in text
     assert f"ARG CODEX_VERSION=rust-v{cfg['codex_cli_version']}" in text
     assert task_module._dockerfile(load_config("blind")) == "sandbox/docker/Dockerfile"
-    task = task_module.urlquery_audit_bench(agent="codex")
+    task = task_module.transluce_report(agent="codex")
     assert task.sandbox.config.services["default"].build.dockerfile == dockerfile
 
     captured = {}
     monkeypatch.setattr(task_module, "inspect_native_agent", lambda **kw: captured.update(kw) or task_module.replay())
-    task_module.urlquery_audit_bench(agent="codex")
+    task_module.transluce_report(agent="codex")
     assert captured["codex_features_off"] == benchmarks.URLQUERY_CODEX_FEATURES_OFF
     task_module.messageboard_audit_bench(agent="codex")
     assert captured["codex_features_off"] == ()

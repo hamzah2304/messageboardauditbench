@@ -53,7 +53,7 @@ An Inspect continuation creates one sample per parent epoch, so its own
 Choose the same judge as the comparison's baseline; for example:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/grade_reports \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   -T dir=ablation_anthropic_b30 -T rubric=v2 \
   --model-role grader=anthropic/claude-fable-5-1
 uv run python scripts/export_grades.py logs/GRADING_LOG.eval

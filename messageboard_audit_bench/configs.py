@@ -17,6 +17,7 @@ import tomllib
 from messageboard_audit_bench.benchmarks import (
     benchmark_spec,
     config_names,
+    draft_config_names,
     urlquery_data_variant,
     urlquery_manifest,
 )
@@ -27,8 +28,12 @@ CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CLI_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
 
-def load_config(config_name: str, benchmark_id: str = "messageboard") -> dict:
-    """Load one of a benchmark's registered fresh-trial configurations."""
+def load_config(config_name: str, benchmark_id: str = "messageboard", *, allow_drafts: bool = False) -> dict:
+    """Load one of a benchmark's registered fresh-trial configurations.
+
+    ``allow_drafts`` also admits the draft incidents' configs (Mythos 5, RubyHack),
+    which only the incident pipeline builds; they are not part of any eval yet.
+    """
     benchmark_spec(benchmark_id)
     repo = repo_root()
     if not CONFIG_NAME.fullmatch(config_name):
@@ -36,6 +41,13 @@ def load_config(config_name: str, benchmark_id: str = "messageboard") -> dict:
             f"invalid config name {config_name!r}; use a name from {repo / 'configs'}"
         )
     available = config_names(benchmark_id)
+    if benchmark_id == "messageboard" and config_name in draft_config_names():
+        if not allow_drafts:
+            raise ValueError(
+                f"{config_name!r} belongs to a draft incident, not the German wiki report; "
+                "see docs/adding-an-incident.md"
+            )
+        available = (*available, config_name)
     if config_name not in available:
         raise ValueError(
             f"unknown {benchmark_id} config {config_name!r}; available configs: {', '.join(available)}"

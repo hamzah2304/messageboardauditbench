@@ -1,6 +1,6 @@
 """Plan/launch URLQuery subscription trials in batches on one pinned input.
 
-The batch launcher for the `urlquery_audit_bench` benchmark. Every trial goes through
+The batch launcher for the `transluce_report` benchmark. Every trial goes through
 the shared Docker runner (sandbox/docker/run_trial.sh), exactly as the Inspect task's
 subscription backend does; this module adds what a large matrix needs on top: one
 lane or queue per subscription, a stop on authentication/capacity failure for that
@@ -10,7 +10,7 @@ that the batch grader (benchmarks/urlquery/judge/grade.py --batch/--launch) read
 No model calls until --launch. Plans are exclusive-create artifacts and are never
 silently resumed. `--batch` plans several configs (prompt/budget arms) at once and
 runs all their trials from one queue with a fixed number in flight. Grade the results
-with the batch grader or the `urlquery_grade_reports` Inspect task.
+with the batch grader or the `transluce_report_grade` Inspect task.
 """
 from __future__ import annotations
 

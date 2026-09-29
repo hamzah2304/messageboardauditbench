@@ -96,7 +96,7 @@ esac
 
 uv_cmd=(uv run)
 [[ ! -f .env ]] || uv_cmd+=(--env-file .env)
-cmd=("${uv_cmd[@]}" inspect eval messageboard_audit_bench/messageboard_audit_bench
+cmd=("${uv_cmd[@]}" inspect eval messageboard_audit_bench/german_wiki_report
   -T "backend=$backend" -T "agent=$agent" -T "config=$config"
   -T "time_limit_minutes=$time_limit_minutes" -T "min_runtime_fraction=$min_runtime_fraction" -T "judge=$judge"
   --epochs "$epochs" --max-samples "$max_samples" --max-sandboxes "$max_sandboxes"

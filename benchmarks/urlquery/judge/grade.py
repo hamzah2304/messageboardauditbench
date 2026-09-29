@@ -6,7 +6,7 @@
     uv run python benchmarks/urlquery/judge/grade.py --judge openrouter/openai/gpt-6-astra --launch ...
     uv run python benchmarks/urlquery/judge/grade.py --batch ... --plan   # resume-aware call count, no API use
 
-The resumable batch counterpart of the `urlquery_grade_reports` Inspect task: the prompt,
+The resumable batch counterpart of the `transluce_report_grade` Inspect task: the prompt,
 parsing and arithmetic are `messageboard_audit_bench.grading.findings`, shared with the
 Inspect scorer. Two judge transports:
 

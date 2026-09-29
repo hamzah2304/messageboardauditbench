@@ -24,7 +24,8 @@ def test_namespaces_and_fail_closed_grading():
     assert new.run_root == "runs/urlquery" and new.report_root == "reports/urlquery"
     with pytest.raises(ValueError, match="unknown benchmark"):
         benchmark_spec("typo")
-    assert (original.task, new.task) == ("messageboard_audit_bench", "urlquery_audit_bench")
+    assert (original.task, new.task) == ("german_wiki_report", "transluce_report")
+    assert (original.name, new.name) == ("german-wiki-report", "transluce-report")
     reject_foreign_grading("urlquery", grader="urlquery")
     with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
         reject_foreign_grading("urlquery")

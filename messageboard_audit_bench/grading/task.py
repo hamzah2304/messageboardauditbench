@@ -52,8 +52,7 @@ def report_from_sample():
     return solve
 
 
-@task
-def grade_reports(
+def _german_wiki_report_grade(
     dir: str = "round4_blind120",  # noqa: A002 — the Inspect task parameter is named `dir`
     rubric: str = "v2",
     judge: str = "openai/gpt-5.6-sol",
@@ -103,7 +102,8 @@ def grade_reports(
         scorer=sheet_scorer(rubric=rubric, judge=judge, variant=variant),
         model="mockllm/model",
         metadata={
-            "benchmark": "MessageBoardAuditBench",
+            "benchmark": "German wiki report",
+            "benchmark_id": "messageboard",
             "mode": "grading",
             "rubric": rubric,
             "judge": judge,
@@ -112,8 +112,12 @@ def grade_reports(
     )
 
 
-@task
-def urlquery_grade_reports(
+german_wiki_report_grade = task(name="german_wiki_report_grade")(_german_wiki_report_grade)
+# Deprecated alias: the task's name before the rename.
+grade_reports = task(name="grade_reports")(_german_wiki_report_grade)
+
+
+def _transluce_report_grade(
     runs: str | None = None,
     batch: str | None = None,
     launch: str | None = None,
@@ -121,7 +125,7 @@ def urlquery_grade_reports(
     judge_effort: str | None = None,
     article_context: str | None = None,
 ) -> Task:
-    """Grade finished URLQuery run directories with the per-finding judge.
+    """Grade finished Transluce report run directories with the per-finding judge.
 
     The Inspect counterpart of benchmarks/urlquery/judge/grade.py: the same prompts and
     arithmetic, with the grade file for each report in ``Score.metadata["grade"]``.
@@ -179,3 +183,8 @@ def urlquery_grade_reports(
             "judge": judge,
         },
     )
+
+
+transluce_report_grade = task(name="transluce_report_grade")(_transluce_report_grade)
+# Deprecated alias: the task's name before the rename.
+urlquery_grade_reports = task(name="urlquery_grade_reports")(_transluce_report_grade)

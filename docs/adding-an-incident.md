@@ -19,6 +19,17 @@ and results status. The task, sandbox, corpus builder dispatcher, score tool,
 worktree helper, and validation command all read it. Adding an incident no
 longer requires editing separate allowlists in those components.
 
+**A new incident is a draft for its own eval.** Only the collusion.wiki incident is
+part of the German wiki report (`german_wiki_report`). Every other manifest, such as
+Mythos 5 and RubyHack today, is a draft. It shares the harness (config format, corpus
+builders, sandbox, subscription runner, sheet grader), and the pipeline below validates
+it offline, but it is not an Inspect condition of any eval. You pilot it through the
+subscription runner. Once it reaches `reviewed`, give it its own Inspect task with its
+own name and version: a thin wrapper around the shared builder `_audit_task` in
+`messageboard_audit_bench/task.py`, registered in `benchmarks.py` the way
+`transluce_report` is. Then list it in
+[`benchmark-versions.md`](benchmark-versions.md).
+
 ## The four lifecycle states
 
 | state | meaning | numbers may be presented as |
@@ -154,14 +165,16 @@ claiming that a real provider call will be available or affordable.
 The guide prints the registered default. Keep generation and grading separate
 for a new incident so a bad corpus or rubric does not multiply costs:
 
+A draft is not an Inspect condition, so pilot it through the subscription runner,
+which accepts any config:
+
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T config=example-incident \
-  --model <provider/report-model> \
-  --no-score --epochs 1 --max-samples 1
+CONFIG=example-incident sandbox/docker/run_trial.sh react <provider/report-model> 1
 ```
 
-Inspect the trajectory and report in `uv run inspect view`. Confirm that:
+Inspect the run directory it prints (`transcript.jsonl`, `report.md`, `meta.json`).
+Once the incident has its own Inspect task, pilot through that instead, with
+`--no-score --epochs 1 --max-samples 1`. Confirm that:
 
 - only the intended corpus was visible;
 - the report was produced within the recorded wall-clock budget;
@@ -170,14 +183,15 @@ Inspect the trajectory and report in `uv run inspect view`. Confirm that:
 - failures, fallbacks, refusals, and partial reports are labelled; and
 - the report demonstrates enough investigative signal to justify a matrix.
 
-Export the accepted report and stage it for later grading:
+Collect the accepted report and stage it for later grading:
 
 ```bash
-uv run python scripts/export_inspect_reports.py \
-  --logs logs --out reports/native --graded-inputs pilot
+scripts/collect_reports.py
+scripts/stage_graded_inputs.py reports example-incident=pilot_example:pex
 ```
 
-The exporter prints the exact staged directory. Review its Markdown and
+(For an Inspect pilot, `scripts/export_inspect_reports.py --logs logs --out reports/native
+--graded-inputs pilot` does both.) Staging prints the exact directory. Review its Markdown and
 `_index.jsonl`; do not grade rejected or partial reports as ordinary samples.
 
 ## Gate 7: grade with a declared independent judge
@@ -188,13 +202,14 @@ provider and the incident itself; for Mythos 5 this is a material design choice,
 and for RubyHack attribution claims require similar care.
 
 Run the registered finding and summary modes separately over the same staged
-folder:
+folder. The sheet grader is shared, so this uses the German wiki report's grading task
+with the draft's own modes:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/grade_reports \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   -T dir=<staged-folder> -T rubric=<finding-mode> \
   --model-role grader=<provider/judge-model>
-uv run inspect eval messageboard_audit_bench/grade_reports \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   -T dir=<staged-folder> -T rubric=<summary-mode> \
   --model-role grader=<provider/judge-model>
 

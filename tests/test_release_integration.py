@@ -69,7 +69,7 @@ def test_default_eval_runs_both_benchmark_graders(tmp_path, monkeypatch, variant
 
 def test_mythos_eval_selects_incident_graders(tmp_path, monkeypatch):
     monkeypatch.setenv("INSPECT_TRACE_FILE", str(tmp_path / "trace.log"))
-    task = tasks.messageboard_audit_bench(agent="react", config="mythos5")
+    task = tasks.incident_task("mythos5", agent="react")
     task.sandbox = None
     task.solver = report_from_sample()
     replies = [sheet_reply("m5", i, 1) for i in range(3)]
@@ -97,7 +97,7 @@ def test_mythos_eval_selects_incident_graders(tmp_path, monkeypatch):
 
 def test_rubyhack_eval_selects_incident_graders(tmp_path, monkeypatch):
     monkeypatch.setenv("INSPECT_TRACE_FILE", str(tmp_path / "trace.log"))
-    task = tasks.messageboard_audit_bench(agent="react", config="rubyhack")
+    task = tasks.incident_task("rubyhack", agent="react")
     task.sandbox = None
     task.solver = report_from_sample()
     replies = [sheet_reply("rh", i, 1) for i in range(3)]
