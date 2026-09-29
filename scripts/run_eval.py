@@ -51,7 +51,9 @@ def primary_root() -> Path:
 
 
 def tags_for(name: str) -> list[str]:
-    return sorted(t for t in git("tag", "--list", f"{name}-v*").splitlines() if t)
+    """Tagged versions, oldest first (6.1 before 10.0)."""
+    tags = [t for t in git("tag", "--list", f"{name}-v*").splitlines() if t]
+    return sorted(tags, key=lambda tag: tuple(int(n) for n in tag.rsplit("-v", 1)[1].split(".")))
 
 
 def link_shared(primary: Path, worktree: Path) -> None:
