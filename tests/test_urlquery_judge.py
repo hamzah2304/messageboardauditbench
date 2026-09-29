@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks" / "urlquery" / "judge"))
 grade = pytest.importorskip("grade")
 render_sheet = pytest.importorskip("render_sheet")
+grade_openrouter = pytest.importorskip("grade_openrouter")
 
 
 def test_blocks_reassemble_the_prompt_and_cache_the_first_two():
@@ -33,3 +34,10 @@ def test_extract_json_strips_fences_and_prose():
     assert grade.extract_json('```json\n{"score": 1}\n```') == {"score": 1}
     assert grade.extract_json('Here it is: {"score": 0.5} done') == {"score": 0.5}
     assert grade.extract_json("no json") is None
+
+
+def test_synthesis_finding_gets_half_weight_in_final_mean():
+    weighted, unweighted = grade_openrouter.score_means({"F3": 0.0, "F4": 1.0}, ["F3", "F4"])
+    assert weighted == 0.667
+    assert unweighted == 0.5
+    assert grade_openrouter.score_means({"F3": 0.0}, ["F3", "F4"]) == (None, None)

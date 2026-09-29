@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[3]
 MODEL = "openai/gpt-6-astra"
 EFFORT = "high"
 OUT = ROOT / "reports/urlquery/graded/judge_gpt_6_astra_high"
+HEADLINE_WEIGHTS = {"F3": 0.5}  # Keep some synthesis credit without fully recounting F4–F6.
 KEY_FILE = (ROOT / "runs/.openrouter_key.openai_gpt-6-astra").resolve()
 SYSTEM = common.SYSTEM
 
@@ -42,14 +43,26 @@ def completed_reports(launch_path: Path) -> list[Path]:
     return list(dict.fromkeys(out))
 
 
+def score_means(scores: dict[str, float], heads: list[str]) -> tuple[float | None, float | None]:
+    """Return weighted and unweighted means only when every headline is scored."""
+    if any(h not in scores for h in heads):
+        return None, None
+    weights = [HEADLINE_WEIGHTS.get(h, 1.0) for h in heads]
+    weighted = sum(scores[h] * w for h, w in zip(heads, weights, strict=True)) / sum(weights)
+    unweighted = sum(scores[h] for h in heads) / len(heads)
+    return round(weighted, 3), round(unweighted, 3)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("runs", nargs="*", type=Path)
     ap.add_argument("--launch", type=Path)
     ap.add_argument("--workers", type=int, default=32)
+    ap.add_argument("--output", type=Path, default=OUT)
     ap.add_argument("--findings", nargs="*")
     ap.add_argument("--plan", action="store_true")
     args = ap.parse_args()
+    output = args.output
 
     run_dirs = list(args.runs)
     if args.launch:
@@ -79,7 +92,7 @@ def main() -> None:
     if not key:
         sys.exit("OpenRouter API key is missing")
     client = OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1", timeout=600.0, max_retries=2)
-    OUT.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
     lock = threading.Lock()
     files: dict[str, dict] = {}
     reports: dict[str, str] = {}
@@ -87,26 +100,27 @@ def main() -> None:
     for d in run_dirs:
         report = (d / "report.md").read_text()
         reports[d.name] = report
-        path = OUT / f"{d.name}.json"
+        path = output / f"{d.name}.json"
         prev = json.loads(path.read_text()) if path.exists() else {}
         same = all(prev.get(k) == v for k, v in stamp.items()) and prev.get("report_sha256") == common.sha(report)
         body = {**common.run_meta(d), **stamp, "report_sha256": common.sha(report),
+                "headline_weights": HEADLINE_WEIGHTS,
                 "findings": prev.get("findings", {}) if same else {}}
         files[d.name] = body
         todo += [(d, h) for h in heads if body["findings"].get(h, {}).get("status") != "ok"]
-    print(f"{len(todo)} synchronous API calls to make; workers={args.workers}; output={OUT}", flush=True)
+    print(f"{len(todo)} synchronous API calls to make; workers={args.workers}; output={output}", flush=True)
 
     def write(name: str) -> None:
         body = files[name]
-        scored = [body["findings"][h]["score"] for h in heads if body["findings"].get(h, {}).get("status") == "ok"]
+        scored = {h: body["findings"][h]["score"] for h in heads if body["findings"].get(h, {}).get("status") == "ok"}
         body["n_scored"] = len(scored)
         body["n_findings"] = len(heads)
-        body["score_mean"] = round(sum(scored) / len(scored), 3) if len(scored) == len(heads) else None
+        body["score_mean"], body["score_mean_unweighted"] = score_means(scored, heads)
         body["unscored"] = [h for h in heads if body["findings"].get(h, {}).get("status") != "ok"]
         body["scan_coverage"] = render_sheet.coverage(reports[name])
-        tmp = OUT / f".{name}.json.tmp"
+        tmp = output / f".{name}.json.tmp"
         tmp.write_text(json.dumps(body, indent=1, ensure_ascii=False))
-        tmp.replace(OUT / f"{name}.json")
+        tmp.replace(output / f"{name}.json")
 
     done = 0
 

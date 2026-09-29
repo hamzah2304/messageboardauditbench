@@ -101,6 +101,8 @@ def render_item(f: dict, group: set[str], linked: set[str] | None, show_scans: b
         lines = [f"#### Sub-finding {f['id']}{kind}", "", f"**Sub-finding:** {f['text']}", ""]
     if "added" in f["tags"]:
         lines += ["**Source:** added by the benchmark authors from the records; the article does not state it directly.", ""]
+    if "low-weight" in f["tags"]:
+        lines += ["**Scoring role:** Low-weight detail. Score it for diagnostics, but its omission alone should not lower the parent finding score.", ""]
     for quote in f["quotes"]:
         lines += [f"**In the article:** “{quote}”", ""]
     if f["judge_notes"]:

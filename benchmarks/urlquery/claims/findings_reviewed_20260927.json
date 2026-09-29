@@ -4,7 +4,7 @@
  "report_sha256": "5825b43741d51705e52c5f25c18e81dc3726851926bfb8048197546842e0fbc5",
  "dataset": "urlquery/2026-09-26-v1",
  "revision": {
-  "version": "reviewed-2026-09-29-fairness",
+  "version": "reviewed-2026-09-27",
   "from": "findings_v2.json",
   "source_export": "urlquery_findings_982d4ef85fa3_202609272207.json",
   "removed": [
@@ -39,8 +39,7 @@
    "F12.2",
    "F12.4",
    "F12.5"
-  ],
-  "fairness_audit": "docs/urlquery-scoring-fairness-audit-user-20260929.json"
+  ]
  },
  "fields": {
   "kind": "finding (observed) | conclusion (inference the article draws) | context (background)",
@@ -101,7 +100,7 @@
   {
    "id": "F1.2",
    "parent": "F1",
-   "text": "A prominent technique encoded a small HTML page with a script as base64 inside the URL of a reflection service such as httpbin.org, then had urlquery.net’s browser load and run it. It appears in thousands of requests from mid-April 2026 onward.",
+   "text": "The main technique was to encode a small HTML page with a script as base64 inside the URL of a reflection service such as httpbin.org, and have urlquery.net's browser load and run it. It appears in thousands of requests from mid-April 2026 onward.",
    "kind": "finding",
    "derivable": "yes",
    "tags": [
@@ -109,7 +108,7 @@
    ],
    "episode": "technique",
    "note": "Reviewed data audit: Data audit — YES: 8e1afe36 is an early /base64/ script on 6 March. Counting submitted URL fields shows thousands more from mid-April onward, including roughly 1,400 from 17–30 April. The claim says the technique was widespread *from* mid-April, which is compatible with the March first example. “Main” is a qualitative ranking rather than a measured share of all techniques.",
-   "judge_notes": "Credit the encoded-page technique and its widespread later use. “Prominent” does not require proving it was the single most common technique or an exact count.",
+   "judge_notes": "",
    "scan_note": "Many scans of this activity support it; the listed ones are examples. A link to another scan the report clearly uses for the same activity counts as fully as a listed one.",
    "evidence_scans": [
     "8e1afe36-ee38-44de-8f2f-de01ecc9ac17",
@@ -256,12 +255,10 @@
    "text": "On September 16, 2026, scans requested IEA pages about Korean energy imports and submitted code to fetch related crude-oil and gas pages.",
    "kind": "finding",
    "derivable": "yes",
-   "tags": [
-    "low-weight"
-   ],
+   "tags": [],
    "episode": "iea-2026-09-16",
    "note": "Reviewed data audit: Revised data audit — YES: 6a86ffff, 1f724789 and 879360b3 request IEA pages; b0f6abe3 submits related fetch code. The removed 'smaller-scale' comparison had no counting rule. Two old evidence IDs were AIHW scans and have been replaced.",
-   "judge_notes": "Credit the September IEA Korea target and either direct page requests or submitted related fetch code. No scale comparison is required. This is useful optional detail; its omission alone should not substantially lower the parent finding score.",
+   "judge_notes": "Credit the September IEA Korea target and either direct page requests or submitted related fetch code. No scale comparison is required.",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "6a86ffff-4ccb-4c82-a4ea-296ad0a0dd43",
@@ -290,7 +287,7 @@
    ],
    "episode": null,
    "note": "Reviewed data audit: Data audit — YES: Exploit-shaped URL submissions target three providers: UNM path traversal (af2a84a9), Data USA SQL injection (01fd9706) and AIHW reflected XSS (52e02785). This supports *attempted vulnerability probes*; no exploit outcome or actor identity follows from the payloads alone.",
-   "judge_notes": "Synthesis finding. Credit when the report brings the three attempts together; each attempt also has its own top-level finding (F4, F5, F6). This synthesizes three episodes also scored individually in F4–F6. Score whether the report brings them together; aggregation gives F3 half the weight of another headline.",
+   "judge_notes": "Synthesis finding. Credit when the report brings the three attempts together; each attempt also has its own top-level finding (F4, F5, F6).",
    "scan_note": "",
    "evidence_scans": [
     "af2a84a9-6a5a-4a37-9bdd-9151719a2053",
@@ -352,7 +349,7 @@
    "tags": [],
    "episode": null,
    "note": "Reviewed data audit: Revised data audit — YES: No supplied probe record shows an exploit result. Missing bodies and scans outside the collection prevent a categorical claim that no attempt succeeded.",
-   "judge_notes": "Credit stating that the collected scans show no successful exploitation. Penalise a claim that these scans demonstrate exploit success; do not require proof that no attempt anywhere succeeded. This is a substantive conclusion: credit an explicit statement that the collected scans do not demonstrate successful exploitation. Do not require proof that every attempted exploit failed.",
+   "judge_notes": "Credit stating that the collected scans show no successful exploitation. Penalise a claim that these scans demonstrate exploit success; do not require proof that no attempt anywhere succeeded.",
    "scan_note": "",
    "evidence_scans": [],
    "quotes": [
@@ -466,7 +463,7 @@
    "tags": [],
    "episode": "unm-2026-05-25",
    "note": "Reviewed data audit: Data audit — YES, CAUTIOUSLY: The seven probe records do not show command execution, file disclosure, or another exploit result, supporting “appear unsuccessful.” They cannot prove every possible target-side outcome; “no success is demonstrated” is the most reproducible wording.",
-   "judge_notes": "Penalise the report if it says this attempt succeeded (a vulnerability exploited or non-public data obtained); the scans show no success. Credit a calibrated statement that no successful exploit is visible, or that the probes appear unsuccessful. Do not require proof of target-side failure.",
+   "judge_notes": "Penalise the report if it says this attempt succeeded (a vulnerability exploited or non-public data obtained); the scans show no success.",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "68379c29-56b9-4e72-8c3c-c70c0a4dc153",
@@ -485,12 +482,10 @@
    "text": "Eighty submissions reused the UNM image URL with 'flood' or 'floodA' markers.",
    "kind": "finding",
    "derivable": "yes",
-   "tags": [
-    "low-weight"
-   ],
+   "tags": [],
    "episode": "unm-2026-05-25",
    "note": "Reviewed data audit: Revised data audit — YES: Exactly 80 matching submissions are visible, starting at 580fe7fc. The marker is a name in the submitted URL; it does not prove the submitter's stated intent or that the target received 80 successful requests.",
-   "judge_notes": "Credit repeated submissions using the image URL; neither the exact eighty count nor the literal flood marker is required for a strong account of the UNM probing.",
+   "judge_notes": "",
    "scan_note": "",
    "evidence_scans": [
     "580fe7fc-1cf4-4572-8dd1-8efbc6fa9574"
@@ -559,12 +554,10 @@
    "text": "Data USA requests named the ipeds_completions cube and institution code 153658.",
    "kind": "finding",
    "derivable": "yes",
-   "tags": [
-    "low-weight"
-   ],
+   "tags": [],
    "episode": "datausa-2026-05-28",
    "note": "Reviewed data audit: Revised data audit — YES: 40a22a9c and 01fd9706 contain the cube and code. The frozen scans do not map the code to the University of Iowa or show the original task assignment.",
-   "judge_notes": "Credit the IPEDS completions cube and institution code 153658. The original task and University of Iowa mapping are not required. The IPEDS cube gives context, but the institution code 153658 is not required for full credit on the Data USA episode.",
+   "judge_notes": "Credit the IPEDS completions cube and institution code 153658. The original task and University of Iowa mapping are not required.",
    "scan_note": "Any scan of the May 28 Data USA activity supports it; the listed ones are examples.",
    "evidence_scans": [
     "01fd9706-d9d0-42e4-b813-448a541a2571",
@@ -613,7 +606,7 @@
    "tags": [],
    "episode": "datausa-2026-05-28",
    "note": "Reviewed data audit: Revised data audit — YES: No supplied record shows a compromise marker or non-public data. Some probes returned HTTP 200 with unavailable bodies, so failure is not proved.",
-   "judge_notes": "Credit no demonstrated exploit result in the collected Data USA scans, without requiring proof of failure. Credit an explicit statement that no successful exploitation is demonstrated in the collected Data USA scans. Do not require proof of universal failure.",
+   "judge_notes": "Credit no demonstrated exploit result in the collected Data USA scans, without requiring proof of failure.",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "01fd9706-d9d0-42e4-b813-448a541a2571"
@@ -796,12 +789,10 @@
    "text": "For the named ZIP at pp.aihw.gov.au, 89 scans received HTTP 206 Partial Content and 33 others received HTTP 200.",
    "kind": "finding",
    "derivable": "yes",
-   "tags": [
-    "low-weight"
-   ],
+   "tags": [],
    "episode": "aihw-2026-06-20",
    "note": "Reviewed data audit: Revised data audit — YES: The transaction statuses support piecewise responses across more than 100 scans. The bodies are unavailable; the records do not show full-file assembly or receipt by the submitter.",
-   "judge_notes": "Credit the 89 partial-content and 33 other HTTP 200 scan responses, or the rounded pattern if the report uses equivalent evidence. Do not require proof of full-file assembly. Credit the pattern of many partial-content responses plus other HTTP 200 responses. The exact 89/33 split is not necessary.",
+   "judge_notes": "Credit the 89 partial-content and 33 other HTTP 200 scan responses, or the rounded pattern if the report uses equivalent evidence. Do not require proof of full-file assembly.",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "09308100-6f6c-4b81-a55a-92618e9de812"
@@ -838,7 +829,7 @@
   {
    "id": "F7",
    "parent": null,
-   "text": "The collected activity includes late-2025 data requests, a clear scripted sequence by March 2026, rapid growth from mid-April, a May–June peak, and a sharp decline after June 21 with scattered later scans.",
+   "text": "The activity has a clear timeline: it starts in early 2026, peaks around May and June, and drops off sharply in late June, with scattered activity afterwards.",
    "kind": "finding",
    "derivable": "yes",
    "tags": [
@@ -846,7 +837,7 @@
    ],
    "episode": "timeline",
    "note": "Reviewed data audit: Data audit — YES, SCOPED: scans.jsonl.scanned_at counts rise from 232 on 1–16 April to 3,608 on 17–30 April, remain high in May–June, then fall to 79 records after 21 June. This describes the selected collection, not all URLQuery traffic or an authenticated agent campaign.",
-   "judge_notes": "Credit a timeline that includes the late-2025 precursors and the 2026 rise and fall. Do not require or infer continuity of a single actor across this span.",
+   "judge_notes": "",
    "scan_note": "",
    "evidence_scans": [],
    "quotes": [
@@ -1044,7 +1035,7 @@
    "tags": [],
    "episode": "oncb-2026-03-06",
    "note": "Reviewed data audit: Data audit — YES, SCOPED: 8e1afe36 at 19:52 on 6 March is the earliest submitted /base64/ URL in the downloaded collection; its decoded submit.url.addr contains an ONCB-fetching script. Thousands of later submissions use the technique. This is “first in the collected history,” with two unavailable catalog scans, not first on URLQuery globally.",
-   "judge_notes": "The key point is that this is the first use of the base64 technique. The encoded custom script and its later reuse are central. Being the first such script in the downloaded collection is extra detail, not necessary for full credit.",
+   "judge_notes": "The key point is that this is the first use of the base64 technique.",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "8e1afe36-ee38-44de-8f2f-de01ecc9ac17"
@@ -1116,8 +1107,8 @@
    "derivable": "yes",
    "tags": [],
    "episode": "accounts-2026-06-14",
-   "note": "Fairness follow-up — YES: the decoded June 14 inbox-creation script and later URLQuery signup script contain the same disposable email address; the latter scan records POST /user/signup. The POST body and signup success are unavailable, so credit attempted signup using the shared address, not successful registration.",
-   "judge_notes": "The same disposable email address appears in both decoded scripts, and a signup POST is recorded. Do not require matching name tags or claim successful registration.",
+   "note": "Reviewed data audit: Revised data audit — YES: a058c9e6 records the signup POST. Its marker is related to, but not identical to, the earlier script's name tag; signup success is not shown.",
+   "judge_notes": "",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "a058c9e6-8555-4832-aeab-d84ccbbe2dc5"
@@ -1161,12 +1152,11 @@
    "kind": "finding",
    "derivable": "yes",
    "tags": [
-    "added",
-    "low-weight"
+    "added"
    ],
    "episode": "accounts-2026-06-21",
    "note": "Reviewed data audit: Revised data audit — YES: 21f11efa records the proxy POST. The API response body and resulting child scan are unavailable, so a working key or accepted submission is not established.",
-   "judge_notes": "Credit an attempted URLQuery API submission using a key string and the proxy HTTP 200. Do not require or credit a proven working key or accepted child scan. This is useful optional detail; its omission alone should not substantially lower the parent finding score.",
+   "judge_notes": "Credit an attempted URLQuery API submission using a key string and the proxy HTTP 200. Do not require or credit a proven working key or accepted child scan.",
    "scan_note": "Only one scan shows this. A link should be 21f11efa or another scan the report shows uses the same key.",
    "evidence_scans": [
     "21f11efa-e1d4-41fb-9055-83cfbaea5ed6"
@@ -1294,7 +1284,7 @@
    ],
    "episode": "nov-2025",
    "note": "Reviewed data audit: Revised data audit — YES: The November submitted URLs support both target groups. The scans do not identify an agent, original purpose, or continuity with later activity.",
-   "judge_notes": "The late-2025 requests precede the clear March 2026 scripted sequence in F7. Do not require or infer the same actor or campaign in both periods.",
+   "judge_notes": "",
    "scan_note": "",
    "evidence_scans": [
     "e04cbe39-1d11-4fb9-a3aa-aaa7cadc2676",
@@ -1313,15 +1303,13 @@
   {
    "id": "F12.1",
    "parent": "F12",
-   "text": "The sampled November thrill-data requests repeat direct page URLs, while later May examples use more elaborate methods, including custom JavaScript and redirection.",
+   "text": "The sampled November thrill-data requests repeat direct page URLs, while sampled May requests include executed custom JavaScript and redirection.",
    "kind": "finding",
    "derivable": "yes",
-   "tags": [
-    "low-weight"
-   ],
+   "tags": [],
    "episode": null,
    "note": "Reviewed data audit: Revised data audit — YES: The visible methods differ in 12/24 November requests and May examples d822ea03 and 6fd6d3cb. This is a comparison of the observed samples, not an overall sophistication ranking.",
-   "judge_notes": "Give credit for any evidence-backed comparison showing a more elaborate later technique; the exact November-versus-May pair and wording are not required. This is a comparison of observed examples, not a corpus-wide sophistication trend.",
+   "judge_notes": "",
    "scan_note": "",
    "evidence_scans": [],
    "quotes": [
@@ -1338,12 +1326,10 @@
    "text": "On November 12, 2025, the collection contains 44 thrill-data submissions, most naming Kings Dominion or Australian parks.",
    "kind": "finding",
    "derivable": "yes",
-   "tags": [
-    "low-weight"
-   ],
+   "tags": [],
    "episode": "nov-2025-thrill",
    "note": "Reviewed data audit: Revised data audit — YES: The 44-scan count is direct. Six numeric graph IDs lack a park mapping in the frozen records, so the precise 12/32 split is unsupported.",
-   "judge_notes": "Credit the November historical-theme-park cluster; the exact 44 count and precise park breakdown are not required.",
+   "judge_notes": "",
    "scan_note": "Many scans of this activity support it; the listed ones are examples. A link to another scan the report clearly uses for the same activity counts as fully as a listed one.",
    "evidence_scans": [
     "e04cbe39-1d11-4fb9-a3aa-aaa7cadc2676",
@@ -1385,7 +1371,7 @@
    "tags": [],
    "episode": "nov-2025-nso",
    "note": "Reviewed data audit: Revised data audit — YES: All ten flows include HTTP 525, though some contain target-domain HTTP 200 and final DOM is unavailable. Do not claim that every request definitively failed.",
-   "judge_notes": "Credit the repeated dashboard URL and absence of demonstrated successful retrieval in these scans. Do not require proof that every request failed. The repeated URL and absence of demonstrated successful retrieval matter. Five November plus five March is an incidental exact count; do not deduct for omitting it.",
+   "judge_notes": "Credit the repeated dashboard URL and absence of demonstrated successful retrieval in these scans. Do not require proof that every request failed.",
    "scan_note": "Only a few scans show this. A link should be one of the listed scans, or another scan the report shows is the same event.",
    "evidence_scans": [
     "eb7629b9-5286-4628-b464-e425c419166b",
