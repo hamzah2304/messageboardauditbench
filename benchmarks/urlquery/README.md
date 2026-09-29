@@ -113,8 +113,9 @@ To reproduce:
       --findings F13 --output reports/urlquery/graded/judge_gpt_6_astra_high_f13_only
     uv run python benchmarks/urlquery/judge/combine_f13_grades.py
 
-The first Opus grades (four reports, 48 calls, 2026-09-27) used the draft v1 rubric. Their
-`score_mean` is unweighted. Grade files written from now on also record
+The first Opus grades (four reports, 48 calls, 2026-09-27) used the draft v1 rubric and
+are kept in `reports/urlquery/graded/judge_claude_opus_5_5/`. Their `score_mean` is
+unweighted. Grade files written from now on also record
 `headline_weights` and `score_mean_unweighted`.
 
 Validate grades by hand with `viewers/build_urlquery_audit_ui.py`. It builds a local

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from messageboard_audit_bench.benchmarks import reject_foreign_grading
 from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
 
 # Continuation samples: which round-4 sample they resumed.
@@ -73,8 +74,13 @@ def records_from_log(
     accidentally mixed with live Inspect SWE trajectories.
     """
     records: list[ExportRecord] = []
+    # URLQuery reports can quote recorded secrets and are graded by their own rubric;
+    # never copy them into the message-board report and graded-input folders.
+    eval_meta = getattr(getattr(log, "eval", None), "metadata", None) or {}
+    reject_foreign_grading(eval_meta.get("benchmark_id", "messageboard"))
     for sample in log.samples or []:
         metadata = dict(getattr(sample, "metadata", {}) or {})
+        reject_foreign_grading(metadata.get("benchmark_id", "messageboard"))
         output = getattr(sample, "output", None)
         # Native task metadata deliberately records the harness rather than
         # duplicating Inspect's selected model. Preserve that model in the

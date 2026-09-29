@@ -4,7 +4,7 @@
     uv run python benchmarks/urlquery/judge/grade.py --batch runs/urlquery/<batch-dir>
     uv run python benchmarks/urlquery/judge/grade.py --launch runs/urlquery/<final>/launch.json --omit-article
     uv run python benchmarks/urlquery/judge/grade.py --judge openrouter/openai/gpt-6-astra --launch ...
-    uv run python benchmarks/urlquery/judge/grade.py --batch ... --plan   # calls to make, no API use
+    uv run python benchmarks/urlquery/judge/grade.py --batch ... --plan   # resume-aware call count, no API use
 
 The resumable batch counterpart of the `urlquery_grade_reports` Inspect task: the prompt,
 parsing and arithmetic are `messageboard_audit_bench.grading.findings`, shared with the
@@ -48,8 +48,7 @@ from messageboard_audit_bench.grading import findings as fj  # noqa: E402
 load_dotenv(ROOT / ".env")
 
 DEFAULT_JUDGE = urlquery_manifest()["grading"]["default_judge"]
-EFFORTS = {"anthropic": "xhigh", "openrouter": "high"}
-MAX_TOKENS = {"anthropic": 32000, "openrouter": 24000}
+TRANSPORTS = fj.TRANSPORTS  # effort, max_tokens, attempts, refusal skip per transport
 # $ per million tokens: input, output, cache read, 5-minute cache write
 PRICES = {"claude-opus-5-5": (4.0, 20.0, 0.20, 5.0)}
 
@@ -85,7 +84,7 @@ def provider_of(judge: str) -> tuple[str, str]:
 class Judge:
     def __init__(self, judge: str, effort: str | None = None):
         self.provider, self.model = provider_of(judge)
-        self.effort = effort or EFFORTS[self.provider]
+        self.effort = effort or TRANSPORTS[self.provider]["effort"]
         self.lock = threading.Lock()
         self.spend = 0.0
         if self.provider == "anthropic":
@@ -114,7 +113,7 @@ class Judge:
         blocks[-1] = {"type": "text", "text": blocks[-1]["text"] + suffix}
         with self.client.messages.stream(
             model=self.model,
-            max_tokens=MAX_TOKENS["anthropic"],
+            max_tokens=TRANSPORTS["anthropic"]["max_tokens"],
             system=fj.SYSTEM,
             thinking={"type": "adaptive"},
             output_config={"effort": self.effort},
@@ -136,7 +135,7 @@ class Judge:
             model=self.model,
             reasoning_effort=self.effort,
             response_format={"type": "json_object"},
-            max_completion_tokens=MAX_TOKENS["openrouter"],
+            max_completion_tokens=TRANSPORTS["openrouter"]["max_tokens"],
             messages=[{"role": "system", "content": fj.SYSTEM}, {"role": "user", "content": prompt}],
         )
         choice = response.choices[0]
@@ -149,8 +148,7 @@ class Judge:
     def grade(self, headline: str, subs: list[str], prompt: str) -> dict:
         started = time.time()
         usage_all, raws = [], []
-        # Anthropic gets one retry asking for bare JSON; OpenRouter's response format already asks.
-        for attempt in range(2 if self.provider == "anthropic" else 1):
+        for attempt in range(TRANSPORTS[self.provider]["attempts"]):
             if self.provider == "anthropic":
                 text, usage, stop, refusal = self._anthropic(prompt, fj.JSON_ONLY if attempt else "")
             else:
@@ -188,7 +186,7 @@ def parser(defaults: dict | None = None) -> argparse.ArgumentParser:
     ap.add_argument("--output", type=Path, help="grade directory (default reports/urlquery/graded/judge_<model>...)")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--findings", nargs="*", help="only these headline ids")
-    ap.add_argument("--plan", action="store_true", help="print the calls to make and stop")
+    ap.add_argument("--plan", action="store_true", help="print the calls a run would make (after resume) and stop")
     ap.set_defaults(**(defaults or {}))
     return ap
 
@@ -207,23 +205,19 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
         heads = [h for h in heads if h in args.findings]
     subs_of = {h: fj.sub_ids(h, findings) for h in heads}
     provider, model = provider_of(args.judge)
-    effort = args.effort or EFFORTS[provider]
+    effort = args.effort or TRANSPORTS[provider]["effort"]
     # Opus grades have always been filed without an effort suffix; OpenRouter's with one.
     out_dir = args.output or fj.output_root() / fj.judge_dir(model, effort if provider == "openrouter" else None)
-    print(f"{len(run_dirs)} reports x {len(heads)} findings = {len(run_dirs) * len(heads)} calls "
+    print(f"{len(run_dirs)} reports x {len(heads)} findings "
           f"({args.judge}, effort {effort}, article {context}) -> {out_dir}", flush=True)
-    if args.plan:
-        return
 
-    judge = Judge(args.judge, effort)
     # Recorded without the transport prefix, as the existing grade files record it.
     stamp = fj.stamp(model, effort, article)
-    out_dir.mkdir(parents=True, exist_ok=True)
     files: dict[str, dict] = {}
     reports: dict[str, str] = {}
     todo: list[tuple[Path, str]] = []
     # Anthropic refusals recur on every finding of a report; skip rather than repay them.
-    skip_refused = provider == "anthropic"
+    skip_refused = TRANSPORTS[provider]["skip_after_first_refusal"]
     for d in run_dirs:
         report = (d / "report.md").read_text()
         reports[d.name] = report
@@ -241,7 +235,13 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
         if skip_refused and body["findings"].get(heads[0], {}).get("status") == "refused":
             continue
         todo += [(d, h) for h in heads if body["findings"].get(h, {}).get("status") not in done_statuses]
+    # With --plan this is the resume-aware count a real run would pay for.
     print(f"{len(todo)} calls to make", flush=True)
+    if args.plan:
+        return
+
+    judge = Judge(args.judge, effort)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     write_lock = threading.Lock()
 

@@ -150,11 +150,14 @@ async def test_scorer_grades_every_headline_with_the_manifest_weights():
     assert grade["prompt_sha256"] == fj.sha(fj.template_path().read_bytes())
 
 
-async def test_scorer_never_turns_a_refusal_into_zero():
+@pytest.mark.parametrize(("transport", "skips"), [("anthropic", True), ("openrouter", False)])
+async def test_scorer_never_turns_a_refusal_into_zero(monkeypatch, transport, skips):
+    monkeypatch.setattr(fj, "transport", lambda _judge: transport)
     model, calls = _judge({}, refuse={fj.headlines()[0]})
     score = await finding_scorer(judge=model, article_context="omitted")(_state("REPORT"), Target(""))
     assert score.value != 0 and score.answer == "ungraded"
-    assert calls == [fj.headlines()[0]], "a first-headline refusal skips the rest"
+    # An Anthropic first-headline refusal skips the rest; other judges still grade them.
+    assert calls == ([fj.headlines()[0]] if skips else fj.headlines())
     assert score.metadata["grade"]["findings"][fj.headlines()[0]]["status"] == "refused"
 
 

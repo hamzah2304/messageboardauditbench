@@ -110,7 +110,7 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
     if not isinstance(codex_version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", codex_version):
         raise ValueError("codex_cli_version must be an exact numeric version")
     cfg = tomllib.loads(config)
-    if dataset == urlquery_dataset_dir():
+    if dataset.resolve() == urlquery_dataset_dir().resolve():
         # The benchmark's own snapshot: hold the config to the manifest's pins.
         validate_config(cfg, "urlquery")
     budget_min, timeout_min = cfg.get("budget_min", 10), cfg.get("timeout_min", 15)

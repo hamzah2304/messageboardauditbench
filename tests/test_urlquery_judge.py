@@ -110,3 +110,15 @@ def test_judge_names_select_transport_and_keep_existing_grade_directories():
     assert judge_dir("claude-opus-5-5") == "judge_claude_opus_5_5"
     assert judge_dir("openai/gpt-6-astra", "high") == "judge_gpt_6_astra_high"
     assert grade_openrouter.OUT.name == "judge_gpt_6_astra_high"
+
+
+def test_both_judge_paths_read_one_transport_table():
+    from messageboard_audit_bench.grading import finding_scorer, findings
+
+    assert grade.TRANSPORTS is findings.TRANSPORTS
+    for judge in ("anthropic/claude-opus-5-5", "claude-opus-5-5", "openrouter/openai/gpt-6-astra"):
+        assert grade.provider_of(judge)[0] == findings.transport(judge)
+        assert finding_scorer.default_effort(judge) == findings.TRANSPORTS[findings.transport(judge)]["effort"]
+    config = finding_scorer._config(type("M", (), {"__str__": lambda s: "anthropic/claude-opus-5-5"})(), "xhigh")
+    # reasoning_effort, not effort: Inspect then sends adaptive thinking like the batch grader.
+    assert config.reasoning_effort == "xhigh" and config.effort is None and config.max_tokens == 32000

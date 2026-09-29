@@ -36,8 +36,8 @@ publication. It includes a scaffold command for contributors.
 ### A second benchmark: URLQuery
 
 `urlquery_audit_bench` asks the same kind of question of different evidence:
-38,160 urlquery.net web scans that [Transluce](https://transluce.org/agent-activity)
-linked to autonomous agents. The agent gets a frozen, hash-pinned snapshot of the
+the urlquery.net web scans that [Transluce](https://transluce.org/agent-activity)
+linked to autonomous agents (38,158 of the 38,160 it catalogued; 2 were unavailable). The agent gets a frozen, hash-pinned snapshot of the
 scans and writes a report. A judge then scores that report against 13 reviewed
 headline findings, one call per finding. It is a separate Inspect task, with its own
 version, prompts, configs and rubric, but it runs on the same harness: the same
