@@ -473,11 +473,25 @@ def test_final_batch_keeps_one_dataset_pin_and_latest_prompt(tmp_path, monkeypat
     assert sum(len(p["matrix"]) for _, p in plans) == 48
     assert [p["budget_minutes"] for _, p in plans] == [30, 10]
     for _, payload in plans:
+        assert "claude-sonnet-5-5" in {row["model"] for row in payload["matrix"]}
+        assert "claude-sonnet-5" not in {row["model"] for row in payload["matrix"]}
         config = tomllib.loads(Path(payload["config"]).read_text())
         assert config["dataset_sha256"] == "a" * 64
         assert config["prompt"] == "urlquery-agents-v6"
         assert len({row["model"] for row in payload["matrix"]}) == 12
         assert {row["replicate"] for row in payload["matrix"]} == {1, 2}
+
+
+def test_follow_up_round_is_twelve_single_ten_minute_trials(tmp_path, monkeypatch):
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-agents-v6-10-round.toml")
+    assert concurrency == 12 and len(plans) == 1
+    trials = plans[0][1]["matrix"]
+    assert plans[0][1]["budget_minutes"] == 10
+    assert len(trials) == len({(row["agent"], row["model"]) for row in trials}) == 12
+    assert {row["replicate"] for row in trials} == {1}
+    assert "claude-sonnet-5-5" in {row["model"] for row in trials}
+    assert "claude-sonnet-5" not in {row["model"] for row in trials}
 
 
 @pytest.mark.parametrize("body", [
