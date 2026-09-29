@@ -15,6 +15,7 @@ import os
 import secrets
 import sys
 import time
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,14 +52,26 @@ class API:
         self.authorization = "Bearer " + key()
 
     def request(self, method: str, path: str, body: bytes | None = None,
-                content_type: str | None = None) -> bytes:
+                content_type: str | None = None, idempotency_key: str | None = None) -> bytes:
         headers = {"Authorization": self.authorization}
         if content_type:
             headers["Content-Type"] = content_type
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         request = urllib.request.Request("https://api.openai.com/v1" + path,
                                          data=body, headers=headers, method=method)
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return response.read()
+        for attempt in range(5):
+            try:
+                with urllib.request.urlopen(request, timeout=120) as response:
+                    return response.read()
+            except urllib.error.HTTPError as exc:
+                if method != "GET" or exc.code not in (429, 500, 502, 503, 504) or attempt == 4:
+                    raise
+            except urllib.error.URLError:
+                if method != "GET" or attempt == 4:
+                    raise
+            time.sleep(min(2 ** attempt, 16))
+        raise RuntimeError("unreachable retry exit")
 
     def upload(self, path: Path) -> dict:
         boundary = "batch-" + secrets.token_hex(16)
@@ -71,7 +84,8 @@ class API:
         body = {"input_file_id": file_id, "endpoint": "/v1/chat/completions",
                 "completion_window": "24h", "metadata": {"benchmark": "urlquery",
                                                          "grading": "reviewed", "chunk": str(number)}}
-        return json.loads(self.request("POST", "/batches", json.dumps(body).encode(), "application/json"))
+        return json.loads(self.request("POST", "/batches", json.dumps(body).encode(),
+                                       "application/json", f"urlquery-{file_id}-{number}"))
 
     def retrieve(self, batch_id: str) -> dict:
         return json.loads(self.request("GET", f"/batches/{batch_id}"))
@@ -211,9 +225,12 @@ def step(folder: Path) -> str:
     if not chunk["batch_id"]:
         if fj.sha((folder / chunk["file"]).read_bytes()) != chunk["sha256"]:
             raise RuntimeError(f"batch input changed: {chunk['file']}")
-        uploaded = api.upload(folder / chunk["file"])
-        batch = api.create(uploaded["id"], number)
-        chunk.update(status=batch["status"], input_file_id=uploaded["id"], batch_id=batch["id"])
+        if not chunk.get("input_file_id"):
+            uploaded = api.upload(folder / chunk["file"])
+            chunk["input_file_id"] = uploaded["id"]
+            save(state_path, state)
+        batch = api.create(chunk["input_file_id"], number)
+        chunk.update(status=batch["status"], batch_id=batch["id"])
         save(state_path, state)
         return f"submitted {number + 1}/{len(state['chunks'])}: {batch['id']} ({batch['status']})"
     batch = api.retrieve(chunk["batch_id"])
@@ -245,7 +262,10 @@ def main() -> None:
         with (args.watch / "watch.lock").open("w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             while True:
-                result = step(args.watch)
+                try:
+                    result = step(args.watch)
+                except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+                    result = f"temporary API error: {type(exc).__name__}: {exc}"
                 print(datetime.now(UTC).isoformat(), result, flush=True)
                 if result == "complete":
                     break
