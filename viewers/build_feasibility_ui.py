@@ -7,15 +7,24 @@ and the concrete queries/evidence the subagents ran. Read-only review.
 Run:  cd viewers && python build_feasibility_ui.py
 """
 import json
+import argparse
 from pathlib import Path
 
 import sys as _sys, pathlib as _pl
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
+from messageboard_audit_bench.benchmarks import benchmark_spec
+from messageboard_audit_bench.review_scope import validate_review_scope, replace_once
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")
+args = parser.parse_args()
+if args.benchmark != "messageboard":
+    FEASIBILITY = ROOT / benchmark_spec(args.benchmark).evaluator_root / "feasibility"
 
 data = json.loads((FEASIBILITY / "feasibility.json").read_text())
+scope = validate_review_scope(data, args.benchmark)
 blob = json.dumps(data, ensure_ascii=False).replace("</script", "<\\/script").replace("</", "<\\/")
 
 HTML = r"""<title>Claim Feasibility</title>
@@ -145,5 +154,9 @@ render();
 </script>
 """
 html = HTML.replace("__DATA__", blob)
-(VIEWERS / "feasibility.html").write_text(html)
-print("wrote", VIEWERS / "feasibility.html", f"({len(html)} bytes)")
+name = "feasibility.html"
+if scope:
+    name = "urlquery_feasibility.html"
+    html = replace_once(html, "data/raw_stripped/", "URLQuery snapshot " + scope["dataset_sha256"][:12])
+(VIEWERS / name).write_text(html)
+print("wrote", VIEWERS / name, f"({len(html)} bytes)")

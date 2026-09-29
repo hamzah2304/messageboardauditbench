@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>urlquery Agent Explorer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f6f4ef; --panel:#fffdf8; --ink:#20242c; --muted:#5c6472; --rule:#e0dccf;
+  --accent:#7a2e2e; --accent-soft:#f0e2df; --chip:#ece7dd; --sel:#e9e2d2;
+  --sig:#8f2d2d; --sug:#b98a2c; --bgc:#5a7a8c; --rev:#8a8a8a;
+  --hl:rgba(230,180,60,.38); --hl-cur:rgba(230,120,40,.55); --ok:#2f6b3a; --warn:#9a5b00; --err:#a12626;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15171c; --panel:#1c1f26; --ink:#e7e4dc; --muted:#9aa1ad; --rule:#30343d;
+  --accent:#e08a7d; --accent-soft:#3a2422; --chip:#262a32; --sel:#2c3039;
+  --sig:#e0796f; --sug:#d9b25a; --bgc:#86a9bd; --rev:#9a9a9a;
+  --hl:rgba(230,180,60,.28); --hl-cur:rgba(230,120,40,.45); --ok:#7cc48a; --warn:#e0a84a; --err:#f07b7b;}}
+:root[data-theme="dark"]{
+  --bg:#15171c; --panel:#1c1f26; --ink:#e7e4dc; --muted:#9aa1ad; --rule:#30343d;
+  --accent:#e08a7d; --accent-soft:#3a2422; --chip:#262a32; --sel:#2c3039;
+  --sig:#e0796f; --sug:#d9b25a; --bgc:#86a9bd; --rev:#9a9a9a;
+  --hl:rgba(230,180,60,.28); --hl-cur:rgba(230,120,40,.45); --ok:#7cc48a; --warn:#e0a84a; --err:#f07b7b;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 "IBM Plex Sans",system-ui,sans-serif;display:flex;flex-direction:column}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--chip);border:1px solid var(--rule);border-radius:6px;padding:3px 9px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+button.link{background:none;border:none;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,select,textarea{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:4px 7px}
+code,pre,.mono{font-family:var(--mono);font-size:12px}
+pre{white-space:pre-wrap;word-break:break-all;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;margin:6px 0;max-height:420px;overflow:auto}
+header{display:flex;align-items:center;gap:14px;padding:8px 16px;border-bottom:1px solid var(--rule);background:var(--panel);flex-wrap:wrap}
+header h1{font:600 19px/1.2 Newsreader,Georgia,serif;margin:0}
+header .sub{color:var(--muted);font-size:12px}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tabs button[aria-selected=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.spacer{flex:1}
+#savestate{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--rule)}
+#savestate.ok{color:var(--ok)} #savestate.warn{color:var(--warn);border-color:var(--warn)} #savestate.err{color:var(--err);border-color:var(--err);font-weight:600}
+main{flex:1;display:grid;grid-template-columns:350px minmax(0,1fr) 330px;min-height:0}
+main.post-mode{grid-template-columns:0 minmax(0,1fr) 330px}
+main.post-mode #left{display:none}
+main.post-mode #center{grid-column:2} main.post-mode #right{grid-column:3}
+#left,#center,#right{overflow:auto;min-height:0}
+#left{border-right:1px solid var(--rule);background:var(--panel);display:flex;flex-direction:column}
+#right{border-left:1px solid var(--rule);background:var(--panel);display:flex;flex-direction:column}
+.filters{padding:10px 12px;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 8px}
+.filters label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:2px;min-width:0}
+.filters input:not([type=checkbox]),.filters select{width:100%;min-width:0}
+.filters .full{grid-column:1/-1}
+.filters .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filters .row label{flex-direction:row;align-items:center;gap:4px;font-size:12px;color:var(--ink)}
+#timeline{padding:6px 12px 8px;border-bottom:1px solid var(--rule)}
+#timeline svg{width:100%;height:64px;display:block;cursor:pointer}
+#timeline .cap{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+#count{padding:6px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center}
+#list{list-style:none;margin:0;padding:0;flex:1;overflow:auto}
+#list li{padding:6px 12px;border-bottom:1px solid var(--rule);cursor:pointer;font-size:12px}
+#list li:hover{background:var(--sel)}
+#list li[aria-selected=true]{background:var(--accent-soft);box-shadow:inset 3px 0 var(--accent)}
+#list li .l1{display:flex;gap:6px;align-items:center}
+#list li .l2{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11px}
+#list li.nofetch .l2{font-family:inherit;font-style:italic}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.c-significant{background:var(--sig)} .c-suggestive{background:var(--sug)} .c-background{background:var(--bgc)} .c-review_required{background:var(--rev)}
+.chip{display:inline-block;background:var(--chip);border:1px solid var(--rule);border-radius:999px;padding:0 7px;font-size:11px;white-space:nowrap}
+.chip.cited{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.chip.cmt{background:var(--hl);border-color:transparent}
+#center{padding:16px 22px 80px}
+.doc h2{font:600 20px/1.3 Newsreader,Georgia,serif;margin:0 0 4px}
+.sec{border:1px solid var(--rule);background:var(--panel);border-radius:8px;padding:10px 14px;margin:12px 0}
+.sec>.sh{display:flex;align-items:center;gap:8px;margin:-2px 0 6px}
+.sec>.sh h3{font:600 13px/1.3 "IBM Plex Sans";text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0;flex:1}
+.sec.label{border-left:3px solid var(--sug)}
+.kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:3px 10px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;word-break:break-word}
+.note{font-size:12px;color:var(--muted)}
+blockquote.ctx{margin:6px 0;padding:6px 12px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 6px 6px 0;font:15px/1.5 Newsreader,Georgia,serif}
+table.http{width:100%;border-collapse:collapse;font-size:12px}
+table.http th{text-align:left;color:var(--muted);font-weight:500;border-bottom:1px solid var(--rule);padding:3px 5px}
+table.http td{border-bottom:1px solid var(--rule);padding:3px 5px;vertical-align:top}
+table.http td.u{font-family:var(--mono);font-size:11px;word-break:break-all}
+table.http tr.nav td{font-weight:500}
+.st2{color:var(--ok)} .st3{color:var(--bgc)} .st4,.st5{color:var(--err);font-weight:600}
+details.raw summary{cursor:pointer;color:var(--muted);font-size:11px}
+.nb{list-style:none;padding:0;margin:0;font-size:12px;max-height:300px;overflow:auto}
+.nb li{padding:2px 4px;display:flex;gap:6px;align-items:center;border-radius:4px}
+.nb li.cur{background:var(--accent-soft);font-weight:600}
+.nb li button.link{font-family:var(--mono);font-size:11px}
+.empty{color:var(--muted);padding:40px 10px;text-align:center}
+#post{max-width:760px;margin:0 auto;font:17px/1.6 Newsreader,Georgia,serif}
+#post h1{font-size:30px;line-height:1.2} #post h2{font-size:23px;margin-top:1.6em;display:flex;gap:8px;align-items:baseline}
+#post h3{font-size:18px;margin-top:1.3em}
+#post code{font-size:13px;word-break:break-all}
+#post a.rep{background:var(--accent-soft);border-radius:3px;padding:0 3px;color:var(--accent);text-decoration:none;font-family:"IBM Plex Sans";font-size:13px}
+#post a.rep.nofetch{opacity:.65}
+#post .secbtn{font:12px "IBM Plex Sans";margin-left:auto}
+.cbar{padding:10px 12px;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:6px}
+.cbar .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.cbar .help{font-size:11px;color:var(--muted)}
+#composer{padding:10px 12px;border-bottom:1px solid var(--rule);background:var(--accent-soft);display:none}
+#composer.open{display:block}
+#composer .q{font-size:12px;border-left:3px solid var(--accent);padding-left:8px;margin:4px 0;max-height:90px;overflow:auto;white-space:pre-wrap}
+#composer textarea,.card textarea{width:100%;min-height:70px;resize:vertical;margin:4px 0}
+#clist{flex:1;overflow:auto;padding:6px 8px 40px}
+.card{border:1px solid var(--rule);border-radius:8px;padding:7px 9px;margin:6px 0;background:var(--bg);font-size:13px}
+.card.resolved{opacity:.6}
+.card.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.card .meta{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.card .q{font-size:12px;color:var(--muted);border-left:3px solid var(--hl-cur);padding-left:7px;margin:4px 0;white-space:pre-wrap;max-height:70px;overflow:hidden}
+.card .body{white-space:pre-wrap;word-break:break-word}
+.card .acts{display:flex;gap:8px;margin-top:4px;font-size:12px}
+.card .orphan{color:var(--err);font-size:11px;font-weight:600}
+.card .reply{border-top:1px dashed var(--rule);margin-top:5px;padding-top:4px;font-size:12px;white-space:pre-wrap}
+#selbtn{position:absolute;display:none;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#cxtip{position:absolute;z-index:60;max-width:360px;background:var(--ink);color:var(--bg);border-radius:8px;padding:9px 12px;font:13px/1.5 "IBM Plex Sans",system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);pointer-events:none;opacity:0;transition:opacity .1s;display:none}
+#cxtip.show{opacity:1;display:block}
+#cxtip b{color:var(--bg)} #cxtip code{background:rgba(255,255,255,.16);color:var(--bg);padding:0 3px;border-radius:3px;font-size:12px}
+#cxtip .cx-caveat{display:block;margin-top:5px;font-size:11.5px;opacity:.8}
+#cxtip .cx-h{font-weight:600;margin-bottom:2px}
+.cx{border-bottom:1px dotted var(--muted);cursor:help}
+.cxi{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;border-radius:50%;background:var(--chip);border:1px solid var(--rule);color:var(--muted);font-size:10px;font-weight:600;cursor:help;margin-left:5px;vertical-align:middle;font-family:"IBM Plex Sans"}
+.cxi:hover{border-color:var(--accent);color:var(--accent)}
+dt.cx{border-bottom:none}
+.whatbox{border:1px solid var(--rule);border-left:3px solid var(--accent);background:var(--panel);border-radius:8px;padding:10px 14px;margin:12px 0}
+.whatbox h3{font:600 13px/1.3 "IBM Plex Sans";text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:0 0 6px}
+.whatbox ul{margin:0;padding-left:18px} .whatbox li{margin:4px 0}
+.whatbox .cx-caveat{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+td.u .host{color:var(--muted);font-size:10px;font-style:italic;margin-left:4px}
+::highlight(cmt){background-color:var(--hl)}
+::highlight(cmtcur){background-color:var(--hl-cur)}
+.flash{animation:fl 1.4s ease-out}
+@keyframes fl{0%{background:var(--hl-cur)}100%{background:transparent}}
+.sr{position:absolute;left:-9999px}
+@media (max-width:1100px){main{grid-template-columns:300px minmax(0,1fr)} #right{grid-column:1/-1;border-left:none;border-top:1px solid var(--rule);max-height:45vh}}
+@media (max-width:720px){main,main.post-mode{display:flex;flex-direction:column;overflow:auto} #left,#center,#right{flex:none;overflow:visible;max-height:none} #list{max-height:50vh;flex:none} #center{padding:12px 16px 40px} #right{border-top:1px solid var(--rule)} .kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>urlquery Agent Explorer</h1>
+  <span class="sub" id="subtitle"></span>
+  <nav class="tabs" role="tablist" aria-label="View">
+    <button role="tab" id="tab-reports" aria-selected="true">Reports</button>
+    <button role="tab" id="tab-post" aria-selected="false">Transluce post</button>
+  </nav>
+  <span class="spacer"></span>
+  <span id="savestate" role="status" aria-live="polite">…</span>
+</header>
+<main id="main">
+  <section id="left" aria-label="Report list">
+    <div class="filters">
+      <label class="full">Search <input id="f-q" type="search" placeholder="id, URL, decoded program, why_included…  ( / )"></label>
+      <label>Data source <select id="f-src"></select></label>
+      <label>Confidence <select id="f-conf"></select></label>
+      <label>Method class <select id="f-cls"></select></label>
+      <label>Sampled because <select id="f-why"></select></label>
+      <label>From (UTC) <input id="f-from" type="date"></label>
+      <label>To (UTC) <input id="f-to" type="date"></label>
+      <label class="full">Post section <select id="f-sec"></select></label>
+      <div class="full row">
+        <label><input type="checkbox" id="f-raw" checked> raw JSON only</label>
+        <label><input type="checkbox" id="f-cmt"> commented</label>
+        <label><input type="checkbox" id="f-desc"> newest first</label>
+        <button id="f-reset" type="button">Reset</button>
+      </div>
+    </div>
+    <div id="timeline" aria-label="Daily counts for the current filter; click a day to filter to it"></div>
+    <div id="count"></div>
+    <ul id="list" role="listbox" aria-label="Reports" tabindex="0"></ul>
+  </section>
+  <section id="center" aria-live="polite"></section>
+  <aside id="right" aria-label="Comments">
+    <div class="cbar">
+      <div class="row">
+        <button type="button" id="c-page">+ Page comment</button>
+        <button type="button" id="c-doc">+ Comment on this report</button>
+      </div>
+      <div class="row">
+        <label class="note"><input type="checkbox" id="c-all"> all comments</label>
+        <label class="note"><input type="checkbox" id="c-res"> show resolved</label>
+        <span class="spacer"></span>
+        <button type="button" id="c-export" title="Download all comments as JSON">Export</button>
+        <button type="button" id="c-import">Import</button>
+        <input type="file" id="c-file" accept="application/json,.json" class="sr" aria-label="Import comments JSON">
+      </div>
+      <div class="help" id="c-help"></div>
+    </div>
+    <div id="composer" role="dialog" aria-label="New comment">
+      <div class="note" id="cp-target"></div>
+      <div class="q" id="cp-quote"></div>
+      <textarea id="cp-text" aria-label="Comment text" placeholder="Question or note…  (Ctrl/⌘+Enter to save, Esc to cancel)"></textarea>
+      <div class="row" style="display:flex;gap:6px"><button type="button" class="primary" id="cp-save">Save</button><button type="button" id="cp-cancel">Cancel</button></div>
+    </div>
+    <div id="clist"></div>
+  </aside>
+</main>
+<button type="button" id="selbtn" class="primary">💬 Comment <span class="note" style="color:inherit">(c)</span></button>
+<div id="cxtip" role="tooltip" aria-hidden="true"></div>
+<script>/*__CONTEXT__*/</script>
+<script>
+const D = __DATA__;
+const T = D.tables;
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const R = D.rows.map(r => ({id:r[0], t:r[1], disp:T.disp[r[2]], conf:T.conf[r[3]] || (T.disp[r[2]] === "background" ? "background" : T.disp[r[2]]),
+  cls:T.cls[r[4]], why:T.why[r[5]], cav:T.cav[r[6]], src:T.src[r[7]] || "(no source: " + T.disp[r[2]] + ")", basis:T.basis[r[8]]}));
+const BYID = Object.fromEntries(R.map(r => [r.id, r]));
+const SECTIONS = [...new Set(Object.values(D.cites).map(c => c.section))];
+function hostOf(u){ try { return (u || "").replace(/^https?:\/\//, "").split(/[/?#]/)[0]; } catch(e){ return ""; } }
+function hostTag(u, small){ const n = CTX.hostNote(hostOf(u)); if (!n) return "";
+  return `<span class="${small ? "host " : "chip "}cx" data-cxhost="${esc(hostOf(u))}" tabindex="0" role="button">${small ? "" : "🛈 "}${esc(n.label)}</span>`; }
+R.forEach(r => { const rep = D.reports[r.id]; r.raw = !!rep; r.cited = !!D.cites[r.id];
+  r.hay = (r.id + " " + r.why + " " + r.src + (rep ? " " + rep.submitted + " " + rep.final + " " + rep.title + " " + rep.programs.map(p => p.text).join(" ") : "")).toLowerCase(); });
+
+/* ---------------- comments: model + storage ---------------- */
+const LS_KEY = "transluce_explorer_comments_v1";
+const SERVED = location.protocol.startsWith("http");
+let C = {comments: []};            // {id, doc, kind, section, quote, prefix, suffix, text, status, created, updated, replies, deleted}
+let saveState = {mode: "", msg: ""};
+function lsRead(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e){ setSave("err", "Browser storage unreadable: " + e.message); return null; } }
+function lsWrite(){ try { localStorage.setItem(LS_KEY, JSON.stringify(C)); return true; } catch(e){ return e.message || String(e); } }
+function merge(into, incoming){
+  const m = Object.fromEntries(into.map(c => [c.id, c]));
+  for (const c of incoming || []) { if (!c || !c.id) continue; const cur = m[c.id]; if (!cur || (c.updated || "") > (cur.updated || "")) m[c.id] = c; }
+  return Object.values(m).sort((a, b) => (a.created || "").localeCompare(b.created || ""));
+}
+function setSave(mode, msg){ const el = $("#savestate"); el.className = mode; el.textContent = msg; el.title = msg; }
+let saveTimer = null;
+function persist(){
+  const ls = lsWrite();
+  if (!SERVED) { ls === true ? setSave("warn", "Saved in this browser only · Export to hand off") : setSave("err", "NOT SAVED: browser storage failed (" + ls + ") · Export now"); return; }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch("/save?p=" + encodeURIComponent(D.comments_path), {method: "POST", body: JSON.stringify(exportObj(), null, 1)});
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      setSave("ok", "Saved to " + D.comments_rel + " · " + new Date().toLocaleTimeString());
+    } catch(e) {
+      setSave(ls === true ? "warn" : "err", "File save failed (" + e.message + ")" + (ls === true ? " · kept in browser" : " · NOT SAVED, Export now"));
+    }
+  }, 350);
+}
+async function loadComments(){
+  const local = lsRead();
+  if (local && local.comments) C.comments = merge([], local.comments);
+  if (SERVED) {
+    try {
+      const r = await fetch("/file?p=" + encodeURIComponent(D.comments_path), {cache: "no-store"});
+      if (r.ok) { const f = await r.json(); C.comments = merge(C.comments, f.comments); setSave("ok", "Loaded " + D.comments_rel); }
+      else if (r.status === 404) setSave("ok", "No comments file yet · will save to " + D.comments_rel);
+      else setSave("warn", "Could not read " + D.comments_rel + " (HTTP " + r.status + ")");
+    } catch(e) { setSave("warn", "Comments file unreachable (" + e.message + ") · using browser copy"); }
+  } else setSave("warn", "Opened as a file: comments stay in this browser · serve via html_viewer.py to save to disk");
+  $("#c-help").innerHTML = SERVED
+    ? "Comments save to <code>" + esc(D.comments_rel) + "</code> in the repo (and a browser copy). Hand that file, or an Export, to an agent."
+    : "Comments are kept in this browser's localStorage only. Use <b>Export</b> to hand them to an agent, or run <code>python3 scripts/html_viewer.py</code> and open <code>/transluce_explorer.html</code>.";
+}
+function exportObj(){
+  return {page: "transluce_explorer", catalogue: D.catalogue, saved_at: new Date().toISOString(),
+    comments: C.comments.map(c => {
+      const o = {...c};
+      const rid = c.doc.startsWith("report:") ? c.doc.slice(7) : null;
+      if (rid && BYID[rid]) { const r = BYID[rid]; o.context = {report_url: "https://urlquery.net/report/" + rid, date: r.t, source: r.src, confidence: r.conf, class: r.cls,
+        submitted: D.reports[rid]?.submitted?.slice(0, 400) || null}; }
+      o.anchor_found = anchorState[c.id] ?? null;
+      return o; })};
+}
+const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const nowISO = () => new Date().toISOString();
+
+/* ---------------- state ---------------- */
+let view = "reports", curId = null, filtered = [], shown = 400, pending = null, anchorState = {}, curComment = null, dayFilter = null;
+
+/* ---------------- filters ---------------- */
+function fillSelect(sel, vals, label){
+  sel.innerHTML = `<option value="">${label}</option>` + vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+}
+function initFilters(){
+  const cnt = k => { const m = {}; R.forEach(r => m[r[k]] = (m[r[k]] || 0) + 1); return Object.entries(m).sort((a, b) => b[1] - a[1]).map(e => e[0]); };
+  fillSelect($("#f-src"), cnt("src"), "all sources");
+  fillSelect($("#f-conf"), cnt("conf"), "any");
+  fillSelect($("#f-cls"), cnt("cls"), "any");
+  const whys = [...new Set(Object.values(D.reasons).flat())];
+  fillSelect($("#f-why"), whys, "any");
+  fillSelect($("#f-sec"), SECTIONS, "any (or pick a section to see its cited reports)");
+  $$(".filters input, .filters select").forEach(el => el.addEventListener(el.type === "search" ? "input" : "change", () => { dayFilter = null; applyFilters(); }));
+  $("#f-reset").onclick = () => { $$(".filters select").forEach(s => s.value = ""); $("#f-q").value = ""; $("#f-from").value = $("#f-to").value = "";
+    $("#f-raw").checked = true; $("#f-cmt").checked = $("#f-desc").checked = false; dayFilter = null; applyFilters(); };
+}
+function commentedDocs(){ const s = new Set(); C.comments.forEach(c => { if (!c.deleted && c.doc.startsWith("report:")) s.add(c.doc.slice(7)); }); return s; }
+function applyFilters(keep){
+  const q = $("#f-q").value.trim().toLowerCase(), src = $("#f-src").value, conf = $("#f-conf").value, cls = $("#f-cls").value,
+    why = $("#f-why").value, from = $("#f-from").value, to = $("#f-to").value, sec = $("#f-sec").value,
+    raw = $("#f-raw").checked, cm = $("#f-cmt").checked, desc = $("#f-desc").checked;
+  const cd = commentedDocs();
+  let secIds = null;
+  if (sec) { secIds = new Set(Object.entries(D.cites).filter(([, c]) => c.section === sec).map(([k]) => k)); }
+  filtered = R.filter(r => (!raw || r.raw) && (!src || r.src === src) && (!conf || r.conf === conf) && (!cls || r.cls === cls)
+    && (!why || (D.reasons[r.id] || []).includes(why)) && (!from || r.t.slice(0, 10) >= from) && (!to || r.t.slice(0, 10) <= to)
+    && (!secIds || secIds.has(r.id)) && (!cm || cd.has(r.id)) && (!q || q.split(/\s+/).every(w => r.hay.includes(w))));
+  drawTimeline();
+  if (dayFilter) filtered = filtered.filter(r => r.t.startsWith(dayFilter));
+  if (desc) filtered = filtered.slice().reverse();
+  if (!keep) shown = 400;
+  renderList();
+}
+function drawTimeline(){
+  const el = $("#timeline");
+  if (!filtered.length) { el.innerHTML = '<div class="cap"><span>no reports</span></div>'; return; }
+  const days = {}; filtered.forEach(r => { const d = r.t.slice(0, 10); (days[d] ||= {significant:0, suggestive:0, other:0}); const k = r.conf === "significant" || r.conf === "suggestive" ? r.conf : "other"; days[d][k]++; });
+  const keys = Object.keys(days).sort(), t0 = Date.parse(keys[0]), t1 = Date.parse(keys[keys.length - 1]);
+  const span = Math.max(1, (t1 - t0) / 864e5 + 1), W = 320, H = 60, bw = Math.max(1, W / span);
+  const max = Math.max(...keys.map(k => days[k].significant + days[k].suggestive + days[k].other));
+  let bars = "";
+  for (const k of keys) {
+    const x = ((Date.parse(k) - t0) / 864e5) * (W / span); let y = H;
+    for (const [part, col] of [["significant", "var(--sig)"], ["suggestive", "var(--sug)"], ["other", "var(--bgc)"]]) {
+      const h = days[k][part] / max * (H - 2); if (!h) continue; y -= h;
+      bars += `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(bw - .3, .8).toFixed(2)}" height="${h.toFixed(2)}" fill="${col}" data-day="${k}"${k === dayFilter ? ' stroke="var(--ink)"' : ""}><title>${k}: ${days[k].significant} significant, ${days[k].suggestive} suggestive, ${days[k].other} other</title></rect>`;
+    }
+  }
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="daily counts">${bars}</svg>
+    <div class="cap"><span>${keys[0]}</span><span>${dayFilter ? `day ${dayFilter} · <button class="link" id="tl-clear">clear</button>` : "max " + max + "/day · click a bar"}</span><span>${keys[keys.length - 1]}</span></div>`;
+  el.querySelector("svg").onclick = e => { const d = e.target.dataset?.day; if (d) { dayFilter = dayFilter === d ? null : d; applyFilters(); } };
+  const c = $("#tl-clear"); if (c) c.onclick = () => { dayFilter = null; applyFilters(); };
+}
+function listLine(r){
+  const rep = D.reports[r.id];
+  if (rep) { const p = rep.programs[0]; if (p) return "⟨program⟩ " + p.text.replace(/\s+/g, " ").slice(0, 140); if (rep.submitted.length > 8) return rep.submitted.slice(0, 160); }
+  return D.notes[r.id] || r.why;
+}
+function renderList(){
+  const cd = commentedDocs(), n = {};
+  C.comments.forEach(c => { if (!c.deleted && c.status !== "resolved" && c.doc.startsWith("report:")) n[c.doc.slice(7)] = (n[c.doc.slice(7)] || 0) + 1; });
+  $("#count").innerHTML = `<span>${filtered.length.toLocaleString()} reports${$("#f-raw").checked ? " with raw JSON" : ""}</span><span>${Object.keys(D.reports).length} of ${R.length.toLocaleString()} fetched</span>`;
+  $("#list").innerHTML = filtered.slice(0, shown).map(r => `<li role="option" data-id="${r.id}" aria-selected="${r.id === curId}" class="${r.raw ? "" : "nofetch"}">
+    <div class="l1"><span class="dot c-${esc(r.conf)}" title="${esc(r.conf)}"></span><span class="mono">${r.t.replace("T", " ").slice(0, 16)}</span>
+    <span class="chip">${esc(r.src)}</span>${r.cited ? '<span class="chip cited">cited</span>' : ""}${n[r.id] ? `<span class="chip cmt">💬${n[r.id]}</span>` : (cd.has(r.id) ? '<span class="chip">💬✓</span>' : "")}</div>
+    <div class="l2">${esc(listLine(r))}</div></li>`).join("")
+    + (filtered.length > shown ? `<li><button class="link" id="more">show ${Math.min(400, filtered.length - shown)} more</button></li>` : "")
+    + (!filtered.length ? '<li class="empty">No reports match. Untick “raw JSON only” to search the full catalogue.</li>' : "");
+  const m = $("#more"); if (m) m.onclick = e => { e.stopPropagation(); shown += 400; renderList(); };
+}
+$("#list").addEventListener("click", e => { const li = e.target.closest("li[data-id]"); if (li) openReport(li.dataset.id); });
+$("#list").addEventListener("keydown", e => {
+  if (!["ArrowDown", "ArrowUp", "j", "k"].includes(e.key)) return; e.preventDefault();
+  const i = filtered.findIndex(r => r.id === curId), j = Math.max(0, Math.min(filtered.length - 1, i + (e.key === "ArrowDown" || e.key === "j" ? 1 : -1)));
+  if (filtered[j]) { if (j >= shown) { shown = j + 50; renderList(); } openReport(filtered[j].id); $(`#list li[data-id="${filtered[j].id}"]`)?.scrollIntoView({block: "nearest"}); }
+});
+
+/* ---------------- report detail ---------------- */
+function secHead(title, key){ const cx = CTX.G["s." + key] ? `<span class="cxi" data-cx="s.${esc(key)}" tabindex="0" role="button" aria-label="What is this section?">i</span>` : "";
+  return `<div class="sh"><h3>${esc(title)}</h3>${cx}<button type="button" class="secbtn" data-sec="${esc(key)}" data-title="${esc(title)}" aria-label="Comment on section ${esc(title)}">💬 section</button></div>`; }
+function statusClass(s){ return "st" + String(s || "").slice(0, 1); }
+function openReport(id, fromHash){
+  const r = BYID[id]; if (!r) { $("#center").innerHTML = `<div class="empty">Report ${esc(id)} is not in the catalogue.</div>`; return; }
+  curId = id; view = "reports"; setTab();
+  if (!fromHash) history.replaceState(null, "", "#r=" + id);
+  $$("#list li[aria-selected=true]").forEach(li => li.setAttribute("aria-selected", "false"));
+  $(`#list li[data-id="${id}"]`)?.setAttribute("aria-selected", "true");
+  const rep = D.reports[id], cite = D.cites[id], why = D.reasons[id] || [];
+  const ov = (D.overrides.overrides || D.overrides || []); const ovr = Array.isArray(ov) ? ov.find(o => o.report_id === id) : null;
+  let h = `<article class="doc" data-doc="report:${id}">
+  <h2>${esc(r.src)} · ${r.t.replace("T", " ").replace("Z", " UTC")}</h2>
+  <div class="note mono">${id} · <a href="https://urlquery.net/report/${id}" target="_blank" rel="noopener">open on urlquery.net ↗</a>
+   ${why.length ? " · in subset as: " + why.map(w => `<span class="chip">${esc(w)}</span>`).join(" ") : " · not in fetched subset"}</div>`;
+  if (cite) h += `<div class="sec" data-field="post">${secHead("What the Transluce post says", "post")}
+    <div class="note">Section: <b>${esc(cite.section)}</b> · <button class="link" data-goto-post="${cite.block}">show in post</button></div>
+    <blockquote class="ctx">${esc(cite.context)}</blockquote>${D.notes[id] ? `<div class="note">Scanned URL per post: <code>${esc(D.notes[id])}</code></div>` : ""}</div>`;
+  if (rep) { const said = CTX.readScan(rep, r); if (said && said.length) h += `<div class="whatbox" data-field="what"><h3>What happened in this scan</h3><ul>${said.map(b => `<li>${b}</li>`).join("")}</ul></div>`; }
+  h += `<div class="sec label" data-field="labels">${secHead("Transluce's labels (their conclusions, not evidence)", "labels")}
+    <dl class="kv"><dt class="cx" data-cx="l.disposition">disposition</dt><dd>${esc(r.disp)}</dd><dt class="cx" data-cx="l.confidence">confidence</dt><dd><span class="dot c-${esc(r.conf)}"></span> ${esc(r.conf)}${ovr ? " (reviewed override)" : ""}</dd>
+    <dt class="cx" data-cx="l.class">method class</dt><dd>${esc(r.cls)}</dd><dt class="cx" data-cx="l.source">data source</dt><dd>${esc(r.src)} <span class="note">(${esc(r.basis || "")})</span></dd>
+    <dt class="cx" data-cx="l.why">why included</dt><dd>${esc(r.why)}</dd><dt class="cx" data-cx="l.caveat">caveat</dt><dd class="note">${esc(r.cav)}</dd></dl></div>`;
+  if (!rep) {
+    h += `<div class="sec"><div class="empty">Raw urlquery JSON not fetched for this report. Open it on urlquery.net, or add it to the subset in <code>scripts/fetch_transluce.py</code> and rebuild.</div></div>`;
+  } else {
+    h += `<div class="sec" data-field="scan">${secHead("Scan", "scan")}<dl class="kv">
+      <dt class="cx" data-cx="f.submitted">submitted URL</dt><dd><code>${esc(rep.submitted)}</code>${hostTag(rep.submitted)}</dd>
+      <dt class="cx" data-cx="f.final">final URL</dt><dd><code>${esc(rep.final)}</code>${hostTag(rep.final)}</dd>
+      <dt class="cx" data-cx="f.finaltitle">final title</dt><dd>${esc(rep.title) || '<span class="note">—</span>'}</dd>
+      <dt class="cx" data-cx="f.dom">final DOM</dt><dd class="note">${esc(rep.dom.mime_type || "")} · ${rep.dom.size ?? "?"} bytes · seen ${rep.dom.times_seen ?? "?"}× (first ${esc(rep.dom.first_seen || "?")})</dd>
+      <dt class="cx" data-cx="f.submitter">submitter bucket</dt><dd class="mono">${esc(rep.user || "—")} <span class="note">· exit node ${esc(rep.exit || "—")} (shared anonymous buckets, not actor ids)</span></dd>
+      <dt class="cx" data-cx="f.alerts">urlquery alerts</dt><dd>${Object.entries(rep.alerts.counts || {}).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")}${rep.alerts.items.length ? "<br>" + rep.alerts.items.map(esc).join("<br>") : ""}</dd>
+      ${rep.tags.length ? `<dt class="cx" data-cx="f.tags">tags</dt><dd>${rep.tags.map(t => `<span class="chip">${esc(typeof t === "string" ? t : JSON.stringify(t))}</span>`).join(" ")}</dd>` : ""}
+      </dl></div>`;
+    if (rep.programs.length) h += `<div class="sec" data-field="programs">${secHead("Decoded base64 payloads (" + rep.programs.length + ")", "programs")}
+      ${rep.programs.map(p => `<div class="note">from ${esc(p.where)}</div><pre>${esc(p.text)}</pre>`).join("")}</div>`;
+    const js = Object.entries(rep.js).filter(([, v]) => v.length);
+    if (js.length) h += `<div class="sec" data-field="js">${secHead("JavaScript seen by urlquery", "js")}${js.map(([k, v]) => `<div class="note">${esc(k)}</div><pre>${esc(v.join("\n"))}</pre>`).join("")}</div>`;
+    h += `<div class="sec" data-field="http">${secHead(`HTTP transactions (${rep.http_total}${rep.http_total > rep.http.length ? ", first " + rep.http.length + " shown" : ""})`, "http")}
+      <div class="note">Response bodies are mostly not preserved by urlquery; judge outcomes from status codes and what follows.</div>
+      <table class="http"><thead><tr><th>time</th><th>method</th><th>status</th><th>type</th><th>URL</th></tr></thead><tbody>
+      ${rep.http.map((x, i) => `<tr class="${x.nav ? "nav" : ""}"><td class="mono">${esc((x.t || "").slice(11, 23))}</td><td>${esc(x.m)}</td>
+        <td class="${statusClass(x.s)}${CTX.statusNote(x.s) ? " cx" : ""}"${CTX.statusNote(x.s) ? ` data-cxstatus="${esc(x.s)}"` : ""}>${esc(x.s)} ${esc(x.st || "")}</td><td>${esc(x.rt)}${x.nav ? " ⤷" : ""}</td>
+        <td class="u">${esc(x.u)}${hostTag(x.u, true)}${x.req || x.res || x.by ? `<details class="raw"><summary>${x.req || x.res ? "headers" : "details"}${x.mime ? " · " + esc(x.mime) : ""}${x.size ? " · " + x.size + " B" : ""}</summary>${x.by ? `<div class="note">requested by: ${esc(x.by)}</div>` : ""}${x.req ? `<pre>${esc(x.req)}</pre>` : ""}${x.res ? `<pre>${esc(x.res)}</pre>` : ""}</details>` : `<div class="note">${esc(x.mime || "")}${x.size ? " · " + x.size + " B" : ""}</div>`}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  }
+  h += neighbours(r) + "</article>";
+  $("#center").innerHTML = h;
+  $("#center").scrollTop = 0;
+  afterDocRender();
+}
+function neighbours(r){
+  const t0 = Date.parse(r.t), W = 3 * 3600e3;
+  const near = R.filter(x => x.src === r.src && Math.abs(Date.parse(x.t) - t0) <= W);
+  if (near.length <= 1) return "";
+  const i = near.findIndex(x => x.id === r.id);
+  const win = near.slice(Math.max(0, i - 40), i + 41);
+  return `<div class="sec" data-field="neighbours">${secHead(`Same source within ±3 h (${near.length} in catalogue)`, "neighbours")}
+    <div class="note">Bold = raw JSON fetched. Useful for reconstructing sequences.</div><ul class="nb">
+    ${win.map(x => `<li class="${x.id === r.id ? "cur" : ""}"><span class="dot c-${esc(x.conf)}"></span><span class="mono">${x.t.slice(11, 19)}</span>
+      <button class="link" data-open="${x.id}" style="${x.raw ? "font-weight:600" : ""}">${x.id.slice(0, 8)}</button>
+      ${x.cited ? '<span class="chip cited">cited</span>' : ""}<span class="note" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(listLine(x).slice(0, 90))}</span></li>`).join("")}
+    </ul></div>`;
+}
+$("#center").addEventListener("click", e => {
+  const o = e.target.closest("[data-open]"); if (o) { e.preventDefault(); openReport(o.dataset.open); return; }
+  const s = e.target.closest("[data-sec]"); if (s) { startComposer({kind: "section", section: s.dataset.sec, sectionTitle: s.dataset.title}); return; }
+  const g = e.target.closest("[data-goto-post]"); if (g) { showPost(g.dataset.gotoPost); return; }
+  const a = e.target.closest("a.rep"); if (a) { e.preventDefault(); openReport(a.dataset.rid); }
+});
+
+/* ---------------- post ---------------- */
+function showPost(block){
+  view = "post"; curId = null; setTab(); history.replaceState(null, "", block ? "#post=" + block : "#post");
+  $("#center").innerHTML = `<article id="post" class="doc" data-doc="post">${D.post}</article>`;
+  $$("#post a.rep").forEach(a => { if (!D.reports[a.dataset.rid]) { a.classList.add("nofetch"); a.title = "raw JSON not fetched"; } });
+  $$("#post h2").forEach(h2 => { const t = h2.textContent.trim(); h2.insertAdjacentHTML("beforeend", `<button type="button" class="secbtn" data-sec="${esc(t)}" data-title="${esc(t)}" aria-label="Comment on section ${esc(t)}">💬 section</button>`); });
+  afterDocRender();
+  if (block) { const b = document.getElementById(block); if (b) { b.scrollIntoView({block: "center"}); b.classList.add("flash"); } }
+  else $("#center").scrollTop = 0;
+}
+function setTab(){
+  $("#tab-reports").setAttribute("aria-selected", view === "reports"); $("#tab-post").setAttribute("aria-selected", view === "post");
+  $("#main").classList.toggle("post-mode", view === "post");
+  $("#c-doc").textContent = view === "post" ? "+ Comment on the post" : "+ Comment on this report";
+  $("#c-doc").disabled = view === "reports" && !curId;
+}
+$("#tab-reports").onclick = () => { view = "reports"; setTab(); curId ? openReport(curId) : ($("#center").innerHTML = welcome()); };
+$("#tab-post").onclick = () => showPost();
+function welcome(){
+  const nf = Object.keys(D.reports).length;
+  return `<div class="doc" style="max-width:720px"><h2>Transluce urlquery.net catalogue</h2>
+  <p>${R.length.toLocaleString()} reports from <code>${esc(D.catalogue)}</code>; raw urlquery JSON fetched for ${nf}. The list starts on the fetched subset: every report the post links to, their same-source neighbours within 45 minutes, the hand-reviewed supplement, a per-source sample of significant reports, a suggestive sample, background controls and review-required rows.</p>
+  <p>Transluce's labels (confidence, class, why_included) are shown in an amber box. They are the authors' conclusions; the scan, decoded payloads and HTTP trace are the evidence.</p>
+  <p class="note">Keys: <kbd>/</kbd> search · <kbd>j</kbd>/<kbd>k</kbd> move in list · select text then <kbd>c</kbd> to comment · <kbd>Esc</kbd> cancel.</p>
+  <p>Start with the <button class="link" id="w-post">Transluce post</button> (click any report link in it) or a <b>Post section</b> filter on the left.</p></div>`;
+}
+
+/* ---------------- anchoring + highlights ---------------- */
+function docKey(){ return view === "post" ? "post" : curId ? "report:" + curId : null; }
+function docEl(){ return $("#center [data-doc]"); }
+function textIndex(root){
+  const nodes = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n => n.parentElement.closest(".secbtn,button.secbtn") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  let pos = 0, n; while ((n = w.nextNode())) { nodes.push({n, s: pos}); pos += n.data.length; }
+  return {nodes, text: nodes.map(x => x.n.data).join("")};
+}
+function offsetOf(idx, node, off, isEnd){
+  if (node.nodeType !== 3) {            // element boundary: snap to the nearest indexed text node
+    const child = node.childNodes[off];
+    const after = idx.nodes.find(x => child ? (child === x.n || child.contains(x.n) || (child.compareDocumentPosition(x.n) & Node.DOCUMENT_POSITION_FOLLOWING)) : (node.compareDocumentPosition(x.n) & Node.DOCUMENT_POSITION_FOLLOWING) && !node.contains(x.n));
+    if (!isEnd) return after ? after.s : -1;
+    if (!after) { const last = idx.nodes[idx.nodes.length - 1]; return last ? last.s + last.n.data.length : -1; }
+    return after.s;
+  }
+  const x = idx.nodes.find(x => x.n === node); return x ? x.s + off : -1;
+}
+function rangeAt(idx, s, e){
+  const r = document.createRange(); let a = null, b = null;
+  for (const x of idx.nodes) { const L = x.n.data.length; if (!a && s < x.s + L) { r.setStart(x.n, s - x.s); a = 1; } if (a && e <= x.s + L) { r.setEnd(x.n, e - x.s); b = 1; break; } }
+  return a && b ? r : null;
+}
+function locate(idx, c){
+  if (!c.quote) return null;
+  let best = -1, bestScore = -1, i = idx.text.indexOf(c.quote);
+  while (i >= 0) { let sc = 0; if (c.prefix && idx.text.slice(Math.max(0, i - c.prefix.length), i) === c.prefix) sc += 2; if (c.suffix && idx.text.slice(i + c.quote.length, i + c.quote.length + c.suffix.length) === c.suffix) sc += 1;
+    if (sc > bestScore) { best = i; bestScore = sc; } i = idx.text.indexOf(c.quote, i + 1); }
+  return best >= 0 ? [best, best + c.quote.length] : null;
+}
+function paint(){
+  if (!window.Highlight || !CSS.highlights) return;
+  CSS.highlights.delete("cmt"); CSS.highlights.delete("cmtcur");
+  const el = docEl(), key = docKey(); if (!el || !key) return;
+  const idx = textIndex(el), hl = new Highlight(), cur = new Highlight();
+  for (const c of C.comments) {
+    if (c.deleted || c.doc !== key || c.kind !== "text") continue;
+    const loc = locate(idx, c); anchorState[c.id] = !!loc;
+    if (loc && c.status !== "resolved") { const r = rangeAt(idx, loc[0], loc[1]); if (r) (c.id === curComment ? cur : hl).add(r); }
+  }
+  CSS.highlights.set("cmt", hl); CSS.highlights.set("cmtcur", cur);
+}
+function afterDocRender(){ const w = $("#w-post"); if (w) w.onclick = () => showPost(); paint(); renderComments(); }
+
+/* ---------------- selection → composer ---------------- */
+let selCtx = null;
+document.addEventListener("selectionchange", () => {
+  const s = getSelection(), btn = $("#selbtn");
+  if (!s.rangeCount || s.isCollapsed) { btn.style.display = "none"; selCtx = null; return; }
+  const r = s.getRangeAt(0), el = docEl();
+  if (!el || !el.contains(r.commonAncestorContainer)) { btn.style.display = "none"; selCtx = null; return; }
+  const idx = textIndex(el), a = offsetOf(idx, r.startContainer, r.startOffset), b = offsetOf(idx, r.endContainer, r.endOffset, true);
+  if (a < 0 || b <= a) { btn.style.display = "none"; selCtx = null; return; }
+  const quote = idx.text.slice(a, b).trim() ? idx.text.slice(a, b) : ""; if (!quote) { btn.style.display = "none"; selCtx = null; return; }
+  const fieldEl = (r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement).closest("[data-field],#post [id]");
+  selCtx = {kind: "text", quote, prefix: idx.text.slice(Math.max(0, a - 40), a), suffix: idx.text.slice(b, b + 40),
+    section: fieldEl ? (fieldEl.dataset.field || fieldEl.id) : ""};
+  const rect = r.getBoundingClientRect();
+  btn.style.display = "block"; btn.style.top = (scrollY + rect.bottom + 6) + "px"; btn.style.left = Math.min(innerWidth - 150, scrollX + rect.left) + "px";
+});
+$("#selbtn").addEventListener("mousedown", e => e.preventDefault());
+$("#selbtn").onclick = () => { if (selCtx) startComposer(selCtx); };
+function startComposer(ctx){
+  const key = ctx.kind === "page" ? "page" : docKey(); if (!key) return;
+  pending = {...ctx, doc: key};
+  $("#cp-target").textContent = ctx.kind === "page" ? "Page comment (whole explorer / dataset)" :
+    ctx.kind === "doc" ? "Comment on " + (key === "post" ? "the Transluce post" : "report " + key.slice(7, 15)) :
+    ctx.kind === "section" ? "Comment on section: " + ctx.sectionTitle : "Comment on selected text";
+  $("#cp-quote").textContent = ctx.quote || ""; $("#cp-quote").style.display = ctx.quote ? "" : "none";
+  $("#composer").classList.add("open"); $("#cp-text").value = ""; $("#cp-text").focus();
+  $("#selbtn").style.display = "none";
+}
+function closeComposer(){ pending = null; $("#composer").classList.remove("open"); }
+function saveComposer(){
+  const text = $("#cp-text").value.trim(); if (!pending || !text) return;
+  const c = {id: uid(), doc: pending.doc, kind: pending.kind, section: pending.section || "", sectionTitle: pending.sectionTitle || "",
+    quote: pending.quote || "", prefix: pending.prefix || "", suffix: pending.suffix || "", text, status: "open", created: nowISO(), updated: nowISO(), replies: []};
+  C.comments.push(c); curComment = c.id; closeComposer(); persist(); getSelection().removeAllRanges(); paint(); renderComments(); renderList();
+}
+$("#cp-save").onclick = saveComposer; $("#cp-cancel").onclick = closeComposer;
+$("#cp-text").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) saveComposer(); if (e.key === "Escape") closeComposer(); });
+$("#c-page").onclick = () => startComposer({kind: "page"});
+$("#c-doc").onclick = () => startComposer({kind: "doc"});
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input,textarea,select")) return;
+  if (e.key === "/") { e.preventDefault(); if (view !== "reports") $("#tab-reports").click(); $("#f-q").focus(); }
+  if (e.key === "c" && selCtx) { e.preventDefault(); startComposer(selCtx); }
+  if (e.key === "Escape") closeComposer();
+});
+
+/* ---------------- comment list ---------------- */
+function where(c){
+  if (c.doc === "page") return "page";
+  const d = c.doc === "post" ? "post" : "report " + c.doc.slice(7, 15);
+  return d + (c.kind === "section" ? " › " + (c.sectionTitle || c.section) : c.kind === "text" && c.section ? " › " + c.section : "");
+}
+function renderComments(){
+  const all = $("#c-all").checked, res = $("#c-res").checked, key = docKey();
+  const list = C.comments.filter(c => !c.deleted && (res || c.status !== "resolved") && (all || c.doc === key || c.doc === "page"));
+  const open = C.comments.filter(c => !c.deleted && c.status !== "resolved").length;
+  $("#clist").innerHTML = `<div class="note" style="padding:2px 4px">${open} open · ${C.comments.filter(c => !c.deleted).length} total${all ? "" : " · showing this view + page comments"}</div>`
+    + (list.map(c => `<div class="card ${c.status === "resolved" ? "resolved" : ""} ${c.id === curComment ? "cur" : ""}" data-cid="${c.id}">
+      <div class="meta"><button class="link" data-jump="${c.id}" title="Go to anchor">${esc(where(c))}</button><span>· ${esc((c.updated || c.created || "").slice(0, 16).replace("T", " "))}</span>${c.status === "resolved" ? "<span>· resolved</span>" : ""}</div>
+      ${c.kind === "text" && c.doc === key && anchorState[c.id] === false ? '<div class="orphan">⚠ quoted text no longer found in this view</div>' : ""}
+      ${c.quote ? `<div class="q">${esc(c.quote)}</div>` : ""}
+      <div class="body">${esc(c.text)}</div>
+      ${(c.replies || []).map(r => `<div class="reply"><b>${esc(r.author || "reply")}</b>: ${esc(r.text)}</div>`).join("")}
+      <div class="acts"><button class="link" data-edit="${c.id}">Edit</button><button class="link" data-res="${c.id}">${c.status === "resolved" ? "Reopen" : "Resolve"}</button><button class="link" data-del="${c.id}">Delete</button></div>
+    </div>`).join("") || '<div class="empty">No comments here yet. Select text in the middle pane, or use the buttons above.</div>');
+}
+$("#c-all").onchange = renderComments; $("#c-res").onchange = renderComments;
+$("#clist").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const id = b.dataset.jump || b.dataset.edit || b.dataset.res || b.dataset.del || b.dataset.save || b.dataset.cancel;
+  const c = C.comments.find(x => x.id === id); if (!c) return;
+  if (b.dataset.jump) { curComment = c.id; jump(c); }
+  else if (b.dataset.res) { c.status = c.status === "resolved" ? "open" : "resolved"; c.updated = nowISO(); persist(); paint(); renderComments(); renderList(); }
+  else if (b.dataset.del) {
+    if (b.textContent !== "Confirm delete") { b.textContent = "Confirm delete"; b.style.color = "var(--err)"; setTimeout(() => { if (b.isConnected) { b.textContent = "Delete"; b.style.color = ""; } }, 3000); return; }
+    c.deleted = true; c.updated = nowISO(); persist(); paint(); renderComments(); renderList();
+  }
+  else if (b.dataset.edit) {
+    const card = b.closest(".card"); card.querySelector(".body").outerHTML = `<textarea aria-label="Edit comment">${esc(c.text)}</textarea>`;
+    card.querySelector(".acts").innerHTML = `<button class="link" data-save="${c.id}">Save</button><button class="link" data-cancel="${c.id}">Cancel</button>`;
+    const ta = card.querySelector("textarea"); ta.focus();
+    ta.addEventListener("keydown", ev => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) card.querySelector("[data-save]").click(); if (ev.key === "Escape") renderComments(); });
+  }
+  else if (b.dataset.save) { const t = b.closest(".card").querySelector("textarea").value.trim(); if (t) { c.text = t; c.updated = nowISO(); persist(); } renderComments(); }
+  else if (b.dataset.cancel) renderComments();
+});
+function jump(c){
+  if (c.doc === "page") { renderComments(); return; }
+  if (c.doc === "post") { if (view !== "post") showPost(); } else if (curId !== c.doc.slice(7) || view !== "reports") openReport(c.doc.slice(7));
+  paint(); renderComments();
+  const el = docEl(); if (!el) return;
+  if (c.kind === "text") { const idx = textIndex(el), loc = locate(idx, c); if (loc) { const r = rangeAt(idx, loc[0], loc[1]); r && r.startContainer.parentElement.scrollIntoView({block: "center"}); } }
+  else if (c.kind === "section") { const s = el.querySelector(`[data-sec="${CSS.escape(c.section)}"]`); if (s) { const box = s.closest(".sec,h2") || s; box.scrollIntoView({block: "start"}); box.classList.add("flash"); } }
+}
+$("#c-export").onclick = () => { const b = new Blob([JSON.stringify(exportObj(), null, 1)], {type: "application/json"}); const a = document.createElement("a");
+  a.href = URL.createObjectURL(b); a.download = "transluce_explorer_comments.json"; a.click(); };
+$("#c-import").onclick = () => $("#c-file").click();
+$("#c-file").onchange = async e => { const f = e.target.files[0]; if (!f) return;
+  try { const d = JSON.parse(await f.text()); const before = C.comments.length; C.comments = merge(C.comments, d.comments || d); persist(); paint(); renderComments(); renderList();
+    setSave("ok", `Imported ${f.name}: ${C.comments.length - before} new, others merged by last edit`); }
+  catch(err) { setSave("err", "Import failed: " + err.message); } e.target.value = ""; };
+
+/* ---------------- hover context tooltips ---------------- */
+const cxtip = $("#cxtip");
+function cxHTML(el){
+  if (el.dataset.cx) { const g = CTX.G[el.dataset.cx]; return g || null; }
+  if (el.dataset.cxhost) { const n = CTX.hostNote(el.dataset.cxhost); return n ? `<div class="cx-h">${esc(n.label)} · <code>${esc(el.dataset.cxhost)}</code></div>${n.text}` : null; }
+  if (el.dataset.cxstatus) { const s = CTX.statusNote(el.dataset.cxstatus); return s ? `<div class="cx-h">HTTP ${esc(el.dataset.cxstatus)} — ${esc(s[0])}</div>${s[1]}` : null; }
+  return null;
+}
+function showCx(el){
+  const html = cxHTML(el); if (!html) return;
+  cxtip.innerHTML = html; cxtip.classList.add("show"); cxtip.setAttribute("aria-hidden", "false");
+  const r = el.getBoundingClientRect(), tw = Math.min(360, cxtip.offsetWidth), th = cxtip.offsetHeight;
+  let left = scrollX + r.left, top = scrollY + r.bottom + 6;
+  if (left + tw > scrollX + innerWidth - 8) left = scrollX + innerWidth - tw - 8;
+  if (r.bottom + th + 12 > innerHeight) top = scrollY + r.top - th - 6;   // flip above if no room below
+  cxtip.style.left = Math.max(8, left) + "px"; cxtip.style.top = top + "px";
+}
+function hideCx(){ cxtip.classList.remove("show"); cxtip.setAttribute("aria-hidden", "true"); }
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-cx],[data-cxhost],[data-cxstatus]"); if (el) showCx(el); });
+document.addEventListener("mouseout", e => { if (e.target.closest("[data-cx],[data-cxhost],[data-cxstatus]")) hideCx(); });
+document.addEventListener("focusin", e => { const el = e.target.closest("[data-cx],[data-cxhost],[data-cxstatus]"); if (el) showCx(el); });
+document.addEventListener("focusout", hideCx);
+addEventListener("scroll", hideCx, true);
+
+/* ---------------- boot ---------------- */
+(async function(){
+  $("#subtitle").textContent = `${R.length.toLocaleString()} catalogue rows · ${Object.keys(D.reports).length} raw reports · ${Object.keys(D.cites).length} cited in post`;
+  await loadComments();
+  initFilters(); applyFilters();
+  const h = location.hash;
+  if (h.startsWith("#r=")) openReport(h.slice(3), true);
+  else if (h.startsWith("#post")) showPost(h.split("=")[1]);
+  else { $("#center").innerHTML = welcome(); afterDocRender(); setTab(); }
+  addEventListener("hashchange", () => { const h = location.hash;
+    if (h.startsWith("#r=") && h.slice(3) !== curId) openReport(h.slice(3), true);
+    else if (h.startsWith("#post") && view !== "post") showPost(h.split("=")[1]); });
+  addEventListener("storage", e => { if (e.key === LS_KEY) { const l = lsRead(); if (l) { C.comments = merge(C.comments, l.comments); paint(); renderComments(); } } });
+})();
+</script>
+</body>
+</html>

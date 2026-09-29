@@ -166,8 +166,11 @@ def main():
         if a.effort: body["reasoning"] = {"effort": a.effort}
         try:
             resp, n_retry, latency_ms = chat(a.base_url, key, body)
-            if "choices" not in resp:  # OpenRouter can return {"error": ...} with HTTP 200
-                raise RuntimeError(f"no choices in response: {json.dumps(resp)[:600]}")
+            if not isinstance(resp, dict) or not resp.get("choices"):
+                raise RuntimeError("API response has no choices")
+            choice = resp["choices"][0]
+            if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
+                raise RuntimeError("API response has no assistant message")
         except Exception as e:
             emit({"type": "error", "error": str(e)}); stop = "api_error"; break
         turns += 1; retries += n_retry; latencies.append(latency_ms)
@@ -197,6 +200,19 @@ def main():
               "api": {"provider": provider, "finish_reason": choice.get("finish_reason"),
                       "native_finish_reason": choice.get("native_finish_reason"), "latency_ms": latency_ms,
                       "retries": n_retry, "response_id": resp.get("id"), "elapsed_s": round(time.time() - t0, 1)}})
+        # An HTTP-200 response can still carry a provider failure, including
+        # one with partial reasoning/tool calls. Preserve its usage above,
+        # but never execute those tools or report a successful completion.
+        failure_reasons = {"error", "api_error", "failed", "failure"}
+        if resp.get("error") or choice.get("error") or any(
+            str(choice.get(k) or "").lower() in failure_reasons
+            for k in ("finish_reason", "native_finish_reason")
+        ):
+            emit({"type": "error", "error": "provider returned an error completion",
+                  "response_id": resp.get("id"), "finish_reason": choice.get("finish_reason"),
+                  "native_finish_reason": choice.get("native_finish_reason")})
+            stop = "api_error"
+            break
         assistant = {"role": "assistant", "content": m.get("content") or ""}
         if calls: assistant["tool_calls"] = [{"id": c["id"], "type": "function", "function": c["function"]} for c in calls]
         # Pass reasoning back unmodified so reasoning models (Gemini 3, Anthropic, OpenAI) keep their
@@ -235,6 +251,7 @@ def main():
           "num_turns": turns, "duration_ms": int((time.time() - t0) * 1000), "stop_reason": stop, "terminal_reason": stop,
           "usage": usage, "total_cost_usd": round(cost, 6), "api_calls": turns, "api_retries": retries,
           "latency_ms_mean": round(sum(latencies) / len(latencies)) if latencies else None, "providers": providers})
+    return 1 if stop == "api_error" else 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

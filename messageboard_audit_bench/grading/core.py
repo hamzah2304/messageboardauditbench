@@ -107,7 +107,33 @@ VARIANTS = (None, "anthropic")
 
 
 def variant_for_data(data_variant: str | None) -> str | None:
+    if data_variant and data_variant.startswith("urlquery"):
+        raise ValueError(
+            "cross-benchmark grading rejected: URLQuery reports are graded by their own "
+            "finding rubric (urlquery_grade_reports), not the message-board sheets"
+        )
     return VARIANT_FOR_DATA.get(data_variant or "")
+
+
+def require_original_benchmark_folder(folder: Path) -> None:
+    """Reject known foreign scopes even when a caller bypasses normal staging."""
+    resolved = folder.resolve()
+    root = repo_root().resolve()
+    for relative in ("reports/urlquery", "runs/urlquery", "benchmarks/urlquery"):
+        foreign = (root / relative).resolve()
+        if resolved == foreign or foreign in resolved.parents:
+            raise ValueError(
+                "cross-benchmark grading rejected: URLQuery reports are graded by their own "
+                "finding rubric (urlquery_grade_reports)"
+            )
+    for directory in (resolved, *resolved.parents):
+        conditions = directory / "CONDITIONS.json"
+        if conditions.is_file():
+            data = json.loads(conditions.read_text())
+            if data.get("benchmark_id", "messageboard") != "messageboard" or str(data.get("data_variant", "")).startswith("urlquery"):
+                raise ValueError("cross-benchmark grading rejected by folder conditions")
+        if directory == root:
+            break
 
 
 def variant_version(variant: str | None) -> str | None:

@@ -11,11 +11,12 @@ later versions while the results were being graded and packaged.
 | `6-B` | The September 7–8 round 4, followup, and provider-swap generation runs used in the LessWrong analysis. |
 | `7-A` | The September 8 code after inline benchmark grading was added. The `inspect-logs-2026-09-08` Git tag points to this later code snapshot; the archived runs themselves still say `6-B`. |
 | `8-A` | Introduced with the September 11 Mythos 5 transfer incident and retained through later changes, including RubyHack and the September 26 report-count changes. It did not define the LessWrong generation runs. |
-| `9-A` | New Inspect runs from this checkout. It separates the revised report feedback and word-count rule from earlier runs. |
+| `9-A` | The September 26 report feedback and word-count rule. |
+| `10-A` | New `messageboard_audit_bench` runs from this checkout, after the URLQuery merge changed the shared runtime policy and ReAct error handling (below). |
 
-The version is declared once as `EVAL_VERSION` in
-`messageboard_audit_bench/task.py` and assigned to the fresh, replay, and
-continuation Inspect tasks. It identifies task behavior, not a result release.
+The version is declared once per benchmark in `messageboard_audit_bench/benchmarks.py`
+(`SPECS`); `EVAL_VERSION` in `messageboard_audit_bench/task.py` re-exports the
+message-board one and is assigned to the fresh, replay, and continuation Inspect tasks. It identifies task behavior, not a result release.
 The incident, budget, data variant, prompt, judge, and rubric remain separate
 conditions. A score is comparable to a published cell only when those conditions
 and the scoring procedure also match.
@@ -50,3 +51,21 @@ inline Markdown links are excluded from the report word count. Those changes
 alter both the agent's information and the acceptance calculation. The revised
 count method is also recorded as `whitespace-no-inline-links-v2` in report
 metadata.
+
+`10-A` is warranted by the September 28 unification with the URLQuery benchmark.
+The shared runtime policy now counts only an explicit refusal of the task, or a
+terminal status such as `error` or `refused`, as a reason to stop. Before, any
+mention of "error", "fail" or "I can't" in a status field or the final message counted.
+That changes when an agent that stops early is sent back to work. The ReAct scaffold now
+also stops on a provider error returned inside an HTTP 200 response, instead of
+continuing on it. Prompts, data, rubrics and the judge are unchanged.
+
+## URLQuery
+
+`urlquery_audit_bench` is a separate Inspect task with its own version, declared in
+the same registry. Its conditions (dataset snapshot and hash, configs, rubric, headline
+weights and default judge) are in `benchmarks/urlquery/benchmark.json`.
+
+| Inspect task version | What it identifies |
+|---|---|
+| `1-A` | The first Inspect version of the URLQuery task: snapshot `2026-09-26-v1`, prompt `urlquery-agents-v6`, reviewed rubric F1–F13 with F3 weighted 0.5. The final 2026-09-27/28 generation runs used the same prompt, configs and dataset through the batch launcher (`urlquery_pilot`), before the task existed; their run records carry no task version. |

@@ -1,7 +1,7 @@
 [project]
 name = "messageboard_audit_bench"
-version = "0.1.0"
-description = "Benchmark: can coding agents audit message-board logs of colluding AI agents?"
+version = "0.2.0"
+description = "Benchmarks: can coding agents audit logs of misbehaving AI agents? (message board and URLQuery)"
 authors = [
     { name = "hamzah2304" },
     { name = "oscar-gilg" },
@@ -49,7 +49,7 @@ packages = ["messageboard_audit_bench"]
 [tool.hatch.build.targets.sdist]
 # Worktrees link generated data back to the primary checkout. Never ship those
 # absolute symlinks (or local runs/credentials) in the source archive.
-exclude = ["/data/**/*.jsonl", "/data/raw", "/data/augmented", "/runs", "/logs", "/.env", "/.worktrees"]
+exclude = ["/data/**/*.jsonl", "/data/raw", "/data/augmented", "/data/transluce", "/data/urlquery", "/runs", "/logs", "/.env", "/.worktrees"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

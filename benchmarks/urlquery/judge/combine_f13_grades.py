@@ -10,12 +10,16 @@ import grade as common
 import grade_openrouter
 import render_sheet
 
+from messageboard_audit_bench.benchmarks import primary_root
+
 ROOT = Path(__file__).resolve().parents[3]
-BASE = ROOT / "reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v2"
-ADDED = ROOT / "reports/urlquery/graded/judge_gpt_6_astra_high_f13_only"
-OUT = ROOT / "reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v3"
+# Grades and runs are gitignored and live only in the primary checkout.
+SHARED = primary_root()
+BASE = SHARED / "reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v2"
+ADDED = SHARED / "reports/urlquery/graded/judge_gpt_6_astra_high_f13_only"
+OUT = SHARED / "reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v3"
 F13_SOURCE = ROOT / "benchmarks/urlquery/claims/header_injection.json"
-LAUNCH = ROOT / "runs/urlquery/final-20260927-agents-v6/launch.json"
+LAUNCH = SHARED / "runs/urlquery/final-20260927-agents-v6/launch.json"
 OLD_HEADS = [f"F{i}" for i in range(1, 13)]
 HEADS = [*OLD_HEADS, "F13"]
 

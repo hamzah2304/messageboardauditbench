@@ -91,35 +91,57 @@ def preflight(
     *,
     require_readonly_mount: bool = False,
     require_no_credentials: bool = False,
+    benchmark_id: str = "messageboard",
+    expected_sha256: str | None = None,
 ) -> dict:
     """Check visibility, data integrity, and the native no-network boundary."""
     work = work.resolve()
+    if benchmark_id not in {"messageboard", "urlquery"}:
+        raise ValueError("unknown benchmark")
     data = work / "data"
     visible = sorted(str(path.relative_to(work)) for path in work.rglob("*") if path.is_file() or path.is_symlink())
     problems: list[str] = []
-    supported_files = frozenset(
-        path.name for path in data.iterdir() if path.name not in ALLOWED_DATA_AUXILIARY_FILES
-    ) if data.is_dir() else frozenset()
-    expected_sets = expected_data_file_sets()
-    required_files = next(
-        (files for files in expected_sets if supported_files == files),
-        frozenset(),
-    )
-    allowed_names = required_files | ALLOWED_DATA_AUXILIARY_FILES
-    allowed_visible = {f"data/{name}" for name in allowed_names}
+    manifest = None
+    required_files: frozenset[str] = frozenset()
+    expected_sets: tuple[frozenset[str], ...] = ()
+    if benchmark_id == "urlquery":
+        # URLQuery ships a hashed manifest; visibility is exactly its file list.
+        allowed_visible: set[str] = set()
+        try:
+            try:
+                from dataset_manifest import validate_dataset
+            except ModuleNotFoundError:
+                from messageboard_audit_bench.dataset_manifest import validate_dataset
+            if not expected_sha256:
+                raise ValueError("URLQuery preflight requires a pinned dataset hash")
+            manifest = validate_dataset(data, expected_sha256=expected_sha256)
+            allowed_visible = {f"data/{name}" for name in manifest["files"]} | {"data/manifest.json"}
+        except (OSError, ValueError, KeyError) as exc:
+            problems.append(f"dataset manifest: {exc}")
+    else:
+        # Message-board incidents: the data must match one declared JSONL shape.
+        supported_files = frozenset(
+            path.name for path in data.iterdir() if path.name not in ALLOWED_DATA_AUXILIARY_FILES
+        ) if data.is_dir() else frozenset()
+        expected_sets = expected_data_file_sets()
+        required_files = next(
+            (files for files in expected_sets if supported_files == files),
+            frozenset(),
+        )
+        allowed_visible = {f"data/{name}" for name in required_files | ALLOWED_DATA_AUXILIARY_FILES}
     if set(visible) - allowed_visible:
         problems.append(f"unexpected /work visibility: {visible!r}")
     if not data.is_dir():
         problems.append("/work/data is missing")
     data_files = {path.name for path in data.iterdir()} if data.is_dir() else set()
-    if not required_files:
+    if benchmark_id == "messageboard" and not required_files:
         expected = [sorted(files) for files in expected_sets]
         problems.append(f"data files are {sorted(data_files)!r}, expected one of {expected!r}")
     data_readonly = _is_readonly_mount(data)
     if require_readonly_mount and not data_readonly:
         problems.append("/work/data is not a read-only mount")
 
-    files: dict[str, dict[str, int | str]] = {}
+    files: dict[str, dict[str, int | str]] = dict(manifest["files"]) if manifest else {}
     for name in sorted(required_files):
         path = data / name
         if not path.is_file() or path.is_symlink():
@@ -163,11 +185,18 @@ def preflight(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--work", type=Path, default=Path("/work"))
+    # The Inspect-native sandbox declares its benchmark and pinned dataset in the
+    # container environment; the subscription runner passes them as flags.
+    parser.add_argument("--benchmark", choices=("messageboard", "urlquery"),
+                        default=os.environ.get("MBAB_BENCHMARK_ID", "messageboard"))
+    parser.add_argument("--expected-sha256", default=os.environ.get("MBAB_DATASET_SHA256"))
     args = parser.parse_args()
     result = preflight(
         args.work,
         require_readonly_mount=True,
         require_no_credentials=True,
+        benchmark_id=args.benchmark,
+        expected_sha256=args.expected_sha256,
     )
     print(json.dumps(result, sort_keys=True))
     return 0 if result["ok"] else 1

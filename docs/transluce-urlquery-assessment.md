@@ -247,3 +247,25 @@ will share it.
   `data/verbatim/revisions.jsonl` and `benchmark/human_report.txt`.
 - The 20 sampled JSONs and the decoded program are in this session's
   scratchpad, not in the repo.
+
+## Explorer (added 2026-09-26)
+
+A local page for browsing the catalogue and the raw evidence, and for
+leaving questions as comments:
+
+```sh
+uv run scripts/fetch_transluce.py            # catalogue + ~1,300 raw report JSONs, ~30 min at 1 req/s
+uv run viewers/build_transluce_explorer.py   # -> viewers/transluce_explorer.html (gitignored)
+python3 scripts/html_viewer.py               # open http://localhost:8765/transluce_explorer.html
+```
+
+The fetched subset is every report the post links to, same-source reports
+within 45 minutes of those, the 82 hand-reviewed supplement rows, up to 15
+significant reports per data source, 120 suggestive and 40 review-required
+reports, and the 79 background controls (`data/transluce/subset.json` lists
+the reason for each). The page decodes base64 payloads, shows the HTTP trace
+and same-source neighbours, and keeps Transluce's labels visually separate
+from the evidence. Comments save to `data/transluce/comments.json` when the
+page is served by `html_viewer.py`, otherwise to browser storage only, with
+Export and Import for handing them to an agent. Everything stays under
+gitignored paths because urlquery's terms forbid redistribution.

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "id": "urlquery",
+  "title": "URLQuery agent-activity audit",
+  "investigation_url": "https://transluce.org/agent-activity",
+  "dataset": {
+    "snapshot": "2026-09-26-v1",
+    "sha256": "973d7b7a1e14df236fbf5d99d9795ab3fdc0f40720c67376771fa19f0e299d1f",
+    "acquisition_config": "configs/urlquery-data.toml",
+    "location": "primary checkout data/urlquery/<snapshot>/ (gitignored; built by messageboard_audit_bench.urlquery_prepare)"
+  },
+  "runtime": {
+    "configs": [
+      "urlquery-agents-v6-30",
+      "urlquery-agents-v6-10"
+    ],
+    "default_config": "urlquery-agents-v6-30",
+    "batch": "configs/urlquery-final-batch.toml"
+  },
+  "grading": {
+    "rubric": "reviewed",
+    "findings": "claims/findings_reviewed.json",
+    "sheet": "judge/finding_sheet_reviewed.md",
+    "article_html": "data/transluce/agent-activity.html",
+    "headline_weights": {
+      "F3": 0.5
+    },
+    "default_judge": "anthropic/claude-opus-5-5",
+    "default_article_context": {
+      "anthropic": "omitted",
+      "openrouter": "full"
+    },
+    "output_root": "reports/urlquery/graded"
+  }
+}

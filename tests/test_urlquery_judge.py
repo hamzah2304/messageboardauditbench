@@ -71,3 +71,42 @@ def test_combining_f13_preserves_existing_judgments():
         {fid: value["score"] for fid, value in result["findings"].items()},
         [f"F{i}" for i in range(1, 14)],
     )[0]
+
+
+# sha256 of each headline's rendered prompt for a fixed article and report, taken from
+# the judge before it moved into messageboard_audit_bench.grading.findings. A change here
+# changes what the judge reads: bump the rubric, and regrade, rather than update the pins.
+PROMPT_PINS = {
+    "F1": "7b01f15ddfa3046991e03cc454b145611c1b86a563b017c56f1c7d612eaf77e8",
+    "F2": "b66104d0193cfe319942bea71ac073c14f3a779d734bf91e471d24d2af52b11c",
+    "F3": "2087b530f4271d507b23769fac244b327e1f55d79988edfaaddb13d5a19a50c3",
+    "F4": "f17b553d8daac8049000efffcde165a00546e144e69062763687bd4d49c16324",
+    "F5": "f56662c78cc5c5ec49bc0fdd494bce483a5c8f93b39f103c7a8b6e2e7ccf3736",
+    "F6": "c545ea8c83650bbc29386c4c04812eb68b876fa3a51a35076e8e74826246530f",
+    "F7": "fbb3fa4c4c027accc7424848b8f42db838bacb539bf2b618cca9711d89feee27",
+    "F8": "07790c6e0f184ecc6be1bd3e6389c2317bfece63de029a33fde443826d6fbd6e",
+    "F9": "32293f52f0206ecbe66a5cb31036e0e01c1bfa8a8101f18018241543b48a7eb4",
+    "F10": "d42c63d990ce68c88ca2f1c2ef521919a39c03787ce973c177f72640a9fb2c50",
+    "F11": "bc06b50c7521e0554daf29e5d7434b0a59403a660de950d1fae7a83b2e268116",
+    "F12": "d1da476e1ac3ffb47f037087bc2e0b9fc71efecc4e9e37118c6a8fe464efa751",
+    "F13": "f05bf925e1789f0a4fa5635704c51988b84e161ed5822cb59ccb5edeff26fc89",
+}
+PIN_REPORT = "A report linking https://urlquery.net/report/" + "0" * 8 + "-0000-0000-0000-" + "0" * 12 + " and more.\n"
+
+
+def test_rendered_prompts_are_byte_identical_to_the_graded_ones():
+    got = {h: grade.sha(render_sheet.render(h, "ARTICLE TEXT", PIN_REPORT))
+           for h in [f["id"] for f in render_sheet.load_findings() if f["parent"] is None]}
+    assert got == PROMPT_PINS
+    assert grade.sha(render_sheet.TEMPLATE.read_bytes()) == "7dff278e1f96f87f4c9784ac37fdc46164a9ac9fe5d93c28b92a17e6ea477778"
+    assert grade.sha(render_sheet.FINDINGS.read_bytes()) == "101dc26b21630e075b78aaf23045b611a9b1bd258b2c53cd12ea96f5064d0ac8"
+
+
+def test_judge_names_select_transport_and_keep_existing_grade_directories():
+    assert grade.provider_of("anthropic/claude-opus-5-5") == ("anthropic", "claude-opus-5-5")
+    assert grade.provider_of("claude-opus-5-5") == ("anthropic", "claude-opus-5-5")
+    assert grade.provider_of("openrouter/openai/gpt-6-astra") == ("openrouter", "openai/gpt-6-astra")
+    from messageboard_audit_bench.grading.findings import judge_dir
+    assert judge_dir("claude-opus-5-5") == "judge_claude_opus_5_5"
+    assert judge_dir("openai/gpt-6-astra", "high") == "judge_gpt_6_astra_high"
+    assert grade_openrouter.OUT.name == "judge_gpt_6_astra_high"

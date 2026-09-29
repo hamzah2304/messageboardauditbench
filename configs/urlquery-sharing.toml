@@ -1,0 +1,158 @@
+# Explicit publication allowlist. No directory crawling or raw dataset exports.
+title = "URLQuery benchmark reports"
+run_indexes = ["docs/assessments/transluce/pilot_runs.json", "docs/assessments/transluce/smaller_runs.json", "docs/assessments/transluce/v2_prompt_runs.json", "docs/assessments/transluce/v3_focus_runs.json"]
+
+[[prompt_groups]]
+slug = "prompt_urlquery_blind"
+title = "Prompt 1 · Exploratory investigation"
+description = "First pilot: open-ended investigation with explicit uncertainty and alternative-explanation guidance."
+sha256 = "1060e0550c465e96f5ca951dd91bddde01393ee8b388cebcee4d92fcdd69e7e2"
+source_run = "20260926T230734Z_codex_gpt-6-astra_r1_urlquery-10_db5795b98706"
+
+[[prompt_groups]]
+slug = "prompt_urlquery_blind_v2"
+title = "Prompt 2 · Original-evaluation-aligned investigation"
+description = "Follow-up pilot: TL;DR, timeline and analysis for AI safety researchers, adapted to the recorded web scans."
+sha256 = "df46bf05f40c797636a18a86832bf62b9759575ea30c4fce4a4bfbe58203ee02"
+source_run = "20260927T000755Z_codex_gpt-6-luna_r1_urlquery-10_f35252d6076e"
+
+[[prompt_groups]]
+slug = "prompt_urlquery_weird_v2"
+title = "Prompt 3 · weird-v2 — unusual activity"
+description = "Asks whether anything unusual is happening, with findings organized into incidents and a synthesis."
+sha256 = "03c3938c946ecf3aaaab3fbc3df6d88933d48cbc93e71759322dffc75c9226f4"
+source_run = "20260927T005941Z_codex_gpt-6-astra_r1_urlquery-10-weird-v2_0473673ec37d"
+
+[[prompt_groups]]
+slug = "prompt_urlquery_swarm_v2"
+title = "Prompt 4 · swarm-v2 — agent-swarm hypothesis"
+description = "Adds an explicit question about evidence of agent swarms collaborating in the wild; the hypothesis is supplied by the prompt, not a verified finding."
+sha256 = "3471286625ba21335a44ce4a61efd3ab674043615d5b97a00b6068cdf924d32c"
+source_run = "20260927T010230Z_codex_gpt-6-astra_r1_urlquery-10-swarm-v2_3ea4f3ec6a25"
+
+[[prompt_groups]]
+slug = "prompt_urlquery_swarm_focused_v3"
+title = "Prompt 5 · focused agent-swarm investigation"
+description = "Asks for an overall swarm assessment and deeper investigation of incidents that might involve collaborating agents."
+sha256 = "e85e334396ee85d5b0ad922e3de83f35c5b3d3668afb04c3cc011798f435357e"
+source_run = "20260927T020633Z_codex_gpt-6-astra_r1_urlquery-10-swarm-focused-v3_4885745847c8"
+
+# Current fourteen reports approved for restricted collaborator sharing only.
+# Never auto-fill this list when new runs are collected.
+[[approved_runs]]
+run_id = "db5795b9870649a69bd3d443aa2d5f4a"
+sha256 = "d38dbc0d899d21386f29f6009cb1740d7e3c70ae16139eaa71f5bcea5400e2eb"
+
+[[approved_runs]]
+run_id = "a96ad5ada1be43ea9d0845c0d7fd4e47"
+sha256 = "f6b55f5317ea729234d7aa56a11d6f339e6e8d2583a87ee479384758d228569e"
+
+[[approved_runs]]
+run_id = "352566ca4d3f48b4828741b37e71e178"
+sha256 = "d7e9ce07a1c81469543ca56c531b3e8e89a8cfc9dec2966a1d0992a08925079c"
+
+[[approved_runs]]
+run_id = "1b2ea94a32234cbea92f0981be753f6b"
+sha256 = "820f7f37392b61af9412c2a6b4ffe2eadb585a163035cef280d943a7f4b0f150"
+
+[[approved_runs]]
+run_id = "f35252d6076e4284bfb93023b4be8cee"
+sha256 = "e0b7d69187fc44277ceb81850f8bbc6742b609f503ab5449e1b51462fc309cfc"
+
+[[approved_runs]]
+run_id = "4093930769ce40c6b3c0c309641a2442"
+sha256 = "9b37188a95fe627283ac14d572a34dd17fd6964cfd2a90228c13cb083e5e84c5"
+
+[[approved_runs]]
+run_id = "2cb549424d0743019f4a2733f883d70a"
+sha256 = "c6f662ac0400dc27977ff8080b4def1487219252065a7427e2bfb031d9e0f394"
+
+[[approved_runs]]
+run_id = "c963515137c541349bfe83c248e15e5e"
+sha256 = "520276bb4b1179b0236a83c50b568b84bf9235b8a2147fe675e34602c2927c2f"
+
+[[approved_runs]]
+run_id = "e7d6c6ab5d024b49aaeaa5671a435a38"
+sha256 = "e2322132b4d3c25beb7db1610d74a4881968f5ea1a4434399e3d532a14ea7ba1"
+
+[[approved_runs]]
+run_id = "0473673ec37d4f4693dbe740aeb1dfce"
+sha256 = "15cf4ee6a21b0f333da89be902ebe27149f6edf851aa341efaaf3d2b1afe4a67"
+
+[[approved_runs]]
+run_id = "4506f5a312964a90995cc5580dd95c30"
+sha256 = "31ca313521df607f3a39190a0c7b1cf1e37a9f9cee5c60de04e4fc97268ea7d9"
+
+[[approved_runs]]
+run_id = "3ea4f3ec6a254b61874f7ee4d2c8a8db"
+sha256 = "db4699e373f0017ec233a08edacce1715a9560db693b49b48a2dc13bef8edec7"
+
+[[approved_runs]]
+run_id = "e6bdd390a66744748088fba270df28cc"
+sha256 = "4dc392046e20d47af59b10ac57312155ec2ebd4fb99c6781b9a4fe2a3ef346b3"
+
+[[approved_runs]]
+run_id = "2e5b3ced9ce3469cbbbad212c3a28fce"
+sha256 = "9cd8d5baa14aadb9a29af4365b03b8214069c22f1d16bfed208e235956707af2"
+
+[[approved_runs]]
+run_id = "4885745847c84af59aec9442327446a5"
+sha256 = "b470a76c570b27bb7fc0d8471025374eca6b2959f5a796c021d58c7c20b94329"
+
+[[approved_runs]]
+run_id = "d79317af3e944a1194c608bb1ac2f7ac"
+sha256 = "540780512c28d79fec066a33ada09b54f2544d21316f1bb4c31b0a212fe00540"
+
+[[approved_runs]]
+run_id = "2736facc6f094e64bf921c6852ffaf3d"
+sha256 = "b78ea6a31b14370df39696e113dcaf385b81b361ed1458fba86dda6ed075bd31"
+
+[[approved_runs]]
+run_id = "cd8069480abd4eac8f025873d9db502c"
+sha256 = "c085b6783d52c80f7a774d5830b1925c7c5c308d4ef9dcf6e7c2caaf7b16ebb0"
+
+[[approved_runs]]
+run_id = "6074e0765be44cba8c102e7e2caef99c"
+sha256 = "81b414d4830c2165bd8def989b0880c2f8ca7c30903a5266f3f7f69ef73c2ba1"
+
+[[documents]]
+source = "docs/assessments/transluce/smaller_models.md"
+slug = "urlquery_smaller_models"
+report_id = "urlquery-smaller-models-2026-09-26"
+title = "Haiku, Sonnet, Luna and Terra — pilot overview"
+group = "Pilot summaries"
+
+[[documents]]
+source = "docs/assessments/transluce/pilot_report.md"
+slug = "urlquery_pilot"
+report_id = "urlquery-pilot-2026-09-26"
+title = "First pilot — overview and evidence checks"
+group = "Pilot summaries"
+
+[[documents]]
+source = "docs/assessments/transluce/data_preparation.md"
+slug = "transluce_data_preparation"
+report_id = "transluce-data-preparation-2026-09-26"
+title = "Data preparation — design and decisions"
+group = "Assessment and preparation"
+
+[[documents]]
+source = "docs/assessments/transluce/assessment.md"
+slug = "transluce_assessment"
+report_id = "transluce-benchmark-assessment-2026-09-26"
+title = "Initial assessment — superseded by the preparation follow-up"
+group = "Assessment and preparation"
+
+[[documents]]
+source = "docs/urlquery-engineering.md"
+slug = "urlquery_engineering"
+report_id = "urlquery-engineering-2026-09-26"
+title = "Engineering and reproduction guide"
+group = "Engineering and review"
+
+[[documents]]
+source = "docs/assessments/transluce/engineering-review.md"
+slug = "urlquery_engineering_review"
+report_id = "urlquery-engineering-review-2026-09-26"
+title = "Independent review record"
+group = "Engineering and review"

@@ -38,6 +38,9 @@ def test_ordinary_early_finish_is_blocked_and_recorded(tmp_path: Path) -> None:
         {"is_error": True},
         {"stop_reason": "refusal"},
         {"last_assistant_message": "I can't help with that request."},
+        {"last_assistant_message": "I'm sorry, I cannot assist with your task."},
+        {"last_assistant_message": "I must refuse this request."},
+        {"stop_reason": "content_filter"},
     ],
 )
 def test_terminal_refusal_or_error_is_not_retained(
@@ -53,6 +56,30 @@ def test_terminal_refusal_or_error_is_not_retained(
         == ""
     )
     assert not (tmp_path / "state").exists()
+
+
+@pytest.mark.parametrize("message", [
+    "Unable to reach data APIs from a browser due to CORS, the agent wrapped fetches.",
+    "I won't add unverified interpretation of those at the buzzer; the report is final.",
+    "Incident 1: agents unable to read cross-origin responses built beacon pages.",
+    "The agent's workaround for being unable to return a large file through URLQuery.",
+    "I cannot verify the operator's identity. The report is complete.",
+    'The agent said "I cannot assist with this request."',
+])
+def test_investigation_summary_cannot_bypass_runtime_policy(tmp_path, message):
+    assert early_stop_reason(
+        {"last_assistant_message": message}, earliest_finish_epoch=200, now=100,
+        state_file=tmp_path / "state",
+    )
+
+
+@pytest.mark.parametrize("event", [
+    {"reason": "The report documents failed requests and error responses."},
+    {"status": "no_error"},
+    {"reason": True},
+])
+def test_only_explicit_terminal_statuses_bypass_runtime_policy(tmp_path, event):
+    assert early_stop_reason(event, earliest_finish_epoch=200, now=100, state_file=tmp_path / "state")
 
 
 def test_threshold_passes_and_fraction_is_validated(tmp_path: Path) -> None:

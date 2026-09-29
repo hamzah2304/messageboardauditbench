@@ -38,6 +38,24 @@ PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME
 resolve_trial_time
 EFFORT="${EFFORT:-$CFG_EFFORT}"
 DATA_DIR="${DATA_DIR:-$ROOT/data/$CFG_DATA_VARIANT}"
+BENCHMARK_ID="${CFG_BENCHMARK_ID:-messageboard}"
+BENCHMARK_PROVENANCE='{}'
+. "$HERE/resolve_image.sh"
+resolve_trial_image
+RUNS_ROOT="$ROOT/runs"
+case "$BENCHMARK_ID" in
+  messageboard) ;;
+  urlquery)
+    PRIMARY_ROOT="$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")"
+    DATA_DIR="${DATA_DIR_OVERRIDE:-$PRIMARY_ROOT/data/$CFG_DATA_VARIANT}"
+    [ -n "${CFG_DATASET_SHA256:-}" ] || { echo "URLQuery requires dataset_sha256 in the resolved trial config" >&2; exit 2; }
+    BENCH_ARGS=(urlquery "$DATA_DIR" --expected-sha256 "$CFG_DATASET_SHA256")
+    [ -z "${RESUME_FROM:-}" ] || BENCH_ARGS+=(--resume "$RESUME_FROM")
+    BENCHMARK_PROVENANCE="$(cd "$ROOT" && "$ROOT/.venv/bin/python" -m messageboard_audit_bench.benchmarks "${BENCH_ARGS[@]}")"
+    RUNS_ROOT="$PRIMARY_ROOT/$(printf '%s' "$BENCHMARK_PROVENANCE" | jq -r .run_root)"
+    ;;
+  *) echo "unknown benchmark: $BENCHMARK_ID" >&2; exit 2 ;;
+esac
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 # In a worktree the data files are symlinks to the primary checkout; bind-mount the real
@@ -46,12 +64,12 @@ DATA_DIR="$(python3 -c 'import glob,os,sys; files=glob.glob(os.path.join(sys.arg
 
 # Always ask Docker to build: layer caching makes unchanged launches cheap and
 # ensures the recorded image contains this worktree's exact helper scripts.
-docker build -q -t "$IMAGE" -f "$HERE/Dockerfile" "$ROOT" >/dev/null
+docker build -q -t "$IMAGE" ${IMAGE_BUILD_ARGS[@]+"${IMAGE_BUILD_ARGS[@]}"} -f "$HERE/Dockerfile" "$ROOT" >/dev/null
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 VARIANT="$(basename "$DATA_DIR")"
-RUN="$ROOT/runs/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN_ID:0:12}"
+RUN="$RUNS_ROOT/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN_ID:0:12}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
 NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"
 mkdir -p "$RUN/work" "$SECRETS"
@@ -59,6 +77,7 @@ echo "run: $RUN"
 RESUME_FROM="${RESUME_FROM:-}"; PARENT_THREAD_ID=""; PARENT_RUN_ID=""
 if [ -n "$RESUME_FROM" ]; then
   RESUME_FROM="$(cd "$RESUME_FROM" && pwd)"
+  [ "$(jq -r '.benchmark_id // "messageboard"' "$RESUME_FROM/meta.json")" = "$BENCHMARK_ID" ] || { echo "cross-benchmark resume rejected" >&2; exit 2; }
   [ "$AGENT" = codex ] || { echo "RESUME_FROM supports codex only (claude round-4 runs kept no session; ReAct continues through the Inspect task)" >&2; exit 2; }
   [ -f "$RESUME_FROM/work/report.md" ] || { echo "no report.md in $RESUME_FROM/work" >&2; exit 2; }
   PARENT_THREAD_ID="$(jq -r 'select(.type=="thread.started") | .thread_id' "$RESUME_FROM/transcript.jsonl" 2>/dev/null | head -1)"
@@ -139,9 +158,14 @@ CLAUDE_ENV=()
 AGENT_SECRET_MOUNTS=()
 if [ "$AGENT" = claude ]; then
   mkdir -p "$SECRETS/claude"
-  # Preferred: a long-lived setup token. Copied refresh credentials otherwise
+  # A batch-specific token takes precedence over shared login defaults.
+  # Otherwise prefer a long-lived setup token. Copied refresh credentials
   # rotate under parallel trials and are deliberately never mounted for another agent.
-  if [ -s "$ROOT/runs/.claude-oauth-token" ]; then
+  if [ -n "${MBAB_CLAUDE_TOKEN_FILE:-}" ]; then
+    [ -s "$MBAB_CLAUDE_TOKEN_FILE" ] || { echo "explicit Claude token file missing" >&2; exit 1; }
+    export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$MBAB_CLAUDE_TOKEN_FILE")"
+    CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
+  elif [ -s "$ROOT/runs/.claude-oauth-token" ]; then
     export CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$ROOT/runs/.claude-oauth-token")"
     CLAUDE_ENV=(-e CLAUDE_CODE_OAUTH_TOKEN)
   elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
@@ -155,11 +179,16 @@ if [ "$AGENT" = claude ]; then
   fi
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/claude:/home/agent/.claude")
 fi
-# ReAct scaffold: OpenRouter key from runs/.openrouter_key.<model with / -> _> (per-model), else env, else runs/.openrouter_key (all gitignored).
+# ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
 if [ "$AGENT" = react ]; then
-  [ -s "$ROOT/runs/.openrouter_key.${MODEL//\//_}" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key.${MODEL//\//_}")"
-  [ -z "${OPENROUTER_API_KEY:-}" ] && [ -s "$ROOT/runs/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key")"
+  if [ -n "${MBAB_OPENROUTER_KEY_FILE:-}" ]; then
+    [ -s "$MBAB_OPENROUTER_KEY_FILE" ] || { echo "explicit OpenRouter key file missing" >&2; exit 1; }
+    export OPENROUTER_API_KEY="$(cat "$MBAB_OPENROUTER_KEY_FILE")"
+  else
+    [ -s "$ROOT/runs/.openrouter_key.${MODEL//\//_}" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key.${MODEL//\//_}")"
+    [ -z "${OPENROUTER_API_KEY:-}" ] && [ -s "$ROOT/runs/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$ROOT/runs/.openrouter_key")"
+  fi
   [ -n "${OPENROUTER_API_KEY:-}" ] || { echo "no OpenRouter key: export OPENROUTER_API_KEY or write runs/.openrouter_key" >&2; exit 1; }
   REACT_ENV=(-e OPENROUTER_API_KEY)
 fi
@@ -172,6 +201,9 @@ if [ "$AGENT" = codex ]; then
   fi
   # Keep the rollout for per-call token and reasoning-item auditing.
   printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
+  if [ "$BENCHMARK_ID" = urlquery ]; then
+    printf 'multi_agent = false\nmulti_agent_v2 = false\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
+  fi
   # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
   [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")
@@ -216,6 +248,11 @@ docker run -e VENDOR_HOST="$VENDOR_HOST" "${CANARY_ARGS[@]}" bash -c '
 EXPECT="$( { (cd "$RUN/work" && find . -type f | sed 's#^\./#/work/#'); (cd "$DATA_DIR" && find . -type f | sed 's#^\./#/work/data/#'); } | LC_ALL=C sort)"
 GOT="$(sed -n '/^--- files/,/^--- bind/p' "$RUN/canary.log" | grep '^/work')"
 [ "$EXPECT" = "$GOT" ] || { echo "canary: unexpected files in /work" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; exit 3; }
+if [ "$BENCHMARK_ID" = urlquery ]; then
+  PINNED_DATASET_SHA256="$(printf '%s' "$BENCHMARK_PROVENANCE" | jq -r .dataset_sha256)"
+  docker run "${CANARY_ARGS[@]}" python3 /sandbox/dataset_manifest.py /work/data --expected-sha256 "$PINNED_DATASET_SHA256" > "$RUN/dataset-preflight.json"
+  docker run "${CANARY_ARGS[@]}" python3 -c 'from pathlib import Path; rows=Path("/proc/self/mountinfo").read_text().splitlines(); assert any(r.split()[4] == "/work/data" and "ro" in r.split()[5].split(",") for r in rows), "data mount is not read-only"' >> "$RUN/canary.log"
+fi
 
 docker image inspect "$IMAGE" > "$RUN/image.inspect.json"
 IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
@@ -226,6 +263,7 @@ else
   docker run --rm "$IMAGE" "$AGENT" --version > "$RUN/cli.version.txt" 2>&1 || true
 fi
 CLI_VERSION_SHA256="$(shasum -a 256 "$RUN/cli.version.txt" | cut -c1-64)"
+verify_trial_cli_version "$RUN/cli.version.txt"
 
 # Dataset identity. data/ is a gitignored build output that can be older than the
 # code committed beside it, so a run record naming only the variant cannot establish
@@ -243,6 +281,12 @@ print(json.dumps(data_provenance(sys.argv[1], data_dir=sys.argv[2])))
 PYPROV
 )" && [ -n "$DP_OUT" ] && DATA_PROVENANCE="$DP_OUT"
 
+OUTER_TIMEOUT="$TIMEOUT"
+KILL_GRACE=30s
+if [ "$BENCHMARK_ID" = urlquery ]; then
+  TIMEOUT="$((BUDGET_MIN * 60))s"
+  KILL_GRACE=1s
+fi
 cat > "$RUN/meta.json" <<JSON
 {"agent":"$AGENT","model":"$MODEL","effort":"$EFFORT","replicate":$REPLICATE,"run_id":"$RUN_ID","config":"$CFG_NAME","config_sha256":"$(shasum -a 256 "$CONFIG" | cut -c1-64)",
  "isolation":"subscription_allowlisted_provider_proxy","allow_networked_subscription":true,"accepted_isolation_tradeoff":"subscription credentials and the vendor endpoint are available to the normal CLI agent container; direct egress remains blocked and the proxy permits only its provider hosts",
@@ -256,6 +300,10 @@ cat > "$RUN/meta.json" <<JSON
 JSON
 META_TMP="$RUN/meta.data.json"
 jq --argjson dp "$DATA_PROVENANCE" '. + $dp' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+if [ "$BENCHMARK_ID" = urlquery ]; then
+  META_TMP="$RUN/meta.benchmark.json"
+  jq --argjson bp "$BENCHMARK_PROVENANCE" --arg variant "$CFG_DATA_VARIANT" --argjson seconds "$((BUDGET_MIN * 60))" --arg outer "$OUTER_TIMEOUT" '. + $bp + {data_variant: $variant, active_time_limit_seconds: $seconds, configured_outer_timeout: $outer, termination_grace_seconds: 1}' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+fi
 if [ -n "$RESUME_FROM" ]; then
   META_TMP="$RUN/meta.resume.json"
   jq --arg parent "$RESUME_FROM" --arg parent_id "$PARENT_RUN_ID" --arg thread "$PARENT_THREAD_ID" --argjson parent_budget "$PARENT_BUDGET_MIN" \
@@ -281,7 +329,7 @@ TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS=
 case "$AGENT" in
   claude)
     record_runner_event cli_started
-    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" claude -p "$PROMPT" \
+    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "$TIMEOUT" claude -p "$PROMPT" \
       --model "$MODEL" --effort "$EFFORT" \
       --dangerously-skip-permissions --no-chrome --setting-sources user \
       ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
@@ -292,11 +340,11 @@ case "$AGENT" in
     # at most twice, against the original fixed deadline, and preserve attempts.
     for attempt in 1 2 3; do
       remaining="$((HARD_DEADLINE - $(date +%s)))"
-      if [ "$remaining" -le 0 ]; then RC=124; break; fi
+      if [ "$remaining" -le 0 ]; then RC=124; record_runner_event capacity_exhausted "$attempt"; break; fi
       record_runner_event cli_started "$attempt"
       # `exec resume` takes no -C; the container's working directory is already /work, the cwd the rollout records.
       if [ -n "$RESUME_FROM" ]; then CODEX_CMD=(exec resume "$PARENT_THREAD_ID"); else CODEX_CMD=(exec -C /work); fi
-      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "${remaining}s" codex "${CODEX_CMD[@]}" \
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" codex "${CODEX_CMD[@]}" \
         --model "$MODEL" -c "model_reasoning_effort=\"$EFFORT\"" \
         --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ignore-rules \
         --json -o /work/final_message.md "$PROMPT" \
@@ -308,18 +356,21 @@ case "$AGENT" in
         cp "$RUN/transcript.jsonl" "$RUN/transcript.attempt$attempt.jsonl"
         cp "$RUN/stderr.log" "$RUN/stderr.attempt$attempt.log"
         remaining="$((HARD_DEADLINE - $(date +%s)))"
-        [ "$remaining" -gt 0 ] || { RC=124; break; }
+        [ "$remaining" -gt 0 ] || { RC=124; record_runner_event capacity_exhausted "$attempt"; break; }
         sleep_seconds=$((remaining < 30 ? remaining : 30))
         record_runner_event capacity_backoff_started "$attempt"
         sleep "$sleep_seconds"
         record_runner_event capacity_backoff_finished "$attempt"
         continue
       fi
+      if [ "$AGENT" = codex ] && [ "$attempt" -eq 3 ] && { grep -q 'is at capacity' "$RUN/transcript.jsonl" || grep -q 'is at capacity' "$RUN/stderr.log"; }; then
+        record_runner_event capacity_exhausted "$attempt"
+      fi
       break
     done ;;
   react)
     record_runner_event cli_started
-    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k 30s "$TIMEOUT" python3 -u /sandbox/react_agent.py \
+    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "$TIMEOUT" python3 -u /sandbox/react_agent.py \
       --model "$MODEL" --effort "$EFFORT" --prompt-file /work/prompt.txt --cwd /work --budget-min "$BUDGET_MIN" \
       < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?; record_runner_event cli_finished 1 "$RC" ;;
   *) echo "unknown agent $AGENT" >&2; exit 2 ;;

@@ -19,6 +19,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput
 from inspect_ai.solver import Generate, TaskState, solver
 
+from messageboard_audit_bench.benchmarks import reject_foreign_grading
 from messageboard_audit_bench.grading import core
 from messageboard_audit_bench.grading.scorer import sheet_scorer
 from messageboard_audit_bench.runtime import repo_root
@@ -70,10 +71,12 @@ def grade_reports(
         model role supplied to Inspect takes precedence over this value.
     """
     folder = staged_dir(dir)
+    core.require_original_benchmark_folder(folder)
     rows = _index(folder)
     samples = []
     for path in sorted(folder.glob("*.md")):
         row = rows.get(path.name, {})
+        reject_foreign_grading(row.get("benchmark_id", "messageboard"))
         samples.append(
             Sample(
                 input=path.read_text(),
@@ -105,5 +108,74 @@ def grade_reports(
             "rubric": rubric,
             "judge": judge,
             "staged_dir": folder.name,
+        },
+    )
+
+
+@task
+def urlquery_grade_reports(
+    runs: str | None = None,
+    batch: str | None = None,
+    launch: str | None = None,
+    judge: str | None = None,
+    judge_effort: str | None = None,
+    article_context: str | None = None,
+) -> Task:
+    """Grade finished URLQuery run directories with the per-finding judge.
+
+    The Inspect counterpart of benchmarks/urlquery/judge/grade.py: the same prompts and
+    arithmetic, with the grade file for each report in ``Score.metadata["grade"]``.
+
+    Args:
+      runs: a glob under the primary checkout's runs/urlquery/ (e.g. ``2026092*_codex_*``).
+      batch: a pilot plan directory whose ``*.result.json`` files name its run dirs.
+      launch: a launch.json whose ``plans`` list plan files (the final-run launcher's).
+      judge: Inspect model; defaults to ``anthropic/claude-opus-5-5``. Use
+        ``openrouter/openai/gpt-6-astra`` for the final-run judge.
+      judge_effort: ``xhigh`` for Anthropic judges, ``high`` otherwise, by default.
+      article_context: ``omitted`` or ``full``; defaults to ``omitted`` for Anthropic
+        judges and ``full`` otherwise.
+    """
+    from messageboard_audit_bench.benchmarks import (
+        SPECS,
+        primary_root,
+        urlquery_manifest,
+    )
+    from messageboard_audit_bench.grading import findings
+    from messageboard_audit_bench.grading.finding_scorer import finding_scorer
+
+    run_root = primary_root() / SPECS["urlquery"].run_root
+    run_dirs = findings.reports_from(
+        runs=sorted(run_root.glob(runs)) if runs else [],
+        batches=[Path(batch)] if batch else [],
+        launch=Path(launch) if launch else None,
+    )
+    samples = []
+    for run_dir in run_dirs:
+        meta = findings.run_meta(run_dir)
+        run_meta = json.loads((run_dir / "meta.json").read_text()) if (run_dir / "meta.json").is_file() else {}
+        reject_foreign_grading(run_meta.get("benchmark_id", "urlquery"), grader="urlquery")
+        samples.append(
+            Sample(
+                input=(run_dir / "report.md").read_text(),
+                id=run_dir.name,
+                metadata={**meta, "run_dir": str(run_dir), "title": run_dir.name,
+                          "data_variant": run_meta.get("data_variant"),
+                          "dataset_sha256": run_meta.get("dataset_sha256")},
+            )
+        )
+    if not samples:
+        raise RuntimeError("no URLQuery run directories with a report.md matched")
+    return Task(
+        dataset=samples,
+        solver=report_from_sample(),
+        scorer=finding_scorer(judge=judge, effort=judge_effort, article_context=article_context),
+        model="mockllm/model",
+        metadata={
+            "benchmark": SPECS["urlquery"].title,
+            "benchmark_id": "urlquery",
+            "mode": "grading",
+            "rubric": urlquery_manifest()["grading"]["rubric"],
+            "judge": judge,
         },
     )

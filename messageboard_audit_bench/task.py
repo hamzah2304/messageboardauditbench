@@ -1,14 +1,22 @@
-"""Inspect task for MessageBoardAuditBench.
+"""Inspect tasks for the benchmarks in this repository.
 
-Three entry points:
+Every benchmark shares one harness: named configs, prompt rendering, the Inspect-native
+sandbox and agents, the subscription runner (sandbox/docker/run_trial.sh) and the grading
+plumbing. Each benchmark is its own task, with its own version, configs, prompts, data and
+rubric (see `messageboard_audit_bench.benchmarks`).
 
-  * `messageboard_audit_bench` runs fresh trials. The default ``inspect``
-    backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt
-    caching, and live logs. The ``subscription`` backend preserves the original
+  * `messageboard_audit_bench` runs fresh message-board trials. The default ``inspect``
+    backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt caching,
+    and live logs. The ``subscription`` backend preserves the original
     subscription-authenticated CLI runner.
       inspect eval messageboard_audit_bench/messageboard_audit_bench \
         -T agent=claude -T backend=inspect -T time_limit_minutes=30 \
         --model anthropic/claude-opus-4-1
+
+  * `urlquery_audit_bench` runs fresh URLQuery trials on the pinned frozen snapshot and
+    grades them with the per-finding judge.
+      inspect eval messageboard_audit_bench/urlquery_audit_bench \
+        -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
 
   * `messageboard_audit_bench_replay` imports runs already on disk under runs/,
     so `inspect view` can render past or interrupted runs with scoring.
@@ -27,6 +35,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -47,10 +56,20 @@ from inspect_ai.util import (
 
 from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
+from messageboard_audit_bench.benchmarks import (
+    SPECS,
+    URLQUERY_CODEX_FEATURES_OFF,
+    config_names,
+    default_config,
+    reject_foreign_grading,
+    urlquery_dataset_dir,
+    urlquery_manifest,
+)
+from messageboard_audit_bench.configs import CONFIG_NAME, load_config
 from messageboard_audit_bench.grading.core import variant_for_data
+from messageboard_audit_bench.grading.finding_scorer import finding_scorer
 from messageboard_audit_bench.grading.scorer import sheet_scorer
 from messageboard_audit_bench.incidents import (
-    config_names,
     data_variants,
     default_rubrics,
     incident,
@@ -71,11 +90,12 @@ from messageboard_audit_bench.scorer import (
 )
 from messageboard_audit_bench.solver import replay, subscription_agent
 
-# Bump when the agent-visible task, eligibility rule, or default grading changes.
-# See docs/benchmark-versions.md for the run-version history and comparison rules.
-EVAL_VERSION = "9-A"
-_CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_CONFIGS = config_names()
+# Versions live in the benchmark registry; bump there when the agent-visible task,
+# eligibility rule, or default grading changes. See docs/benchmark-versions.md.
+EVAL_VERSION = SPECS["messageboard"].eval_version
+URLQUERY_EVAL_VERSION = SPECS["urlquery"].eval_version
+_CONFIG_NAME = CONFIG_NAME
+_CONFIGS = config_names("messageboard")
 _DATA_VARIANTS = data_variants()
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
@@ -83,26 +103,9 @@ DEFAULT_TIME_LIMIT_MINUTES = 20
 TIMEOUT_GRACE_MINUTES = 5
 
 
-def _load_config(config_name: str) -> dict:
-    """Load one of the repository's named benchmark configurations."""
-    repo = repo_root()
-    if not _CONFIG_NAME.fullmatch(config_name):
-        raise ValueError(
-            f"invalid config name {config_name!r}; use a name from {repo / 'configs'}"
-        )
-    if config_name not in _CONFIGS:
-        raise ValueError(
-            f"unknown config {config_name!r}; available configs: {', '.join(_CONFIGS)}"
-        )
-    path = repo / "configs" / f"{config_name}.toml"
-    if not path.is_file():
-        raise RuntimeError(f"config file is missing: {path}")
-
-    import tomllib
-
-    cfg = tomllib.loads(path.read_text())
-    acceptance_limits(cfg)
-    return cfg
+def _load_config(config_name: str, benchmark_id: str = "messageboard") -> dict:
+    """Load one of a benchmark's named configurations."""
+    return load_config(config_name, benchmark_id)
 
 
 def _time_limit(
@@ -148,8 +151,9 @@ def _prompt_for(
     config_name: str,
     time_limit_minutes: int | None = None,
     min_runtime_fraction: float | None = None,
+    benchmark_id: str = "messageboard",
 ) -> str:
-    cfg = _load_config(config_name)
+    cfg = _load_config(config_name, benchmark_id)
     budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
@@ -167,10 +171,16 @@ def _scaffold(agent: str, backend: str) -> str:
     return "inspect-react" if backend == "inspect" else "legacy-react"
 
 
-def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
-    """Build the standard Inspect Docker sandbox with read-only benchmark data."""
-    repo = repo_root().resolve()
-    data_dir = (repo / "data" / data_variant).resolve()
+def _data_mount(data_variant: str, benchmark_id: str) -> tuple[Path, dict[str, str]]:
+    """The host directory mounted read-only at /work/data, and the preflight's env."""
+    if benchmark_id == "urlquery":
+        # One frozen snapshot, in the primary checkout; the in-container preflight
+        # checks its manifest against the pinned hash before the agent starts.
+        return urlquery_dataset_dir(), {
+            "MBAB_BENCHMARK_ID": "urlquery",
+            "MBAB_DATASET_SHA256": urlquery_manifest()["dataset"]["sha256"],
+        }
+    data_dir = (repo_root().resolve() / "data" / data_variant).resolve()
     # A task worktree holds per-file symlinks to the primary checkout's data.
     # A bind mount cannot follow those, so mount the directory they resolve to.
     targets = {p.resolve().parent for p in data_dir.glob("*.jsonl") if p.is_symlink()}
@@ -178,7 +188,42 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
         data_dir = targets.pop()
     elif targets:
         raise RuntimeError(f"data/{data_variant} symlinks point at several directories")
-    expected_files = ",".join(incident_for_variant(data_variant).corpus["files"])
+    return data_dir, {"MBAB_DATA_FILES": ",".join(incident_for_variant(data_variant).corpus["files"])}
+
+
+def _dockerfile(cfg: dict | None) -> str:
+    """The sandbox Dockerfile, with the config's pinned CLI versions if it pins them.
+
+    Inspect's compose build takes no build args, so a pinned config gets a generated
+    copy (gitignored, one per pin pair) whose ARG defaults are the pins: the same
+    versions resolve_image.sh passes the subscription runner as --build-arg.
+    """
+    if not cfg or "claude_cli_version" not in cfg:
+        return "sandbox/docker/Dockerfile"
+    repo = repo_root()
+    claude, codex = cfg["claude_cli_version"], cfg["codex_cli_version"]
+    text = (repo / "sandbox/docker/Dockerfile").read_text()
+    pinned = re.sub(r"^ARG CLAUDE_VERSION=.*$", f"ARG CLAUDE_VERSION={claude}", text, count=1, flags=re.M)
+    pinned = re.sub(r"^ARG CODEX_VERSION=.*$", f"ARG CODEX_VERSION=rust-v{codex}", pinned, count=1, flags=re.M)
+    if f"ARG CLAUDE_VERSION={claude}" not in pinned or f"ARG CODEX_VERSION=rust-v{codex}" not in pinned:
+        raise RuntimeError("sandbox Dockerfile no longer declares the CLI version ARGs")
+    relative = f"sandbox/docker/.generated/Dockerfile.codex-{codex}-claude-{claude}"
+    path = repo / relative
+    if not path.is_file() or path.read_text() != pinned:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(pinned)
+    return relative
+
+
+def _inspect_sandbox(
+    data_variant: str, benchmark_id: str = "messageboard", cfg: dict | None = None
+) -> SandboxEnvironmentSpec:
+    """Build the standard Inspect Docker sandbox with read-only benchmark data.
+
+    A config that pins CLI versions (every URLQuery config) builds the image with them.
+    """
+    repo = repo_root().resolve()
+    data_dir, environment = _data_mount(data_variant, benchmark_id)
     return SandboxEnvironmentSpec(
         type="isolated-docker",
         config=ComposeConfig(
@@ -186,7 +231,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                 "default": ComposeService(
                     build=ComposeBuild(
                         context=str(repo),
-                        dockerfile="sandbox/docker/Dockerfile",
+                        dockerfile=_dockerfile(cfg),
                     ),
                     command="tail -f /dev/null",
                     init=True,
@@ -194,7 +239,7 @@ def _inspect_sandbox(data_variant: str) -> SandboxEnvironmentSpec:
                     user="1000:1000",
                     cap_drop=["ALL"],
                     security_opt=["no-new-privileges:true"],
-                    environment={"MBAB_DATA_FILES": expected_files},
+                    environment=environment,
                     working_dir="/work",
                     volumes=[f"{data_dir}:/work/data:ro"],
                 )
@@ -216,6 +261,161 @@ def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) ->
         sheet_scorer(rubric=mode, judge=judge, variant=variant_for_data(data_variant))
         for mode in modes
     ] + scorers
+
+
+def _audit_task(
+    benchmark_id: str,
+    *,
+    agent: str,
+    backend: str,
+    subscription_model: str | None,
+    config: str,
+    allow_networked_subscription: bool,
+    time_limit_minutes: int | None,
+    min_runtime_fraction: float,
+    data_variant: str | None,
+    scorers: list,
+    extra_sample_metadata: dict | None = None,
+    extra_task_metadata: dict | None = None,
+) -> Task:
+    """One fresh sandboxed audit trial of any registered benchmark."""
+    spec = SPECS[benchmark_id]
+    cfg = _load_config(config, benchmark_id)
+    if data_variant is not None:
+        if benchmark_id != "messageboard" or data_variant not in _DATA_VARIANTS:
+            raise ValueError(f"unsupported data_variant {data_variant!r}")
+        cfg = {**cfg, "data_variant": data_variant}
+    if agent not in _SUPPORTED_AGENTS:
+        raise ValueError(
+            f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
+        )
+    if backend not in _BACKENDS:
+        raise ValueError(
+            f"unsupported backend {backend!r}; choose from: "
+            f"{', '.join(sorted(_BACKENDS))}"
+        )
+    if backend == "inspect" and subscription_model is not None:
+        raise ValueError(
+            "subscription_model only applies to backend='subscription'; "
+            "use Inspect's --model option for backend='inspect'"
+        )
+    if backend == "subscription" and not subscription_model:
+        raise ValueError(
+            "backend='subscription' requires -T subscription_model=<cli-model>"
+        )
+    if backend == "subscription" and not allow_networked_subscription:
+        raise ValueError(
+            "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
+        )
+    budget_min = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
+    runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
+    minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
+        budget_min * 60, runtime_fraction
+    )
+    cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
+    identity = (
+        {"incident": incident_for_variant(cfg["data_variant"]).id}
+        if benchmark_id == "messageboard"
+        else {"benchmark_id": benchmark_id}
+    )
+    sample_metadata = {
+        **identity,
+        "agent": agent,
+        "scaffold": _scaffold(agent, backend),
+        "backend": backend,
+        "isolation": (
+            "network_none" if backend == "inspect" else "provider_network_shared"
+        ),
+        "config": config,
+        "budget_min": budget_min,
+        "min_runtime_fraction": runtime_fraction,
+        "minimum_runtime_seconds": minimum_runtime_seconds,
+        "data_variant": cfg["data_variant"],
+        "effort": cfg["effort"],
+        "report_min_words": limits(cfg)[0],
+        "report_max_words": limits(cfg)[1],
+        "report_accept_min_words": acceptance_limits(cfg)[0],
+        "report_accept_max_words": acceptance_limits(cfg)[1],
+        **(extra_sample_metadata or {}),
+    }
+    if subscription_model is not None:
+        sample_metadata["subscription_model"] = subscription_model
+    sample = Sample(
+        input=_prompt_for(config, budget_min, runtime_fraction, benchmark_id),
+        id=f"{agent}:{backend}:{config}:{budget_min}m",
+        metadata=sample_metadata,
+    )
+    if backend == "inspect":
+        selected_solver = inspect_native_agent(
+            agent=agent,
+            time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
+            report_min_words=limits(cfg)[0],
+            report_max_words=limits(cfg)[1],
+            min_runtime_fraction=runtime_fraction,
+            codex_features_off=URLQUERY_CODEX_FEATURES_OFF if benchmark_id == "urlquery" else (),
+        )
+        selected_sandbox = _inspect_sandbox(cfg["data_variant"], benchmark_id, cfg)
+        generate_config = GenerateConfig(
+            cache_prompt=True,
+            reasoning_effort=cfg["effort"],
+        )
+    else:
+        assert subscription_model is not None
+        selected_solver = subscription_agent(
+            agent=agent,
+            model=subscription_model,
+            allow_networked_subscription=allow_networked_subscription,
+            config=config,
+            time_limit_minutes=budget_min,
+            timeout_minutes=cleanup_timeout_minutes,
+            prompt=cfg["prompt"],
+            # The runner resolves URLQuery's pinned snapshot from the config itself.
+            data_variant=cfg["data_variant"] if benchmark_id == "messageboard" else None,
+            effort=cfg["effort"],
+            min_runtime_fraction=runtime_fraction,
+        )
+        selected_sandbox = None
+        generate_config = GenerateConfig()
+    return Task(
+        dataset=[sample],
+        solver=selected_solver,
+        scorer=scorers,
+        config=generate_config,
+        # Subscription calls occur outside Inspect's model provider. Supplying
+        # the no-cost mock model keeps Inspect from requiring an unrelated
+        # default; metadata records the actual CLI model.
+        model="mockllm/model" if backend == "subscription" else None,
+        sandbox=selected_sandbox,
+        # Native execution gets a scoped budget plus this outer cleanup guard.
+        # The subscription runner already owns its hard timeout; another equal
+        # Inspect timeout can interrupt transcript folding and report recovery.
+        time_limit=(cleanup_timeout_minutes * 60 if backend == "inspect" else None),
+        version=spec.eval_version,
+        metadata={
+            "benchmark": spec.title,
+            "benchmark_id": benchmark_id,
+            **identity,
+            "backend": backend,
+            "scaffold": _scaffold(agent, backend),
+            "config": config,
+            "time_limit_minutes": budget_min,
+            "min_runtime_fraction": runtime_fraction,
+            "minimum_runtime_seconds": minimum_runtime_seconds,
+            "hard_time_limit_minutes": cleanup_timeout_minutes,
+            "host_cleanup_guard_minutes": (
+                cleanup_timeout_minutes + TIMEOUT_GRACE_MINUTES
+                if backend == "subscription"
+                else None
+            ),
+            "data_variant": cfg["data_variant"],
+            "report_min_words": limits(cfg)[0],
+            "report_max_words": limits(cfg)[1],
+            "report_accept_min_words": acceptance_limits(cfg)[0],
+            "report_accept_max_words": acceptance_limits(cfg)[1],
+            **(extra_task_metadata or {}),
+        },
+    )
 
 
 @task
@@ -256,130 +456,74 @@ def messageboard_audit_bench(
         data_variant: Override the config's dataset, including
             ``verbatim_anthropic`` for the provider attribution ablation.
     """
-    cfg = _load_config(config)
-    if data_variant is not None:
-        if data_variant not in _DATA_VARIANTS:
-            raise ValueError(f"unsupported data_variant {data_variant!r}")
-        cfg = {**cfg, "data_variant": data_variant}
-    if agent not in _SUPPORTED_AGENTS:
-        raise ValueError(
-            f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
-        )
-    if backend not in _BACKENDS:
-        raise ValueError(
-            f"unsupported backend {backend!r}; choose from: "
-            f"{', '.join(sorted(_BACKENDS))}"
-        )
-    if backend == "inspect" and subscription_model is not None:
-        raise ValueError(
-            "subscription_model only applies to backend='subscription'; "
-            "use Inspect's --model option for backend='inspect'"
-        )
-    if backend == "subscription" and not subscription_model:
-        raise ValueError(
-            "backend='subscription' requires -T subscription_model=<cli-model>"
-        )
-    if backend == "subscription" and not allow_networked_subscription:
-        raise ValueError(
-            "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
-        )
-    budget_min = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
-    runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
-    minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
-        budget_min * 60, runtime_fraction
+    # Resolve the data variant first: it selects the incident, hence the default rubric.
+    variant = data_variant or _load_config(config)["data_variant"]
+    return _audit_task(
+        "messageboard",
+        agent=agent,
+        backend=backend,
+        subscription_model=subscription_model,
+        config=config,
+        allow_networked_subscription=allow_networked_subscription,
+        time_limit_minutes=time_limit_minutes,
+        min_runtime_fraction=min_runtime_fraction,
+        data_variant=data_variant,
+        scorers=_scorers(judge, rubric, variant),
     )
-    cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
-    sample_metadata = {
-        "incident": incident_for_variant(cfg["data_variant"]).id,
-        "agent": agent,
-        "scaffold": _scaffold(agent, backend),
-        "backend": backend,
-        "isolation": (
-            "network_none" if backend == "inspect" else "provider_network_shared"
-        ),
-        "config": config,
-        "budget_min": budget_min,
-        "min_runtime_fraction": runtime_fraction,
-        "minimum_runtime_seconds": minimum_runtime_seconds,
-        "data_variant": cfg["data_variant"],
-        "effort": cfg["effort"],
-        "report_min_words": limits(cfg)[0],
-        "report_max_words": limits(cfg)[1],
-        "report_accept_min_words": acceptance_limits(cfg)[0],
-        "report_accept_max_words": acceptance_limits(cfg)[1],
-    }
-    if subscription_model is not None:
-        sample_metadata["subscription_model"] = subscription_model
-    sample = Sample(
-        input=_prompt_for(config, budget_min, runtime_fraction),
-        id=f"{agent}:{backend}:{config}:{budget_min}m",
-        metadata=sample_metadata,
-    )
-    if backend == "inspect":
-        selected_solver = inspect_native_agent(
-            agent=agent,
-            time_limit_seconds=budget_min * 60,
-            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
-            report_min_words=limits(cfg)[0],
-            report_max_words=limits(cfg)[1],
-            min_runtime_fraction=runtime_fraction,
-        )
-        selected_sandbox = _inspect_sandbox(cfg["data_variant"])
-        generate_config = GenerateConfig(
-            cache_prompt=True,
-            reasoning_effort=cfg["effort"],
-        )
-    else:
-        assert subscription_model is not None
-        selected_solver = subscription_agent(
-            agent=agent,
-            model=subscription_model,
-            allow_networked_subscription=allow_networked_subscription,
-            config=config,
-            time_limit_minutes=budget_min,
-            timeout_minutes=cleanup_timeout_minutes,
-            prompt=cfg["prompt"],
-            data_variant=cfg["data_variant"],
-            effort=cfg["effort"],
-            min_runtime_fraction=runtime_fraction,
-        )
-        selected_sandbox = None
-        generate_config = GenerateConfig()
-    return Task(
-        dataset=[sample],
-        solver=selected_solver,
-        scorer=_scorers(judge, rubric, cfg["data_variant"]),
-        config=generate_config,
-        # Subscription calls occur outside Inspect's model provider. Supplying
-        # the no-cost mock model keeps Inspect from requiring an unrelated
-        # default; metadata records the actual CLI model.
-        model="mockllm/model" if backend == "subscription" else None,
-        sandbox=selected_sandbox,
-        # Native execution gets a scoped budget plus this outer cleanup guard.
-        # The subscription runner already owns its hard timeout; another equal
-        # Inspect timeout can interrupt transcript folding and report recovery.
-        time_limit=(cleanup_timeout_minutes * 60 if backend == "inspect" else None),
-        version=EVAL_VERSION,
-        metadata={
-            "benchmark": "MessageBoardAuditBench",
-            "incident": incident_for_variant(cfg["data_variant"]).id,
-            "backend": backend,
-            "scaffold": _scaffold(agent, backend),
-            "config": config,
-            "time_limit_minutes": budget_min,
-            "min_runtime_fraction": runtime_fraction,
-            "minimum_runtime_seconds": minimum_runtime_seconds,
-            "hard_time_limit_minutes": cleanup_timeout_minutes,
-            "host_cleanup_guard_minutes": (
-                cleanup_timeout_minutes + TIMEOUT_GRACE_MINUTES
-                if backend == "subscription"
-                else None
-            ),
-            "data_variant": cfg["data_variant"],
-            "report_min_words": limits(cfg)[0],
-            "report_max_words": limits(cfg)[1],
-            "report_accept_min_words": acceptance_limits(cfg)[0],
-            "report_accept_max_words": acceptance_limits(cfg)[1],
+
+
+@task
+def urlquery_audit_bench(
+    agent: str = "claude",
+    backend: str = "inspect",
+    subscription_model: str | None = None,
+    config: str | None = None,
+    allow_networked_subscription: bool = True,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float = 0.75,
+    judge: str | None = None,
+    judge_effort: str | None = None,
+    article_context: str | None = None,
+) -> Task:
+    """Run one sandboxed URLQuery audit on the pinned frozen snapshot.
+
+    Arguments shared with ``messageboard_audit_bench`` mean the same thing there.
+
+    Args:
+        config: A URLQuery config from benchmarks/urlquery/benchmark.json
+            (default ``urlquery-agents-v6-30``).
+        judge: Inspect model for the per-finding judge; defaults to
+            ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` with the full
+            article is the final-run judge. A ``grader`` model role takes precedence.
+        judge_effort: Judge reasoning effort (``xhigh`` for Anthropic, else ``high``).
+        article_context: ``full`` or ``omitted``: whether the judge reads Transluce's
+            article or only the reviewed findings and their quotes. Defaults to
+            ``omitted`` for Anthropic judges (the article made Opus refuse) and ``full``
+            otherwise.
+    """
+    manifest = urlquery_manifest()
+    return _audit_task(
+        "urlquery",
+        agent=agent,
+        backend=backend,
+        subscription_model=subscription_model,
+        config=config or default_config("urlquery"),
+        allow_networked_subscription=allow_networked_subscription,
+        time_limit_minutes=time_limit_minutes,
+        min_runtime_fraction=min_runtime_fraction,
+        data_variant=None,
+        scorers=[
+            finding_scorer(judge=judge, effort=judge_effort, article_context=article_context),
+            process_metrics(),
+            report_length(),
+        ],
+        extra_sample_metadata={
+            "dataset_version": manifest["dataset"]["snapshot"],
+            "dataset_sha256": manifest["dataset"]["sha256"],
+        },
+        extra_task_metadata={
+            "dataset_sha256": manifest["dataset"]["sha256"],
+            "rubric": manifest["grading"]["rubric"],
         },
     )
 
@@ -403,6 +547,7 @@ def messageboard_audit_bench_replay(
         if not meta_path.exists():
             continue
         meta = json.loads(meta_path.read_text())
+        reject_foreign_grading(meta.get("benchmark_id", "messageboard"))
         if not include_failed and meta.get("exit_code") != 0:
             continue
         data_variant = str(meta.get("data_variant", "verbatim"))
@@ -484,6 +629,8 @@ def messageboard_audit_bench_continue(
     """
     cfg = _load_followup_config(config)
     log = read_eval_log(parent_log)
+    if (getattr(log.eval, "metadata", None) or {}).get("benchmark_id", "messageboard") != "messageboard":
+        raise ValueError("cross-benchmark continuation rejected")
     if log.eval.task_args.get("agent") != "react" or (
         log.eval.task_args.get("backend", "inspect") != "inspect"
     ):

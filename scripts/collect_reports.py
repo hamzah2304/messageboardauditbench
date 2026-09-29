@@ -33,6 +33,7 @@ from messageboard_audit_bench.report_length import (  # noqa: E402
     limits,
     measure,
 )
+from messageboard_audit_bench.benchmarks import benchmark_spec  # noqa: E402
 
 
 def main() -> int:
@@ -41,15 +42,26 @@ def main() -> int:
     ap.add_argument("--runs", default=str(ROOT / "runs"))
     ap.add_argument("--include-partial", action="store_true")
     ap.add_argument("--include-rejected", action="store_true")
+    ap.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")
     a = ap.parse_args()
     out, runs = Path(a.out), Path(a.runs)
+    spec = benchmark_spec(a.benchmark)
+    if a.benchmark == "urlquery":
+        out = out / Path(spec.report_root).relative_to("reports")
+        runs = runs / Path(spec.run_root).relative_to("runs")
     rows = []
     for d in sorted(runs.iterdir()):
         meta_p = d / "meta.json"
         if not d.is_dir() or not meta_p.exists():
             continue
         meta = json.loads(meta_p.read_text())
+        if meta.get("benchmark_id", "messageboard") != a.benchmark:
+            continue
+        if a.benchmark == "urlquery" and not meta.get("dataset_sha256"):
+            raise ValueError(f"missing dataset identity in {d}")
         partial = meta.get("exit_code") != 0
+        if a.benchmark == "urlquery" and meta.get("stopped_at_active_limit") and meta.get("exit_code") in (124, 137):
+            partial = False  # budget exhaustion is distinct from a harness failure
         if partial and not a.include_partial:
             continue
         report = d / "report.md"
@@ -85,7 +97,11 @@ def main() -> int:
         config = meta.get("config", "legacy")
         condition = meta.get("condition", meta.get("prompt", config))
         effort = meta.get("effort") or "unknown"
-        dest = out / f"{condition}_{variant}_{effort}_p{p8}" / name
+        if a.benchmark == "urlquery":
+            variant = variant.replace("/", "_")
+            name = name.removesuffix(".md") + f"_{meta['run_id'][:12]}.md"
+        dataset_tag = f"_d{meta['dataset_sha256'][:12]}" if a.benchmark == "urlquery" else ""
+        dest = out / f"{condition}_{variant}_{effort}_p{p8}{dataset_tag}" / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(report, dest)
         conditions = {
@@ -97,6 +113,8 @@ def main() -> int:
             "effort": effort,
         }
         conditions_path = dest.parent / "CONDITIONS.json"
+        if a.benchmark == "urlquery":
+            conditions.update(benchmark_id="urlquery", dataset_sha256=meta["dataset_sha256"], rubric_version=None)
         if conditions_path.exists() and json.loads(conditions_path.read_text()) != conditions:
             raise RuntimeError(f"inconsistent conditions in {dest.parent}")
         conditions_path.write_text(json.dumps(conditions, indent=1))
@@ -117,6 +135,8 @@ def main() -> int:
                      "report_rejected": rejected,
                      **length,
                      "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit_bench/usage.py)
+        if a.benchmark == "urlquery":
+            rows[-1].update({key: meta.get(key) for key in ("benchmark_id", "dataset_sha256", "dataset_version", "rubric_version", "scoring_status", "stopped_at_active_limit", "termination", "report_finalization")})
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     by = {}
