@@ -32,23 +32,33 @@ from inspect_ai.solver import TaskState
 
 from messageboard_audit_bench.benchmarks import urlquery_manifest
 from messageboard_audit_bench.grading import findings as fj
+from messageboard_audit_bench.grading.core import judge_name
 
-ANTHROPIC_EFFORT = "xhigh"
-OTHER_EFFORT = "high"
-
-
-def _is_anthropic(model: Model | str) -> bool:
-    return str(model).startswith("anthropic/") or "claude" in str(model)
+EFFORTS = {"anthropic": "xhigh", "openrouter": "high"}
 
 
 def default_effort(judge: str) -> str:
-    return ANTHROPIC_EFFORT if _is_anthropic(judge) else OTHER_EFFORT
+    return EFFORTS[fj.transport(judge)]
 
 
 def _config(model: Model, effort: str) -> GenerateConfig:
-    if _is_anthropic(model):
+    """The batch grader's request settings, per transport.
+
+    Anthropic: effort, 32k output (Inspect may raise the limit at xhigh), prompt caching.
+    Other judges: reasoning effort, 24k output and a JSON-object response format.
+    """
+    if fj.transport(str(model)) == "anthropic":
         return GenerateConfig(effort=effort, max_tokens=32000, cache_prompt=True)
-    return GenerateConfig(reasoning_effort=effort, max_tokens=24000)
+    return GenerateConfig(reasoning_effort=effort, max_tokens=24000,
+                          extra_body={"response_format": {"type": "json_object"}})
+
+
+def _refused(out) -> bool:
+    """Anthropic refusals arrive as content_filter; OpenAI-style ones as refusal content."""
+    if out.stop_reason == "content_filter":
+        return True
+    content = out.choices[0].message.content if out.choices else ""
+    return isinstance(content, list) and any(getattr(part, "refusal", None) for part in content)
 
 
 def _messages(prompt: str, suffix: str = "") -> list[Any]:
@@ -65,13 +75,15 @@ async def grade_finding(model: Model, effort: str, headline: str, subs: list[str
     started = time.time()
     raws: list[str] = []
     usage: list[dict] = []
+    # Anthropic gets one retry asking for bare JSON; the response format already asks others.
+    attempts = 2 if fj.transport(str(model)) == "anthropic" else 1
     try:
-        for attempt in range(2):
+        for attempt in range(attempts):
             out = await model.generate(_messages(prompt, fj.JSON_ONLY if attempt else ""),
                                        config=_config(model, effort))
             raws.append(out.completion)
             usage.append(out.usage.model_dump() if out.usage else {})
-            if out.stop_reason == "content_filter":
+            if _refused(out):
                 return {"status": "refused", "refusal": out.completion[:500], "usage": usage, "raw": raws}
             if out.stop_reason == "max_tokens":
                 return {"status": "truncated", "usage": usage, "raw": raws}
@@ -103,11 +115,12 @@ def finding_scorer(
       effort: reasoning effort; ``xhigh`` for Anthropic judges, ``high`` otherwise.
       article_context: ``full`` gives the judge Transluce's article (the GPT-6 Astra final
         grades); ``omitted`` replaces it with a fixed note, which avoids the Opus judge's
-        refusals on the article. Defaults to the manifest's value (``omitted``).
+        refusals on the article. Defaults per transport from the manifest: ``omitted``
+        for Anthropic judges, ``full`` otherwise.
     """
     grading = urlquery_manifest()["grading"]
     judge = judge or grading["default_judge"]
-    context = article_context or grading["default_article_context"]
+    context = article_context or fj.default_article_context(str(judge))
     fj.article_text(context)  # Validate the article is available before launching an agent.
     findings = fj.load_findings()
     heads = fj.headlines(findings)
@@ -120,7 +133,8 @@ def finding_scorer(
         article = fj.article_text(context)
         body: dict = {
             **({"run": state.metadata["run"]} if state.metadata.get("run") else {}),
-            **fj.stamp(str(model), used_effort, article),
+            # Recorded without the transport prefix, as the batch grader's files record it.
+            **fj.stamp(judge_name(str(model)), used_effort, article),
             "article_context": context,
             "report_sha256": fj.sha(report),
             "findings": {},

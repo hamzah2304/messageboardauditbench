@@ -139,20 +139,20 @@ def _judge(score_for: dict[str, float], refuse: set[str] = frozenset()):
 async def test_scorer_grades_every_headline_with_the_manifest_weights():
     heads = fj.headlines()
     model, calls = _judge({h: 1.0 for h in heads} | {"F3": 0.0})
-    score = await finding_scorer(judge=model)(_state("REPORT"), Target(""))
+    score = await finding_scorer(judge=model, article_context="omitted")(_state("REPORT"), Target(""))
     grade = score.metadata["grade"]
     assert sorted(calls) == sorted(heads)
     assert grade["n_scored"] == len(heads) and grade["unscored"] == []
     assert grade["headline_weights"] == {"F3": 0.5}
     expected = fj.score_means({h: 1.0 for h in heads} | {"F3": 0.0}, heads)
     assert (score.value, grade["score_mean_unweighted"]) == expected
-    assert grade["article_context"] == "omitted"
+    assert grade["article_context"] == "omitted" and grade["judge"] == "model"
     assert grade["prompt_sha256"] == fj.sha(fj.template_path().read_bytes())
 
 
 async def test_scorer_never_turns_a_refusal_into_zero():
     model, calls = _judge({}, refuse={fj.headlines()[0]})
-    score = await finding_scorer(judge=model)(_state("REPORT"), Target(""))
+    score = await finding_scorer(judge=model, article_context="omitted")(_state("REPORT"), Target(""))
     assert score.value != 0 and score.answer == "ungraded"
     assert calls == [fj.headlines()[0]], "a first-headline refusal skips the rest"
     assert score.metadata["grade"]["findings"][fj.headlines()[0]]["status"] == "refused"
@@ -171,3 +171,36 @@ def test_preflight_takes_its_benchmark_from_the_native_sandbox_env(monkeypatch, 
     monkeypatch.setattr("sys.argv", ["preflight", "--work", str(tmp_path)])
     assert module.main() == 0
     assert (seen["benchmark_id"], seen["expected_sha256"]) == ("urlquery", "a" * 64)
+
+
+def test_native_urlquery_builds_the_pinned_clis_and_codex_lockdown(monkeypatch):
+    cfg = load_config("urlquery-agents-v6-30", "urlquery")
+    dockerfile = task_module._dockerfile(cfg)
+    text = (ROOT / dockerfile).read_text()
+    assert f"ARG CLAUDE_VERSION={cfg['claude_cli_version']}" in text
+    assert f"ARG CODEX_VERSION=rust-v{cfg['codex_cli_version']}" in text
+    assert task_module._dockerfile(load_config("blind")) == "sandbox/docker/Dockerfile"
+    task = task_module.urlquery_audit_bench(agent="codex")
+    assert task.sandbox.config.services["default"].build.dockerfile == dockerfile
+
+    captured = {}
+    monkeypatch.setattr(task_module, "inspect_native_agent", lambda **kw: captured.update(kw) or task_module.replay())
+    task_module.urlquery_audit_bench(agent="codex")
+    assert captured["codex_features_off"] == benchmarks.URLQUERY_CODEX_FEATURES_OFF
+    task_module.messageboard_audit_bench(agent="codex")
+    assert captured["codex_features_off"] == ()
+
+
+def test_codex_lockdown_matches_the_subscription_runner():
+    runner = (ROOT / "sandbox/docker/run_trial.sh").read_text()
+    line = next(x for x in runner.splitlines() if "multi_agent = false" in x)
+    # printf 'multi_agent = false\nmulti_agent_v2 = false\n...': split on the literal \n.
+    names = [part.split(" = ")[0].strip(" '") for part in line.split("printf", 1)[1].split("\\n") if " = false" in part]
+    assert tuple(names) == benchmarks.URLQUERY_CODEX_FEATURES_OFF
+
+
+def test_scorer_defaults_the_article_by_transport():
+    assert fj.default_article_context("anthropic/claude-opus-5-5") == "omitted"
+    assert fj.default_article_context("claude-opus-5-5") == "omitted"
+    assert fj.default_article_context("openrouter/openai/gpt-6-astra") == "full"
+    assert fj.transport("openrouter/anthropic/claude-opus-5-5") == "openrouter"

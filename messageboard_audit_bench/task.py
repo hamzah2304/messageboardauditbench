@@ -34,6 +34,7 @@ View any result with:  inspect view
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from inspect_ai import Task, task
@@ -57,6 +58,7 @@ from messageboard_audit_bench import runtime_policy
 from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
 from messageboard_audit_bench.benchmarks import (
     SPECS,
+    URLQUERY_CODEX_FEATURES_OFF,
     config_names,
     default_config,
     reject_foreign_grading,
@@ -189,8 +191,37 @@ def _data_mount(data_variant: str, benchmark_id: str) -> tuple[Path, dict[str, s
     return data_dir, {"MBAB_DATA_FILES": ",".join(incident_for_variant(data_variant).corpus["files"])}
 
 
-def _inspect_sandbox(data_variant: str, benchmark_id: str = "messageboard") -> SandboxEnvironmentSpec:
-    """Build the standard Inspect Docker sandbox with read-only benchmark data."""
+def _dockerfile(cfg: dict | None) -> str:
+    """The sandbox Dockerfile, with the config's pinned CLI versions if it pins them.
+
+    Inspect's compose build takes no build args, so a pinned config gets a generated
+    copy (gitignored, one per pin pair) whose ARG defaults are the pins: the same
+    versions resolve_image.sh passes the subscription runner as --build-arg.
+    """
+    if not cfg or "claude_cli_version" not in cfg:
+        return "sandbox/docker/Dockerfile"
+    repo = repo_root()
+    claude, codex = cfg["claude_cli_version"], cfg["codex_cli_version"]
+    text = (repo / "sandbox/docker/Dockerfile").read_text()
+    pinned = re.sub(r"^ARG CLAUDE_VERSION=.*$", f"ARG CLAUDE_VERSION={claude}", text, count=1, flags=re.M)
+    pinned = re.sub(r"^ARG CODEX_VERSION=.*$", f"ARG CODEX_VERSION=rust-v{codex}", pinned, count=1, flags=re.M)
+    if f"ARG CLAUDE_VERSION={claude}" not in pinned or f"ARG CODEX_VERSION=rust-v{codex}" not in pinned:
+        raise RuntimeError("sandbox Dockerfile no longer declares the CLI version ARGs")
+    relative = f"sandbox/docker/.generated/Dockerfile.codex-{codex}-claude-{claude}"
+    path = repo / relative
+    if not path.is_file() or path.read_text() != pinned:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(pinned)
+    return relative
+
+
+def _inspect_sandbox(
+    data_variant: str, benchmark_id: str = "messageboard", cfg: dict | None = None
+) -> SandboxEnvironmentSpec:
+    """Build the standard Inspect Docker sandbox with read-only benchmark data.
+
+    A config that pins CLI versions (every URLQuery config) builds the image with them.
+    """
     repo = repo_root().resolve()
     data_dir, environment = _data_mount(data_variant, benchmark_id)
     return SandboxEnvironmentSpec(
@@ -200,7 +231,7 @@ def _inspect_sandbox(data_variant: str, benchmark_id: str = "messageboard") -> S
                 "default": ComposeService(
                     build=ComposeBuild(
                         context=str(repo),
-                        dockerfile="sandbox/docker/Dockerfile",
+                        dockerfile=_dockerfile(cfg),
                     ),
                     command="tail -f /dev/null",
                     init=True,
@@ -322,8 +353,9 @@ def _audit_task(
             report_min_words=limits(cfg)[0],
             report_max_words=limits(cfg)[1],
             min_runtime_fraction=runtime_fraction,
+            codex_features_off=URLQUERY_CODEX_FEATURES_OFF if benchmark_id == "urlquery" else (),
         )
-        selected_sandbox = _inspect_sandbox(cfg["data_variant"], benchmark_id)
+        selected_sandbox = _inspect_sandbox(cfg["data_variant"], benchmark_id, cfg)
         generate_config = GenerateConfig(
             cache_prompt=True,
             reasoning_effort=cfg["effort"],
@@ -461,11 +493,13 @@ def urlquery_audit_bench(
         config: A URLQuery config from benchmarks/urlquery/benchmark.json
             (default ``urlquery-agents-v6-30``).
         judge: Inspect model for the per-finding judge; defaults to
-            ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` reproduces
-            the final-run judge. A ``grader`` model role takes precedence.
+            ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` with the full
+            article is the final-run judge. A ``grader`` model role takes precedence.
         judge_effort: Judge reasoning effort (``xhigh`` for Anthropic, else ``high``).
-        article_context: ``full`` or ``omitted`` (default); whether the judge reads
-            Transluce's article or only the reviewed findings and their quotes.
+        article_context: ``full`` or ``omitted``: whether the judge reads Transluce's
+            article or only the reviewed findings and their quotes. Defaults to
+            ``omitted`` for Anthropic judges (the article made Opus refuse) and ``full``
+            otherwise.
     """
     manifest = urlquery_manifest()
     return _audit_task(

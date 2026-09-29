@@ -133,7 +133,8 @@ def urlquery_grade_reports(
       judge: Inspect model; defaults to ``anthropic/claude-opus-5-5``. Use
         ``openrouter/openai/gpt-6-astra`` for the final-run judge.
       judge_effort: ``xhigh`` for Anthropic judges, ``high`` otherwise, by default.
-      article_context: ``omitted`` (default) or ``full``.
+      article_context: ``omitted`` or ``full``; defaults to ``omitted`` for Anthropic
+        judges and ``full`` otherwise.
     """
     from messageboard_audit_bench.benchmarks import (
         SPECS,

@@ -72,6 +72,20 @@ def headline_weights() -> dict[str, float]:
     return dict(_grading()["headline_weights"])
 
 
+def transport(judge: str) -> str:
+    """'anthropic' for a Claude judge called through Anthropic, else 'openrouter'.
+
+    Inspect names models provider/model; the batch grader also accepts a bare Claude name.
+    """
+    judge = str(judge)
+    return "anthropic" if judge.startswith("anthropic/") or judge.startswith("claude") else "openrouter"
+
+
+def default_article_context(judge: str) -> str:
+    """The full article made the Opus judge refuse; the Astra final-run grades read it."""
+    return _grading()["default_article_context"][transport(judge)]
+
+
 def output_root() -> Path:
     return primary_root() / _grading()["output_root"]
 

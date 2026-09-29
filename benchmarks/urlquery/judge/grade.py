@@ -20,8 +20,9 @@ Inspect scorer. Two judge transports:
 
 A refusal, an unparseable answer or an API error leaves that finding unscored and says so;
 it is never recorded as a zero, and there is no fallback to another model, so one file is
-always one judge's work. A refusal on a report's first headline skips its remaining
-headlines. Grades land in reports/urlquery/graded/judge_<model>[_<effort>]/, which is
+always one judge's work. With the Anthropic judge, a refusal on a report's first headline
+skips its remaining headlines (it recurs on every one); OpenRouter refusals are retried on
+the next run, as before. Grades land in reports/urlquery/graded/judge_<model>[_<effort>]/, which is
 gitignored: they quote the reports, and URLQuery reports can quote recorded secrets.
 Re-running skips findings already graded under the same judge, prompt, findings and article.
 """
@@ -178,7 +179,10 @@ def parser(defaults: dict | None = None) -> argparse.ArgumentParser:
     ap.add_argument("runs", nargs="*", type=Path)
     ap.add_argument("--batch", type=Path, help="a batch directory whose *.result.json name the run dirs")
     ap.add_argument("--launch", type=Path, help="launch.json; use completed reports from all referenced plans")
-    ap.add_argument("--omit-article", action="store_true", help="use finding quotes and notes without the full article context")
+    ap.add_argument("--article", choices=fj.ARTICLE_CONTEXTS,
+                    help="article context; default omitted for Anthropic judges, full for OpenRouter")
+    ap.add_argument("--omit-article", action="store_const", const="omitted", dest="article",
+                    help="same as --article omitted")
     ap.add_argument("--judge", default=DEFAULT_JUDGE, help="anthropic/<model> or openrouter/<model>")
     ap.add_argument("--effort", help="default xhigh for Anthropic, high for OpenRouter")
     ap.add_argument("--output", type=Path, help="grade directory (default reports/urlquery/graded/judge_<model>...)")
@@ -195,7 +199,7 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
     if not run_dirs:
         sys.exit("no run directories with a report.md")
 
-    context = "omitted" if args.omit_article else "full"
+    context = args.article or fj.default_article_context(args.judge)
     article = fj.article_text(context)
     findings = fj.load_findings()
     heads = fj.headlines(findings)
@@ -218,27 +222,33 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
     files: dict[str, dict] = {}
     reports: dict[str, str] = {}
     todo: list[tuple[Path, str]] = []
+    # Anthropic refusals recur on every finding of a report; skip rather than repay them.
+    skip_refused = provider == "anthropic"
     for d in run_dirs:
         report = (d / "report.md").read_text()
         reports[d.name] = report
         path = out_dir / f"{d.name}.json"
         prev = json.loads(path.read_text()) if path.exists() else {}
+        if prev.get("article_sha256") not in (None, stamp["article_sha256"]):
+            sys.exit(f"{path} was graded with a different article context; use another --output")
         same = all(prev.get(k) == v for k, v in stamp.items()) and prev.get("report_sha256") == fj.sha(report)
-        body = {**fj.run_meta(d), **stamp, "article_context": context, "report_sha256": fj.sha(report),
-                "findings": prev.get("findings", {}) if same else {}}
+        # A matching file keeps every field it has (e.g. rubric_provenance on combined grades).
+        body = ({**prev, "article_context": prev.get("article_context", context)} if same else
+                {**fj.run_meta(d), **stamp, "article_context": context, "report_sha256": fj.sha(report),
+                 "findings": {}})
         files[d.name] = body
-        # A report-level cyber refusal on the first headline usually recurs on
-        # every finding. Preserve it as unscored instead of paying to repeat it.
-        if body["findings"].get(heads[0], {}).get("status") == "refused":
+        done_statuses = ("ok", "refused") if skip_refused else ("ok",)
+        if skip_refused and body["findings"].get(heads[0], {}).get("status") == "refused":
             continue
-        todo += [(d, h) for h in heads if body["findings"].get(h, {}).get("status") not in ("ok", "refused")]
+        todo += [(d, h) for h in heads if body["findings"].get(h, {}).get("status") not in done_statuses]
     print(f"{len(todo)} calls to make", flush=True)
 
     write_lock = threading.Lock()
 
     def write(name: str) -> None:
         body = fj.summarize(files[name], heads, reports[name])
-        body["cost_usd"] = round(sum(judge.cost(u) for f in body["findings"].values() for u in f.get("usage", [])), 4)
+        if judge.model in PRICES:  # no price table for OpenRouter judges; record nothing rather than $0
+            body["cost_usd"] = round(sum(judge.cost(u) for f in body["findings"].values() for u in f.get("usage", [])), 4)
         tmp = out_dir / f".{name}.json.tmp"
         tmp.write_text(json.dumps(body, indent=1, ensure_ascii=False))
         tmp.replace(out_dir / f"{name}.json")
@@ -271,11 +281,12 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         list(pool.map(do, first[1:]))
         rest = [(d, h) for d, h in rest
-                if files[d.name]["findings"].get(heads[0], {}).get("status") != "refused"]
+                if not skip_refused or files[d.name]["findings"].get(heads[0], {}).get("status") != "refused"]
         list(pool.map(do, rest))
 
     print(f"done: spend ${judge.spend:.2f}")
-    for name in files:
+    # Rewrite only the files this run graded; untouched grade files stay byte-for-byte.
+    for name in {d.name for d, _ in todo}:
         write(name)
     for name, body in files.items():
         print(f"  {name[17:70]:54} mean {body.get('score_mean')} (unweighted {body.get('score_mean_unweighted')})"

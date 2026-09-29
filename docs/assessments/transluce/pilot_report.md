@@ -231,7 +231,7 @@ the selected retry used `03be5de`. The [run index](pilot_runs.json) links both
 launch plans, all six attempts, resolved configs, image IDs, CLI versions, report
 hashes and local paths. Successful reports share rendered prompt SHA-256
 `1060e0550c465e96f5ca951dd91bddde01393ee8b388cebcee4d92fcdd69e7e2`.
-The [current next-run config](../../../configs/urlquery-10.toml) now selects the
+The [current next-run config](../../../configs/superseded/urlquery-10.toml) now selects the
 replacement prompt. For this experiment's wording, see
 [the archived prompt template](../../../sandbox/prompts/superseded/urlquery-blind.txt)
 and each run's `prompt.txt`, `config.source.toml` and `config.rendered.json`.

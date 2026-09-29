@@ -10,7 +10,10 @@
     "location": "primary checkout data/urlquery/<snapshot>/ (gitignored; built by messageboard_audit_bench.urlquery_prepare)"
   },
   "runtime": {
-    "configs": ["urlquery-agents-v6-30", "urlquery-agents-v6-10"],
+    "configs": [
+      "urlquery-agents-v6-30",
+      "urlquery-agents-v6-10"
+    ],
     "default_config": "urlquery-agents-v6-30",
     "batch": "configs/urlquery-final-batch.toml"
   },
@@ -19,9 +22,14 @@
     "findings": "claims/findings_reviewed.json",
     "sheet": "judge/finding_sheet_reviewed.md",
     "article_html": "data/transluce/agent-activity.html",
-    "headline_weights": {"F3": 0.5},
+    "headline_weights": {
+      "F3": 0.5
+    },
     "default_judge": "anthropic/claude-opus-5-5",
-    "default_article_context": "omitted",
+    "default_article_context": {
+      "anthropic": "omitted",
+      "openrouter": "full"
+    },
     "output_root": "reports/urlquery/graded"
   }
 }

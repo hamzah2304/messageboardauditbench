@@ -33,8 +33,9 @@ A single trial goes through Inspect, like the original benchmark:
 
 With `backend=subscription`, the runner installs the exact CLI versions the config pins
 and checks the mounted snapshot against the pinned hash inside the container. With
-`backend=inspect`, the no-network sandbox runs the same manifest check before the agent
-starts.
+`backend=inspect`, the no-network sandbox builds the image with the same pinned CLI
+versions, disables the same Codex features, and runs the same manifest check before the
+agent starts.
 
 Model matrices go through the batch launcher. It runs every trial through the same
 `run_trial.sh`, and it adds per-subscription queues, a stop on authentication or capacity
@@ -72,7 +73,7 @@ points share them:
 
       uv run inspect eval messageboard_audit_bench/urlquery_grade_reports \
         -T launch=runs/urlquery/final-20260927-agents-v6/launch.json \
-        -T judge=openrouter/openai/gpt-6-astra -T article_context=full
+        -T judge=openrouter/openai/gpt-6-astra
 
 - **Batch grader.** `judge/grade.py` makes resumable, synchronous API calls and writes
   one grade file per report to the gitignored `reports/urlquery/graded/judge_<model>/`.
@@ -80,18 +81,22 @@ points share them:
   grade only when all of these match.
 
       uv run python benchmarks/urlquery/judge/grade.py \
-        --launch runs/urlquery/final-20260927-agents-v6/launch.json --omit-article --workers 8
+        --launch runs/urlquery/final-20260927-agents-v6/launch.json --workers 8
 
 ### Choosing the judge
 
 `judge` is any `anthropic/<model>` or `openrouter/<model>`:
+
+The article context defaults by transport (`--article` or `article_context` overrides
+it). A grade directory never mixes contexts: the batch grader refuses to overwrite a
+file graded with a different article.
 
 - **Default: `anthropic/claude-opus-5-5`** at effort xhigh, with the article omitted.
   The full source article made this judge refuse. With the article omitted, it still
   reads the reviewed finding, the article's quote excerpts and the scoring notes, and
   each grade's article hash records which context it saw.
 - **Final 2026-09-27 run: GPT-6 Astra** at high effort with the full article
-  (`openrouter/openai/gpt-6-astra`). `judge/grade_openrouter.py` is a preset of
+  (`openrouter/openai/gpt-6-astra`). OpenRouter refusals are retried on the next run. `judge/grade_openrouter.py` is a preset of
   `grade.py` for it.
 
 For the final run:

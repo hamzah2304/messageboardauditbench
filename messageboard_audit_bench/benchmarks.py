@@ -54,6 +54,14 @@ SPECS = {
 }
 
 
+# Codex features the URLQuery trials disable, on both backends (the subscription
+# runner writes the same list into the trial's config.toml; a test keeps them equal).
+URLQUERY_CODEX_FEATURES_OFF = (
+    "multi_agent", "multi_agent_v2", "apps", "plugins", "remote_plugin", "browser_use",
+    "browser_use_external", "computer_use", "in_app_browser", "in_app_local_automation",
+)
+
+
 def benchmark_spec(benchmark_id: str) -> BenchmarkSpec:
     try:
         return SPECS[benchmark_id]
@@ -84,8 +92,9 @@ def urlquery_manifest() -> dict[str, Any]:
         raise ValueError(f"{path}: dataset sha256 must be 64 hex characters")
     if runtime["default_config"] not in runtime["configs"]:
         raise ValueError(f"{path}: default config is not listed in configs")
-    if grading["default_article_context"] not in {"full", "omitted"}:
-        raise ValueError(f"{path}: default_article_context must be full or omitted")
+    contexts = grading["default_article_context"]
+    if set(contexts) != {"anthropic", "openrouter"} or set(contexts.values()) - {"full", "omitted"}:
+        raise ValueError(f"{path}: default_article_context maps anthropic/openrouter to full or omitted")
     return data
 
 

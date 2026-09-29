@@ -177,8 +177,13 @@ def inspect_agent(
     *,
     claude_disallowed_tools: Sequence[str],
     env: dict[str, str] | None = None,
+    codex_features_off: Sequence[str] = (),
 ) -> Agent:
-    """Return the first-class Inspect agent selected by the task."""
+    """Return the first-class Inspect agent selected by the task.
+
+    ``codex_features_off`` names Codex ``[features]`` to disable, as the subscription
+    runner does for URLQuery trials.
+    """
     env = env or {}
     if agent == "claude":
         return claude_code(
@@ -195,7 +200,10 @@ def inspect_agent(
             version="sandbox",
             web_search="disabled",
             retry_refusals=REFUSAL_RETRY_LIMIT,
-            config_overrides={"features.hooks": "true"},
+            config_overrides={
+                "features.hooks": "true",
+                **{f"features.{name}": "false" for name in codex_features_off},
+            },
         )
     if agent == "react":
         return react(
@@ -451,6 +459,7 @@ def inspect_native_agent(
     report_max_words: int = 0,
     min_runtime_fraction: float = 0.75,
     seed_reports: dict[int, str] | None = None,
+    codex_features_off: Sequence[str] = (),
 ) -> Solver:
     """Run an agent through Inspect and collect its on-disk report.
 
@@ -510,6 +519,7 @@ def inspect_native_agent(
         selected = inspect_agent(
             agent,
             claude_disallowed_tools=claude_disallowed_tools,
+            codex_features_off=codex_features_off,
             env={
                 "MBAB_DEADLINE_EPOCH": str(deadline_epoch),
                 "MBAB_EARLIEST_FINISH_EPOCH": str(earliest_finish_epoch),

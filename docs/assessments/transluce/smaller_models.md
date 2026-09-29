@@ -45,7 +45,7 @@ audience, while adapting the dataset description, citations and inert-evidence
 safety instructions. A direct model ranking across the two batches would
 confound model and prompt changes.
 
-The [explicit matrix](../../../configs/urlquery-smaller-models.toml) requests one
+The [explicit matrix](../../../configs/superseded/urlquery-smaller-models.toml) requests one
 run each of `claude-haiku-4-5-20251001`, `claude-sonnet-5`, `gpt-6-luna` and
 `gpt-5.6-terra`. They receive the same frozen URLQuery input, a ten-minute active
 maximum, 75% minimum-runtime rule and 3,000–3,500-word target. The shared CLI
@@ -71,7 +71,7 @@ Launch from the task worktree:
 ```sh
 .venv/bin/python -m messageboard_audit_bench.urlquery_pilot \
   --dataset /Users/oscargilg/Dev/messageboardauditbench/data/urlquery/2026-09-26-v1 \
-  --matrix-config configs/urlquery-smaller-models.toml --launch
+  --matrix-config configs/superseded/urlquery-smaller-models.toml --launch
 ```
 
 Dataset SHA-256:

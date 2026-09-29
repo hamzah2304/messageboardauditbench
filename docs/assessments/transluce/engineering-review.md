@@ -141,7 +141,7 @@ Review `0bad1eeb-0ffe-48f0-9b4c-9687ca54fcde` prompted a generic fallback notice
 instead of Opus-specific wording, plus a Sonnet regression case. Its lane-stop
 concern was accepted and documented; Haiku and Luna both started successfully.
 Its matrix-archive suggestion was adapted: the existing per-run code snapshot
-already contains `configs/urlquery-smaller-models.toml`, verified to match plan
+already contains `configs/superseded/urlquery-smaller-models.toml`, verified to match plan
 SHA `668bfec259ea0effcf3cb5ad974ddb82000c9ba7ebcc246d0675b02cbd9a2290`.
 The source is also tracked at launch revision `94acf67`; no provenance is lost
 when the worktree is removed.
