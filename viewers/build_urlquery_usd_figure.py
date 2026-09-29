@@ -17,7 +17,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs" / "urlquery"
 OUT = ROOT / "viewers" / "figures" / "urlquery_usd_figure.json"
-HTML = OUT.with_suffix(".html")
 CAPABILITY_OUT = OUT.with_name("urlquery_capability_figure.json")
 CONDITIONS = {10: "urlquery-agents-v6-10", 30: "urlquery-agents-v6-30"}
 MODELS = [
@@ -48,11 +47,12 @@ def read_json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
-def load_grades(directory: Path, run_names: set[str]) -> tuple[dict, dict]:
+def load_grades(directory: Path, run_names: set[str], expected_findings: int = 12) -> tuple[dict, dict]:
     """Read one complete, internally consistent judge batch for these runs."""
     grades = {}
     stamp = None
-    fields = ("judge", "effort", "prompt_sha256", "findings_sha256", "article_sha256")
+    fields = ("judge", "effort", "prompt_sha256", "findings_sha256", "article_sha256",
+              "rubric_provenance", "headline_weights")
     for path in sorted(directory.glob("*.json")):
         grade = read_json(path)
         name = grade.get("run")
@@ -63,8 +63,18 @@ def load_grades(directory: Path, run_names: set[str]) -> tuple[dict, dict]:
             stamp = current
         elif current != stamp:
             raise ValueError(f"judge provenance differs in {path}")
-        if grade.get("n_scored") != grade.get("n_findings") or grade.get("n_findings") != 12:
+        if grade.get("n_scored") != grade.get("n_findings") or grade.get("n_findings") != expected_findings:
             raise ValueError(f"incomplete grade: {path}")
+        if expected_findings == 13:
+            heads = [f"F{i}" for i in range(1, 14)]
+            findings = grade.get("findings", {})
+            if set(findings) != set(heads) or any(findings[h].get("status") != "ok" for h in heads):
+                raise ValueError(f"missing or unsuccessful finding: {path}")
+            weights = grade.get("headline_weights", {})
+            total = sum(weights.get(h, 1.0) for h in heads)
+            recomputed = round(sum(findings[h]["score"] * weights.get(h, 1.0) for h in heads) / total, 3)
+            if recomputed != grade.get("score_mean"):
+                raise ValueError(f"weighted score mismatch: {path}")
         score = grade.get("score_mean")
         if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 1:
             raise ValueError(f"invalid score: {path}")
@@ -115,11 +125,18 @@ def exclusion_reasons(meta: dict) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--grades-dir", type=Path, help="import a complete, matching 48-run grade batch")
+    parser.add_argument("--rescored", action="store_true", help="write a separate USD figure from the 13-finding batch")
     args = parser.parse_args()
-    old = read_json(OUT) if OUT.exists() else {}
+    out = OUT.with_name("urlquery_usd_rescored_figure.json") if args.rescored else OUT
+    old = read_json(out) if out.exists() else {}
     previous = {r["run_dir"]: r.get("performance") for r in old.get("runs", []) if r.get("run_dir")}
+    selected_runs = ({p.stem for p in args.grades_dir.glob("*.json")} if args.grades_dir else
+                     {r["run_dir"] for r in old.get("runs", []) if r.get("run_dir")} |
+                     {r["run_dir"] for r in old.get("excluded_runs", [])})
     found = {}
     for path in RUNS.glob("*/meta.json"):
+        if selected_runs and path.parent.name not in selected_runs:
+            continue
         try:
             meta = read_json(path)
         except (OSError, ValueError):
@@ -131,7 +148,10 @@ def main() -> None:
             raise ValueError(f"duplicate final run for {key}: {found[key]} and {path.parent}")
         found[key] = path.parent
 
-    grades, grade_source = load_grades(args.grades_dir, {p.name for p in found.values()}) if args.grades_dir else (None, old.get("grade_source"))
+    grades, grade_source = load_grades(args.grades_dir, {p.name for p in found.values()},
+                                      13 if args.rescored else 12) if args.grades_dir else (None, old.get("grade_source"))
+    if args.rescored and grade_source is None:
+        parser.error("--rescored requires --grades-dir on first build")
 
     rows, excluded = [], []
     for budget, condition in CONDITIONS.items():
@@ -158,15 +178,23 @@ def main() -> None:
                              "status": "complete" if report else "running" if path else "not_started",
                              "cost_usd": cost, "cost_source": source, "performance": performance})
 
+    finding_count = 13 if args.rescored else 12
     payload = {"benchmark": "urlquery", "version": "agents-v6", "measure": "finding_score_mean",
-               "measure_note": "0–1 mean of 12 URLQuery headline-finding grades over eligible runs; null means ungraded",
+               "finding_count": finding_count,
+               "figure_title": "URLQuery: performance against cost · rescored findings" if args.rescored else "URLQuery: performance against cost",
+               "measure_note": f"0–1 weighted mean of {finding_count} URLQuery headline-finding grades over eligible runs; null means ungraded",
                "grade_source": grade_source,
                "excluded_runs": excluded,
                "cost_note": "USD per run. Codex values estimate Standard short-context API list-price token equivalents; other values come from usage.json cost_usd. Subscription charges and judge costs are excluded.",
                "openai_price_source": PRICE_SOURCE, "runs": rows}
-    OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    out.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     template = (ROOT / "viewers" / "templates" / "urlquery_usd_figure.html").read_text()
-    HTML.write_text(template.replace("__DATA__", json.dumps(payload, ensure_ascii=False)))
+    html = out.with_suffix(".html")
+    html.write_text(template.replace("__DATA__", json.dumps(payload, ensure_ascii=False)))
+    if args.rescored:
+        print(f"{html}: {sum(r['status'] == 'complete' for r in rows)}/{len(rows)} eligible reports, "
+              f"{len(excluded)} excluded, {sum(r['performance'] is not None for r in rows)} scores")
+        return
     eci_source = read_json(ROOT / "benchmark" / "eci_scores.json")
     eci_names = {"Opus 5": "Claude Opus 5", "Opus 4.8": "Claude Opus 4.8",
                  "Sonnet 5": "Claude Sonnet 5"}
@@ -184,7 +212,7 @@ def main() -> None:
     CAPABILITY_OUT.write_text(json.dumps(cap_payload, indent=2, ensure_ascii=False) + "\n")
     cap_template = (ROOT / "viewers" / "templates" / "urlquery_capability_figure.html").read_text()
     CAPABILITY_OUT.with_suffix(".html").write_text(cap_template.replace("__DATA__", json.dumps(cap_payload, ensure_ascii=False)))
-    print(f"{HTML}: {sum(r['status'] == 'complete' for r in rows)}/{len(rows)} eligible reports, "
+    print(f"{html}: {sum(r['status'] == 'complete' for r in rows)}/{len(rows)} eligible reports, "
           f"{len(excluded)} excluded, "
           f"{sum(r['cost_usd'] is not None for r in rows)} costs, "
           f"{sum(r['performance'] is not None for r in rows)} performance values")
