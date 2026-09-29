@@ -75,7 +75,12 @@ def _check_jsonl(check: Check, variant: str) -> None:
     )
 
 
-def validate(item: Incident) -> Check:
+def validate(item: Incident, *, check_data: bool = True) -> Check:
+    """Check an incident's manifest, rubrics, task wiring and, by default, its built data.
+
+    ``check_data=False`` skips the built-corpus checks, for environments (such as CI)
+    that do not run scripts/build_data.sh.
+    """
     check = Check(item)
     asset_paths = [
         check.path(item.grading["claims_file"], "claims file"),
@@ -129,8 +134,9 @@ def validate(item: Incident) -> Check:
             sheet_ids = [claim["id"] for sheet in sets for claim in sheet.get("claims", [])]
             check.require(sheet_ids == ids, f"rubric {mode} claim order differs from the claims file")
 
-    for variant in item.variants:
-        _check_jsonl(check, variant)
+    if check_data:
+        for variant in item.variants:
+            _check_jsonl(check, variant)
 
     try:
         task = incident_task(item.runtime["default_config"])

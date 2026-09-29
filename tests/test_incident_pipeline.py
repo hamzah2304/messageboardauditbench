@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from messageboard_audit_bench.incidents import (
     config_names,
     data_variants,
@@ -33,11 +35,21 @@ def test_registry_describes_all_three_incidents() -> None:
 
 
 def test_every_registered_incident_passes_the_offline_pipeline() -> None:
+    """Manifests, rubrics and task wiring; the corpora are checked separately below."""
     failures = {}
     for item in incidents().values():
-        if problems := validate(item).problems:
+        if problems := validate(item, check_data=False).problems:
             failures[item.id] = problems
     assert failures == {}
+
+
+@pytest.mark.parametrize("incident_id", sorted(incidents()))
+def test_built_corpora_match_their_manifests(incident_id) -> None:
+    """Needs scripts/build_data.sh; skipped where a corpus is not built (e.g. CI)."""
+    item = incidents()[incident_id]
+    if not any(next((pipeline.ROOT / "data" / variant).glob("*.jsonl"), None) for variant in item.variants):
+        pytest.skip(f"data for {incident_id} is not built")
+    assert validate(item).problems == []
 
 
 def test_incident_config_defaults_reach_the_actual_task() -> None:
