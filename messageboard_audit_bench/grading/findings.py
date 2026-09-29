@@ -72,6 +72,21 @@ def headline_weights() -> dict[str, float]:
     return dict(_grading()["headline_weights"])
 
 
+# How each judge transport is called. The batch grader and the Inspect scorer both read
+# this table, so a finding is judged the same way whichever path grades it.
+#   effort       reasoning effort (Anthropic: adaptive thinking at this effort)
+#   max_tokens   output limit per call
+#   attempts     calls per finding; Anthropic gets one retry asking for bare JSON,
+#                the OpenRouter request already asks for a JSON object
+#   skip_after_first_refusal
+#                a refusal on a report's first headline skips its other headlines;
+#                true for Anthropic, whose report-level refusals recur on every one
+TRANSPORTS = {
+    "anthropic": {"effort": "xhigh", "max_tokens": 32000, "attempts": 2, "skip_after_first_refusal": True},
+    "openrouter": {"effort": "high", "max_tokens": 24000, "attempts": 1, "skip_after_first_refusal": False},
+}
+
+
 def transport(judge: str) -> str:
     """'anthropic' for a Claude judge called through Anthropic, else 'openrouter'.
 

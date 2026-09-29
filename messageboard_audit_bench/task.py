@@ -34,6 +34,7 @@ View any result with:  inspect view
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -210,8 +211,12 @@ def _dockerfile(cfg: dict | None) -> str:
     relative = f"sandbox/docker/.generated/Dockerfile.codex-{codex}-claude-{claude}"
     path = repo / relative
     if not path.is_file() or path.read_text() != pinned:
+        # Concurrent evals may share a pin pair; replace atomically so a build never
+        # reads a half-written file.
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(pinned)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(pinned)
+        os.replace(tmp, path)
     return relative
 
 

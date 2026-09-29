@@ -165,3 +165,17 @@ def test_index_carries_outcome_fields_and_served_model_tag(tmp_path: Path) -> No
     assert written[0].read_text() == "# Report\n\nfour words here now"
     index = (graded / "round4_blind20" / "_index.jsonl").read_text().splitlines()
     assert len(index) == 1 and '"graded_input"' in index[0]
+
+
+def test_urlquery_logs_are_never_exported_as_message_board_reports() -> None:
+    import pytest
+
+    sample_level = _log()
+    sample_level.samples[0].metadata["benchmark_id"] = "urlquery"
+    with pytest.raises(ValueError, match="cross-benchmark"):
+        records_from_log(sample_level, "u.eval", backend=None)
+    # urlquery_grade_reports samples carry no benchmark_id; the task metadata does.
+    task_level = _log()
+    task_level.eval = SimpleNamespace(metadata={"benchmark_id": "urlquery"})
+    with pytest.raises(ValueError, match="cross-benchmark"):
+        records_from_log(task_level, "g.eval", backend=None)

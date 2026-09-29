@@ -34,22 +34,22 @@ from messageboard_audit_bench.benchmarks import urlquery_manifest
 from messageboard_audit_bench.grading import findings as fj
 from messageboard_audit_bench.grading.core import judge_name
 
-EFFORTS = {"anthropic": "xhigh", "openrouter": "high"}
-
 
 def default_effort(judge: str) -> str:
-    return EFFORTS[fj.transport(judge)]
+    return fj.TRANSPORTS[fj.transport(judge)]["effort"]
 
 
 def _config(model: Model, effort: str) -> GenerateConfig:
-    """The batch grader's request settings, per transport.
+    """The batch grader's request, per transport (`findings.TRANSPORTS`).
 
-    Anthropic: effort, 32k output (Inspect may raise the limit at xhigh), prompt caching.
-    Other judges: reasoning effort, 24k output and a JSON-object response format.
+    Anthropic: ``reasoning_effort`` makes Inspect send adaptive thinking with
+    ``output_config.effort``, as the batch grader does, plus prompt caching.
+    Other judges: reasoning effort and a JSON-object response format.
     """
+    settings = fj.TRANSPORTS[fj.transport(str(model))]
     if fj.transport(str(model)) == "anthropic":
-        return GenerateConfig(effort=effort, max_tokens=32000, cache_prompt=True)
-    return GenerateConfig(reasoning_effort=effort, max_tokens=24000,
+        return GenerateConfig(reasoning_effort=effort, max_tokens=settings["max_tokens"], cache_prompt=True)
+    return GenerateConfig(reasoning_effort=effort, max_tokens=settings["max_tokens"],
                           extra_body={"response_format": {"type": "json_object"}})
 
 
@@ -75,8 +75,7 @@ async def grade_finding(model: Model, effort: str, headline: str, subs: list[str
     started = time.time()
     raws: list[str] = []
     usage: list[dict] = []
-    # Anthropic gets one retry asking for bare JSON; the response format already asks others.
-    attempts = 2 if fj.transport(str(model)) == "anthropic" else 1
+    attempts = fj.TRANSPORTS[fj.transport(str(model))]["attempts"]
     try:
         for attempt in range(attempts):
             out = await model.generate(_messages(prompt, fj.JSON_ONLY if attempt else ""),
@@ -143,10 +142,11 @@ def finding_scorer(
         async def one(h: str) -> None:
             body["findings"][h] = await grade_finding(model, used_effort, h, subs[h], fj.render(h, article, report))
 
-        # The first call warms the shared prefix. A report-level refusal on it usually
-        # recurs on every finding; keep it as unscored rather than repeat it.
+        # The first call warms the shared prefix. For Anthropic, a report-level refusal
+        # on it recurs on every finding; keep it as unscored rather than repeat it.
         await one(heads[0])
-        if body["findings"][heads[0]]["status"] != "refused":
+        skip = fj.TRANSPORTS[fj.transport(str(model))]["skip_after_first_refusal"]
+        if not (skip and body["findings"][heads[0]]["status"] == "refused"):
             await asyncio.gather(*(one(h) for h in heads[1:]))
         fj.summarize(body, heads, report)
         value = body["score_mean"]

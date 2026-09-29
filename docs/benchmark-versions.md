@@ -68,4 +68,4 @@ weights and default judge) are in `benchmarks/urlquery/benchmark.json`.
 
 | Inspect task version | What it identifies |
 |---|---|
-| `1-A` | The first Inspect version of the URLQuery task: snapshot `2026-09-26-v1`, prompt `urlquery-agents-v6`, reviewed rubric F1–F13 with F3 weighted 0.5. The final 2026-09-27/28 generation runs used the same prompt, configs and dataset through the batch launcher (`urlquery_pilot`), before the task existed; their run records carry no task version. |
+| `1-A` | The first Inspect version of the URLQuery task: snapshot `2026-09-26-v1`, prompt `urlquery-agents-v6`, reviewed rubric F1–F13 with F3 weighted 0.5. The final 2026-09-27/28 generation runs used the same prompt, configs and dataset through the batch launcher (`urlquery_pilot`), before the task existed; their run records carry no task version and say `rubric_version: null`, `scoring_status: "unscored_pending_manual_rubric"`. Runs from `1-A` on record `benchmark_version: "1-A"`, `rubric_version: "reviewed"` and `scoring_status: "ungraded"`; filter on the version, not on those labels. |
