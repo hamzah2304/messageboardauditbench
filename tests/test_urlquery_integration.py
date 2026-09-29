@@ -293,7 +293,7 @@ def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, sc
             (run / ".secrets/auth-copy").write_text("fixture")
             metadata = {"benchmark_id": "urlquery", "dataset_sha256": "a" * 64,
                         "run_id": run_id, "termination": scenario, "model_refusal": scenario == "refusal",
-                        "report_exists": True}
+                        "report_exists": True, "usage": {"is_error": scenario == "refusal"}}
             (run / "meta.json").write_text(json.dumps(metadata))
             stdout.write("run: " + str(run) + "\n")
             launches.append((run, run_id))
@@ -464,6 +464,50 @@ def test_ablation_batch_plans_every_arm(tmp_path, monkeypatch):
     assert all(len(p["batch_source_sha256"]) == 64 for _, p in plans)
 
 
+def test_final_batch_keeps_one_dataset_pin_and_latest_prompt(tmp_path, monkeypatch):
+    import tomllib
+
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-final-batch.toml")
+    assert concurrency == 12
+    assert sum(len(p["matrix"]) for _, p in plans) == 48
+    assert [p["budget_minutes"] for _, p in plans] == [30, 10]
+    for _, payload in plans:
+        assert "claude-sonnet-5-5" in {row["model"] for row in payload["matrix"]}
+        assert "claude-sonnet-5" not in {row["model"] for row in payload["matrix"]}
+        config = tomllib.loads(Path(payload["config"]).read_text())
+        assert config["dataset_sha256"] == "a" * 64
+        assert config["prompt"] == "urlquery-agents-v6"
+        assert len({row["model"] for row in payload["matrix"]}) == 12
+        assert {row["replicate"] for row in payload["matrix"]} == {1, 2}
+
+
+def test_follow_up_round_is_twelve_single_ten_minute_trials(tmp_path, monkeypatch):
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-agents-v6-10-round.toml")
+    assert concurrency == 6 and len(plans) == 1
+    trials = plans[0][1]["matrix"]
+    assert plans[0][1]["budget_minutes"] == 10
+    assert len(trials) == len({(row["agent"], row["model"]) for row in trials}) == 12
+    assert {row["replicate"] for row in trials} == {1}
+    assert "claude-sonnet-5-5" in {row["model"] for row in trials}
+    assert "claude-sonnet-5" not in {row["model"] for row in trials}
+
+
+def test_recovery_round_only_replaces_interrupted_samples(tmp_path, monkeypatch):
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-agents-v6-10-recovery.toml")
+    assert concurrency == 6 and len(plans) == 1
+    assert {(t["agent"], t["model"], t["replicate"]) for t in plans[0][1]["matrix"]} == {
+        ("claude", "claude-opus-4-6", 1),
+        ("react", "google/gemini-3.8-flash", 1),
+        ("react", "meta/muse-spark-1.3", 1),
+        ("react", "moonshotai/kimi-k3", 1),
+        ("react", "z-ai/glm-5.3", 1),
+        ("react", "deepseek/deepseek-v4-flash", 1),
+    }
+
+
 @pytest.mark.parametrize("body", [
     "max_parallel = 0\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
     "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=0\nmodels=['codex:gpt-6-sol']",
@@ -510,6 +554,74 @@ def test_launch_batch_caps_parallelism_orders_long_first_and_blocks_failures(tmp
     assert all(agent != "claude" for _, agent, _ in started[first_failure + 6:])
     assert len(results) == len(started) < 37
     assert any(row[1] == "react" for row in started)
+
+
+@pytest.mark.parametrize(("runtime_marker", "usage", "expected_error"), [
+    (False, {}, "minimum_runtime_not_reached"),
+    (None, {}, "minimum_runtime_unverified"),
+    (True, {"is_error": True}, "provider_error"),
+    (True, {}, None),
+])
+def test_coordinator_validates_completion_and_blocks_next_trial(tmp_path, monkeypatch, runtime_marker, usage, expected_error):
+    from messageboard_audit_bench import urlquery_pilot as pilot
+
+    directory = tmp_path / "plan"
+    directory.mkdir()
+    payload = {"config": "fixture", "image": "fixture", "dataset_sha256": "a" * 64,
+               "outer_guard_seconds": 900, "budget_minutes": 10,
+               "matrix": [{"agent": "react", "model": "fixture/model", "replicate": r} for r in (1, 2)]}
+    launched = []
+
+    class Process:
+        def __init__(self, command, *, stdout, **kwargs):
+            run = tmp_path / f"trial-{command[-1]}"
+            run.mkdir()
+            launched.append(run)
+            (run / "meta.json").write_text(json.dumps({
+                "benchmark_id": "urlquery", "dataset_sha256": "a" * 64,
+                "termination": "normal", "report_exists": True,
+                "minimum_runtime_seconds": 450, "minimum_runtime_reached": runtime_marker,
+                "usage": usage,
+            }))
+            stdout.write(f"run: {run}\n")
+
+        def wait(self, timeout):
+            return 0
+
+    monkeypatch.setattr(pilot, "_prepare", lambda *args: {})
+    monkeypatch.setattr(pilot, "_collect_reports", lambda: None)
+    monkeypatch.setattr(pilot.subprocess, "Popen", Process)
+    results = pilot.launch_batch([(directory, payload)], 1)
+    assert len(results) == len(launched) == (1 if expected_error else 2)
+    assert results[0]["validation_errors"] == ([expected_error] if expected_error else [])
+    assert payload["status"] == ("stopped_with_unlaunched_trials" if expected_error else "finished")
+    saved = json.loads((directory / "react-fixture_model-r1.result.json").read_text())
+    assert saved["validation_errors"] == results[0]["validation_errors"]
+    # Even a final failing trial must not make the plan look clean.
+    payload["matrix"] = payload["matrix"][:len(results)]
+    pilot._finish(directory, payload, results)
+    assert payload["status"] == ("finished_with_errors" if expected_error else "finished")
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("status", ["finished", "finished_with_errors", "stopped_with_unlaunched_trials"])
+def test_pilot_command_returns_nonzero_for_incomplete_or_invalid_batch(tmp_path, monkeypatch, batch, status):
+    import sys
+
+    from messageboard_audit_bench import urlquery_pilot as pilot
+
+    payload = {"matrix": [{}], "status": "planned"}
+    monkeypatch.setattr(pilot, "plan", lambda *a, **kw: (tmp_path, payload))
+    monkeypatch.setattr(pilot, "plan_batch", lambda *a: (1, [(tmp_path, payload)]))
+
+    def launch(*args, **kwargs):
+        payload["status"] = status
+
+    monkeypatch.setattr(pilot, "launch", launch)
+    monkeypatch.setattr(pilot, "launch_batch", launch)
+    monkeypatch.setattr(sys, "argv", ["pilot", "--dataset", str(tmp_path), "--launch"]
+                        + (["--batch", "fixture.toml"] if batch else []))
+    assert pilot.main() == (0 if status == "finished" else 1)
 
 
 def test_view_script_groups_runs_by_prompt_and_budget(tmp_path):

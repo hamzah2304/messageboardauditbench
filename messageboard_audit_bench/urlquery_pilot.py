@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import tomllib
@@ -88,6 +89,7 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
         raise ValueError("pilot config must be for the URLQuery benchmark")
     # Dataset version can change without changing prompt/model/time conditions.
     config = re.sub(r'^data_variant = .*$', f'data_variant = "urlquery/{dataset.name}"', config, flags=re.M)
+    config = re.sub(r'^dataset_sha256 = .*\n?', '', config, flags=re.M)
     config += f'\ndataset_sha256 = "{metadata["dataset_sha256"]}"\n'
     claude_version = tomllib.loads(config).get("claude_cli_version")
     if not isinstance(claude_version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", claude_version):
@@ -182,11 +184,23 @@ def _run_trial(directory: Path, payload: dict, env: dict, trial: dict) -> tuple[
         raise ValueError("runner returned wrong benchmark")
     if run_meta.get("dataset_sha256") and run_meta["dataset_sha256"] != payload["dataset_sha256"]:
         raise ValueError("runner returned wrong dataset")
+    # The CLI hooks are a first line of enforcement, not proof that the run
+    # satisfied the policy. Fail closed on a purported normal completion.
+    validation_errors = []
+    if run_meta.get("termination") == "normal" and not run_meta.get("model_refusal"):
+        if run_meta.get("minimum_runtime_reached") is False:
+            validation_errors.append("minimum_runtime_not_reached")
+        elif run_meta.get("minimum_runtime_seconds", 0) > 0 and run_meta.get("minimum_runtime_reached") is not True:
+            validation_errors.append("minimum_runtime_unverified")
+    if run_meta.get("usage", {}).get("is_error") is True and not run_meta.get("model_refusal"):
+        validation_errors.append("provider_error")
+    result["minimum_runtime_reached"] = run_meta.get("minimum_runtime_reached")
+    result["validation_errors"] = validation_errors
     (directory / f"{stem}.result.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result), flush=True)
     # An authentication/capacity failure should not start another run on
     # that subscription. A refusal is an experimental result, not a retry.
-    stop = timed_out or run_meta.get("termination") == "capacity_exhausted" or (
+    stop = bool(validation_errors) or timed_out or run_meta.get("termination") == "capacity_exhausted" or (
         rc not in (0, 124, 137) and not run_meta.get("model_refusal"))
     return result, stop
 
@@ -194,6 +208,12 @@ def _run_trial(directory: Path, payload: dict, env: dict, trial: dict) -> tuple[
 def _finish(directory: Path, payload: dict, results: list[dict]) -> None:
     (directory / "results.json").write_text(json.dumps(results, indent=2) + "\n")
     payload["status"] = "finished" if len(results) == len(payload["matrix"]) else "stopped_with_unlaunched_trials"
+    if payload["status"] == "finished" and any(
+        row.get("validation_errors") or row.get("outer_timeout")
+        or row.get("termination") in {"error", "capacity_exhausted"}
+        for row in results
+    ):
+        payload["status"] = "finished_with_errors"
     (directory / "plan.json").write_text(json.dumps(payload, indent=2) + "\n")
 
 
@@ -331,13 +351,16 @@ def main():
                           "trials": sum(len(p["matrix"]) for _, p in plans), "launch": args.launch}), flush=True)
         if args.launch:
             launch_batch(plans, max_parallel)
-        return
+            return int(any(p["status"] != "finished" for _, p in plans))
+        return 0
     directory, payload = plan(args.dataset, agents=args.agent, models=args.model,
                               matrix_config=args.matrix_config, trial_config=args.config)
     print(json.dumps({"plan": str(directory / "plan.json"), "launch": args.launch}), flush=True)
     if args.launch:
         launch(directory, payload, parallel_all=args.parallel_all)
+        return int(payload["status"] != "finished")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
