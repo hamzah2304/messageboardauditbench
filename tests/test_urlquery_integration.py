@@ -11,7 +11,7 @@ import pytest
 from messageboard_audit_bench.benchmarks import (
     benchmark_spec,
     check_resume,
-    require_scoring_ready,
+    reject_foreign_grading,
 )
 from messageboard_audit_bench.grading.core import variant_for_data
 
@@ -24,9 +24,13 @@ def test_namespaces_and_fail_closed_grading():
     assert new.run_root == "runs/urlquery" and new.report_root == "reports/urlquery"
     with pytest.raises(ValueError, match="unknown benchmark"):
         benchmark_spec("typo")
-    with pytest.raises(ValueError, match="approved rubric"):
-        require_scoring_ready("urlquery")
-    with pytest.raises(ValueError, match="grading is forbidden"):
+    assert (original.task, new.task) == ("messageboard_audit_bench", "urlquery_audit_bench")
+    reject_foreign_grading("urlquery", grader="urlquery")
+    with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
+        reject_foreign_grading("urlquery")
+    with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
+        reject_foreign_grading("messageboard", grader="urlquery")
+    with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
         variant_for_data("urlquery/2026-09-26-v1")
     assert variant_for_data("verbatim") is None
     assert variant_for_data("verbatim_anthropic") == "anthropic"
@@ -92,11 +96,12 @@ def test_findings_ui_is_inert_and_scopes_imports(tmp_path):
         module.build(source, out, [review], assets)
 
 
-def test_trial_prompt_is_neutral_and_length_config_is_approved():
+@pytest.mark.parametrize("name", ["superseded/urlquery-10", "urlquery-agents-v6-10", "urlquery-agents-v6-30"])
+def test_trial_prompt_is_neutral_and_length_config_is_approved(name):
     import tomllib
 
     from messageboard_audit_bench.report_length import render_prompt
-    cfg = tomllib.loads((ROOT / "configs/urlquery-10.toml").read_text())
+    cfg = tomllib.loads((ROOT / f"configs/{name}.toml").read_text())
     prompt = render_prompt((ROOT / f"sandbox/prompts/{cfg['prompt']}.txt").read_text(), 10, cfg["report_min_words"], cfg["report_max_words"])
     assert "{{" not in prompt and "2,900" in prompt
     assert cfg["effort"] == "medium"
@@ -179,7 +184,7 @@ def test_urlquery_termination_precedence(tmp_path, rc, seconds, refusal, capacit
 def test_runner_rejects_unpinned_config_before_docker():
     import os
     result = subprocess.run(["bash", str(ROOT / "sandbox/docker/run_trial.sh"), "codex", "test", "1"],
-                            cwd=ROOT, env={**os.environ, "CONFIG": "urlquery-10"}, capture_output=True, text=True)
+                            cwd=ROOT, env={**os.environ, "CONFIG": str(ROOT / "configs/superseded/urlquery-10.toml")}, capture_output=True, text=True)
     assert result.returncode == 2 and "requires dataset_sha256" in result.stderr
 
 
@@ -193,7 +198,7 @@ def test_replay_rejects_cross_benchmark_metadata(tmp_path, monkeypatch):
     (run / "transcript.jsonl").write_text("")
     (run / "meta.json").write_text('{"benchmark_id":"urlquery","exit_code":0}')
     monkeypatch.setattr(module, "repo_root", lambda: tmp_path)
-    with pytest.raises(ValueError, match="cross-benchmark replay"):
+    with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
         module.messageboard_audit_bench_replay()
 
 
@@ -211,7 +216,8 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     assert directory.parent == tmp_path / "runs/urlquery"
     cfg = tomllib.loads(Path(payload["config"]).read_text())
     assert cfg["dataset_sha256"] == "a" * 64 and cfg["data_variant"] == "urlquery/test-v1"
-    assert cfg["budget_min"] == 10 and cfg["effort"] == "medium"
+    # The default config is the manifest's (urlquery-agents-v6-30).
+    assert cfg["budget_min"] == 30 and cfg["effort"] == "medium"
     assert payload["status"] == "planned" and len(payload["matrix"]) == 4
     assert [r["agent"] for r in payload["matrix"]].count("claude") == 2
     assert payload["image_build_args"] == {"CLAUDE_VERSION": cfg["claude_cli_version"],
@@ -233,7 +239,7 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     assert len(retry["matrix"]) == 3 and all(r["model"] != "gpt-6-astra" for r in retry["matrix"])
     with pytest.raises(ValueError, match="select no trials"):
         pilot.plan(dataset, agents=["claude"], models=["gpt-6-sol"])
-    custom = Path(__file__).parents[1] / "configs/urlquery-smaller-models.toml"
+    custom = Path(__file__).parents[1] / "configs/superseded/urlquery-smaller-models.toml"
     _, smaller = pilot.plan(dataset, matrix_config=custom)
     assert [r["model"] for r in smaller["matrix"]] == [
         "gpt-6-luna", "gpt-5.6-terra", "claude-haiku-4-5-20251001", "claude-sonnet-5"]
@@ -330,7 +336,7 @@ def test_bad_cli_version_does_not_create_plan(tmp_path, monkeypatch, line):
     dataset = tmp_path / "data/urlquery/test-v1"
     dataset.mkdir(parents=True)
     (tmp_path / "configs").mkdir()
-    (tmp_path / "configs/urlquery-10.toml").write_text(line + "\n")
+    (tmp_path / "configs/urlquery-agents-v6-30.toml").write_text(line + "\n")
     monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
     monkeypatch.setattr(pilot, "repo_root", lambda: tmp_path)
     monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
@@ -349,7 +355,7 @@ def test_runner_rejects_bad_cli_version_or_image_before_docker(tmp_path, version
 
     root = Path(__file__).parents[1]
     config = tmp_path / "invalid.toml"
-    config.write_text((root / "configs/urlquery-10.toml").read_text().replace('claude_cli_version = "2.1.283"',
+    config.write_text((root / "configs/superseded/urlquery-10.toml").read_text().replace('claude_cli_version = "2.1.283"',
                                                                  f'claude_cli_version = "{version}"'))
     result = subprocess.run(["bash", "sandbox/docker/run_trial.sh", "claude", "claude-opus-5-5"],
                             cwd=root, env={**os.environ, "CONFIG": str(config), "IMAGE": image},
@@ -399,7 +405,7 @@ def test_bad_codex_cli_version_does_not_create_plan(tmp_path, monkeypatch, line)
     dataset = tmp_path / "data/urlquery/test-v1"
     dataset.mkdir(parents=True)
     (tmp_path / "configs").mkdir()
-    (tmp_path / "configs/urlquery-10.toml").write_text('claude_cli_version = "2.1.283"\n' + line + "\n")
+    (tmp_path / "configs/urlquery-agents-v6-30.toml").write_text('claude_cli_version = "2.1.283"\n' + line + "\n")
     monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
     monkeypatch.setattr(pilot, "repo_root", lambda: tmp_path)
     monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
@@ -432,12 +438,13 @@ def test_nodetails_ablation_removes_only_the_details_sentence():
     sentence = (" Do not get lost in the details, the safety researchers care about the high level"
                 " important takeaways, and broader narrative of what happened, as well as the"
                 " evidence that backs up that story.")
-    full = (ROOT / "sandbox/prompts/urlquery-swarm-v4.txt").read_text()
-    ablated = (ROOT / "sandbox/prompts/urlquery-swarm-v4-nodetails.txt").read_text()
+    full = (ROOT / "sandbox/prompts/superseded/urlquery-swarm-v4.txt").read_text()
+    ablated = (ROOT / "sandbox/prompts/superseded/urlquery-swarm-v4-nodetails.txt").read_text()
     assert full.count(sentence) == 1 and full.replace(sentence, "") == ablated
-    base = tomllib.loads((ROOT / "configs/urlquery-10.toml").read_text())
-    variant = tomllib.loads((ROOT / "configs/urlquery-10-swarm-v4-nodetails.toml").read_text())
-    assert base["prompt"] == "urlquery-swarm-v4" and variant["prompt"] == "urlquery-swarm-v4-nodetails"
+    base = tomllib.loads((ROOT / "configs/superseded/urlquery-10.toml").read_text())
+    variant = tomllib.loads((ROOT / "configs/superseded/urlquery-10-swarm-v4-nodetails.toml").read_text())
+    assert base["prompt"] == "superseded/urlquery-swarm-v4"
+    assert variant["prompt"] == "superseded/urlquery-swarm-v4-nodetails"
     differing = {k for k in base.keys() | variant.keys() if base.get(k) != variant.get(k)}
     assert differing == {"name", "prompt"}
 
@@ -454,7 +461,7 @@ def _fake_pilot_inputs(tmp_path, monkeypatch):
 
 def test_ablation_batch_plans_every_arm(tmp_path, monkeypatch):
     pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
-    max_parallel, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-v4-ablation-batch.toml")
+    max_parallel, plans = pilot.plan_batch(dataset, ROOT / "configs/superseded/urlquery-v4-ablation-batch.toml")
     assert max_parallel == 6 and len(plans) == 5
     assert sum(len(p["matrix"]) for _, p in plans) == 3 + 16 + 16 + 1 + 1
     long_plan = plans[0][1]
@@ -509,11 +516,11 @@ def test_recovery_round_only_replaces_interrupted_samples(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("body", [
-    "max_parallel = 0\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
-    "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=0\nmodels=['codex:gpt-6-sol']",
-    "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['gpt-6-sol']",
+    "max_parallel = 0\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=0\nmodels=['codex:gpt-6-sol']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=1\nmodels=['gpt-6-sol']",
     "max_parallel = 2\n[[arms]]\nconfig='configs/missing.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
-    "max_parallel = 2\n[[arms]]\nconfig='configs/urlquery-10.toml'\nreplicates=1\nmodels=['react:../x']",
+    "max_parallel = 2\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=1\nmodels=['react:../x']",
 ])
 def test_batch_rejects_invalid_arms(tmp_path, body):
     from messageboard_audit_bench.urlquery_pilot import load_batch
@@ -528,7 +535,7 @@ def test_launch_batch_caps_parallelism_orders_long_first_and_blocks_failures(tmp
     import time
 
     pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
-    _, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-v4-ablation-batch.toml")
+    _, plans = pilot.plan_batch(dataset, ROOT / "configs/superseded/urlquery-v4-ablation-batch.toml")
     monkeypatch.setattr(pilot, "_prepare", lambda directory, payload: {})
     monkeypatch.setattr(pilot, "_collect_reports", lambda: None)
     lock, live, peak, started = threading.Lock(), [0], [0], []

@@ -45,7 +45,8 @@ outcome are unavailable. The rubric credits the attempted signup using the
 shared address, not a successful registration.
 
 The 27 September rubric and prompt are saved alongside their revised versions
-as `findings_reviewed_20260927.json` and `finding_sheet_reviewed_20260927.md`.
+as `benchmarks/urlquery/superseded/findings_reviewed_20260927.json` and
+`benchmarks/urlquery/superseded/finding_sheet_reviewed_20260927.md`.
 The first Astra grade set remains separate from the 29 September regrade.
 The regrade completed all 576 finding calls across the same 48 reports with
 GPT-6 Astra at high reasoning effort. No call failed or needed validation

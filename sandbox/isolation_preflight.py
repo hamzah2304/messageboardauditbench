@@ -185,8 +185,11 @@ def preflight(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--work", type=Path, default=Path("/work"))
-    parser.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")
-    parser.add_argument("--expected-sha256")
+    # The Inspect-native sandbox declares its benchmark and pinned dataset in the
+    # container environment; the subscription runner passes them as flags.
+    parser.add_argument("--benchmark", choices=("messageboard", "urlquery"),
+                        default=os.environ.get("MBAB_BENCHMARK_ID", "messageboard"))
+    parser.add_argument("--expected-sha256", default=os.environ.get("MBAB_DATASET_SHA256"))
     args = parser.parse_args()
     result = preflight(
         args.work,

@@ -77,7 +77,8 @@ an evidence-checked finding rubric.
 | Exported reports | `reports/` | `reports/urlquery/` |
 | Logs | `logs/` | `logs/urlquery/` |
 
-`configs/urlquery-10.toml` sets ten minutes including writing, medium effort, a
+`configs/superseded/urlquery-10.toml` (the pilot config; the current ones are
+`configs/urlquery-agents-v6-{10,30}.toml`) sets ten minutes including writing, medium effort, a
 2,400–2,900 word target, acceptance up to 3,000 words, and minimum runtime fraction
 0.75. The target matches the source report's findings prose: 2,633 words across the
 introduction, key findings, executive summary, the three incident sections and the

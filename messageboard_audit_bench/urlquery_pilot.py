@@ -1,9 +1,16 @@
-"""Plan/launch a small, explicitly unscored subscription pilot on one pinned input.
+"""Plan/launch URLQuery subscription trials in batches on one pinned input.
 
-Uses the existing Docker runner. One lane per subscription; no model calls until
---launch. Plans are exclusive-create artifacts and are never silently resumed.
-`--batch` plans several configs (prompt/budget arms) at once and runs all their
-trials from one queue with a fixed number in flight.
+The batch launcher for the `urlquery_audit_bench` benchmark. Every trial goes through
+the shared Docker runner (sandbox/docker/run_trial.sh), exactly as the Inspect task's
+subscription backend does; this module adds what a large matrix needs on top: one
+lane or queue per subscription, a stop on authentication/capacity failure for that
+subscription, fail-closed validation of each run's record, and a plan.json per arm
+that the batch grader (benchmarks/urlquery/judge/grade.py --batch/--launch) reads.
+
+No model calls until --launch. Plans are exclusive-create artifacts and are never
+silently resumed. `--batch` plans several configs (prompt/budget arms) at once and
+runs all their trials from one queue with a fixed number in flight. Grade the results
+with the batch grader or the `urlquery_grade_reports` Inspect task.
 """
 from __future__ import annotations
 
@@ -22,10 +29,15 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from messageboard_audit_bench.benchmarks import validate_trial_data
+from messageboard_audit_bench.benchmarks import (
+    default_config,
+    primary_root,
+    urlquery_dataset_dir,
+    validate_trial_data,
+)
+from messageboard_audit_bench.configs import validate_config
 from messageboard_audit_bench.dataset_manifest import file_sha256
 from messageboard_audit_bench.runtime import repo_root
-from messageboard_audit_bench.urlquery_data import primary_root
 
 MATRIX = [("codex", "gpt-6-astra", 1), ("codex", "gpt-6-sol", 1),
           ("claude", "claude-opus-5-5", 1), ("claude", "claude-opus-5-5", 2)]
@@ -83,7 +95,7 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
     experiment = "pilot-" + stamp + "-" + uuid.uuid4().hex[:8]
     directory = shared / "runs/urlquery" / experiment
-    config_source = trial_config or root / "configs/urlquery-10.toml"
+    config_source = trial_config or root / "configs" / f"{default_config('urlquery')}.toml"
     config = config_source.read_text()
     if trial_config is not None and tomllib.loads(config).get("benchmark_id") != "urlquery":
         raise ValueError("pilot config must be for the URLQuery benchmark")
@@ -98,6 +110,9 @@ def plan(dataset: Path, agents: list[str] | None = None, models: list[str] | Non
     if not isinstance(codex_version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", codex_version):
         raise ValueError("codex_cli_version must be an exact numeric version")
     cfg = tomllib.loads(config)
+    if dataset == urlquery_dataset_dir():
+        # The benchmark's own snapshot: hold the config to the manifest's pins.
+        validate_config(cfg, "urlquery")
     budget_min, timeout_min = cfg.get("budget_min", 10), cfg.get("timeout_min", 15)
     if type(budget_min) is not int or type(timeout_min) is not int or not 0 < budget_min < timeout_min:
         raise ValueError("config needs integer budget_min < timeout_min")
@@ -332,17 +347,19 @@ def launch_batch(plans: list[tuple[Path, dict]], max_parallel: int) -> list[dict
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", type=Path, required=True)
+    parser.add_argument("--dataset", type=Path, default=None,
+                        help="frozen snapshot directory (default: the manifest's pinned snapshot)")
     parser.add_argument("--launch", action="store_true")
     parser.add_argument("--agent", choices=AGENTS, action="append",
                         help="Run only this lane; repeat to include several (default: all in the matrix)")
     parser.add_argument("--matrix-config", type=Path, help="Explicit TOML [[trials]] matrix; default keeps the original four-run matrix")
-    parser.add_argument("--config", type=Path, help="URLQuery trial config; default configs/urlquery-10.toml")
+    parser.add_argument("--config", type=Path, help="URLQuery trial config; default the manifest's default config")
     parser.add_argument("--parallel-all", action="store_true", help="Run every selected trial concurrently")
     parser.add_argument("--batch", type=Path, help="Batch TOML: several config arms run from one queue")
     parser.add_argument("--model", action="append",
                         help="Select model(s) from the planned matrix without rerunning other models")
     args = parser.parse_args()
+    args.dataset = args.dataset or urlquery_dataset_dir()
     if args.batch:
         if args.agent or args.model or args.matrix_config or args.config or args.parallel_all:
             parser.error("--batch takes its configs and models from the batch file")

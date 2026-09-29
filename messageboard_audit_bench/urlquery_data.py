@@ -13,7 +13,6 @@ import io
 import json
 import os
 import shutil
-import subprocess
 import threading
 import time
 import tomllib
@@ -26,10 +25,9 @@ from pathlib import Path
 
 
 def primary_root() -> Path:
-    common = subprocess.check_output(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], text=True
-    ).strip()
-    return Path(common).parent
+    from messageboard_audit_bench.benchmarks import primary_root as shared_primary_root
+
+    return shared_primary_root()
 
 
 def digest(data: bytes) -> str:
