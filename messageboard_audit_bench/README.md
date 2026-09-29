@@ -5,11 +5,22 @@ the collusion.wiki edit logs and write a sound incident report. Agents run in a
 network-isolated Docker sandbox. Every trial becomes an Inspect `.eval` log
 that can be explored with `inspect view`.
 
+The package also provides a second eval, `urlquery_audit_bench`, on the same
+harness: an agent investigates a frozen snapshot of urlquery.net scans, and a
+per-finding judge scores its report (`urlquery_grade_reports` grades finished
+runs). `benchmarks.py` records what each benchmark owns: its task version,
+configs, data location and rubric. See
+[`benchmarks/urlquery/README.md`](../benchmarks/urlquery/README.md).
+
 ## Layout
 
 | file | role |
 |---|---|
-| `task.py` | fresh, replay and ReAct continuation tasks |
+| `benchmarks.py` | the benchmark registry: task versions, run/report roots, the URLQuery manifest and dataset pin |
+| `configs.py` | loads and validates a benchmark's named trial configs |
+| `task.py` | fresh, replay and ReAct continuation tasks; `urlquery_audit_bench` shares the fresh-task builder |
+| `grading/` | message-board claim sheets (`core.py`, `scorer.py`) and the URLQuery finding judge (`findings.py`, `finding_scorer.py`); `task.py` holds `grade_reports` and `urlquery_grade_reports` |
+| `urlquery_*.py` | URLQuery data acquisition, corpus build and the batch launcher |
 | `native.py` | runs Claude Code and Codex through Inspect SWE, or Inspect's built-in ReAct agent, then collects `report.md` |
 | `solver.py` | `subscription_agent` launches `sandbox/docker/run_trial.sh`; `replay` imports a finished run |
 | `transcripts.py` | loss-aware conversion of subscription and historical CLI events into Inspect messages + tool calls |

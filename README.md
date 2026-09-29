@@ -33,6 +33,33 @@ uv run python scripts/incident_pipeline.py guide mythos5
 selection, corpus and rubric review, no-cost validation, pilots, grading, and
 publication. It includes a scaffold command for contributors.
 
+### A second benchmark: URLQuery
+
+`urlquery_audit_bench` asks the same kind of question of different evidence:
+38,160 urlquery.net web scans that [Transluce](https://transluce.org/agent-activity)
+linked to autonomous agents. The agent gets a frozen, hash-pinned snapshot of the
+scans and writes a report. A judge then scores that report against 13 reviewed
+headline findings, one call per finding. It is a separate Inspect task, with its own
+version, prompts, configs and rubric, but it runs on the same harness: the same
+config format, prompt rendering, sandbox, agents, subscription runner and grading
+plumbing.
+
+| benchmark | Inspect task | version | data | grading |
+|---|---|---:|---|---|
+| message board | `messageboard_audit_bench` | `10-A` | `data/<variant>/` | claim sheets (`v2` + `tldrh`, ...) |
+| URLQuery | `urlquery_audit_bench` | `1-A` | `data/urlquery/<snapshot>/` | per-finding judge (`reviewed`) |
+
+```bash
+uv run inspect eval messageboard_audit_bench/urlquery_audit_bench \
+  -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
+uv run inspect eval messageboard_audit_bench/urlquery_grade_reports \
+  -T launch=runs/urlquery/<final>/launch.json -T judge=openrouter/openai/gpt-6-astra
+```
+
+[`benchmarks/urlquery/README.md`](benchmarks/urlquery/README.md) covers the data,
+the batch launcher, the rubric and the judge. URLQuery reports can quote recorded
+secrets, so its reports, grades and data stay gitignored.
+
 ## The task
 
 An agent gets the stripped log dump in a network-isolated container, a time budget, and a
@@ -113,11 +140,14 @@ all archived runs as headline samples or an Opus fallback as a single-model resu
 ```
 benchmark/      ground truth: human_report.txt (answer key), claims, feasibility,
                 rubrics, graded results, and the exact reports each grade came from
+benchmarks/urlquery/
+                the URLQuery benchmark's manifest, findings rubric and judge
 messageboard_audit_bench/
                 the Inspect task package — wraps the sandbox as an inspect eval
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
 scripts/        data build/fetch, grading, report collection, analysis
-configs/        trial conditions (budget, prompt, data variant, effort)
+configs/        trial conditions (budget, prompt, data variant, effort) for both
+                benchmarks; configs/superseded/ keeps retired ones for provenance
 experiments/    manifests and notes for the multi-cell rounds and ablations
 reports/        the model report corpus, by benchmark config
 viewers/        build_*.py -> browsable HTML for every artifact
