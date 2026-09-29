@@ -11,13 +11,13 @@ from messageboard_audit_bench.task import (
     _load_config,
     _prompt_for,
 )
-from messageboard_audit_bench.task import messageboard_audit_bench as build_task
+from messageboard_audit_bench.task import german_wiki_report as build_task
 
 
 def test_task_has_stable_sample_and_version() -> None:
     task = build_task(agent="codex", config="blind")
 
-    assert task.version == EVAL_VERSION == "10-A"
+    assert task.version == EVAL_VERSION == "10.0"
     assert len(task.dataset) == 1
     assert task.dataset[0].id == "codex:inspect:blind:20m"
     assert task.dataset[0].metadata == {
@@ -253,5 +253,39 @@ def test_inspect_entry_point_exposes_namespaced_task() -> None:
     assert entry_point.load().__name__ == "messageboard_audit_bench"
     assert (
         registry_info(build_task).name
-        == "messageboard_audit_bench/messageboard_audit_bench"
+        == "messageboard_audit_bench/german_wiki_report"
     )
+
+
+def test_old_task_names_remain_aliases_of_the_renamed_tasks() -> None:
+    import messageboard_audit_bench as package
+
+    for old, new in [("messageboard_audit_bench", "german_wiki_report"),
+                     ("messageboard_audit_bench_replay", "german_wiki_report_replay"),
+                     ("messageboard_audit_bench_continue", "german_wiki_report_continue"),
+                     ("grade_reports", "german_wiki_report_grade"),
+                     ("urlquery_audit_bench", "transluce_report"),
+                     ("urlquery_grade_reports", "transluce_report_grade")]:
+        assert registry_info(getattr(package, old)).name == f"messageboard_audit_bench/{old}"
+        assert registry_info(getattr(package, new)).name == f"messageboard_audit_bench/{new}"
+    assert package.messageboard_audit_bench(agent="codex").dataset[0].id == build_task(agent="codex").dataset[0].id
+
+
+def test_draft_incidents_are_not_german_wiki_conditions() -> None:
+    assert set(_CONFIGS) == {"blind", "context", "blind-anthropic"}
+    for draft in ("mythos5", "rubyhack"):
+        with pytest.raises(ValueError, match="draft incident"):
+            build_task(config=draft)
+    with pytest.raises(ValueError, match="unsupported data_variant"):
+        build_task(data_variant="mythos5")
+    assert task_module.incident_task("mythos5").dataset[0].metadata["incident"] == "mythos5"
+
+
+@pytest.mark.parametrize("requested", [None, "10.0", "10", "v10.0", "10-A"])
+def test_version_guard_accepts_this_version_in_any_spelling(requested) -> None:
+    assert build_task(agent="codex", version=requested).version == "10.0"
+
+
+def test_version_guard_points_to_the_launcher_for_another_version() -> None:
+    with pytest.raises(ValueError, match=r"run_eval.py german-wiki-report --version 9.0"):
+        build_task(version="9-A")

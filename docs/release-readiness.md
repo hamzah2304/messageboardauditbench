@@ -36,7 +36,7 @@ Verified on 2026-09-08 in the separate `messageboardauditbench-clean` clone at
 ```sh
 uv sync --frozen
 scripts/build_data.sh --verify
-uv run --env-file .env inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run --env-file .env inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=5 -T min_runtime_fraction=0 \
   --model openrouter/openai/gpt-5.6-sol \
   --model-role grader=openrouter/openai/gpt-5.6-sol \

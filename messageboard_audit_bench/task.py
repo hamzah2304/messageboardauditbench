@@ -5,28 +5,34 @@ sandbox and agents, the subscription runner (sandbox/docker/run_trial.sh) and th
 plumbing. Each benchmark is its own task, with its own version, configs, prompts, data and
 rubric (see `messageboard_audit_bench.benchmarks`).
 
-  * `messageboard_audit_bench` runs fresh message-board trials. The default ``inspect``
+  * `german_wiki_report` runs fresh collusion.wiki trials. The default ``inspect``
     backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt caching,
     and live logs. The ``subscription`` backend preserves the original
     subscription-authenticated CLI runner.
-      inspect eval messageboard_audit_bench/messageboard_audit_bench \
+      inspect eval messageboard_audit_bench/german_wiki_report \
         -T agent=claude -T backend=inspect -T time_limit_minutes=30 \
         --model anthropic/claude-opus-4-1
 
-  * `urlquery_audit_bench` runs fresh URLQuery trials on the pinned frozen snapshot and
-    grades them with the per-finding judge.
-      inspect eval messageboard_audit_bench/urlquery_audit_bench \
+  * `transluce_report` runs fresh Transluce/urlquery.net trials on the pinned frozen
+    snapshot and grades them with the per-finding judge.
+      inspect eval messageboard_audit_bench/transluce_report \
         -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
 
-  * `messageboard_audit_bench_replay` imports runs already on disk under runs/,
+  * `german_wiki_report_replay` imports runs already on disk under runs/,
     so `inspect view` can render past or interrupted runs with scoring.
-      inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
+      inspect eval messageboard_audit_bench/german_wiki_report_replay
 
-  * `messageboard_audit_bench_continue` resumes one finished ReAct sample from
+  * `german_wiki_report_continue` resumes one finished ReAct sample from
     its eval log: the stored conversation is the prefill, the report it wrote
     is put back in the sandbox, and a follow-up message asks for more.
-      inspect eval messageboard_audit_bench/messageboard_audit_bench_continue \
+      inspect eval messageboard_audit_bench/german_wiki_report_continue \
         -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epochs=1
+
+Both fresh-trial tasks take ``-T version=<MAJOR.MINOR>`` and refuse to run if this
+checkout is a different version; ``scripts/run_eval.py --version`` runs any tagged
+version (docs/benchmark-versions.md). The pre-rename task names
+(``messageboard_audit_bench``, ``urlquery_audit_bench`` and the ``_replay`` /
+``_continue`` / ``urlquery_grade_reports`` variants) remain as deprecated aliases.
 
 View any result with:  inspect view
 """
@@ -60,6 +66,8 @@ from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
 from messageboard_audit_bench.benchmarks import (
     SPECS,
     URLQUERY_CODEX_FEATURES_OFF,
+    WIKI_INCIDENT,
+    check_version,
     config_names,
     default_config,
     reject_foreign_grading,
@@ -98,15 +106,16 @@ URLQUERY_EVAL_VERSION = SPECS["urlquery"].eval_version
 _CONFIG_NAME = CONFIG_NAME
 _CONFIGS = config_names("messageboard")
 _DATA_VARIANTS = data_variants()
+_WIKI_VARIANTS = frozenset(incident(WIKI_INCIDENT).variants)
 _SUPPORTED_AGENTS = {"claude", "codex", "react"}
 _BACKENDS = {"inspect", "subscription"}
 DEFAULT_TIME_LIMIT_MINUTES = 20
 TIMEOUT_GRACE_MINUTES = 5
 
 
-def _load_config(config_name: str, benchmark_id: str = "messageboard") -> dict:
+def _load_config(config_name: str, benchmark_id: str = "messageboard", allow_drafts: bool = False) -> dict:
     """Load one of a benchmark's named configurations."""
-    return load_config(config_name, benchmark_id)
+    return load_config(config_name, benchmark_id, allow_drafts=allow_drafts)
 
 
 def _time_limit(
@@ -153,8 +162,9 @@ def _prompt_for(
     time_limit_minutes: int | None = None,
     min_runtime_fraction: float | None = None,
     benchmark_id: str = "messageboard",
+    allow_drafts: bool = False,
 ) -> str:
-    cfg = _load_config(config_name, benchmark_id)
+    cfg = _load_config(config_name, benchmark_id, allow_drafts)
     budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
@@ -282,12 +292,17 @@ def _audit_task(
     scorers: list,
     extra_sample_metadata: dict | None = None,
     extra_task_metadata: dict | None = None,
+    allow_drafts: bool = False,
 ) -> Task:
-    """One fresh sandboxed audit trial of any registered benchmark."""
+    """One fresh sandboxed audit trial of any registered benchmark.
+
+    ``allow_drafts`` admits the draft incidents; only `incident_task` sets it.
+    """
     spec = SPECS[benchmark_id]
-    cfg = _load_config(config, benchmark_id)
+    cfg = _load_config(config, benchmark_id, allow_drafts)
     if data_variant is not None:
-        if benchmark_id != "messageboard" or data_variant not in _DATA_VARIANTS:
+        allowed = _DATA_VARIANTS if allow_drafts else _WIKI_VARIANTS
+        if benchmark_id != "messageboard" or data_variant not in allowed:
             raise ValueError(f"unsupported data_variant {data_variant!r}")
         cfg = {**cfg, "data_variant": data_variant}
     if agent not in _SUPPORTED_AGENTS:
@@ -346,7 +361,7 @@ def _audit_task(
     if subscription_model is not None:
         sample_metadata["subscription_model"] = subscription_model
     sample = Sample(
-        input=_prompt_for(config, budget_min, runtime_fraction, benchmark_id),
+        input=_prompt_for(config, budget_min, runtime_fraction, benchmark_id, allow_drafts),
         id=f"{agent}:{backend}:{config}:{budget_min}m",
         metadata=sample_metadata,
     )
@@ -423,8 +438,7 @@ def _audit_task(
     )
 
 
-@task
-def messageboard_audit_bench(
+def _german_wiki_report(
     agent: str = "claude",
     backend: str = "inspect",
     subscription_model: str | None = None,
@@ -435,8 +449,9 @@ def messageboard_audit_bench(
     judge: str = "openai/gpt-5.6-sol",
     rubric: str | None = None,
     data_variant: str | None = None,
+    version: str | None = None,
 ) -> Task:
-    """Run one sandboxed message-board audit.
+    """Run one sandboxed German wiki report trial (the collusion.wiki incident).
 
     Args:
         agent: Agent harness to launch: ``claude``, ``codex``, or ``react``.
@@ -444,7 +459,8 @@ def messageboard_audit_bench(
             Claude Code/Codex), or ``subscription`` for the original CLI login.
         subscription_model: CLI model identifier for the subscription backend.
             Native runs select their model with Inspect's ``--model`` option.
-        config: Named prompt/data/effort configuration from ``configs/``.
+        config: Named prompt/data/effort configuration from ``configs/``:
+            ``blind`` (default), ``context`` or ``blind-anthropic``.
         time_limit_minutes: Trial budget in minutes. Overrides the named
             config's declared default. Native runs have a separate
             five-minute outer guard for cleanup and log recovery.
@@ -453,15 +469,17 @@ def messageboard_audit_bench(
             ``0`` to disable this continuation policy for an ablation.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
-        rubric: Comma-separated sheet modes; defaults to the finding and
-            summary rubrics for the selected incident (``v2,tldrh`` for the
-            wiki, ``m5,m5tldrh`` for Mythos 5, and ``rh,rhtldrh`` for
-            RubyHack). Use Inspect's ``--no-score``
-            to defer grading, or ``legacy`` for the old starter rubric.
+        rubric: Comma-separated sheet modes; defaults to ``v2,tldrh`` (findings
+            and the TL;DR summary). Use Inspect's ``--no-score`` to defer grading,
+            or ``legacy`` for the old starter rubric.
         data_variant: Override the config's dataset, including
             ``verbatim_anthropic`` for the provider attribution ablation.
+        version: Expected benchmark version (``MAJOR.MINOR``, e.g. ``10.0``). The task
+            refuses to run if this checkout is a different version; use
+            ``scripts/run_eval.py --version`` to run another one.
     """
-    # Resolve the data variant first: it selects the incident, hence the default rubric.
+    check_version("messageboard", version)
+    # Resolve the data variant first: it selects the default rubric.
     variant = data_variant or _load_config(config)["data_variant"]
     return _audit_task(
         "messageboard",
@@ -477,8 +495,30 @@ def messageboard_audit_bench(
     )
 
 
-@task
-def urlquery_audit_bench(
+german_wiki_report = task(name="german_wiki_report")(_german_wiki_report)
+# Deprecated alias: the task's name before the rename.
+messageboard_audit_bench = task(name="messageboard_audit_bench")(_german_wiki_report)
+
+
+def incident_task(config: str, **kwargs) -> Task:
+    """Build a trial for any registered incident, drafts included.
+
+    For the incident pipeline's offline validation of the draft incidents (Mythos 5,
+    RubyHack). It is not an Inspect task: drafts become their own eval once reviewed.
+    """
+    variant = _load_config(config, allow_drafts=True)["data_variant"]
+    scorer_args = {"judge": kwargs.pop("judge", "openai/gpt-5.6-sol"), "rubric": kwargs.pop("rubric", None)}
+    defaults = {"agent": "claude", "backend": "inspect", "subscription_model": None,
+                "allow_networked_subscription": True, "time_limit_minutes": None,
+                "min_runtime_fraction": 0.75, "data_variant": None}
+    return _audit_task(
+        "messageboard", config=config, allow_drafts=True,
+        scorers=_scorers(scorer_args["judge"], scorer_args["rubric"], kwargs.get("data_variant") or variant),
+        **{**defaults, **kwargs},
+    )
+
+
+def _transluce_report(
     agent: str = "claude",
     backend: str = "inspect",
     subscription_model: str | None = None,
@@ -489,10 +529,12 @@ def urlquery_audit_bench(
     judge: str | None = None,
     judge_effort: str | None = None,
     article_context: str | None = None,
+    version: str | None = None,
 ) -> Task:
-    """Run one sandboxed URLQuery audit on the pinned frozen snapshot.
+    """Run one sandboxed Transluce report trial on the pinned urlquery.net snapshot.
 
-    Arguments shared with ``messageboard_audit_bench`` mean the same thing there.
+    Arguments shared with ``german_wiki_report`` mean the same thing there,
+    including ``version``.
 
     Args:
         config: A URLQuery config from benchmarks/urlquery/benchmark.json
@@ -506,6 +548,7 @@ def urlquery_audit_bench(
             ``omitted`` for Anthropic judges (the article made Opus refuse) and ``full``
             otherwise.
     """
+    check_version("urlquery", version)
     manifest = urlquery_manifest()
     return _audit_task(
         "urlquery",
@@ -533,8 +576,12 @@ def urlquery_audit_bench(
     )
 
 
-@task
-def messageboard_audit_bench_replay(
+transluce_report = task(name="transluce_report")(_transluce_report)
+# Deprecated alias: the task's name before the rename.
+urlquery_audit_bench = task(name="urlquery_audit_bench")(_transluce_report)
+
+
+def _german_wiki_report_replay(
     runs_glob: str = "*",
     include_failed: bool = True,
     judge: str = "openai/gpt-5.6-sol",
@@ -588,8 +635,12 @@ def messageboard_audit_bench_replay(
         solver=replay(),
         scorer=_scorers(judge, rubric, data_variant),
         version=EVAL_VERSION,
-        metadata={"benchmark": "MessageBoardAuditBench", "mode": "replay"},
+        metadata={"benchmark": SPECS["messageboard"].title, "benchmark_id": "messageboard", "mode": "replay"},
     )
+
+
+german_wiki_report_replay = task(name="german_wiki_report_replay")(_german_wiki_report_replay)
+messageboard_audit_bench_replay = task(name="messageboard_audit_bench_replay")(_german_wiki_report_replay)
 
 
 def _load_followup_config(config_name: str) -> dict:
@@ -607,8 +658,7 @@ def _load_followup_config(config_name: str) -> dict:
     return cfg
 
 
-@task
-def messageboard_audit_bench_continue(
+def _german_wiki_report_continue(
     parent_log: str,
     parent_epochs: str = "all",
     config: str = "followup-5k",
@@ -719,7 +769,8 @@ def messageboard_audit_bench_continue(
         time_limit=cleanup_timeout_minutes * 60,
         version=EVAL_VERSION,
         metadata={
-            "benchmark": "MessageBoardAuditBench",
+            "benchmark": SPECS["messageboard"].title,
+            "benchmark_id": "messageboard",
             "mode": "continuation",
             "backend": "inspect",
             "scaffold": _scaffold("react", "inspect"),
@@ -737,6 +788,10 @@ def messageboard_audit_bench_continue(
             "report_accept_max_words": acceptance_limits(cfg)[1],
         },
     )
+
+
+german_wiki_report_continue = task(name="german_wiki_report_continue")(_german_wiki_report_continue)
+messageboard_audit_bench_continue = task(name="messageboard_audit_bench_continue")(_german_wiki_report_continue)
 
 
 UNANSWERED_TOOL_CALL = (

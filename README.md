@@ -1,64 +1,71 @@
 # MessageBoardAuditBench
 
-A benchmark for how well an agent can investigate raw message-board logs and recover
-the findings of a human audit.
+Benchmarks for how well an agent can investigate raw logs of AI agents misbehaving and
+recover the findings of a human audit. The repository holds two benchmarks. They are
+separate Inspect evals that share one harness: the config format, prompt rendering,
+sandbox, agents, subscription runner and grading plumbing.
 
-The source incident is [collusion.wiki](https://collusion.wiki/index.html): ~18,000 posts
-left on a public wiki by autonomous OpenAI agents that used it to coordinate on a
-web-retrieval task. Human investigators wrote up what happened. We give an agent the raw
-dump — and nothing else — and score its report against that write-up.
-
-The repository also contains runnable transfer incidents based on Anthropic's
-released Mythos 5 cybersecurity transcript and the malicious-package evidence
-cited by the RubyHack investigation. Their narrower evidence boundaries,
-freshness, and judge-independence questions prevent treating them as published
-comparable cells. See the [Mythos 5](benchmark/rubrics/mythos5/README.md) and
-[RubyHack](benchmark/rubrics/rubyhack/README.md) incident notes.
-
-| incident | state | default | grading | results |
+| benchmark | Inspect task | version | evidence | grading |
 |---|---|---:|---|---|
-| collusion.wiki | published | 20 min | `v2` + `tldrh` | published |
-| Mythos 5 | candidate | 20 min | `m5` + `m5tldrh` | none |
-| RubyHack | candidate | 10 min | `rh` + `rhtldrh` | none |
+| German wiki report | `german_wiki_report` | `10.0` | the collusion.wiki dump, `data/<variant>/` | claim sheets `v2` + `tldrh` |
+| Transluce report | `transluce_report` | `1.0` | urlquery.net scans, `data/urlquery/<snapshot>/` | per-finding judge, `reviewed` rubric |
 
-The manifests under `benchmark/incidents/` drive the runtime. See the current
-state or the complete build-to-publication workflow with:
+**German wiki report.** The source incident is
+[collusion.wiki](https://collusion.wiki/index.html): ~18,000 posts left on a public wiki
+by autonomous OpenAI agents that used it to coordinate on a web-retrieval task. Human
+investigators wrote up what happened. We give an agent the raw dump, and nothing else,
+and score its report against that write-up. This is the benchmark behind the published
+results below.
+
+**Transluce report.** The agent gets a frozen, hash-pinned snapshot of the urlquery.net
+web scans that [Transluce](https://transluce.org/agent-activity) linked to autonomous
+agents (38,158 of the 38,160 it catalogued; 2 were unavailable) and writes a report. A
+judge scores it against 13 reviewed headline findings, one call per finding.
+[`benchmarks/urlquery/README.md`](benchmarks/urlquery/README.md) covers the data, the
+batch launcher, the rubric and the judge. URLQuery reports can quote recorded secrets,
+so its reports, grades and data stay gitignored.
+
+```bash
+uv run inspect eval messageboard_audit_bench/transluce_report \
+  -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
+uv run inspect eval messageboard_audit_bench/transluce_report_grade \
+  -T launch=runs/urlquery/<final>/launch.json -T judge=openrouter/openai/gpt-6-astra
+```
+
+**Versions.** Each benchmark has a `MAJOR.MINOR` version. The major number changes
+whenever results stop being comparable with earlier runs. Every version is a git tag
+(`german-wiki-report-v10.0`, `transluce-report-v1.0`, ...), every Inspect log records
+the version that produced it, and one flag runs any tagged version:
+
+```bash
+uv run python scripts/run_eval.py german-wiki-report --version 9.0 -- -T agent=codex --model ...
+```
+
+[`docs/benchmark-versions.md`](docs/benchmark-versions.md) lists every version, what
+changed, and how to run it. The pre-rename task names (`messageboard_audit_bench`,
+`urlquery_audit_bench`, ...) still work as aliases.
+
+**Drafts for future evals.** `benchmark/incidents/` also holds two draft incidents:
+Anthropic's released Mythos 5 cybersecurity transcript, and the malicious-package
+evidence cited by the RubyHack investigation. Each has a data builder, a config and a
+draft rubric, but neither has been piloted, and both still need a derivability review.
+They are not part of either eval. Once reviewed, each is meant to become its own eval. See the
+[Mythos 5](benchmark/rubrics/mythos5/README.md) and
+[RubyHack](benchmark/rubrics/rubyhack/README.md) notes.
+
+| incident | state | default | draft grading | results |
+|---|---|---:|---|---|
+| collusion.wiki | the German wiki report | 20 min | `v2` + `tldrh` | published |
+| Mythos 5 | draft | 20 min | `m5` + `m5tldrh` | none |
+| RubyHack | draft | 10 min | `rh` + `rhtldrh` | none |
 
 ```bash
 uv run python scripts/incident_pipeline.py list
 uv run python scripts/incident_pipeline.py guide mythos5
 ```
 
-[`docs/adding-an-incident.md`](docs/adding-an-incident.md) covers incident
-selection, corpus and rubric review, no-cost validation, pilots, grading, and
-publication. It includes a scaffold command for contributors.
-
-### A second benchmark: URLQuery
-
-`urlquery_audit_bench` asks the same kind of question of different evidence:
-the urlquery.net web scans that [Transluce](https://transluce.org/agent-activity)
-linked to autonomous agents (38,158 of the 38,160 it catalogued; 2 were unavailable). The agent gets a frozen, hash-pinned snapshot of the
-scans and writes a report. A judge then scores that report against 13 reviewed
-headline findings, one call per finding. It is a separate Inspect task, with its own
-version, prompts, configs and rubric, but it runs on the same harness: the same
-config format, prompt rendering, sandbox, agents, subscription runner and grading
-plumbing.
-
-| benchmark | Inspect task | version | data | grading |
-|---|---|---:|---|---|
-| message board | `messageboard_audit_bench` | `10-A` | `data/<variant>/` | claim sheets (`v2` + `tldrh`, ...) |
-| URLQuery | `urlquery_audit_bench` | `1-A` | `data/urlquery/<snapshot>/` | per-finding judge (`reviewed`) |
-
-```bash
-uv run inspect eval messageboard_audit_bench/urlquery_audit_bench \
-  -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
-uv run inspect eval messageboard_audit_bench/urlquery_grade_reports \
-  -T launch=runs/urlquery/<final>/launch.json -T judge=openrouter/openai/gpt-6-astra
-```
-
-[`benchmarks/urlquery/README.md`](benchmarks/urlquery/README.md) covers the data,
-the batch launcher, the rubric and the judge. URLQuery reports can quote recorded
-secrets, so its reports, grades and data stay gitignored.
+[`docs/adding-an-incident.md`](docs/adding-an-incident.md) covers incident selection,
+corpus and rubric review, no-cost validation, pilots, grading, and publication.
 
 ## The task
 
@@ -83,7 +90,7 @@ scripts/build_data.sh                      # fetch + build data/, verified again
 uv run python scripts/incident_pipeline.py check --docker
 
 # through Inspect (set OPENAI_API_KEY for this example's agent and grader)
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=30 \
   --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
 uv run inspect view
@@ -98,13 +105,11 @@ The eval runs the registered finding and summary graders inline; `--no-score` de
 them. Every script resolves its inputs through `paths.py`, so the repo works from a plain
 clone.
 
-Select `config=mythos5` or `config=rubyhack` for a transfer incident. RubyHack's
-selected corpus is small enough for the 10-minute exploratory condition:
+The draft incidents are not Inspect conditions. Pilot one through the subscription
+runner, which accepts any config:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
-  --model openai/gpt-5.6-sol --model-role grader=anthropic/claude-fable-5-1
+CONFIG=rubyhack BUDGET_MIN=10 sandbox/docker/run_trial.sh react moonshotai/kimi-k3 1
 ```
 
 ## Publication snapshot
@@ -181,10 +186,10 @@ works and no index file is needed.
 
 ```bash
 # both sheets, into an Inspect log each
-uv run inspect eval messageboard_audit_bench/grade_reports \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   -T dir=/abs/path/to/my-reports -T rubric=v2 \
   --model-role grader=anthropic/claude-fable-5-1
-uv run inspect eval messageboard_audit_bench/grade_reports \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   -T dir=/abs/path/to/my-reports -T rubric=tldrh \
   --model-role grader=anthropic/claude-fable-5-1
 
@@ -289,6 +294,10 @@ unchanged.
 ## Docs
 
 - [`docs/getting-started.md`](docs/getting-started.md) — fresh clone to graded report.
+- [`docs/benchmark-versions.md`](docs/benchmark-versions.md) — every version of both
+  benchmarks, what changed, and how to run a specific one.
+- [`benchmarks/urlquery/README.md`](benchmarks/urlquery/README.md) — the Transluce report:
+  data, batch launcher, findings rubric and judge.
 - [`docs/release-readiness.md`](docs/release-readiness.md) — what the release audit found
   and what remains before publishing results.
 - [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) — the publication

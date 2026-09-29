@@ -5,8 +5,8 @@ headline in benchmarks/urlquery/claims/findings_reviewed.json, scoring the headl
 (tenths) and each of its sub-findings 0-1 (quarters). This module is the provider-free
 core, the counterpart of `grading.core` for the message-board sheets. Two callers share it:
 
-* `grading.finding_scorer.finding_scorer`, the Inspect scorer on `urlquery_audit_bench`
-  and `urlquery_grade_reports`; and
+* `grading.finding_scorer.finding_scorer`, the Inspect scorer on `transluce_report`
+  and `transluce_report_grade`; and
 * benchmarks/urlquery/judge/grade.py, the resumable batch grader that wrote the existing
   grade files under reports/urlquery/graded/.
 

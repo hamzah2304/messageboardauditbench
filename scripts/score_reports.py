@@ -184,7 +184,7 @@ def main() -> int:
             print(f"no {label} grades at {folder}", file=sys.stderr)
             print(
                 "Grade a report set first:\n"
-                "  uv run inspect eval messageboard_audit_bench/grade_reports \\\n"
+                "  uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \\\n"
                 f"    -T dir=<your reports> -T rubric={label} "
                 "--model-role grader=anthropic/claude-fable-5-1\n"
                 "  uv run python scripts/export_grades.py logs/<the run>.eval",

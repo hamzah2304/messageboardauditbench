@@ -1,25 +1,39 @@
-# MessageBoardAuditBench (Inspect)
+# Inspect tasks: German wiki report and Transluce report
 
-An installable Inspect eval that scores whether a coding agent can investigate
-the collusion.wiki edit logs and write a sound incident report. Agents run in a
-network-isolated Docker sandbox. Every trial becomes an Inspect `.eval` log
-that can be explored with `inspect view`.
+An installable Inspect package with two evals on one harness. Agents run in a
+network-isolated Docker sandbox, and every trial becomes an Inspect `.eval` log that
+can be explored with `inspect view`.
 
-The package also provides a second eval, `urlquery_audit_bench`, on the same
-harness: an agent investigates a frozen snapshot of urlquery.net scans, and a
-per-finding judge scores its report (`urlquery_grade_reports` grades finished
-runs). `benchmarks.py` records what each benchmark owns: its task version,
-configs, data location and rubric. See
-[`benchmarks/urlquery/README.md`](../benchmarks/urlquery/README.md).
+| task | what it does |
+|---|---|
+| `german_wiki_report` | fresh trial: investigate the collusion.wiki edit logs and write an incident report, graded with the `v2` + `tldrh` claim sheets |
+| `german_wiki_report_grade` | grade staged reports with a claim-sheet rubric |
+| `german_wiki_report_replay` | import finished runs from `runs/` into Inspect, with scoring |
+| `german_wiki_report_continue` | continue finished ReAct samples with a follow-up request |
+| `transluce_report` | fresh trial: investigate the frozen urlquery.net snapshot, graded by the per-finding judge |
+| `transluce_report_grade` | grade finished Transluce report runs with the per-finding judge |
+
+Both fresh-trial tasks take `-T version=<MAJOR.MINOR>` and refuse to run if the checkout
+is a different version. To run another version, use
+`uv run python scripts/run_eval.py <german-wiki-report|transluce-report> --version X -- ...`,
+which runs it from its git tag ([version history](../docs/benchmark-versions.md)). The
+pre-rename names `messageboard_audit_bench`, `messageboard_audit_bench_replay`,
+`messageboard_audit_bench_continue`, `grade_reports`, `urlquery_audit_bench` and
+`urlquery_grade_reports` remain as aliases.
+
+`benchmarks.py` records what each benchmark owns: its name, version, configs, data
+location and rubric. The Transluce report's details are in
+[`benchmarks/urlquery/README.md`](../benchmarks/urlquery/README.md); its options are
+listed [below](#transluce-report-options).
 
 ## Layout
 
 | file | role |
 |---|---|
-| `benchmarks.py` | the benchmark registry: task versions, run/report roots, the URLQuery manifest and dataset pin |
+| `benchmarks.py` | the benchmark registry: names, versions and the version guard, run/report roots, the URLQuery manifest and dataset pin |
 | `configs.py` | loads and validates a benchmark's named trial configs |
-| `task.py` | fresh, replay and ReAct continuation tasks; `urlquery_audit_bench` shares the fresh-task builder |
-| `grading/` | message-board claim sheets (`core.py`, `scorer.py`) and the URLQuery finding judge (`findings.py`, `finding_scorer.py`); `task.py` holds `grade_reports` and `urlquery_grade_reports` |
+| `task.py` | fresh, replay and ReAct continuation tasks; `transluce_report` shares the fresh-task builder |
+| `grading/` | German wiki claim sheets (`core.py`, `scorer.py`) and the Transluce finding judge (`findings.py`, `finding_scorer.py`); `task.py` holds `german_wiki_report_grade` and `transluce_report_grade` |
 | `urlquery_*.py` | URLQuery data acquisition, corpus build and the batch launcher |
 | `native.py` | runs Claude Code and Codex through Inspect SWE, or Inspect's built-in ReAct agent, then collects `report.md` |
 | `solver.py` | `subscription_agent` launches `sandbox/docker/run_trial.sh`; `replay` imports a finished run |
@@ -52,18 +66,18 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 ## Run native Inspect SWE trials
 
 ```
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=claude -T config=blind -T time_limit_minutes=30 \
   -T min_runtime_fraction=0.75 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=codex -T config=context -T time_limit_minutes=40 \
   --model openai/gpt-5 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=blind \
   -T time_limit_minutes=20 \
   --model openai/gpt-5 \
@@ -123,7 +137,7 @@ an Inspect `grader` model role takes precedence when one is supplied.
 ## Run with a subscription CLI
 
 ```
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T backend=subscription -T agent=claude \
   -T subscription_model=claude-opus-5 \
   -T config=blind -T time_limit_minutes=30 \
@@ -148,7 +162,7 @@ completed local trajectories have valid, one-to-one tool call/result IDs.
 ## Import runs already on disk
 
 ```
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_replay
+uv run inspect eval messageboard_audit_bench/german_wiki_report_replay
 ```
 
 Folds matching `runs/` directories that contain transcripts (including
@@ -206,41 +220,44 @@ count after every saved report edit, including short and within-range drafts. No
 length check itself does not force expansion of a short report. `report_length` in the
 sandbox reports the current whitespace-based count on demand.
 
-## Mythos 5 transfer incident
+## Transluce report options
 
-`scripts/build_data.sh` also builds a message-only copy of Anthropic's released
-Mythos 5 cyber transcript. The source hash is pinned and its editorial metadata
-row is removed before the agent sees it. Run the candidate transfer cell with:
+`transluce_report` shares the fresh-trial options of `german_wiki_report` (`agent`,
+`backend`, `subscription_model`, `time_limit_minutes`, `min_runtime_fraction`,
+`version`), and adds its own:
+
+| option | default | meaning |
+|---|---|---|
+| `config` | `urlquery-agents-v6-30` | a config listed in `benchmarks/urlquery/benchmark.json` (`urlquery-agents-v6-30`, `urlquery-agents-v6-10`) |
+| `judge` | `anthropic/claude-opus-5-5` | any `anthropic/<model>` or `openrouter/<model>`; `openrouter/openai/gpt-6-astra` is the final-run judge. A `grader` model role takes precedence |
+| `judge_effort` | `xhigh` (Anthropic), `high` (others) | the judge's reasoning effort |
+| `article_context` | `omitted` (Anthropic), `full` (others) | whether the judge reads Transluce's article or only the reviewed findings and their quotes |
+
+There is no `data_variant` or `rubric` option: the snapshot and the rubric are pinned by
+the manifest. `transluce_report_grade` takes `runs` (a glob under `runs/urlquery/`),
+`batch` (a batch-launcher plan directory) or `launch` (a `launch.json`), plus the same
+judge options.
 
 ```
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-  -T agent=react -T config=mythos5 -T time_limit_minutes=30 \
-  --model openai/gpt-5.6-sol \
-  --model-role grader=openai/gpt-5.6-sol
+uv run inspect eval messageboard_audit_bench/transluce_report \
+  -T agent=claude --model anthropic/claude-opus-5-5          # Inspect-native, no network
+uv run inspect eval messageboard_audit_bench/transluce_report_grade \
+  -T launch=runs/urlquery/final-20260927-agents-v6/launch.json -T judge=openrouter/openai/gpt-6-astra
 ```
 
-The default modes become `m5,m5tldrh`: 13 transcript-derivable findings and a
-holistic summary rubric scoped to the visible record. This is a runnable draft,
-not a result comparable to the published wiki cells; contamination and judge
-independence still require validation before reporting a benchmark number.
+## Draft incidents
+
+`scripts/build_data.sh` also builds the Mythos 5 transcript and the RubyHack package
+corpus. These are drafts for future evals, not configs of `german_wiki_report`: the task
+rejects `config=mythos5` and `config=rubyhack`. `scripts/incident_pipeline.py check`
+validates them offline through `task.incident_task`. Pilot one through the subscription
+runner (`CONFIG=mythos5 sandbox/docker/run_trial.sh react <model> 1`); see
+[`docs/adding-an-incident.md`](../docs/adding-an-incident.md).
 
 ## Notes / next steps
 
-- RubyHack package forensics run with:
-
-  ```
-  uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
-    -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
-    --model openai/gpt-5.6-sol \
-    --model-role grader=anthropic/claude-fable-5-1
-  ```
-
-  Its default modes are `rh,rhtldrh`, covering 12 package-corpus findings and
-  an incident-specific summary. The selected evidence does not establish
-  OpenAI attribution or campaign-wide totals.
-
-- Wiki tasks default to `v2,tldrh`; Mythos 5 defaults to `m5,m5tldrh`;
-  RubyHack defaults to `rh,rhtldrh`.
+- `german_wiki_report` defaults to `v2,tldrh`; the drafts' sheets are `m5,m5tldrh`
+  (Mythos 5) and `rh,rhtldrh` (RubyHack).
   `rubric.yaml` is available only through `-T rubric=legacy`.
   See [setup and ablation commands](../docs/getting-started.md).
 - Comparing Claude-in-Claude-Code against GPT-in-Codex is a *system* comparison,

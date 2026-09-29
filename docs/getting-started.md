@@ -1,7 +1,9 @@
 # Getting started
 
-Run the benchmark from a checkout with Python 3.11+, [uv](https://docs.astral.sh/uv/),
-and Docker running.
+Run the benchmarks from a checkout with Python 3.11+, [uv](https://docs.astral.sh/uv/),
+and Docker running. This guide follows the German wiki report (`german_wiki_report`). The
+Transluce report (`transluce_report`) uses the same install, credentials and Docker setup;
+its data and runs are covered [at the end](#the-transluce-report).
 
 ## Install and verify the data
 
@@ -82,7 +84,7 @@ uses API keys, without a host Claude Code or Codex login. For example, with
 `OPENAI_API_KEY` set:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=30 \
   --model openai/gpt-5.6-sol \
   --model-role grader=openai/gpt-5.6-sol \
@@ -90,15 +92,27 @@ uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
 uv run inspect view
 ```
 
+The log records the benchmark version (`10.0`). To pin it, add `-T version=10.0`; the
+task refuses to run if the checkout is a different version. To run an earlier version,
+use the launcher, which runs it from its git tag:
+
+```bash
+uv run python scripts/run_eval.py german-wiki-report --list
+uv run python scripts/run_eval.py german-wiki-report --version 9.0 -- \
+  -T agent=react -T config=blind --model openai/gpt-5.6-sol
+```
+
+See [benchmark versions](benchmark-versions.md) for what each version changed.
+
 Use `agent=claude` or `agent=codex` for the Inspect SWE CLI scaffolds, with a
 compatible `--model` and its provider key. For a short setup check, use
 `-T time_limit_minutes=1 -T min_runtime_fraction=0 --epochs 1`; it still makes
 paid agent and grader calls and is not a benchmark result.
 
-Each wiki sample runs the `v2` finding sheets and `tldrh` summary sheet by
-default; `config=mythos5` selects `m5` and `m5tldrh`, while
-`config=rubyhack` selects `rh` and `rhtldrh`. Process and length
-diagnostics follow both pairs. The two rubric scores and
+Each sample runs the `v2` finding sheets and `tldrh` summary sheet by default, followed
+by process and length diagnostics. (The Mythos 5 and RubyHack incidents are drafts for
+future evals, not configs of this task; see
+[adding an incident](adding-an-incident.md).) The two rubric scores and
 per-finding grades appear in the `.eval` log. The judge defaults to
 `openai/gpt-5.6-sol`; `--model-role grader=...` overrides it. Reproducing a
 published comparison requires its recorded judge, prompts and data version.
@@ -120,7 +134,7 @@ To defer all scoring, use Inspect's `--no-score`, then `inspect score LOG.eval`.
 The Mythos 5 integration is a runnable transfer-study draft:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=mythos5 -T time_limit_minutes=30 \
   --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
 ```
@@ -132,7 +146,7 @@ The RubyHack package-forensics incident runs the same way. Its selected corpus
 is much smaller, so start with the 10-minute condition and an independent judge:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
   --model openai/gpt-5.6-sol \
   --model-role grader=anthropic/claude-fable-5-1
@@ -147,7 +161,7 @@ limits.
 The provider-attribution ablation uses the same task and time parameter:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench \
+uv run inspect eval messageboard_audit_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=30 \
   -T data_variant=verbatim_anthropic \
   --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
@@ -160,7 +174,7 @@ configs used an earlier prompt and remain available to the direct runner.
 For a ReAct continuation, use the parent `.eval` log:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/messageboard_audit_bench_continue \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_continue \
   -T parent_log=logs/PARENT.eval -T parent_epochs=1,2,3 \
   -T config=followup-5k-min5 \
   --model-role grader=openai/gpt-5.6-sol --max-samples 1
@@ -184,7 +198,7 @@ uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
 uv run python scripts/export_grades.py logs/EVAL_LOG.eval
 
 # A grading-only eval: no agent execution or Docker.
-uv run inspect eval messageboard_audit_bench/grade_reports \
+uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   -T dir=round4_blind120 -T rubric=v2 \
   --model-role grader=openai/gpt-5.6-sol
 ```
@@ -197,7 +211,7 @@ score metadata; inspect these before publishing aggregates.
 
 Subscription trial setup, credentials and the direct Docker runner are described
 in [`sandbox/README.md`](../sandbox/README.md). Import existing subscription
-runs with `messageboard_audit_bench/messageboard_audit_bench_replay`; this spends
+runs with `messageboard_audit_bench/german_wiki_report_replay`; this spends
 judge tokens but does not rerun the agents.
 
 ## Historical experiment launcher
@@ -218,3 +232,24 @@ launch them. Use the normal Inspect command for a small graded setup test.
 
 Figure rendering finds Chrome/Chromium on `PATH` or in standard installation
 locations. Set `CHROME_BIN` to an executable path to override discovery.
+
+## The Transluce report
+
+The Transluce report reads a frozen urlquery.net snapshot that lives only in the primary
+checkout's gitignored `data/urlquery/2026-09-26-v1/`. It is built from public
+urlquery.net JSON (`messageboard_audit_bench.urlquery_data` and `urlquery_prepare`, driven
+by `configs/urlquery-data.toml`). The task checks it against the pinned hash before an
+agent starts.
+
+```bash
+# one trial, graded by the default judge (Opus 5.5, article omitted)
+uv run inspect eval messageboard_audit_bench/transluce_report \
+  -T agent=claude --model anthropic/claude-opus-5-5
+# a model matrix through the batch launcher, then grade the finished runs
+uv run python -m messageboard_audit_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml --launch
+uv run python benchmarks/urlquery/judge/grade.py --batch runs/urlquery/<plan-dir> --plan   # resume-aware call count
+```
+
+[`benchmarks/urlquery/README.md`](../benchmarks/urlquery/README.md) covers the configs,
+the judge choice and the grade files. URLQuery reports can quote recorded secrets, so
+keep them out of tracked folders; the exporters refuse them.

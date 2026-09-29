@@ -48,8 +48,10 @@ moment in a redacted region; each one's `note` tells the grader what NOT to requ
 
 `scripts/build_data.sh` fetches the pinned source and writes only its 2,064 message
 records to `data/mythos5/transcript.jsonl`; the release's editorial metadata row is
-removed. Run a trial with `-T config=mythos5`; its default graders are `m5` and
-`m5tldrh`. See the open questions in the findings draft before treating any number
+removed. Mythos 5 is a draft for its own eval, not a config of the German wiki
+report, so it has no Inspect task yet. Pilot a trial through the subscription runner
+(`CONFIG=mythos5 sandbox/docker/run_trial.sh react <model> 1`); its graders are `m5`
+and `m5tldrh`. See the open questions in the findings draft before treating any number
 as comparable to the wiki cells — contamination and judge independence in particular.
 
 For separately staged reports, grade with `-T rubric=m5` and

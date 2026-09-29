@@ -1,19 +1,26 @@
 """The benchmark registry: which benchmarks exist, and what each one owns.
 
-Both benchmarks share one harness (configs, prompts rendering, the Docker runner,
+Both benchmarks share one harness (configs, prompt rendering, the Docker runner,
 the Inspect solvers and the grading plumbing). What differs is recorded here:
 
-* ``messageboard`` — the original MessageBoardAuditBench. Its corpora, configs
-  and rubrics are the incident manifests under ``benchmark/incidents/``
-  (`messageboard_audit_bench.incidents`), and its data lives in ``data/<variant>/``.
-* ``urlquery`` — the Transluce urlquery.net agent-activity audit. Its manifest is
+* ``german-wiki-report`` (Inspect task ``german_wiki_report``; storage id
+  ``messageboard``) — the original MessageBoardAuditBench on the collusion.wiki
+  incident. Its corpus, configs and rubrics are the ``wiki`` incident manifest under
+  ``benchmark/incidents/``, and its data lives in ``data/<variant>/``. The other
+  manifests there (Mythos 5, RubyHack) are drafts for future evals, not part of it.
+* ``transluce-report`` (Inspect task ``transluce_report``; storage id ``urlquery``) —
+  the Transluce urlquery.net agent-activity audit. Its manifest is
   ``benchmarks/urlquery/benchmark.json``: one frozen, hash-pinned snapshot under the
   primary checkout's ``data/urlquery/``, its trial configs, and its per-finding rubric.
 
-Each benchmark is its own Inspect task with its own version (``eval_version``);
-bump it when a change alters what that benchmark's agent sees, what it can do,
-whether its report is accepted, or how its default grading scores it. The
-history is in docs/benchmark-versions.md.
+The storage ids predate the public names and stay as they are: they are written into
+every run record, config and grade file.
+
+Each benchmark has its own version, ``MAJOR.MINOR``: bump MAJOR when a change alters
+what the agent sees, what it can do, whether its report is accepted, or how the default
+grading scores it (results stop being comparable); bump MINOR for a compatible change.
+Every version is a git tag, ``<name>-v<version>``, and ``scripts/run_eval.py --version``
+runs any tagged version. The history is in docs/benchmark-versions.md.
 """
 from __future__ import annotations
 
@@ -32,10 +39,12 @@ from messageboard_audit_bench.runtime import repo_root
 
 @dataclass(frozen=True)
 class BenchmarkSpec:
-    id: str
+    id: str              # storage id, recorded in run records and configs
+    name: str            # public name; version tags are <name>-v<version>
     title: str
     task: str            # the Inspect task that runs fresh trials
-    eval_version: str    # Inspect task version; see docs/benchmark-versions.md
+    legacy_task: str     # its name before the rename, kept as an alias
+    eval_version: str    # MAJOR.MINOR; see docs/benchmark-versions.md
     evaluator_root: str  # evaluator-only material, never mounted into a trial
     run_root: str
     report_root: str
@@ -44,14 +53,49 @@ class BenchmarkSpec:
 
 SPECS = {
     "messageboard": BenchmarkSpec(
-        "messageboard", "MessageBoardAuditBench", "messageboard_audit_bench", "10-A",
-        "benchmark", "runs", "reports", "logs",
+        "messageboard", "german-wiki-report", "German wiki report", "german_wiki_report",
+        "messageboard_audit_bench", "10.0", "benchmark", "runs", "reports", "logs",
     ),
     "urlquery": BenchmarkSpec(
-        "urlquery", "URLQuery agent-activity audit", "urlquery_audit_bench", "1-A",
-        "benchmarks/urlquery", "runs/urlquery", "reports/urlquery", "logs/urlquery",
+        "urlquery", "transluce-report", "Transluce report", "transluce_report",
+        "urlquery_audit_bench", "1.0", "benchmarks/urlquery", "runs/urlquery",
+        "reports/urlquery", "logs/urlquery",
     ),
 }
+BY_NAME = {spec.name: spec for spec in SPECS.values()}
+# The one incident the German wiki report runs. Other incident manifests are drafts.
+WIKI_INCIDENT = "wiki"
+# Labels used before dotted versions: <major>-<letter>, letter A = minor 0.
+_LEGACY_VERSION = re.compile(r"(\d+)-([A-Z])")
+
+
+def normalize_version(value: str | int | float) -> str:
+    """'10', '10.0', 'v10.0' and the old '10-A' all mean '10.0'; '6-B' means '6.1'."""
+    text = str(value).strip().removeprefix("v")
+    if legacy := _LEGACY_VERSION.fullmatch(text):
+        return f"{legacy.group(1)}.{ord(legacy.group(2)) - ord('A')}"
+    if re.fullmatch(r"\d+", text):
+        return f"{text}.0"
+    if re.fullmatch(r"\d+\.\d+", text):
+        return text
+    raise ValueError(f"invalid version {value!r}; use MAJOR.MINOR, e.g. 10.0")
+
+
+def version_tag(benchmark_id: str, version: str) -> str:
+    return f"{benchmark_spec(benchmark_id).name}-v{normalize_version(version)}"
+
+
+def check_version(benchmark_id: str, requested: str | None) -> None:
+    """Refuse to run a different version than the one checked out."""
+    if requested is None:
+        return
+    spec = benchmark_spec(benchmark_id)
+    wanted = normalize_version(requested)
+    if wanted != spec.eval_version:
+        raise ValueError(
+            f"this checkout is {spec.name} v{spec.eval_version}, not v{wanted}. Run that version "
+            f"from its tag with: uv run python scripts/run_eval.py {spec.name} --version {wanted} -- <inspect args>"
+        )
 
 
 # Codex features the URLQuery trials disable, on both backends (the subscription
@@ -101,11 +145,18 @@ def urlquery_manifest() -> dict[str, Any]:
 def config_names(benchmark_id: str) -> tuple[str, ...]:
     """The configs a benchmark's Inspect task accepts as fresh-trial conditions."""
     if benchmark_id == "messageboard":
-        from messageboard_audit_bench.incidents import config_names as incident_configs
+        from messageboard_audit_bench.incidents import incident
 
-        return incident_configs()
+        return incident(WIKI_INCIDENT).configs
     benchmark_spec(benchmark_id)
     return tuple(urlquery_manifest()["runtime"]["configs"])
+
+
+def draft_config_names() -> tuple[str, ...]:
+    """Configs of the draft incidents (Mythos 5, RubyHack): runnable for validation only."""
+    from messageboard_audit_bench.incidents import incidents
+
+    return tuple(c for item in incidents().values() if item.id != WIKI_INCIDENT for c in item.configs)
 
 
 def default_config(benchmark_id: str) -> str:
