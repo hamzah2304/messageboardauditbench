@@ -485,13 +485,27 @@ def test_final_batch_keeps_one_dataset_pin_and_latest_prompt(tmp_path, monkeypat
 def test_follow_up_round_is_twelve_single_ten_minute_trials(tmp_path, monkeypatch):
     pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
     concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-agents-v6-10-round.toml")
-    assert concurrency == 12 and len(plans) == 1
+    assert concurrency == 6 and len(plans) == 1
     trials = plans[0][1]["matrix"]
     assert plans[0][1]["budget_minutes"] == 10
     assert len(trials) == len({(row["agent"], row["model"]) for row in trials}) == 12
     assert {row["replicate"] for row in trials} == {1}
     assert "claude-sonnet-5-5" in {row["model"] for row in trials}
     assert "claude-sonnet-5" not in {row["model"] for row in trials}
+
+
+def test_recovery_round_only_replaces_interrupted_samples(tmp_path, monkeypatch):
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    concurrency, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-agents-v6-10-recovery.toml")
+    assert concurrency == 6 and len(plans) == 1
+    assert {(t["agent"], t["model"], t["replicate"]) for t in plans[0][1]["matrix"]} == {
+        ("claude", "claude-opus-4-6", 1),
+        ("react", "google/gemini-3.8-flash", 1),
+        ("react", "meta/muse-spark-1.3", 1),
+        ("react", "moonshotai/kimi-k3", 1),
+        ("react", "z-ai/glm-5.3", 1),
+        ("react", "deepseek/deepseek-v4-flash", 1),
+    }
 
 
 @pytest.mark.parametrize("body", [
