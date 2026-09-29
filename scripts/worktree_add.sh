@@ -24,7 +24,7 @@ fi
 # .gitkeep files), so the built variants are linked underneath it: whole directories where the
 # directory is ignored, file by file where only the contents are (raw_stripped, verbatim, verbatim_anthropic).
 link() { [ -e "$1" ] && [ ! -e "$2" ] && ln -s "$1" "$2" || true; }
-for p in runs logs .env data/raw data/augmented; do link "$ROOT/$p" "$WT/$p"; done
+for p in runs logs .env data/raw data/augmented data/transluce data/urlquery; do link "$ROOT/$p" "$WT/$p"; done
 while IFS= read -r v; do
   [ -d "$ROOT/data/$v" ] || continue
   if [ ! -e "$WT/data/$v" ]; then

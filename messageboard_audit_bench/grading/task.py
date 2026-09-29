@@ -70,10 +70,13 @@ def grade_reports(
         model role supplied to Inspect takes precedence over this value.
     """
     folder = staged_dir(dir)
+    core.require_original_benchmark_folder(folder)
     rows = _index(folder)
     samples = []
     for path in sorted(folder.glob("*.md")):
         row = rows.get(path.name, {})
+        if row.get("benchmark_id", "messageboard") != "messageboard":
+            raise ValueError("cross-benchmark grading rejected; URLQuery has no approved rubric")
         samples.append(
             Sample(
                 input=path.read_text(),
