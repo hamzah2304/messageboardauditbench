@@ -349,7 +349,7 @@ case "$AGENT" in
       record_runner_event cli_started "$attempt"
       part="$RUN/transcript.part$attempt.jsonl"
       docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p "$claude_prompt" \
-        "${resume_args[@]}" --model "$MODEL" --effort "$EFFORT" \
+        ${resume_args[@]+"${resume_args[@]}"} --model "$MODEL" --effort "$EFFORT" \
         --dangerously-skip-permissions --no-chrome --setting-sources user \
         ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
         --output-format stream-json --verbose --include-partial-messages \
