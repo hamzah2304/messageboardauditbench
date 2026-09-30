@@ -333,7 +333,7 @@ TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS=
 case "$AGENT" in
   claude)
     CLAUDE_EARLY_RESUMES=0
-    for attempt in 1 2 3 4 5 6 7 8; do
+    for attempt in 1 2; do
       remaining="$((HARD_DEADLINE - $(date +%s)))"
       [ "$remaining" -gt 0 ] || { RC=124; break; }
       claude_prompt="$PROMPT"
@@ -342,7 +342,7 @@ case "$AGENT" in
         session_id="$(jq -sr 'map(select(.type=="system" and .subtype=="init"))[0].session_id // empty' "$RUN/transcript.jsonl")"
         [ -n "$session_id" ] || { echo "Claude ended early without a resumable session" >&2; RC=6; break; }
         resume_args=(--resume "$session_id")
-        claude_prompt="Continue this same benchmark investigation. The minimum working period has not elapsed. Verify additional evidence and improve /work/report.md where warranted. Keep the report in place and within its word limits."
+        claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
         CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
         record_runner_event early_stop_resume_started "$attempt"
       fi

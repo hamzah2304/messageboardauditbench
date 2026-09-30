@@ -29,7 +29,7 @@ def test_claude_usage_reports_disjoint_input_categories(tmp_path: Path) -> None:
     assert usage["cache_read_fraction"] == 80 / 190
 
 
-def test_claude_resumed_invocations_sum_usage_and_cost(tmp_path: Path) -> None:
+def test_claude_resumed_invocations_sum_usage_and_keep_cumulative_cost(tmp_path: Path) -> None:
     run_dir = tmp_path / "resumed"
     run_dir.mkdir()
     results = [
@@ -49,7 +49,7 @@ def test_claude_resumed_invocations_sum_usage_and_cost(tmp_path: Path) -> None:
     assert usage["usage_source"] == "result_sum"
     assert usage["input_tokens"] == 75
     assert usage["output_tokens"] == 5
-    assert round(usage["cost_usd"], 6) == 0.3
+    assert round(usage["cost_usd"], 6) == 0.2
     assert usage["cli_invocations"] == 2
 
 

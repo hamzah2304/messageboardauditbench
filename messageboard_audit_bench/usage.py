@@ -262,8 +262,9 @@ def summarize_claude_stream(
         s["reasoning_tokens_estimated"] = True
         s["reasoning_tokens_source"] = "cli_estimate"
     if result:
-        s["cost_usd"] = (sum(item.get("total_cost_usd") or 0 for item in results)
-                         if len(results) > 1 else result.get("total_cost_usd"))
+        # Claude's result cost and modelUsage are cumulative across --resume
+        # invocations, unlike the per-invocation usage counters.
+        s["cost_usd"] = result.get("total_cost_usd")
         s["duration_ms"] = (sum(item.get("duration_ms") or 0 for item in results)
                             if len(results) > 1 else result.get("duration_ms"))
         s["stop_reason"] = result.get("stop_reason")
