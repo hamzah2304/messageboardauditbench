@@ -9,6 +9,7 @@ stamped sync grades after every finding, so an interrupted run can resume.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import sys
 import time
@@ -55,7 +56,7 @@ def judge_one(api: API, head: str, prompt: str) -> dict:
         except urllib.error.HTTPError as exc:
             if exc.code not in (429, 500, 502, 503, 504) or attempt == 4:
                 return {"status": "api_error", "error": f"HTTP {exc.code}: {exc.read(300).decode(errors='replace')}"}
-        except (urllib.error.URLError, TimeoutError) as exc:
+        except (urllib.error.URLError, TimeoutError, http.client.RemoteDisconnected) as exc:
             if attempt == 4:
                 return {"status": "api_error", "error": f"{type(exc).__name__}: {exc}"}
         time.sleep(min(2 ** attempt, 16))
