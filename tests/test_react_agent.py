@@ -58,6 +58,17 @@ def test_provider_failure_exits_nonzero_and_is_counted(react, tmp_path, monkeypa
         assert summary["cost_usd"] == 0.01
 
 
+def test_provider_only_routes_react_calls(react, monkeypatch):
+    monkeypatch.setenv("MBAB_OPENROUTER_PROVIDER_ONLY", "google-ai-studio")
+
+    def chat(base, key, body):
+        assert body["provider"] == {"only": ["google-ai-studio"], "allow_fallbacks": False}
+        raise RuntimeError("stop after checking route")
+
+    monkeypatch.setattr(react, "chat", chat)
+    assert react.main() == 1
+
+
 def test_error_completion_does_not_execute_partial_tool_calls(react, monkeypatch, capsys):
     payload = response(finish_reason="error", message={"tool_calls": [{
         "id": "call-1", "function": {"name": "bash", "arguments": '{"command":"touch sentinel"}'},

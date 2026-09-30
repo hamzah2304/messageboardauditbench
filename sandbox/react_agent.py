@@ -145,6 +145,7 @@ def main():
     ap.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"))
     a = ap.parse_args()
     key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY") or sys.exit("no API key in env")
+    provider_only = os.environ.get("MBAB_OPENROUTER_PROVIDER_ONLY")
     prompt = open(a.prompt_file).read()
     system = ("You are an autonomous agent working in a Linux shell. Use the bash tool to explore and "
               "write_file to write files. Keep working until the task is done.")
@@ -157,12 +158,15 @@ def main():
     session_id = f"messageboard_audit_bench-{uuid.uuid4()}"
     usage = {k: 0 for k in USAGE_KEYS}
     emit({"type": "system", "subtype": "init", "cwd": a.cwd, "model": a.model, "effort": a.effort, "budget_min": a.budget_min,
-          "tools": [t["function"]["name"] for t in TOOLS], "scaffold": "react_agent.py", "base_url": a.base_url})
+          "tools": [t["function"]["name"] for t in TOOLS], "scaffold": "react_agent.py", "base_url": a.base_url,
+          "provider_only": provider_only})
     while turns < a.max_turns:
         elapsed = (time.time() - t0) / 60
         if elapsed > a.budget_min: stop = "budget"; break
         body = {"model": a.model, "messages": msgs, "tools": TOOLS, "session_id": session_id,
                 "cache_control": {"type": "ephemeral"}, "usage": {"include": True}}
+        if provider_only:
+            body["provider"] = {"only": [provider_only], "allow_fallbacks": False}
         if a.effort: body["reasoning"] = {"effort": a.effort}
         try:
             resp, n_retry, latency_ms = chat(a.base_url, key, body)

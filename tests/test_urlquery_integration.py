@@ -516,6 +516,23 @@ def test_recovery_round_only_replaces_interrupted_samples(tmp_path, monkeypatch)
     }
 
 
+def test_extra_round_adds_sol_react_at_both_limits(tmp_path, monkeypatch):
+    pilot, dataset = _fake_pilot_inputs(tmp_path, monkeypatch)
+    width, plans = pilot.plan_batch(dataset, ROOT / "configs/urlquery-agents-v6-extra-batch.toml")
+    assert width == 6 and [payload["budget_minutes"] for _, payload in plans] == [30, 10]
+    assert sum(len(payload["matrix"]) for _, payload in plans) == 26
+    for _, payload in plans:
+        trials = payload["matrix"]
+        assert len(trials) == 13
+        assert {t["replicate"] for t in trials} == {1}
+        assert {t["model"] for t in trials if t["agent"] == "react"} == {
+            "google/gemini-3.8-flash", "meta/muse-spark-1.3", "moonshotai/kimi-k3",
+            "z-ai/glm-5.3", "deepseek/deepseek-v4-flash", "openai/gpt-6-sol",
+        }
+        assert "claude-sonnet-5-5" in {t["model"] for t in trials}
+        assert "claude-sonnet-5" not in {t["model"] for t in trials}
+
+
 @pytest.mark.parametrize("body", [
     "max_parallel = 0\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=1\nmodels=['codex:gpt-6-sol']",
     "max_parallel = 2\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=0\nmodels=['codex:gpt-6-sol']",

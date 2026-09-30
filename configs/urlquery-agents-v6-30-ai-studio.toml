@@ -1,0 +1,19 @@
+name = "urlquery-agents-v6-30-ai-studio"
+benchmark_id = "urlquery"
+prompt = "urlquery-agents-v6"
+budget_min = 30
+timeout_min = 35
+data_variant = "urlquery/2026-09-26-v1"
+dataset_sha256 = "973d7b7a1e14df236fbf5d99d9795ab3fdc0f40720c67376771fa19f0e299d1f"
+effort = "medium"
+claude_cli_version = "2.1.283"
+codex_cli_version = "0.156.1"
+min_runtime_fraction = 0.75
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Agent", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+report_min_words = 2400
+report_max_words = 2900
+report_accept_min_words = 0
+report_accept_max_words = 3000
+
+# Route this Gemini retry away from the Google Vertex endpoint that returned 504s.
+openrouter_provider_only = "google-ai-studio"

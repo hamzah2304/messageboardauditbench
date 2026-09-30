@@ -29,6 +29,30 @@ def test_claude_usage_reports_disjoint_input_categories(tmp_path: Path) -> None:
     assert usage["cache_read_fraction"] == 80 / 190
 
 
+def test_claude_resumed_invocations_sum_usage_and_keep_cumulative_cost(tmp_path: Path) -> None:
+    run_dir = tmp_path / "resumed"
+    run_dir.mkdir()
+    results = [
+        {"type": "result", "usage": {"input_tokens": 10, "output_tokens": 2,
+                                     "cache_read_input_tokens": 20},
+         "total_cost_usd": 0.1, "duration_ms": 1000},
+        {"type": "result", "usage": {"input_tokens": 5, "output_tokens": 3,
+                                     "cache_read_input_tokens": 40},
+         "total_cost_usd": 0.2, "duration_ms": 2000},
+    ]
+    (run_dir / "transcript.jsonl").write_text(
+        "".join(json.dumps(item) + "\n" for item in results)
+    )
+
+    usage = summarize(run_dir, "claude")
+
+    assert usage["usage_source"] == "result_sum"
+    assert usage["input_tokens"] == 75
+    assert usage["output_tokens"] == 5
+    assert round(usage["cost_usd"], 6) == 0.2
+    assert usage["cli_invocations"] == 2
+
+
 def test_react_usage_treats_cached_tokens_as_prompt_subset(tmp_path: Path) -> None:
     usage = summarize(_run_with_result(tmp_path / "react"), "react")
 

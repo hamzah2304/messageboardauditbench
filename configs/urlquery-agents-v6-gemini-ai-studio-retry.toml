@@ -1,0 +1,12 @@
+# Retry the Gemini samples on the same model through Google AI Studio.
+max_parallel = 6
+
+[[arms]]
+config = "configs/urlquery-agents-v6-30-ai-studio.toml"
+replicates = 1
+models = ["react:google/gemini-3.8-flash"]
+
+[[arms]]
+config = "configs/urlquery-agents-v6-10-ai-studio.toml"
+replicates = 1
+models = ["react:google/gemini-3.8-flash"]

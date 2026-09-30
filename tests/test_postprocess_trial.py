@@ -69,6 +69,33 @@ def test_postprocess_maps_structured_terminal_refusal_to_exit_five(
     assert meta["model_refusal"] == {"events": 1, "terminal": True}
 
 
+def test_postprocess_does_not_treat_recovered_refusal_as_terminal(
+    tmp_path: Path,
+) -> None:
+    run = _run(
+        tmp_path,
+        [
+            {"type": "system", "subtype": "model_refusal_no_fallback"},
+            {"type": "assistant", "message": {"stop_reason": "refusal"}},
+            {"type": "result", "subtype": "success", "stop_reason": "end_turn", "is_error": False},
+        ],
+    )
+    meta = json.loads((run / "meta.json").read_text())
+    meta["model_refusal"] = {"events": 1, "terminal": True}
+    (run / "meta.json").write_text(json.dumps(meta))
+
+    result = subprocess.run(
+        [sys.executable, "-S", str(SCRIPT), str(run), "0", "12"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    meta = json.loads((run / "meta.json").read_text())
+    assert meta["exit_code"] == 0
+    assert "model_refusal" not in meta
+
+
 def test_postprocess_does_not_accept_a_conversational_fallback(tmp_path: Path) -> None:
     run = _run(tmp_path, [{"type": "result", "stop_reason": "end_turn"}])
     (run / "report.md").rename(run / "final_message.md")
