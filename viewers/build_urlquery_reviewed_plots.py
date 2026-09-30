@@ -149,12 +149,45 @@ def previous_filtered() -> Path:
     return write_plot("urlquery_previous_filtered_figure", payload)
 
 
+def combined() -> Path:
+    previous = read_json(FIGURES / "urlquery_previous_filtered_figure.json")
+    recent = read_json(FIGURES / "urlquery_latest_reviewed_figure.json")
+    fields = ("effort", "prompt_sha256", "findings_sha256", "article_sha256")
+    if any(previous["grade_source"][field] != recent["grade_source"][field] for field in fields):
+        raise ValueError("cannot combine different grading specifications")
+    if previous["finding_count"] != recent["finding_count"]:
+        raise ValueError("cannot combine different finding counts")
+    older_rows = [dict(row) for row in previous["runs"]]
+    for row in older_rows:
+        if row["model"] == "gpt-6-sol":
+            row["label"] = "GPT-6 Sol · Codex"
+    rows = older_rows + recent["runs"]
+    names = [row["run_dir"] for row in rows]
+    if len(names) != len(set(names)) or len(rows) != 63:
+        raise ValueError(f"expected 63 unique eligible reports, got {len(rows)}")
+    planned = {label: (2 if label in ("Sonnet 5.5", "GPT-6 Sol · ReAct") else 6)
+               for label in {row["label"] for row in rows}}
+    payload = {**recent,
+               "version": "agents-v6-combined",
+               "figure_title": "URLQuery: combined rounds · performance against cost",
+               "figure_subtitle": "Sunday and latest v6 rounds · same reviewed grading specification",
+               "label_storage_key": "urlquery-combined-reviewed-zero-axis-labels-v1",
+               "expected_reports_by_model": planned,
+               "excluded_runs": previous["excluded_runs"] + recent["excluded_runs"],
+               "runs": rows,
+               "grade_source": {**recent["grade_source"], "grade_count": len(rows)}}
+    if len(payload["excluded_runs"]) != 11:
+        raise ValueError("unexpected combined exclusion count")
+    return write_plot("urlquery_combined_reviewed_figure", payload)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("state", type=Path)
     args = parser.parse_args()
     print(latest(args.state))
     print(previous_filtered())
+    print(combined())
 
 
 if __name__ == "__main__":

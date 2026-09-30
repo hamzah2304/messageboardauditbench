@@ -95,7 +95,7 @@ document.getElementById('reset-labels').addEventListener('click',()=>{try{localS
 const tbody=document.getElementById('rows');
 for(const g of groups){let tr=document.createElement('tr'),[a,b]=g.budgets;
   let cells=[g.label,a.runs.length?fmt(a.cost):'excluded',a.runs.length?(a.score==null?'pending':a.score.toFixed(3)):'excluded',b.runs.length?fmt(b.cost):'excluded',b.runs.length?(b.score==null?'pending':b.score.toFixed(3)):'excluded',
-    `${a.runs.concat(b.runs).filter(r=>r.status==='complete').length}/${D.expected_reports_per_model??4}`];
+    `${a.runs.concat(b.runs).filter(r=>r.status==='complete').length}/${D.expected_reports_by_model?.[g.label]??D.expected_reports_per_model??4}`];
   cells.forEach((v,i)=>{let td=document.createElement('td');td.textContent=v;if(i===0){let s=document.createElement('span');s.className='swatch';s.style.background=colors[g.provider];td.prepend(s)}if(v==='pending')td.className='pending';tr.append(td)});tbody.append(tr)
 }
 </script></main></body></html>
