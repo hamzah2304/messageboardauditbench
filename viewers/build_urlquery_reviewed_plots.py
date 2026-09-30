@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 
 from build_urlquery_usd_figure import PRICE_SOURCE, ROOT, cost_of, read_json
@@ -181,13 +182,93 @@ def combined() -> Path:
     return write_plot("urlquery_combined_reviewed_figure", payload)
 
 
+def final_balanced(selection_file: Path) -> Path:
+    """Add the Batch-graded top-ups and require three valid reports per cell."""
+    selection = read_json(selection_file)
+    selected = selection["selected"]
+    if len(selected) != 11 or len(selected) != len(set(selected)):
+        raise ValueError("final selection must name eleven distinct top-up reports")
+    payload = read_json(FIGURES / "urlquery_combined_reviewed_figure.json")
+    rows = [row for row in payload["runs"] if row["model"] != "openai/gpt-6-sol"]
+    dropped = [row for row in payload["runs"] if row["model"] == "openai/gpt-6-sol"]
+    excluded = payload["excluded_runs"] + [
+        {"run_dir": row["run_dir"], "model": row["model"], "budget_min": row["budget_min"],
+         "replicate": row["replicate"], "reasons": ["comparison_harness_dropped"]}
+        for row in dropped]
+    expected = payload["grade_source"]
+    grade_root = (primary_root() / "reports" / "urlquery" / "graded"
+                  / "judge_gpt_6_astra_high_openai_batch")
+    for name in selected:
+        if Path(name).name != name or any(row["run_dir"] == name for row in rows):
+            raise ValueError(f"invalid or duplicate top-up name: {name}")
+        run = RUNS / name
+        meta = read_json(run / "meta.json")
+        if (meta.get("prompt") != "urlquery-agents-v6"
+                or meta.get("data_manifest_status") != "verified"
+                or meta.get("termination") not in ("normal", "active_time_limit")
+                or meta.get("minimum_runtime_reached") is not True
+                or meta.get("report_length_compliant") is not True
+                or meta.get("model_fallback")
+                or (meta.get("model_served") and meta["model_served"] != meta["model"])):
+            raise ValueError(f"ineligible top-up report: {name}")
+        grade = read_json(grade_root / f"{name}.json")
+        if (grade.get("n_scored") != 13 or grade.get("n_findings") != 13
+                or grade.get("headline_weights") != {"F3": 0.5}
+                or any(grade.get(field) != expected[field] for field in
+                       ("effort", "prompt_sha256", "findings_sha256", "article_sha256"))
+                or hashlib.sha256((run / "report.md").read_bytes()).hexdigest()
+                != grade.get("report_sha256")):
+            raise ValueError(f"incompatible or incomplete top-up grade: {name}")
+        usage = read_json(run / "usage.json")
+        model = meta["model"]
+        cost, source = cost_of(model, usage)
+        if cost is None:
+            raise ValueError(f"no cost for top-up: {name}")
+        provider = next(value for prefix, value in PROVIDERS.items() if model.startswith(prefix))
+        rows.append({"run_dir": name, "model": model, "label": LABELS[model],
+                     "provider": provider, "harness": meta["agent"],
+                     "budget_min": meta["budget_min"], "replicate": meta["replicate"],
+                     "status": "complete", "cost_usd": cost, "cost_source": source,
+                     "performance": grade["score_mean"]})
+    for name in selection.get("excluded", []):
+        meta = read_json(RUNS / name / "meta.json")
+        reasons = []
+        if meta.get("model_fallback"):
+            reasons.append("model_fallback")
+        if meta.get("minimum_runtime_reached") is not True:
+            reasons.append("below_minimum_runtime")
+        if meta.get("report_length_compliant") is not True:
+            reasons.append("report_length_not_accepted")
+        if meta.get("termination") not in ("normal", "active_time_limit"):
+            reasons.append("unexpected_termination")
+        excluded.append({"run_dir": name, "model": meta["model"],
+                         "budget_min": meta["budget_min"], "replicate": meta["replicate"],
+                         "reasons": reasons or ["not_selected"]})
+    counts = Counter((row["label"], row["budget_min"]) for row in rows)
+    if len(rows) != 72 or len(counts) != 24 or set(counts.values()) != {3}:
+        raise ValueError(f"final plot is not balanced: {len(rows)} reports, {dict(counts)}")
+    labels = sorted({row["label"] for row in rows})
+    payload.update(version="agents-v6-final-balanced",
+                   figure_title="URLQuery: final balanced rounds · performance against cost",
+                   figure_subtitle="Sunday and final v6 rounds · three valid reports per model and time limit",
+                   label_storage_key="urlquery-final-balanced-zero-axis-labels-v1",
+                   expected_reports_by_model={label: 6 for label in labels},
+                   runs=rows, excluded_runs=excluded,
+                   grade_source={**expected, "grade_count": len(rows)})
+    return write_plot("urlquery_final_balanced_figure", payload)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("state", type=Path)
+    parser.add_argument("--final-selection", type=Path,
+                        help="JSON with selected and excluded top-up run names")
     args = parser.parse_args()
     print(latest(args.state))
     print(previous_filtered())
     print(combined())
+    if args.final_selection:
+        print(final_balanced(args.final_selection))
 
 
 if __name__ == "__main__":
