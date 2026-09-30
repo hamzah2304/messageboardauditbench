@@ -114,8 +114,28 @@ def latest_reports() -> list[Path]:
     return runs
 
 
-def prepare() -> Path:
-    runs = latest_reports()
+def prepare(runs_file: Path | None = None) -> Path:
+    if runs_file is None:
+        runs = latest_reports()
+    else:
+        names = json.loads(runs_file.read_text())
+        if not isinstance(names, list) or not names or any(not isinstance(name, str) for name in names):
+            raise ValueError("runs file must be a nonempty JSON list of run directory names")
+        if len(names) != len(set(names)) or any(Path(name).name != name for name in names):
+            raise ValueError("runs file contains duplicate or invalid run directory names")
+        runs = [primary_root() / "runs" / "urlquery" / name for name in names]
+        if any(not (run / "report.md").is_file() or not (run / "meta.json").is_file() for run in runs):
+            raise ValueError("runs file names a missing report or metadata file")
+        for run in runs:
+            meta = json.loads((run / "meta.json").read_text())
+            if (meta.get("benchmark_id") != "urlquery" or meta.get("prompt") != "urlquery-agents-v6"
+                    or meta.get("data_manifest_status") != "verified"
+                    or meta.get("termination") not in ("normal", "active_time_limit")
+                    or meta.get("minimum_runtime_reached") is not True
+                    or meta.get("report_length_compliant") is not True
+                    or meta.get("model_fallback")
+                    or (meta.get("model_served") and meta["model_served"] != meta.get("model"))):
+                raise ValueError(f"ineligible run in runs file: {run.name}")
     article = fj.article_text("full")
     heads = fj.headlines()
     stamp = fj.stamp(MODEL, EFFORT, article)
@@ -220,7 +240,9 @@ def step(folder: Path) -> str:
     pending = [(i, c) for i, c in enumerate(state["chunks"]) if c["status"] != "collected"]
     if not pending:
         return "complete"
-    number, chunk = pending[0]
+    # Submit every prepared chunk before polling an earlier in-progress batch.
+    # The API processes independent input files concurrently.
+    number, chunk = next(((i, c) for i, c in pending if not c["batch_id"]), pending[0])
     api = API()
     if not chunk["batch_id"]:
         if fj.sha((folder / chunk["file"]).read_bytes()) != chunk["sha256"]:
@@ -248,12 +270,13 @@ def step(folder: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare", action="store_true")
+    parser.add_argument("--runs-file", type=Path, help="JSON list of specific run directory names to prepare")
     parser.add_argument("--step", type=Path)
     parser.add_argument("--watch", type=Path)
     parser.add_argument("--interval", type=int, default=60)
     args = parser.parse_args()
     if args.prepare:
-        folder = prepare()
+        folder = prepare(args.runs_file)
         state = json.loads((folder / "state.json").read_text())
         print(f"{folder}: {len(state['runs'])} reports, {sum(c['requests'] for c in state['chunks'])} requests, {len(state['chunks'])} batches")
     elif args.step:
