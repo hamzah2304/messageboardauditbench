@@ -332,13 +332,37 @@ EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
 TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH")
 case "$AGENT" in
   claude)
-    record_runner_event cli_started
-    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "$TIMEOUT" claude -p "$PROMPT" \
-      --model "$MODEL" --effort "$EFFORT" \
-      --dangerously-skip-permissions --no-chrome --setting-sources user \
-      ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
-      --output-format stream-json --verbose --include-partial-messages \
-      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?; record_runner_event cli_finished 1 "$RC" ;;
+    CLAUDE_EARLY_RESUMES=0
+    for attempt in 1 2 3 4 5 6 7 8; do
+      remaining="$((HARD_DEADLINE - $(date +%s)))"
+      [ "$remaining" -gt 0 ] || { RC=124; break; }
+      claude_prompt="$PROMPT"
+      resume_args=()
+      if [ "$attempt" -gt 1 ]; then
+        session_id="$(jq -sr 'map(select(.type=="system" and .subtype=="init"))[0].session_id // empty' "$RUN/transcript.jsonl")"
+        [ -n "$session_id" ] || { echo "Claude ended early without a resumable session" >&2; RC=6; break; }
+        resume_args=(--resume "$session_id")
+        claude_prompt="Continue this same benchmark investigation. The minimum working period has not elapsed. Verify additional evidence and improve /work/report.md where warranted. Keep the report in place and within its word limits."
+        CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
+        record_runner_event early_stop_resume_started "$attempt"
+      fi
+      record_runner_event cli_started "$attempt"
+      part="$RUN/transcript.part$attempt.jsonl"
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p "$claude_prompt" \
+        "${resume_args[@]}" --model "$MODEL" --effort "$EFFORT" \
+        --dangerously-skip-permissions --no-chrome --setting-sources user \
+        ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
+        --output-format stream-json --verbose --include-partial-messages \
+        < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+      cat "$part" >> "$RUN/transcript.jsonl"
+      rm "$part"
+      record_runner_event cli_finished "$attempt" "$RC"
+      [ "$RC" -eq 0 ] || break
+      [ "$(date +%s)" -lt "$EARLIEST_FINISH_EPOCH" ] || break
+      grep -q '"subtype":"model_refusal_fallback"' "$RUN/transcript.jsonl" && break
+      grep -q '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" && break
+    done
+    cp "$RUN/stderr.attempt$attempt.log" "$RUN/stderr.log" 2>/dev/null || true ;;
   codex)
     # A capacity response can terminate Codex before it begins a turn. Relaunch
     # at most twice, against the original fixed deadline, and preserve attempts.
@@ -397,8 +421,9 @@ EARLY_STOP_ATTEMPTS=0
 [ -f "$RUN/runtime_policy.json" ] && EARLY_STOP_ATTEMPTS="$(jq -r '.early_finish_blocks // 0' "$RUN/runtime_policy.json" 2>/dev/null || echo 0)"
 META_TMP="$RUN/meta.runtime-policy.json"
 jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
+   --argjson early_stop_resume_attempts "${CLAUDE_EARLY_RESUMES:-0}" \
    --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
-   '. + {early_stop_attempts: $early_stop_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
+   '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
    "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 # Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
 save_sessions

@@ -98,7 +98,7 @@ def summarize_claude_stream(
     seen_ids: set[str] = set()
     est_thinking = 0
     rate_limits: list[dict] = []
-    result: dict | None = None
+    results: list[dict] = []
     latencies: list[int] = []
     providers: set[str] = set()
     finish_reasons: dict[str, int] = {}
@@ -161,7 +161,8 @@ def summarize_claude_stream(
         elif t == "error":
             s["api_errors"] += 1
         elif t == "result":
-            result = ev
+            results.append(ev)
+    result = results[-1] if results else None
     stream_incomplete = bool(stream_seen - stream_complete)
     # A streamed message without message_stop has no terminal provider
     # counters. Its provisional start/assistant counters are deliberately not
@@ -206,7 +207,15 @@ def summarize_claude_stream(
             "reported" if reasoning is not None else "unavailable"
         )
 
-    if result and result.get("usage"):
+    if len(results) > 1 and all(item.get("usage") for item in results):
+        keys = ("input_tokens", "output_tokens", "cache_read_input_tokens",
+                "cache_creation_input_tokens")
+        combined = {key: sum((item["usage"].get(key) or 0) for item in results)
+                    for key in keys}
+        take(combined)
+        s["usage_source"] = "result_sum"
+        s["cli_invocations"] = len(results)
+    elif result and result.get("usage"):
         take(result["usage"])
         s["usage_source"] = "result"
     else:
@@ -253,8 +262,10 @@ def summarize_claude_stream(
         s["reasoning_tokens_estimated"] = True
         s["reasoning_tokens_source"] = "cli_estimate"
     if result:
-        s["cost_usd"] = result.get("total_cost_usd")
-        s["duration_ms"] = result.get("duration_ms")
+        s["cost_usd"] = (sum(item.get("total_cost_usd") or 0 for item in results)
+                         if len(results) > 1 else result.get("total_cost_usd"))
+        s["duration_ms"] = (sum(item.get("duration_ms") or 0 for item in results)
+                            if len(results) > 1 else result.get("duration_ms"))
         s["stop_reason"] = result.get("stop_reason")
         s["terminal_reason"] = result.get("terminal_reason") or result.get("subtype")
         s["is_error"] = result.get("is_error")
