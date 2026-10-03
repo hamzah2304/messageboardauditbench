@@ -126,7 +126,7 @@ const tabs = document.getElementById('tabs');
 RUNS.forEach((r, i) => {
   const b = document.createElement('button');
   b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'tab-' + i;
-  b.textContent = `${r.model} · ${r.reasoning.replace(' traces', '')}`;
+  b.textContent = r.label || `${r.model} · ${r.reasoning.replace(' traces', '')}`;
   b.addEventListener('click', () => render(i));
   tabs.appendChild(b);
 });
@@ -143,7 +143,9 @@ def main():
     runs = [run_info(d) for d in sys.argv[2:]]
     notes = json.loads(Path(out.with_suffix(".notes.json")).read_text()) if out.with_suffix(".notes.json").exists() else {}
     for r in runs:
-        r["notes"] = notes.get(r["run"], [])
+        extra = notes.get(r["run"], {})
+        r["notes"] = extra.get("notes", [])
+        r["label"] = extra.get("label", "")
     out.write_text(PAGE.replace("__RUNS__", json.dumps(runs).replace("</", "<\\/")))
     print(out, len(runs), "runs")
 
