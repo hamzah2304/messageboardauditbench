@@ -54,6 +54,14 @@ Novel findings that several runs report, or that a human confirms, go into the n
 
 A holistic grade of the TL;DR against a short reference summary of the most important findings, as in the German wiki eval's `tldrh` sheet. It asks whether the TL;DR names the problems that matter most and says how sure the author is.
 
+## Guarding against a leaky prompt
+
+The prompt describes the kinds of finding we want. That is fair, since the task is to write the report a researcher would want, but some kinds may map onto a single well-known episode. Three checks keep this honest:
+
+- **Leak check.** Give a model only the prompt, with no data, and ask it to list the findings it expects. Run it per model, since some models may know the AI Village posts from training. Findings it gets right come from the prompt or from public knowledge, not from investigation. Prune them from the key or report coverage with and without them.
+- **Version the prompt with the key.** Record the prompt version next to every answer-key revision and every run. If both change at once, a coverage gain cannot be attributed to better elicitation rather than a leakier prompt.
+- **Guided against unguided.** Run the same prompt with and without the section describing what counts as a finding and what counts as background. Compare coverage, the share of each report spent on background (tagged by a cheap judge), and new findings that pass the importance filter. If unguided reports score lower mainly because they spend space on background, guided is the right default for measuring investigation, and unguided becomes a separate test of whether a model knows what matters. Run this after the high-effort 30-minute rerun, with two or three runs per arm per model; at 14 to 22 tool calls, which slice of the record a run searched would swamp any prompt effect.
+
 ## Open questions
 
 - **How hard to penalise a fabricated citation.** Either it counts as a contradicted claim (double weight) or it is a fixed penalty large enough that fabrication can never be traded for coverage. The second is safer.
