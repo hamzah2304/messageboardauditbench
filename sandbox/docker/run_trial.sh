@@ -115,8 +115,15 @@ save_sessions() {
   [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
   [ -d "$SECRETS/claude/projects" ] && [ ! -d "$RUN/claude_sessions" ] && cp -R "$SECRETS/claude/projects" "$RUN/claude_sessions" 2>/dev/null || true
 }
+# On a Linux host the container user (uid 1000) can differ from ours, so files the agent, the
+# telemetry hook or the CLI wrote under the run directory may be unreadable or undeletable here.
+# Hand them back before collecting them. Docker Desktop maps ownership itself, so this is a no-op there.
+reclaim_run_files() {
+  docker run --rm --network none --user 0 -v "$RUN:/run-dir" --entrypoint chown "$IMAGE" -R "$(id -u):$(id -g)" /run-dir >/dev/null 2>&1 || true
+}
 cleanup() {
   docker rm -f "mbab-agent-$RUN_ID" >/dev/null 2>&1 || true
+  reclaim_run_files
   [ ! -f "$RUN/tool-telemetry/events.jsonl" ] || cp "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
   docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true
   docker rm -f "$PROXY" >/dev/null 2>&1 || true
@@ -405,6 +412,7 @@ case "$AGENT" in
 esac
 set -e; END=$(date +%s)
 record_runner_event runner_finished 1 "$RC"
+reclaim_run_files
 for f in report.md final_message.md; do
   source="$RUN/work/$f"
   if [ -L "$source" ]; then
