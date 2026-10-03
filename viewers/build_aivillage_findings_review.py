@@ -38,6 +38,7 @@ class Article(HTMLParser):
         self.images: dict[str, str] = {}
         self.skip = 0
         self.number = 0
+        self.image_number = 0
 
     def handle_starttag(self, tag, attrs):
         if tag in {"script", "style", "iframe", "button", "form"}:
@@ -57,6 +58,8 @@ class Article(HTMLParser):
                 ("rel", "noopener noreferrer"),
             ]
         if tag == "img":
+            self.image_number += 1
+            output.append(("data-source-image", self.image_number))
             src = attrs.get("src", "")
             try:
                 src = json.loads(attrs.get("data-attrs", "{}")).get("src") or src
@@ -111,6 +114,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--extraction-suffix", default="")
+    parser.add_argument("--prompt-file", default="extraction-prompt-v2.md")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "images").mkdir(exist_ok=True)
@@ -118,7 +123,9 @@ def main():
     images = {}
     for key, slug in POSTS:
         source = json.loads((args.input / f"{slug}.json").read_text())
-        extraction = json.loads((args.input / f"trial-{key}.json").read_text())
+        extraction = json.loads(
+            (args.input / f"trial-{key}{args.extraction_suffix}.json").read_text()
+        )
         sanitized = Article(key)
         sanitized.feed(source["body_html"])
         images.update(sanitized.images)
@@ -131,7 +138,10 @@ def main():
                 "extraction": extraction,
             }
         )
-        shutil.copyfile(args.input / f"trial-{key}.md", args.output / f"trial-{key}.md")
+        shutil.copyfile(
+            args.input / f"trial-{key}{args.extraction_suffix}.md",
+            args.output / f"trial-{key}.md",
+        )
     with ThreadPoolExecutor(max_workers=8) as pool:
         errors = [
             result
@@ -161,7 +171,11 @@ def main():
         args.output / "index.html",
     )
     shutil.copyfile(
-        args.input / "extraction-prompt-v2.md", args.output / "extraction-prompt-v2.md"
+        Path(__file__).with_name("aivillage_feedback_recovery.js"),
+        args.output / "feedback-recovery.js",
+    )
+    shutil.copyfile(
+        args.input / args.prompt_file, args.output / "extraction-prompt-v2.md"
     )
     print(
         json.dumps(
