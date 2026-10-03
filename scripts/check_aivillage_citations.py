@@ -7,6 +7,7 @@ Citations look like [turn:<id> "quote"]. Quotes are compared after normalising c
 whitespace and curly quotes. Grader-side only; agents never run this.
 """
 import argparse
+import warnings
 import gzip
 import json
 import re
@@ -15,7 +16,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-CITE = re.compile(r'\[(chat|turn|session|event|memory|claude_code|transcript):([^\s\]"]+)(?:\s+["“]([^\]]*?)["”])?\]')
+BRACKET = re.compile(r"\[([^\[\]]*)\]")
+ONE = re.compile(r'(chat|turn|session|event|memory|claude_code|transcript):([^\s\]";,]+)(?:\s+["“](.*?)["”])?(?=\s*(?:[;,]|$))')
 
 
 def norm(s):
@@ -60,7 +62,9 @@ def load(data, wanted):
 
 
 def check(data, report):
-    cites = [(m.group(1), m.group(2), m.group(3)) for m in CITE.finditer(Path(report).read_text())]
+    cites = [(m.group(1), m.group(2), m.group(3))
+             for b in BRACKET.finditer(Path(report).read_text())
+             for m in ONE.finditer(b.group(1).strip())]
     found = load(Path(data), {(k, i) for k, i, _ in cites})
     result = Counter()
     failures = []
@@ -82,6 +86,7 @@ def check(data, report):
 
 
 def main():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     p = argparse.ArgumentParser()
     p.add_argument("data")
     p.add_argument("reports", nargs="+")
