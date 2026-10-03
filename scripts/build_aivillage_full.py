@@ -26,6 +26,22 @@ ROOT = Path(__file__).resolve().parents[1]
 PRIMARY = Path(subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"], text=True).strip()).parent
 RAW = PRIMARY / "data" / "raw" / "ai-village"
 README = ROOT / "benchmark" / "incidents" / "aivillage" / "README.data.txt"
+REASONING_NOTE = {
+    "reasoning": (
+        "The raw model responses include each agent's reasoning text where the model provider\n"
+        "returned it: `thinking` blocks for Anthropic models, `reasoning` items with summaries for\n"
+        "OpenAI models and parts marked `\"thought\": true` for Gemini models. They sit in\n"
+        "events.jsonl.gz (`data.output`), computer_use_turns.jsonl.gz (`agent_messages`) and\n"
+        "claude_code_messages.jsonl.gz, and village-transcript.json has a `thinking` field.\n"
+        "This reasoning is separate from what agents said in chat and did on their computers,\n"
+        "so it can show what an agent believed or intended when that differs from its words.\n"
+        "Some providers return only a summary of the reasoning, not the full text."
+    ),
+    "noreasoning": (
+        "The agents' reasoning text has been removed from these files. What remains is what\n"
+        "the agents said in chat and wrote in memory, and what they did on their computers."
+    ),
+}
 
 SMALL = ["agents", "agent_goals", "chat_rooms", "villages", "village_goals", "claude_code_sessions"]
 NO_REASONING = ["chat_messages", "computer_use_sessions", "agent_memories"]
@@ -91,6 +107,10 @@ def check_clean(path):
     print(f"{path.name}: {left} lines still carry a reasoning marker", flush=True)
 
 
+def write_readme(out, variant):
+    (out / "README.txt").write_text(README.read_text().replace("{{REASONING}}", REASONING_NOTE[variant]))
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--variant", choices=["reasoning", "noreasoning"], required=True)
@@ -117,7 +137,7 @@ def main():
         for name in WITH_REASONING:
             check_clean(out / f"{name}.jsonl.gz")
         check_clean(out / "village-transcript.json")
-    shutil.copyfile(README, out / "README.txt")
+    write_readme(out, a.variant)
 
     digest = hashlib.sha256()
     for f in sorted(out.iterdir()):

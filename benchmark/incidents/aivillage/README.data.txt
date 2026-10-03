@@ -77,6 +77,10 @@ claude_code_sessions.jsonl, claude_code_messages.jsonl.gz
 agent_goals.jsonl, villages.jsonl
   Per-agent goals for the periods that had them, and the village record.
 
+REASONING TRACES
+
+{{REASONING}}
+
 Some values are replaced with [REDACTED] (credentials, infrastructure
 addresses), [IMAGE_REMOVED] or [BLOB_REMOVED].
 
