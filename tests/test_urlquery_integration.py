@@ -365,7 +365,9 @@ def test_runner_rejects_bad_cli_version_or_image_before_docker(tmp_path, version
 
 
 @pytest.mark.parametrize(("benchmark", "codex", "claude", "image", "expected", "args"), [
-    ("messageboard", "0.156.1", "2.1.283", "mbab-sandbox", "mbab-sandbox", []),
+    ("messageboard", "", "", "mbab-sandbox", "mbab-sandbox", []),
+    ("messageboard", "0.160.0", "2.1.283", "mbab-sandbox", "mbab-pinned-sandbox-codex-0.160.0-claude-2.1.283",
+     ["--build-arg", "CODEX_VERSION=rust-v0.160.0", "--build-arg", "CLAUDE_VERSION=2.1.283"]),
     ("urlquery", "", "", "mbab-sandbox", "mbab-urlquery-sandbox", []),
     ("urlquery", "", "2.1.283", "mbab-sandbox", "mbab-urlquery-sandbox-claude-2.1.283", ["--build-arg", "CLAUDE_VERSION=2.1.283"]),
     ("urlquery", "0.156.1", "2.1.283", "mbab-sandbox", "mbab-urlquery-sandbox-codex-0.156.1-claude-2.1.283",

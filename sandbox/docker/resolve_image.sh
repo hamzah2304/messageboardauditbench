@@ -1,7 +1,9 @@
-# Sourced by run_trial.sh. Keep URLQuery runtime pins out of original defaults.
+# Sourced by run_trial.sh. CLI pins apply to URLQuery and to any config that sets them;
+# configs without pins (the original benchmark) keep the Dockerfile defaults.
+has_cli_pins() { [ "$BENCHMARK_ID" = urlquery ] || [ -n "${CFG_CODEX_CLI_VERSION:-}${CFG_CLAUDE_CLI_VERSION:-}" ]; }
 resolve_trial_image() {
   IMAGE_BUILD_ARGS=()
-  [ "$BENCHMARK_ID" = urlquery ] || return 0
+  has_cli_pins || return 0
   local version_suffix=""
   if [ -n "${CFG_CODEX_CLI_VERSION:-}" ]; then
     [[ "$CFG_CODEX_CLI_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "codex_cli_version must be an exact numeric version" >&2; return 2; }
@@ -17,14 +19,16 @@ resolve_trial_image() {
   elif [[ "$IMAGE" == *-claude-[0-9]* ]]; then
     echo "versioned Claude image requires a matching config pin" >&2; return 2
   fi
-  [ "$IMAGE" != mbab-sandbox ] || IMAGE="mbab-urlquery-sandbox$version_suffix"
+  local prefix=mbab-pinned-sandbox
+  [ "$BENCHMARK_ID" != urlquery ] || prefix=mbab-urlquery-sandbox
+  [ "$IMAGE" != mbab-sandbox ] || IMAGE="$prefix$version_suffix"
   if [ -n "$version_suffix" ] && [[ "$IMAGE" != *"$version_suffix" ]]; then
-    echo "URLQuery image must end with $version_suffix" >&2; return 2
+    echo "pinned image must end with $version_suffix" >&2; return 2
   fi
 }
 
 verify_trial_cli_version() {
-  [ "$BENCHMARK_ID" = urlquery ] || return 0
+  has_cli_pins || return 0
   local expected_cli="" cli_line=""
   case "$AGENT" in
     codex) [ -z "${CFG_CODEX_CLI_VERSION:-}" ] || expected_cli="codex-cli $CFG_CODEX_CLI_VERSION" ;;
