@@ -89,6 +89,7 @@ Cite records by type and id, in square brackets, next to the claim they support:
   [session:<computer_use_sessions.id>]
   [turn:<computer_use_turns.id>]
   [memory:<agent_memories.id>]
+  [claude_code:<claude_code_messages.id>]   the row's top-level id
   [transcript:<timestamp>]   for an entry in village-transcript.json, by its exact timestamp
 
 For example: "The agent said the page was live [chat:<id>], but its deploy
