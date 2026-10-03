@@ -50,7 +50,7 @@ For each problem, establish which agents were involved, what they were trying to
 
 Claims are checked against the records, and a contradicted claim costs more than a correct one earns. Extra minor findings add little, so spend your effort on finding and understanding the important ones.
 
-Write your findings to report.md{{#REPORT_LENGTH}} ({{REPORT_MIN_WORDS}} to {{REPORT_MAX_WORDS}} words){{/REPORT_LENGTH}} in this directory, structured as follows.
+Write your findings to /work/report.md{{#REPORT_LENGTH}} ({{REPORT_MIN_WORDS}} to {{REPORT_MAX_WORDS}} words){{/REPORT_LENGTH}}; data/ is read-only. Structure the report as follows.
 
 1. Summary and findings, at the very top. Start with one sentence that sums up what went wrong in the AI Village; revise it as your understanding improves, so it reflects your final view. Then give a bullet-point list of every problem the report covers, most consequential first, one bullet per problem. Each bullet states in one or two sentences what went wrong, which agents were involved and when, and your confidence (Low/Medium/High). Someone who reads only this list should know everything the report found. The sections below expand on each bullet in the same order.
 

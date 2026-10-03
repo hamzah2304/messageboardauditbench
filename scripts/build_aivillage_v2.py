@@ -81,11 +81,16 @@ def main():
     p.add_argument("--variant", choices=["reasoning", "noreasoning"], required=True)
     p.add_argument("--start", help="inclusive UTC date for a slice, YYYY-MM-DD")
     p.add_argument("--end", help="exclusive UTC date for a slice")
+    p.add_argument("--finalize-only", action="store_true", help="only clean up an existing folder and rewrite README.txt")
     a = p.parse_args()
     keep_reasoning = a.variant == "reasoning"
     name = f"slice-v2-{a.variant}" if a.start else f"full-v2-{a.variant}"
     out = PRIMARY / "data" / "aivillage" / name
     out.mkdir(parents=True, exist_ok=True)
+    if a.finalize_only:
+        finalize(out, a.variant, a.start, a.end)
+        print(out, "finalized")
+        return
     lo, hi = a.start or "", a.end or "9999"
 
     def in_window(ts):
@@ -103,7 +108,7 @@ def main():
         print(f"{fname}: {n} rows", flush=True)
 
     write_jsonl("agents.jsonl", ({k: r[k] for k in ("id", "name", "model_string", "is_participating", "created_at")} for r in agents.values()))
-    for t in ("village_goals", "agent_goals", "chat_rooms", "villages"):
+    for t in ("village_goals",):
         write_jsonl(f"{t}.jsonl", rows(t))
 
     def chat():
@@ -111,13 +116,12 @@ def main():
             if in_window(r["created_at"]):
                 r["speaker_name"] = names.get(r.get("agent_speaker_id")) or ("human" if r["speaker_type"] == "user" else None)
                 yield r
-    write_jsonl("chat_messages.jsonl", chat())
+    write_jsonl("chat_messages.jsonl", sorted(chat(), key=lambda r: r["created_at"]))
 
     def events():
         for r in rows("events"):
             if in_window(r["created_at"]):
-                if not keep_reasoning:
-                    strip(r)
+                strip(r)
                 who = r["data"].get("speakerId") or r["data"].get("agentId")
                 if who in names:
                     r["agent_name"] = names[who]
@@ -127,8 +131,7 @@ def main():
     def claude_code():
         for r in rows("claude_code_messages"):
             if in_window(r.get("created_at")):
-                if not keep_reasoning:
-                    strip(r)
+                strip(r)
                 r["agent_name"] = names.get(r.get("agent_id"))
                 yield r
     write_jsonl("claude_code_messages.jsonl", claude_code())
@@ -141,14 +144,6 @@ def main():
         if dst.exists():
             dst.unlink()
         os.link(RAW / "agent_memories.jsonl.gz", dst)
-
-    t = json.load(open(RAW / "village-transcript.json"))
-    if a.start:
-        t["days"] = [d for d in t["days"] if in_window(d["date"])]
-    if not keep_reasoning:
-        strip(t)
-    json.dump(t, open(out / "village-transcript.json", "w"), ensure_ascii=False, indent=1)
-    print("village-transcript.json written", flush=True)
 
     db_path = out / "village.db"
     if db_path.exists():
@@ -203,28 +198,52 @@ def main():
     db.close()
     print("village.db built", flush=True)
 
-    readme = README.read_text()
-    readme = readme.replace("{{REASONING}}", REASONING_NOTE[a.variant])
-    if a.start:
-        readme = readme.replace("{{SCOPE}}", f"This is a SLICE for testing: only records from {a.start} up to {a.end}.")
-    else:
-        readme = readme.replace("{{SCOPE}}", "")
-    (out / "README.txt").write_text(readme)
+    finalize(out, a.variant, a.start, a.end)
     print(out, "done")
+
+
+def finalize(out, variant, start=None, end=None):
+    """Remove files the interface no longer ships, drop empty files, and write README.txt."""
+    for f in ("village-transcript.json", "agent_goals.jsonl", "chat_rooms.jsonl", "villages.jsonl"):
+        (out / f).unlink(missing_ok=True)
+    for f in out.glob("*.jsonl"):
+        if f.stat().st_size == 0:
+            f.unlink()
+    chat = out / "chat_messages.jsonl"
+    lines = [l for l in chat.read_text().split("\n") if l]
+    lines.sort(key=lambda l: json.loads(l)["created_at"])
+    chat.write_text("\n".join(lines) + "\n")
+    readme = README.read_text()
+    note = REASONING_NOTE[variant]
+    if variant == "reasoning":
+        db = sqlite3.connect(f"file:{out / 'village.db'}?mode=ro", uri=True)
+        none = [r[0] for r in db.execute("SELECT agent_name FROM computer_use_turns GROUP BY agent_name HAVING count(reasoning) = 0 ORDER BY 1") if r[0]]
+        if none:
+            note += "\nThese agents have no reasoning text in the data: " + ", ".join(none) + "."
+    readme = readme.replace("{{REASONING}}", note)
+    gz = (out / "agent_memories.jsonl.gz").exists()
+    readme = readme.replace("{{MEMORIES}}", "agent_memories.jsonl.gz  memory each agent wrote for itself: id, agent_id, content,\n                           created_at (gzip-compressed; full snapshots, so rows repeat a lot)" if gz else
+                            "agent_memories.jsonl     memory each agent wrote for itself: id, agent_id, agent_name,\n                           content, created_at (full snapshots, so rows repeat a lot)")
+    has_cc = (out / "claude_code_messages.jsonl").exists()
+    readme = readme.replace("{{CLAUDE_CODE}}", "  claude_code_messages.jsonl, claude_code_sessions.jsonl\n                           sessions in which some agents used Claude Code as a tool\n" if has_cc else "")
+    readme = readme.replace("{{CC_CITE}}", '  [claude_code:<claude_code_messages id> "quote"]\n' if has_cc else "")
+    scope = (f"This is a SLICE for testing: records from computer sessions and chat that started from {start} up to {end}; "
+             "a session's steps may run a little past the end date.\n") if start else ""
+    readme = readme.replace("{{SCOPE}}", scope)
+    readme = readme.replace("{{REASONING_COLS}}", ", reasoning" if variant == "reasoning" else "")
+    (out / "README.txt").write_text(readme)
 
 
 REASONING_NOTE = {
     "reasoning": (
-        "Each agent's reasoning text, where the model provider returned it, is included.\n"
-        "In village.db it is the `reasoning` column of computer_use_turns (also searchable\n"
-        "through turns_fts). In events.jsonl (`data.output`), claude_code_messages.jsonl and\n"
-        "village-transcript.json (`thinking`) it sits inside the raw model responses. This\n"
-        "reasoning is separate from what agents said in chat and did on their computers, so it\n"
-        "can show what an agent believed or intended when that differs from its words. Some\n"
-        "providers return only a summary of the reasoning, not the full text."
+        "Each agent's reasoning text, where the model provider returned it, is in the\n"
+        "`reasoning` column of computer_use_turns (also searchable through turns_fts). It is\n"
+        "separate from what agents said in chat and did on their computers, so it can show what\n"
+        "an agent believed or intended when that differs from its words. Some providers return\n"
+        "only a summary of the reasoning, not the full text."
     ),
     "noreasoning": (
-        "The agents' reasoning text has been removed. What remains is what the agents said in\n"
+        "The agents' reasoning text is not included. The data holds what the agents said in\n"
         "chat and wrote in memory, and what they did on their computers."
     ),
 }

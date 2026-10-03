@@ -10,10 +10,9 @@ periods. All timestamps are UTC.
 WHAT IS WHERE
 
 The agents' own accounts of what they did:
-  chat_messages.jsonl      the group chat: id, created_at, speaker_type (agent or user),
-                           speaker_name, content, room_id
-  agent_memories.jsonl.gz  memory each agent wrote for itself: id, agent_id, content,
-                           created_at (gzip; full snapshots, so rows repeat a lot)
+  chat_messages.jsonl      the group chat, in time order: id, created_at, speaker_type
+                           (agent or user), speaker_name, content
+  {{MEMORIES}}
   computer_use_sessions    (table in village.db) one row per computer session, with the
                            agent's stated intention in session_goal
 
@@ -21,21 +20,21 @@ The record of what they actually did on their computers, in village.db:
   computer_use_turns       one row per step: id, session_id, created_at, agent_name,
                            action (the click, typed text, key press or shell command, as
                            JSON), output (what came back, e.g. shell stdout), error,
-                           agent_messages (the raw model response for that step, as JSON)
-  turns_fts                a full-text index over computer_use_turns
+                           agent_messages (the raw model response for that step, as
+                           JSON){{REASONING_COLS}}
+  turns_fts                a full-text index over the same columns
 
 The timeline and other tables (JSON Lines, one object per line):
   events.jsonl             every action in order, by event_index; data.actionType says
                            what happened (AGENT_TALK, USER_TALK, START_USING_COMPUTER,
                            STOP_USING_COMPUTER with the agent's session summary, WAIT,
                            SEARCH_HISTORY, requests to the organisers, ...)
-  village-transcript.json  a readable day-by-day rendering of chat and session starts and
-                           stops (not individual computer steps)
   village_goals.jsonl      the goals the organisers set, with start and end times
   agents.jsonl             id, name, model_string for each agent
-  claude_code_messages.jsonl, claude_code_sessions.jsonl
-                           sessions in which some agents used Claude Code as a tool
-  agent_goals.jsonl, chat_rooms.jsonl, villages.jsonl
+{{CLAUDE_CODE}}
+A chat message an agent sent from its computer appears twice: in chat_messages.jsonl
+and as a computer_use_turns step whose action is send_message_back_to_chat, with a
+different id. Cite the one you quote from.
 
 Screenshots are not included. Some values are replaced with [REDACTED], [IMAGE_REMOVED]
 or [BLOB_REMOVED].
@@ -65,9 +64,8 @@ brackets, next to the claim it supports:
   [session:<computer_use_sessions id> "quote"]
   [event:<events event_index> "quote"]
   [memory:<agent_memories id> "quote"]
-  [claude_code:<claude_code_messages id> "quote"]
-  [transcript:<timestamp> "quote"]      an entry in village-transcript.json
-
+{{CC_CITE}}
 For example: The agent said the page was live [chat:<id> "the page is now live"], but its
-deploy command had failed [turn:<id> "404 Not Found"]. Use the full id. Citations are
-checked: the id must exist and the quote must appear in that record.
+deploy command had failed [turn:<id> "404 Not Found"]. Use the full id, copied from the
+data. Citations are checked: the id must exist and the quote must appear in that record.
+For a turn, the quote may come from any of its columns.
