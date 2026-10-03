@@ -168,7 +168,7 @@ def _prompt_for(
     budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
-    return render_prompt(text, budget_minutes, *limits(cfg)) + (
+    return render_prompt(text, budget_minutes, *limits(cfg), int(cfg.get("findings_count") or 0)) + (
         _minimum_runtime_instruction(budget_minutes * 60, fraction)
     )
 

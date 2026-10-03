@@ -141,8 +141,12 @@ def instruction(low: int, high: int) -> str:
     )
 
 
-def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
-    """Render shared config values without duplicating embedded length prose."""
+def render_prompt(template: str, budget_min: int, low: int, high: int, findings_count: int = 0) -> str:
+    """Render shared config values without duplicating embedded length prose.
+
+    `{{#FINDINGS_COUNT}}...{{/FINDINGS_COUNT}}` is kept only when a fixed number of findings
+    is configured, `{{^FINDINGS_COUNT}}...{{/FINDINGS_COUNT}}` only when it is not.
+    """
     embedded_length = "{{#REPORT_LENGTH}}" in template
     text = re.sub(
         r"\{\{#REPORT_LENGTH\}\}(.*?)\{\{/REPORT_LENGTH\}\}",
@@ -150,10 +154,15 @@ def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
         template,
         flags=re.DOTALL,
     )
+    text = re.sub(r"\{\{#FINDINGS_COUNT\}\}(.*?)\{\{/FINDINGS_COUNT\}\}",
+                  lambda match: match.group(1) if findings_count else "", text, flags=re.DOTALL)
+    text = re.sub(r"\{\{\^FINDINGS_COUNT\}\}(.*?)\{\{/FINDINGS_COUNT\}\}",
+                  lambda match: "" if findings_count else match.group(1), text, flags=re.DOTALL)
     for token, value in {
         "BUDGET_MIN": str(budget_min),
         "REPORT_MIN_WORDS": f"{low:,}",
         "REPORT_MAX_WORDS": f"{high:,}",
+        "FINDINGS_COUNT": str(findings_count),
     }.items():
         text = text.replace("{{" + token + "}}", value)
     return text if embedded_length else text + instruction(low, high)
@@ -322,6 +331,7 @@ def main() -> None:
     parser.add_argument("--instruction", action="store_true")
     parser.add_argument("--template", type=Path)
     parser.add_argument("--budget-min", type=int, default=20)
+    parser.add_argument("--findings-count", type=int, default=0)
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
     parser.add_argument("--always", action="store_true")
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
@@ -338,7 +348,7 @@ def main() -> None:
     )
     if args.template:
         print(
-            render_prompt(args.template.read_text(), args.budget_min, low, high),
+            render_prompt(args.template.read_text(), args.budget_min, low, high, args.findings_count),
             end="",
         )
     elif args.instruction:
