@@ -39,7 +39,7 @@ Pass/fail grading is deliberate. In ResearchRubrics, judge agreement with humans
 
 This part checks the report against the logs, not against the answer key.
 
-- **Citations**: a script checks that every cited id exists in the data. A model then checks a sample of citations: does the cited record support the sentence it is attached to?
+- **Citations**: each citation pairs a record id with a short exact quote from that record. A script checks every citation: the id must exist and the quote must appear in that record. A failed citation is treated as fabrication. A model then checks whether each cited record supports the sentence it is attached to, so the verifier judges support rather than hunting for evidence itself. Each citation is also tagged as the agents' own account (chat, memory, session summaries) or an action record (computer-use turns, tool output), which shows whether a problem has an action record behind it.
 - **Claims**: a model extracts the report's consequential claims, meaning each problem's headline and the facts it rests on. A verifier agent with access to the logs labels each claim supported, unsupported or contradicted.
 
 The score is the share of claims that are supported, with contradicted claims counting against the report twice. A report that invents a citation or asserts something the logs contradict should lose more than a report that leaves something out.
@@ -55,6 +55,8 @@ Novel findings that several runs report, or that a human confirms, go into the n
 A holistic grade of the TL;DR against a short reference summary of the most important findings, as in the German wiki eval's `tldrh` sheet. It asks whether the TL;DR names the problems that matter most and says how sure the author is.
 
 ## Open questions
+
+- **How hard to penalise a fabricated citation.** Either it counts as a contradicted claim (double weight) or it is a fixed penalty large enough that fabrication can never be traded for coverage. The second is safer.
 
 - **Whole record or one goal per task?** On the whole record, coverage is dominated by which slice a run happens to look at. One goal period per task makes coverage meaningful, gives many small tasks rather than one, and makes runs cheaper. It loses the test of whether an agent can find the important episodes in a large record on its own. A middle option is both: one whole-record task plus a set of single-goal tasks.
 - **Weights.** The weights above are a starting point. They should be set once the pilot shows how much each part varies between runs of the same model.

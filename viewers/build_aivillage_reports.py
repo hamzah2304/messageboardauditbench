@@ -85,6 +85,7 @@ article code { font-family: var(--mono); font-size: .82em; background: var(--chi
 article strong { font-weight: 600; }
 .cite { font-family: var(--mono); font-size: 11.5px; background: var(--chip); color: var(--chip-ink); border-radius: 4px; padding: 1px 5px; white-space: nowrap; cursor: help; }
 .cite b { font-weight: 500; opacity: .7; }
+q.cq { font-style: italic; color: var(--muted); }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 12px; }
 @media (max-width: 480px) { body { font-size: 16px; } h1.page { font-size: 25px; } }
 </style>
@@ -103,8 +104,8 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; border-top: 1px
 const RUNS = __RUNS__;
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function cites(htmlText) {
-  return htmlText.replace(/\\[(chat|event|session|turn|memory|transcript|claude_code):([^\\]\\s]+)\\]/g, (m, kind, id) =>
-    `<span class="cite" tabindex="0" title="${esc(kind + ':' + id)}"><b>${kind}</b> ${esc(id.slice(0, 8))}</span>`);
+  return htmlText.replace(/\\[(chat|event|session|turn|memory|transcript|claude_code):([^\\]\\s"&]+)(?:\\s+(?:"|&quot;|&#34;)(.*?)(?:"|&quot;|&#34;))?\\]/g, (m, kind, id, quote) =>
+    `<span class="cite" tabindex="0" title="${esc(kind + ':' + id)}"><b>${kind}</b> ${esc(id.slice(0, 8))}</span>` + (quote ? ` <q class="cq">${quote}</q>` : ''));
 }
 function render(i) {
   const r = RUNS[i];

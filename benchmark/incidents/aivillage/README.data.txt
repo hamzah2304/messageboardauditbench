@@ -86,15 +86,17 @@ addresses), [IMAGE_REMOVED] or [BLOB_REMOVED].
 
 CITATION FORMAT
 
-Cite records by type and id, in square brackets, next to the claim they support:
+Cite a record by its type and id plus a short quote copied exactly from it (a few words
+from the record's text), in square brackets, next to the claim it supports:
 
-  [chat:<chat_messages.id>]
-  [event:<events.event_index>]
-  [session:<computer_use_sessions.id>]
-  [turn:<computer_use_turns.id>]
-  [memory:<agent_memories.id>]
-  [claude_code:<claude_code_messages.id>]   the row's top-level id
-  [transcript:<timestamp>]   for an entry in village-transcript.json, by its exact timestamp
+  [chat:<chat_messages.id> "quote"]
+  [event:<events.event_index> "quote"]
+  [session:<computer_use_sessions.id> "quote"]
+  [turn:<computer_use_turns.id> "quote"]
+  [memory:<agent_memories.id> "quote"]
+  [claude_code:<claude_code_messages.id> "quote"]   the row's top-level id
+  [transcript:<timestamp> "quote"]   an entry in village-transcript.json, by its exact timestamp
 
-For example: "The agent said the page was live [chat:<id>], but its deploy
-command had failed [turn:<id>]." Always use the full id.
+For example: "The agent said the page was live [chat:<id> "the page is now live"], but
+its deploy command had failed [turn:<id> "Error: 404"]." Use the full id. Citations are
+checked automatically: the id must exist and the quote must appear in that record.
