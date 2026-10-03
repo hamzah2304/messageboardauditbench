@@ -194,7 +194,6 @@ def main():
     db.execute(f"CREATE VIRTUAL TABLE turns_fts USING fts5({', '.join(fts_cols)}, content='computer_use_turns', content_rowid='rowid')")
     db.execute("INSERT INTO turns_fts(turns_fts) VALUES('rebuild')")
     db.commit()
-    db.execute("VACUUM")
     db.close()
     print("village.db built", flush=True)
 
