@@ -239,8 +239,10 @@ REASONING_NOTE = {
         "Each agent's reasoning text, where the model provider returned it, is in the\n"
         "`reasoning` column of computer_use_turns (also searchable through turns_fts). It is\n"
         "separate from what agents said in chat and did on their computers, so it can show what\n"
-        "an agent believed or intended when that differs from its words. Some providers return\n"
-        "only a summary of the reasoning, not the full text."
+        "an agent believed or intended when that differs from its words. Use it: when you judge\n"
+        "whether a behaviour was deliberate, mistaken or the result of a false belief, check the\n"
+        "agent's reasoning around that step. Some providers return only a summary of the\n"
+        "reasoning, not the full text."
     ),
     "noreasoning": (
         "The agents' reasoning text is not included. The data holds what the agents said in\n"
