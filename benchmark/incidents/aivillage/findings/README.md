@@ -33,6 +33,8 @@ Discord; merging and filtering; checking against the Village records; adjudicati
 - `needs screenshots`: sound except that it depends on a screenshot, which the records do not hold. Set aside for a version of the eval with screenshots.
 - `drop`: not supported by the records, ambiguous, unsettled after two checks, or removed on Oscar's reviews (minor, duplicate, not significant, or no longer a failure once corrected). `removal_bucket` says which.
 
+Ten findings kept as written had a subfinding reworded or removed; their headline and summary were then brought into line with the remaining subfindings (`summaries` in `review-decisions.json`, `summary_reconciled` in `final-findings.json`).
+
 Subfinding decisions: `keep`, `rewrite`, `drop_screenshot`, `drop_ambiguous`, `drop_inconclusive` (the check could not settle it and it is not highly significant).
 
 ## Where each step's output lives

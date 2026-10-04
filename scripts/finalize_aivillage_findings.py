@@ -103,8 +103,13 @@ def main():
             bucket = (DECISIONS["findings"].get(m["id"], {}).get("bucket")
                       or (SCREENSHOT_BUCKET if group == "needs screenshots" else "Not supported by the records, or ambiguous"))
         rewritten = group == "rewrite"
-        final.append({"id": m["id"], "group": group, "headline": d["headline"] if rewritten else m["headline"],
-                      "finding": d["finding"] if rewritten else m["finding"],
+        headline, finding = (d["headline"], d["finding"]) if rewritten else (m["headline"], m["finding"])
+        # A kept finding whose parts were reworded or removed gets its summary brought into line with them.
+        summary = DECISIONS.get("summaries", {}).get(m["id"])
+        if summary and group in ("keep", "rewrite"):
+            headline, finding = summary["headline"], summary["finding"]
+        final.append({"id": m["id"], "group": group, "headline": headline, "finding": finding,
+                      "summary_reconciled": summary["reason"] if summary and group in ("keep", "rewrite") else "",
                       "original_headline": m["headline"], "original_finding": m["finding"], "reason": d["reason"],
                       "decided_by": decided_by, "removal_bucket": bucket, "adjudicator": d["adjudicator"], "behavior_dates": v.get("behavior_dates", ""), "how_to_find": v.get("how_to_find", ""),
                       "citation_check": cites.get(m["id"]), "notes": m["notes"], "sources": m["sources"], "subfindings": subs})
@@ -223,6 +228,8 @@ def main():
         for f in items:
             c = f["citation_check"]
             notes = [f"Decision: {f['reason']} (decided by {f['decided_by']})"]
+            if f.get("summary_reconciled"):
+                notes.append("Summary brought into line with its subfindings: " + f["summary_reconciled"])
             if f["headline"] != f["original_headline"] or f["finding"] != f["original_finding"]:
                 notes.append(f"Original wording: {f['original_headline']} — {f['original_finding']}")
             notes += [f"When it happened, per the records: {f['behavior_dates']}", f"How to find it: {f['how_to_find']}"]
