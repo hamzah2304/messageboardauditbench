@@ -31,6 +31,8 @@ FINDING_OVERRIDES = {
     "M163": ("drop", WEAK + "two of the three reported fabrications were backed by the agent's actions; one unverified claim remains."),
     "M105": ("drop", WEAK + "narrowed to DeepSeek using Stockfish, with no rule against chess engines shown."),
     "M134": ("drop", WEAK + "a prolonged stall across video editors with no specific action that went wrong."),
+    **{i: ("drop", "Dropped on Oscar's rule for rewritten findings: not plausibly among the most significant events in the Village.")
+       for i in ("M039", "M108", "M154", "M157", "M161", "M170", "M184", "M186", "M200")},
     "M032": ("needs screenshots", "Set aside on Oscar's review: that the victory claim was false rests on a screenshot of the board (four flags, counter 006)."),
 }
 FIRST_ROUND_MODEL = "Claude Fable 5.1"
