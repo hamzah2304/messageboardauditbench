@@ -1,0 +1,255 @@
+<title>X Findings Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: post list rail | post text | findings, collapsing to one column on phones. */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --fg:#1b1f27; --muted:#5b6474; --line:#d9dde5;
+  --accent:#1d5fd1; --accent-soft:#e3ecfb;
+  --keep:#1f7a4d; --keep-soft:#e1f2e8; --revise:#9a6200; --revise-soft:#fbefd9; --drop:#b42d2d; --drop-soft:#f9e2e2;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-read:"Literata",Georgia,"Times New Roman",serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151b; --surface:#1a1e26; --sunk:#232833; --fg:#e6e9ef; --muted:#9aa3b3; --line:#2f3542;
+  --accent:#7aa7ff; --accent-soft:#1f2c47;
+  --keep:#5fcf95; --keep-soft:#173326; --revise:#e6b45a; --revise-soft:#3a2d14; --drop:#f08080; --drop-soft:#3d1c1c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151b; --surface:#1a1e26; --sunk:#232833; --fg:#e6e9ef; --muted:#9aa3b3; --line:#2f3542;
+  --accent:#7aa7ff; --accent-soft:#1f2c47;
+  --keep:#5fcf95; --keep-soft:#173326; --revise:#e6b45a; --revise-soft:#3a2d14; --drop:#f08080; --drop-soft:#3d1c1c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:1380px;margin:0 auto;display:grid;gap:16px}
+header{display:grid;gap:6px}
+h1{font-size:22px;margin:0;text-wrap:balance;letter-spacing:-.01em}
+header p{margin:0;color:var(--muted);font-size:13.5px;max-width:110ch}
+header a{color:var(--accent)}
+.status{font-size:12.5px;font-family:var(--f-mono);color:var(--muted)}
+.status.bad{color:var(--drop)}
+.layout{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:1000px){.layout{grid-template-columns:230px minmax(0,1fr)}}
+nav{display:flex;flex-wrap:wrap;gap:6px;align-content:start}
+@media (min-width:1000px){nav{flex-direction:column;flex-wrap:nowrap;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);max-height:calc(100vh - 24px);overflow:auto}}
+nav button{font:inherit;font-size:13px;text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:7px 9px;cursor:pointer;display:grid;gap:2px;min-width:0}
+nav button[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft)}
+nav .d{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+nav .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav .c{font-size:11.5px;color:var(--muted)}
+.panes{display:grid;gap:16px;grid-template-columns:1fr;min-width:0}
+@media (min-width:1200px){.panes{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}}
+.pane{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0;display:grid;gap:12px;align-content:start}
+.pane h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0;font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);align-items:baseline}
+.meta a{color:var(--accent)}
+.part{display:grid;gap:4px}
+.part .lab{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.part p{margin:0;font-family:var(--f-read);font-size:15.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.part+.part{border-top:1px dashed var(--line);padding-top:10px}
+.caveat{font-size:12.5px;color:var(--muted);margin:0}
+.card{border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:10px;background:var(--surface)}
+.card[data-decision="keep"]{border-left:4px solid var(--keep)}
+.card[data-decision="revise"]{border-left:4px solid var(--revise)}
+.card[data-decision="drop"]{border-left:4px solid var(--drop)}
+.card h3{margin:0;font-size:16.5px;line-height:1.35;text-wrap:balance}
+.fid{font-family:var(--f-mono);font-size:12px;color:var(--muted);margin-right:8px;font-weight:500}
+.card>p{margin:0}
+.sub{background:var(--sunk);border-radius:6px;padding:10px 12px;display:grid;gap:6px;font-size:14px}
+.sub h4{margin:0;font-size:14.5px;font-weight:600;line-height:1.4}
+blockquote{margin:0;border-left:2px solid var(--accent);padding-left:10px;font-family:var(--f-read);font-size:14px}
+.loc{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.kv{margin:0;font-size:13.5px}
+.kv b{font-weight:600}
+.notes{margin:0;padding-left:18px;font-size:13px;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:var(--surface);color:var(--fg);padding:6px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"][data-v="keep"],.seg button[aria-pressed="true"][data-v="include"]{background:var(--keep-soft);color:var(--keep)}
+.seg button[aria-pressed="true"][data-v="revise"]{background:var(--revise-soft);color:var(--revise)}
+.seg button[aria-pressed="true"][data-v="drop"],.seg button[aria-pressed="true"][data-v="agree"]{background:var(--drop-soft);color:var(--drop)}
+.ghost{font:inherit;font-size:13px;border:1px solid var(--line);background:none;color:var(--accent);border-radius:6px;padding:6px 10px;cursor:pointer}
+textarea{font:inherit;font-size:13.5px;width:100%;min-height:54px;resize:vertical;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg);padding:7px 9px}
+button:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled,textarea:disabled{opacity:.55;cursor:not-allowed}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;font-size:14px}
+.excl{display:grid;gap:12px;margin-top:10px}
+.excl .item{display:grid;gap:6px;font-size:13.5px}
+.excl .item+.item{border-top:1px dashed var(--line);padding-top:10px}
+.excl .claim{font-weight:600}
+.excl .reason{color:var(--muted)}
+.empty{margin:0;color:var(--muted);font-style:italic}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>X Findings Review</h1>
+    <p id="summary"></p>
+    <p>Mark each finding <b>Keep</b>, <b>Revise</b> or <b>Drop</b>, with a note if useful. Under “What Sol left out”, flag any exclusion that should have been a finding. Choices save to this page’s database, where Claude reads them. To comment on any text, select it or use claude.ai’s comment mode; the Comment button on each finding opens it there.</p>
+    <div class="status" id="status" role="status" aria-live="polite">Connecting to the review store…</div>
+  </header>
+  <div class="layout">
+    <nav id="nav" aria-label="Posts"></nav>
+    <div class="panes">
+      <section class="pane" aria-labelledby="src-h">
+        <h2 id="src-h">X post</h2>
+        <div class="meta" id="post-meta"></div>
+        <p class="caveat">Post text only. Screenshots, videos, quoted posts and linked pages were not supplied to the model.</p>
+        <div id="post-text" style="display:grid;gap:10px"></div>
+      </section>
+      <section class="pane" aria-labelledby="f-h">
+        <h2 id="f-h">Findings</h2>
+        <div id="findings" style="display:grid;gap:12px"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script id="review-data" type="application/json">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('review-data').textContent);
+const posts = DATA.posts;
+let current = 0;
+let reviews = {};          // key -> stored review doc
+let db = null, comments = null, uid = null, canWrite = true;
+const pending = new Map(); // key -> timer for note saves
+
+function el(tag, cls, text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function setStatus(msg,bad){const s=document.getElementById('status');s.textContent=msg;s.classList.toggle('bad',!!bad)}
+
+function itemKeys(){const keys=[];posts.forEach(p=>p.extraction.findings.forEach(f=>keys.push(p.id+'-'+f.id)));return keys}
+function summary(){
+  const nF=itemKeys().length, done=itemKeys().filter(k=>reviews[k]&&reviews[k].decision).length;
+  const flagged=Object.values(reviews).filter(r=>r.kind==='excluded'&&r.decision==='include').length;
+  document.getElementById('summary').textContent='';
+  const s=document.getElementById('summary');
+  s.append(`${nF} findings from ${posts.length} posts · ${DATA.model}, ${DATA.effort} effort · `);
+  const a=el('a',null,'prompt: X extraction — revised criteria');a.href=DATA.prompt_url;a.target='_blank';a.rel='noopener';s.append(a);
+  s.append(` · ${done} of ${nF} reviewed`+(flagged?` · ${flagged} exclusion${flagged>1?'s':''} flagged`:''));
+}
+
+function drawNav(){
+  const nav=document.getElementById('nav');nav.textContent='';
+  posts.forEach((p,i)=>{
+    const b=el('button');b.type='button';b.setAttribute('aria-current',i===current?'true':'false');
+    const keys=p.extraction.findings.map(f=>p.id+'-'+f.id);
+    const done=keys.filter(k=>reviews[k]&&reviews[k].decision).length;
+    b.append(el('span','d',p.date+(p.hand_picked?' · hand-picked':'')),el('span','t',p.extraction.findings[0]?.headline||p.text.split('\n')[0]),
+      el('span','c',keys.length?`${keys.length} finding${keys.length>1?'s':''} · ${done} reviewed`:'no findings'));
+    b.onclick=()=>{current=i;draw();window.scrollTo({top:0})};
+    nav.append(b);
+  });
+}
+
+async function save(key, patch){
+  if(!db||!canWrite)return;
+  const doc={...(reviews[key]||{}),...patch,updatedAt:new Date().toISOString()};
+  if(uid)doc.by=uid;
+  reviews[key]=doc;
+  setStatus('Saving…');
+  try{await db.collection('reviews').doc(key).set(doc);setStatus('All changes saved.')}
+  catch(e){
+    if(e&&e.code==='invalid_argument'){canWrite=false;setStatus('This view can read the review but not save to it.',true);draw()}
+    else setStatus('Not saved ('+(e&&e.code||'error')+'). Your last change is still on screen; try again.',true);
+  }
+}
+
+function decisionControl(key, kind, options, meta){
+  const r=reviews[key]||{};
+  const wrap=el('div','controls');
+  const seg=el('div','seg');seg.setAttribute('role','group');seg.setAttribute('aria-label',kind==='finding'?'Decision':'Exclusion verdict');
+  options.forEach(([v,label])=>{
+    const b=el('button',null,label);b.type='button';b.dataset.v=v;b.setAttribute('aria-pressed',r.decision===v?'true':'false');b.disabled=!db||!canWrite;
+    b.onclick=()=>{const next=r.decision===v?'':v;save(key,{kind,decision:next,...meta}).then(draw);};
+    seg.append(b);
+  });
+  wrap.append(seg);
+  return wrap;
+}
+function noteBox(key, kind, meta, placeholder){
+  const t=el('textarea');t.id='note-'+key;t.placeholder=placeholder;t.value=(reviews[key]&&reviews[key].note)||'';t.disabled=!db||!canWrite;
+  t.setAttribute('aria-label','Note');
+  t.oninput=()=>{clearTimeout(pending.get(key));pending.set(key,setTimeout(()=>save(key,{kind,note:t.value,...meta}),900));setStatus('Unsaved note…')};
+  t.onblur=()=>{if(pending.has(key)){clearTimeout(pending.get(key));pending.delete(key);if(t.value!==((reviews[key]&&reviews[key].note)||''))save(key,{kind,note:t.value,...meta})}};
+  return t;
+}
+
+function draw(){
+  summary();drawNav();
+  const p=posts[current];
+  const meta=document.getElementById('post-meta');meta.textContent='';
+  const a=el('a',null,'Open on X ↗');a.href=p.url;a.target='_blank';a.rel='noopener';
+  meta.append(el('span',null,p.date),el('span',null,'@'+p.author),a);
+  const pt=document.getElementById('post-text');pt.textContent='';
+  const parts=p.text.split('\n---\n');
+  parts.forEach((t,i)=>{const d=el('div','part');if(parts.length>1)d.append(el('span','lab','Part '+(i+1)));d.append(el('p',null,t.trim()));pt.append(d)});
+
+  const root=document.getElementById('findings');root.textContent='';
+  const ex=p.extraction;
+  if(!ex.findings.length)root.append(el('p','empty','No findings met the failure criteria in this post. The exclusions are below.'));
+  ex.findings.forEach(f=>{
+    const key=p.id+'-'+f.id, r=reviews[key]||{};
+    const c=el('article','card');c.dataset.decision=r.decision||'';
+    const h=el('h3');h.append(el('span','fid',f.id),document.createTextNode(f.headline));c.append(h);
+    c.append(el('p',null,f.finding));
+    if(f.notes&&f.notes.length){const ul=el('ul','notes');f.notes.forEach(n=>ul.append(el('li',null,n)));c.append(ul)}
+    f.subfindings.forEach(sf=>{
+      const s=el('section','sub');
+      const sh=el('h4');sh.append(el('span','fid',sf.id),document.createTextNode(sf.claim));s.append(sh);
+      sf.source_support.forEach(q=>{s.append(el('blockquote',null,q.quote),el('div','loc',q.location+' · '+q.source_kind))});
+      if(sf.media_dependence){const k=el('p','kv');k.append(el('b',null,'Media dependence: '),document.createTextNode(sf.media_dependence));s.append(k)}
+      if(sf.evidence_note){const k=el('p','kv');k.append(el('b',null,'Evidence note: '),document.createTextNode(sf.evidence_note));s.append(k)}
+      if(sf.notes&&sf.notes.length){const ul=el('ul','notes');sf.notes.forEach(n=>ul.append(el('li',null,n)));s.append(ul)}
+      c.append(s);
+    });
+    const ctl=decisionControl(key,'finding',[['keep','Keep'],['revise','Revise'],['drop','Drop']],{post:p.id,headline:f.headline});
+    if(comments){const cb=el('button','ghost','Comment');cb.type='button';cb.onclick=async()=>{try{await comments.openComposer({element:c})}catch(e){cb.hidden=true}};ctl.append(cb)}
+    c.append(ctl,noteBox(key,'finding',{post:p.id,headline:f.headline},'Note (what to change, why drop)…'));
+    root.append(c);
+  });
+
+  const det=el('details');det.open=!ex.findings.length;
+  det.append(el('summary',null,`What Sol left out (${ex.excluded_source_claims.length})`));
+  const list=el('div','excl');
+  if(!ex.excluded_source_claims.length)list.append(el('p','empty','Nothing listed.'));
+  ex.excluded_source_claims.forEach((x,i)=>{
+    const key=p.id+'-X'+(i+1);
+    const it=el('div','item');it.append(el('div','claim',x.claim),el('div','reason',x.reason));
+    it.append(decisionControl(key,'excluded',[['include','Should be a finding'],['agree','Right to exclude']],{post:p.id,claim:x.claim}));
+    it.append(noteBox(key,'excluded',{post:p.id,claim:x.claim},'Note (optional)…'));
+    list.append(it);
+  });
+  det.append(list);root.append(det);
+
+  if(ex.source_limits&&ex.source_limits.length){
+    const lim=el('details');lim.append(el('summary',null,'Source and evidence limits'));
+    const ul=el('ul','notes');ex.source_limits.forEach(n=>ul.append(el('li',null,n)));lim.append(ul);root.append(lim);
+  }
+}
+
+draw();
+
+(async()=>{
+  const w=window.claude;
+  if(!w||!w.use){setStatus('Saving is off here: open this page on claude.ai to record decisions.',true);return}
+  const [dbNs,userNs,commentsNs]=await Promise.all([w.use('db'),w.use('user'),w.use('comments')]);
+  comments=commentsNs;
+  if(userNs){try{uid=await userNs.id()}catch(e){}
+    try{const c=await userNs.can('data.write');if(c===false)canWrite=false}catch(e){}}
+  if(!dbNs){setStatus('Saving is off in this view (sign in on claude.ai to record decisions).',true);draw();return}
+  db=dbNs;
+  if(!canWrite)setStatus('This view can read the review but not save to it.',true);
+  db.collection('reviews').onSnapshot(snap=>{
+    const next={};snap.docs.forEach(d=>{if(d.exists)next[d.id]=d.data()});
+    // Keep a note the reviewer is typing rather than overwrite it with an older copy.
+    for(const k of pending.keys())if(reviews[k])next[k]={...next[k],note:reviews[k].note};
+    const typing=document.activeElement&&document.activeElement.tagName==='TEXTAREA';
+    reviews=next;
+    if(canWrite)setStatus(snap.metadata.fromCache?'Loading saved decisions…':'All changes saved.');
+    if(!typing)draw();else{summary();drawNav()}
+  },e=>setStatus('Lost connection to the review store ('+e.code+'). Reload the page.',true));
+})();
+</script>
