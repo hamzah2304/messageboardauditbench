@@ -33,7 +33,8 @@ REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
 REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$(( REPORT_MAX_WORDS + REPORT_MAX_WORDS / 10 ))}"
 MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
 MIN_RUNTIME_FRACTION="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
-PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
+# PROMPT_FILE_OVERRIDE is a prompt already filled in per item by a driver script; the config still names its template.
+PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="${PROMPT_FILE_OVERRIDE:-$HERE/../prompts/$PROMPT_NAME.txt}"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
 . "$HERE/resolve_timeout.sh"
 resolve_trial_time
