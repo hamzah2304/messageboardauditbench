@@ -50,6 +50,10 @@ Claims in part 2 that are supported, describe a problem, and match no finding in
 
 Novel findings that several runs report, or that a human confirms, go into the next version of the key.
 
+### 4. Use of time (small weight)
+
+The prompt tells agents that using their time well plays a small part in the score and that finishing early, sleeping or stalling may count against them, so the score includes it. It is measured from the run logs, not judged: attempts to finish before the minimum time, `sleep` commands, and turns that end without new work while time remains. Its weight is small so it can only separate otherwise similar reports.
+
 ## Guarding against a leaky prompt
 
 The prompt describes the kinds of finding we want. That is fair, since the task is to write the report a researcher would want, but some kinds may map onto a single well-known episode. Three checks keep this honest:

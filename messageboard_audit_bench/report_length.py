@@ -71,6 +71,11 @@ def count_words(text: str) -> int:
     return len("".join(kept).split())
 
 
+def tolerated_max(high: int) -> int:
+    """Longest report accepted for a prompted maximum: 10% over, so agents need not trim to the word."""
+    return high + high // 10
+
+
 def limits(cfg: dict) -> tuple[int, int]:
     low, high = cfg.get("report_min_words", 0), cfg.get("report_max_words", 0)
     if any(type(value) is not int or value < 0 for value in (low, high)):
@@ -88,7 +93,7 @@ def acceptance_limits(cfg: dict) -> tuple[int, int]:
     """Return recorded scoring bounds, preserving the policy of older runs."""
     low, high = limits(cfg)
     minimum = cfg.get("report_accept_min_words", low)
-    maximum = cfg.get("report_accept_max_words", high)
+    maximum = cfg.get("report_accept_max_words", tolerated_max(high))
     if (
         any(type(value) is not int or value < 0 for value in (minimum, maximum))
         or minimum > maximum
@@ -221,15 +226,17 @@ def describe_count(text: str, low: int, high: int) -> str:
         status = "empty report"
     elif count < low:
         status = "below the suggested range"
+    elif count > tolerated_max(high):
+        status = f"ABOVE the accepted maximum; remove at least {count - tolerated_max(high):,} words"
     elif count > high:
-        status = f"ABOVE maximum; remove at least {count - high:,} words"
+        status = "slightly above the target, within the accepted 10%"
     else:
         status = "within range"
     tldr = tldr_words(text)
     tldr_note = "" if tldr is None else f" TL;DR: {tldr:,} words (limit 200)."
     return (
-        f"Report length: {count:,} words; target {low:,}–{high:,}; strict upper "
-        f"limit {high:,}; {status}.{tldr_note}"
+        f"Report length: {count:,} words; target {low:,}–{high:,}; up to "
+        f"{tolerated_max(high):,} accepted; {status}.{tldr_note}"
     )
 
 
@@ -245,7 +252,7 @@ def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
             f"{low:,}–{high:,} words.",
             True,
         )
-    return describe_count(text, low, high), count_words(text) <= high
+    return describe_count(text, low, high), count_words(text) <= tolerated_max(high)
 
 
 def overlong_feedback(path: Path, low: int, high: int) -> str:

@@ -58,14 +58,20 @@ def _percent(share: float) -> str:
     return f"{share * 100:g}%"
 
 
-def instruction(min_runtime_fraction: float, budget_minutes: float) -> str:
-    """The policy disclosure appended to subscription prompts."""
+def instruction(min_runtime_fraction: float, budget_minutes: float, notice: str = "") -> str:
+    """The policy disclosure appended to subscription prompts.
+
+    A config's `runtime_notice` replaces the default wording; `{minutes}` in it becomes the
+    minimum working time.
+    """
     if min_runtime_fraction == 0:
         return (
             "\n\nMinimum working period: disabled for this run. You may finish "
             "when you are satisfied with the investigation.\n"
         )
     minimum = budget_minutes * min_runtime_fraction
+    if notice:
+        return "\n\n" + notice.replace("{minutes}", f"{minimum:g}").strip() + "\n"
     return (
         "\n\nThe evaluation intentionally will not accept a normal completion until "
         f"at least {_percent(min_runtime_fraction)} of the {budget_minutes:g}-minute time "
@@ -186,6 +192,7 @@ def main() -> None:
     parser.add_argument("--fraction")
     parser.add_argument("--budget-minutes", type=float)
     parser.add_argument("--validate-fraction")
+    parser.add_argument("--notice", default="")
     args = parser.parse_args()
     if args.validate_fraction is not None:
         try:
@@ -198,6 +205,7 @@ def main() -> None:
             instruction(
                 fraction(args.fraction),
                 args.budget_minutes if args.budget_minutes is not None else 20,
+                args.notice,
             ),
             end="",
         )

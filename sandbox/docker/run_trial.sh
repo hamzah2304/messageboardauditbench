@@ -29,7 +29,8 @@ eval "$CONFIG_ASSIGNMENTS"
 REPORT_MIN_WORDS="${CFG_REPORT_MIN_WORDS:-0}"
 REPORT_MAX_WORDS="${CFG_REPORT_MAX_WORDS:-0}"
 REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
-REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$REPORT_MAX_WORDS}"
+# Default accepted maximum: 10% over the prompted one (report_length.tolerated_max).
+REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$(( REPORT_MAX_WORDS + REPORT_MAX_WORDS / 10 ))}"
 MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
 MIN_RUNTIME_FRACTION="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
@@ -167,7 +168,7 @@ timeout_seconds() {
 # parent's original prompt, exactly as the model has seen it all along.
 PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/prompt.txt"
 python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-limit "${CFG_MEMORY_LIMIT:-}" > "$PROMPT_OUT"
-python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$PROMPT_OUT"
+python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" --notice "${CFG_RUNTIME_NOTICE:-}" >> "$PROMPT_OUT"
 # memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
 if [ -n "${CFG_MEMORY_LIMIT:-}" ]; then
   # The data files larger than the limit, with their real sizes in this data variant.

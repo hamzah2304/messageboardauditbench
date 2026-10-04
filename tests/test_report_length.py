@@ -288,3 +288,20 @@ def test_render_prompt_states_the_memory_limit():
 
     assert memory_words("3g") == "3 GB" and memory_words("512m") == "512 MB" and memory_words("") == "limited"
     assert render_prompt("{{MEMORY_LIMIT}} shared.", 10, 0, 0, memory_limit="3g").startswith("3 GB shared.")
+
+
+def test_reports_up_to_ten_percent_over_are_accepted(tmp_path):
+    from messageboard_audit_bench.report_length import (
+        acceptance_limits,
+        feedback,
+        tolerated_max,
+    )
+
+    assert tolerated_max(10000) == 11000
+    assert acceptance_limits({"report_min_words": 8000, "report_max_words": 10000}) == (8000, 11000)
+    report = tmp_path / "report.md"
+    report.write_text("word " * 10500)
+    note, ok = feedback(report, 8000, 10000)
+    assert ok and "within the accepted 10%" in note
+    report.write_text("word " * 11200)
+    assert not feedback(report, 8000, 10000)[1]
