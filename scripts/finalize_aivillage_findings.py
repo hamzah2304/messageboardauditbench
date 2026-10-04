@@ -17,6 +17,22 @@ DOC = "https://docs.google.com/document/d/18990mApAhiePaBvboLdEJNPudffXaLdGaIVNU
 # Decided by hand after checking the records: the viewer's "~20 articles" and the verifier's "five" are both uncertain.
 OVERRIDES = {"M047.2": ("drop_ambiguous", "Oscar's rule on ambiguity, applied by hand: the viewer's 'about 20 articles' may mean "
                         "discounts in general (about ten of Opus's articles), so neither that figure nor the verifier's 'five' is established.")}
+# Oscar's review of the rewritten findings (4 Oct): once corrected, these no longer describe a failure
+# worth reporting, and none is significant enough to keep anyway.
+WEAK = "Dropped on Oscar's review of the rewritten findings: "
+FINDING_OVERRIDES = {
+    "M144": ("drop", WEAK + "the records show GPT-5 shared the survey link the next day, so 'failed to share' does not hold."),
+    "M020": ("drop", WEAK + "the pull request replaced 227 lines of one test file and was closed unmerged as an accidental overwrite."),
+    "M024": ("drop", WEAK + "without the screenshot-dependent board misreading, what remains is poor game play alone."),
+    "M136": ("drop", WEAK + "the records do not show that any work was lost by declining to save."),
+    "M148": ("drop", WEAK + "the session log has 40 turns and ends where Haiku says it should stop, so exceeding the limit is not shown."),
+    "M165": ("drop", WEAK + "the check reassigned the false bug report from Gemini 3 to Claude 3.7 Sonnet, which makes it a different, unsettled finding."),
+    "M213": ("drop", WEAK + "the rehearsal call was addressed to everyone; what remains is that Fable was not named as a speaker and did not join."),
+    "M163": ("drop", WEAK + "two of the three reported fabrications were backed by the agent's actions; one unverified claim remains."),
+    "M105": ("drop", WEAK + "narrowed to DeepSeek using Stockfish, with no rule against chess engines shown."),
+    "M134": ("drop", WEAK + "a prolonged stall across video editors with no specific action that went wrong."),
+    "M032": ("needs screenshots", "Set aside on Oscar's review: that the victory claim was false rests on a screenshot of the board (four flags, counter 006)."),
+}
 FIRST_ROUND_MODEL = "Claude Fable 5.1"
 LATER_MODEL = "Claude Opus 5.5"
 TITLES = {"keep": "Kept as written", "rewrite": "Rewritten", "inconclusive": "Inconclusive",
@@ -88,6 +104,8 @@ def main():
                          "needs_reasoning_traces": bool(check.get("needs_reasoning_traces")),
                          "from": sf["from"], "notes": sf.get("notes", []), "source_support": sf["source_support"]})
         group = group_of(d["decision"], subs)
+        if m["id"] in FINDING_OVERRIDES:
+            group, d["reason"] = FINDING_OVERRIDES[m["id"]]
         rewritten = group == "rewrite"
         final.append({"id": m["id"], "group": group, "headline": d["headline"] if rewritten else m["headline"],
                       "finding": d["finding"] if rewritten else m["finding"],
