@@ -1,0 +1,15 @@
+# Step 2 of the AI Village answer key: merge and filter the findings extracted from Substack, X and Discord.
+# The data folder is the merge input (scripts/build_aivillage_merge_input.py), passed as DATA_DIR; it holds
+# the extracted findings and their sources, not the Village records. No minimum runtime and no report length.
+name = "aivillage-merge"
+prompt = "aivillage-merge-v1"
+budget_min = 90
+timeout_min = 100
+data_variant = "aivillage-merge-input"
+effort = "high"
+claude_cli_version = "2.1.283"
+codex_cli_version = "0.160.0"
+min_runtime_fraction = 0
+bash_max_output_length = 50000
+subagents = false
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
