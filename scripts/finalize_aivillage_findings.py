@@ -121,6 +121,22 @@ def main():
                 w.writerow([sub["id"], f["id"], f["group"], sub["decision"], sub["decided_by"], "yes" if sub["checked_twice"] else "no",
                             sub["reason"], sub["claim"], " ".join(sub["from"])])
 
+    # The answer key as a readable list: findings in the key with their surviving subfindings.
+    key = [f for f in final if f["group"] in ("keep", "rewrite")]
+    lines = ["# AI Village answer key: findings and subfindings", "",
+             f"{len(key)} findings, {sum(s['decision'] in ('keep', 'rewrite') for f in key for s in f['subfindings'])} subfindings. "
+             "Each was extracted from Substack, X or Discord, merged across sources, checked against the Village records and adjudicated. "
+             "\"Reworded\" marks wording corrected because cited records contradict the original.", ""]
+    for f in key:
+        lines += [f"## {f['id']} — {f['headline']}" + (" (reworded)" if f["group"] == "rewrite" else ""), "", f["finding"], ""]
+        if f.get("behavior_dates"):
+            lines += [f"When, per the records: {f['behavior_dates']}", ""]
+        for sub in f["subfindings"]:
+            if sub["decision"] in ("keep", "rewrite"):
+                lines.append(f"- **{sub['id']}** {sub['claim']}" + (" *(reworded)*" if sub["decision"] == "rewrite" else ""))
+        lines.append("")
+    (store / "answer-key.md").write_text("\n".join(lines))
+
     # Every extracted finding and where it ended up, so nothing disappears between steps.
     merge_dir = merged_path.parent
     merge = json.loads((merge_dir / "merged.json").read_text())

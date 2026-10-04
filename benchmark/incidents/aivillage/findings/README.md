@@ -6,6 +6,7 @@ Discord; merging and filtering; checking against the Village records; adjudicati
 
 | File | What it holds |
 |---|---|
+| `answer-key.md` | The answer key as a readable list: each finding in the key with its surviving subfindings |
 | `findings.tsv` | One row per merged finding: its group, whether it is in the answer key, who decided and why |
 | `subfindings.tsv` | One row per subfinding: its decision, who decided, whether it was checked twice, the final claim |
 | `extracted.tsv` | One row per extracted finding (343): its source, which merged finding it went into, and where that ended up |
