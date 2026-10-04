@@ -9,6 +9,7 @@ an existing findings-review page's index.html.
 """
 import html
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def esc(text):
     return html.escape(str(text), quote=True)
+
+
+def settle(result):
+    """Apply two review rules to a verification result, in place.
+
+    A part that depends on a screenshot is removed (the records hold none), and the finding is dropped
+    when no other part is supported. A 'not found' whose own notes say the search was not done is
+    relabelled 'not checked'.
+    """
+    for sf in result.get("subfindings", []):
+        text = " ".join(str(sf.get(k, "")) for k in ("evidence", "wording_problem", "searched"))
+        if sf.get("verdict") == "outside the records" and re.search(r"screenshot|image|picture|visual", text, re.I):
+            sf["verdict"] = "removed: depends on a screenshot"
+        elif sf.get("verdict") == "not found" and (
+                re.search(r"unchecked|not checked|not searched|did not search|ran out|out of time|timed out|search was brief", text, re.I)
+                or len(text.strip()) < 40):
+            sf["verdict"] = "not checked"
+    verdicts = [sf.get("verdict") for sf in result.get("subfindings", [])]
+    if "removed: depends on a screenshot" in verdicts and not any(v in ("supported", "partly supported") for v in verdicts):
+        result["verdict"] = "drop"
+    if result.get("verdict") == "drop" and "not checked" in verdicts and not any(v == "contradicted" for v in verdicts):
+        result["verdict"] = "not checked"
 
 
 def check_citations(results, data):
@@ -40,6 +63,8 @@ def main():
     merged_path, verify_dir, data, template, out = map(Path, sys.argv[1:6])
     merged = json.loads(merged_path.read_text())["merged"]
     results = {p.stem: json.loads(p.read_text()) for p in (verify_dir / "results").glob("*.json")}
+    for r in results.values():
+        settle(r)
     cites = check_citations(results, data) if results else {}
     joined = [{**m, "verification": results.get(m["id"]), "citation_check": cites.get(m["id"])} for m in merged]
     (verify_dir / "verified-all.json").write_text(json.dumps(joined, ensure_ascii=False, indent=2) + "\n")
