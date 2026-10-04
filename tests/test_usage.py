@@ -309,6 +309,37 @@ def test_codex_rollouts_sum_sessions_but_not_snapshots_or_copies(
     assert usage["api_calls"] == 3
 
 
+def test_codex_subagent_threads_are_summed(tmp_path: Path) -> None:
+    run_dir = tmp_path / "codex-subagents"
+    sessions = run_dir / "codex_sessions"
+    sessions.mkdir(parents=True)
+    parent_meta = {"type": "session_meta", "payload": {"session_id": "root", "id": "root"}}
+
+    def tokens(n: int) -> dict:
+        return {
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {"total_token_usage": {"input_tokens": n, "output_tokens": 1}},
+            },
+        }
+
+    (sessions / "rollout-parent.jsonl").write_text(
+        json.dumps(parent_meta) + "\n" + json.dumps(tokens(100)) + "\n"
+    )
+    for name, n in (("a", 20), ("b", 30)):
+        meta = {"type": "session_meta", "payload": {"session_id": "root", "id": name}}
+        (sessions / f"rollout-{name}.jsonl").write_text(
+            "".join(json.dumps(e) + "\n" for e in (meta, parent_meta, tokens(n)))
+        )
+
+    usage = summarize(run_dir, "codex")
+
+    assert usage["sessions"] == 3
+    assert usage["input_tokens"] == 150
+    assert usage["output_tokens"] == 3
+
+
 def test_codex_retry_attempts_are_recorded_without_guessing_their_usage(
     tmp_path: Path,
 ) -> None:
