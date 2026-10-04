@@ -5,7 +5,7 @@
     python3 scripts/run_aivillage_verify.py OUT_DIR MERGED_FULL_JSON --status
 
 Findings are grouped by the Village goal period they probably fall in, at most 8 per group, with
-about three minutes of budget per finding. For each group this fills the findings into the config's
+about two minutes of budget per finding. For each group this fills the findings into the config's
 prompt, runs sandbox/docker/run_trial.sh (configs/aivillage-verify.toml) and saves each finding's
 verified/<ID>.json as OUT_DIR/results/<ID>.json.
 A finding with a saved result is skipped, so rerunning the same command resumes. A failed
@@ -30,7 +30,7 @@ DATA = Path("/home/oscar_gilg18/Dev/MessageBoardAuditBench/data/aivillage/full-v
 MODEL = "claude-sonnet-5-5"
 LAUNCH = datetime.date(2025, 4, 2)  # Day 1 of the Village
 GROUP_SIZE = 8
-MINUTES_PER_FINDING = 3
+MINUTES_PER_FINDING = 2
 SUB_VERDICTS = {"supported", "partly supported", "contradicted", "not found", "outside the records"}
 lock = threading.Lock()
 start_lock = threading.Lock()
@@ -121,28 +121,41 @@ def verify(out, group):
     text = "\n\n---\n\n".join(render(f) for f in todo)
     prompt.write_text(TEMPLATE.read_text().replace("{{GROUP_NOTE}}", group["note"]).replace("{{FINDING}}", text))
     env = {**os.environ, "ALLOW_NETWORKED_SUBSCRIPTION": "1", "CONFIG": str(CONFIG), "DATA_DIR": str(DATA),
-           "PROMPT_FILE_OVERRIDE": str(prompt), "BUDGET_MIN": str(MINUTES_PER_FINDING * len(todo) + 4)}
+           "PROMPT_FILE_OVERRIDE": str(prompt), "BUDGET_MIN": str(MINUTES_PER_FINDING * len(todo) + 3)}
     log = out / "logs" / f"{name}.log"
-    with start_lock:  # simultaneous launches race on the image build, so start them 20 seconds apart
-        time.sleep(20)
+    with start_lock:  # simultaneous launches race on the image build, so start them a few seconds apart
+        time.sleep(8)
     with log.open("w") as f:
         subprocess.run(["sg", "docker", "-c", f"sandbox/docker/run_trial.sh claude {MODEL} 1"], cwd=ROOT, env=env,
                        stdout=f, stderr=subprocess.STDOUT)
-    run = re.search(r"^run: (.+)$", log.read_text(), re.M)
-    if not run:
+    if not re.search(r"^run: (.+)$", log.read_text(), re.M):
         return [fail(out, f["id"], "no_run", log.read_text()[-300:]) for f in todo]
-    for finding in todo:
+    collect(out, todo, report_missing=True)
+
+
+def collect(out, findings, report_missing=False):
+    """Save every finished verification found in the launched runs' folders as results/<ID>.json."""
+    produced = {}
+    for log in sorted((out / "logs").glob("*.log"), key=lambda p: p.stat().st_mtime):
+        run = re.search(r"^run: (.+)$", log.read_text(), re.M)
+        if run:
+            for path in list(Path(run.group(1), "work/verified").glob("*.json")) + list(Path(run.group(1), "work").glob("verified.json")):
+                produced[path.stem if path.stem != "verified" else log.stem] = (path, run.group(1))
+    for finding in findings:
         fid = finding["id"]
-        verified = Path(run.group(1)) / "work/verified" / f"{fid}.json"
-        if not verified.exists():
-            fail(out, fid, "no_output", run.group(1))
+        if (out / "results" / f"{fid}.json").exists():
             continue
+        if fid not in produced:
+            if report_missing:
+                fail(out, fid, "no_output", "")
+            continue
+        path, run_dir = produced[fid]
         try:
-            result = json.loads(verified.read_text())
+            result = json.loads(path.read_text())
         except ValueError as exc:
-            fail(out, fid, "malformed", f"{run.group(1)}: {exc}")
+            fail(out, fid, "malformed", f"{run_dir}: {exc}")
             continue
-        result["run_dir"] = run.group(1)
+        result["run_dir"] = run_dir
         result["format_problems"] = problems(result, finding)
         (out / "results" / f"{fid}.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
         print(json.dumps({"finding": fid, "verdict": result.get("verdict"), "format_problems": result["format_problems"]}), flush=True)
@@ -168,6 +181,7 @@ def main():
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--status", action="store_true")
+    ap.add_argument("--skip", nargs="*", default=[], help="group names another process is already running")
     args = ap.parse_args()
     findings = json.loads(args.merged.read_text())["merged"]
     if args.only:
@@ -178,7 +192,8 @@ def main():
             (out / sub).mkdir(parents=True, exist_ok=True)
         (out / "failures.jsonl").unlink(missing_ok=True)
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-            list(pool.map(lambda g: verify(out, g), groups(findings)))
+            list(pool.map(lambda g: verify(out, g), [g for g in groups(findings) if g["name"] not in args.skip]))
+        collect(out, findings)
     final = status(out, findings)
     print(json.dumps(final, indent=2))
     raise SystemExit(0 if final["next"] == "complete" else 2)
