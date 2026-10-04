@@ -1,23 +1,34 @@
 #!/usr/bin/env python3
 """Plot AI Village answer-key score against cost per run, with and without subagents.
 
-Score is a report's mean finding score over every answer-key finding (0 to 1),
-before contradiction penalties. Cost comes from scripts/aivillage_run_costs.py.
+Score is the mean of a report's 20 highest finding scores against the answer
+key (0 to 1), matching the 20 findings each report writes; no contradiction
+penalties. Cost comes from scripts/aivillage_run_costs.py.
 Refuses to draw unless every report in the costs file is fully graded.
+
+Writes score_vs_cost.html (labels can be dragged; "Copy label positions" gives
+JSON to paste into score_vs_cost_labels.json, which sets the defaults) and
+score_vs_cost.png, a headless-Chrome screenshot of that page for the README.
 
   uv run python scripts/aivillage_run_costs.py --manifest benchmark/incidents/aivillage/benchmark-2026-10-04-runs.md \
       --out runs/aivillage-costs-20261004
-  uv run --with matplotlib python viewers/build_aivillage_cost_figure.py
+  uv run python viewers/build_aivillage_cost_figure.py
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import tempfile
 from pathlib import Path
+
+from browser_executable import find_chromium
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
+TEMPLATE = ROOT / "viewers" / "templates" / "aivillage_cost_figure.html"
+TOP_K = 20
 OUT = ROOT / "benchmark" / "incidents" / "aivillage" / "figures"
 NAMES = {
     "claude-opus-5": "Opus 5", "claude-opus-4-8": "Opus 4.8", "claude-sonnet-5-5": "Sonnet 5.5",
@@ -26,17 +37,27 @@ NAMES = {
     "moonshotai/kimi-k3": "Kimi K3", "z-ai/glm-5.3": "GLM 5.3",
     "deepseek/deepseek-v4-flash": "DeepSeek V4 Flash",
 }
-# Default categorical slots 1 and 2 (validated all-pairs), chart ink from the dataviz palette.
-COLORS = {False: "#2a78d6", True: "#eb6834"}
-# Label offsets (points) where the default, right of the mark, collides.
-LABEL_OFFSETS = {
-    ("z-ai/glm-5.3", False): (0, 7, "center"),
-    ("claude-sonnet-5-5", False): (8, 3, "left"),
-    ("moonshotai/kimi-k3", False): (7, -11, "left"),
-    ("claude-opus-5", False): (-7, 4, "right"),
-    ("gpt-6.1-sol", False): (-7, -11, "right"),
+# Vendor colours shared with the German wiki and URLQuery cost figures.
+VENDOR = {
+    "claude": ("Anthropic", "#d97757"), "gpt": ("OpenAI", "#202126"),
+    "google": ("Google", "#2e9e4f"), "meta": ("Meta", "#0668e1"),
+    "moonshotai": ("Moonshot", "#c2185b"), "z-ai": ("Z.ai", "#00897b"),
+    "deepseek": ("DeepSeek", "#7c55b6"),
 }
-SURFACE, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
+# One label per model: which point it names and its default offset from that
+# mark in SVG units. score_vs_cost_labels.json, when present, overrides these.
+LABELS = {
+    "gpt-6-astra": (True, -10, -34), "gpt-6.1-sol": (True, -16, -6),
+    "claude-sonnet-5-5": (True, 30, -30), "claude-opus-5": (True, 34, 34),
+    "z-ai/glm-5.3": (False, -24, -46), "google/gemini-3.8-flash": (False, -50, 54),
+    "moonshotai/kimi-k3": (False, -40, 50), "claude-opus-4-8": (False, 0, 46),
+    "meta/muse-spark-1.3": (False, 40, 50), "gpt-6-luna": (False, 0, 46),
+    "deepseek/deepseek-v4-flash": (False, 0, 46),
+}
+
+
+def vendor(model: str) -> tuple[str, str]:
+    return VENDOR[model.replace("/", "-").split("-")[0] if "/" not in model else model.split("/")[0]]
 
 
 def load_grades(path: Path | None) -> tuple[Path, dict]:
@@ -54,9 +75,10 @@ def build_rows(grades: dict, costs: dict) -> list[dict]:
         r = reports.get(c["run"])
         if r is None or not r["complete"] or r["mean_coverage"] is None:
             raise SystemExit(f"not fully graded yet: {c['run']}")
+        best = sorted((f["score"] for f in r["scores"].values()), reverse=True)[:TOP_K]
         rows.append({"run": c["run"], "model": c["model"], "name": NAMES[c["model"]],
                      "subagents": c["subagents"], "replicate": c["replicate"],
-                     "usd": round(c["usd"], 4), "score": round(r["mean_coverage"], 4),
+                     "usd": round(c["usd"], 4), "score": round(sum(best) / TOP_K, 4),
                      "contradiction_flags": len(r["main_contradiction_flags"])})
     if len(sizes) != 1:
         raise SystemExit(f"reports were graded against different numbers of findings: {sizes}")
@@ -77,56 +99,52 @@ def groups(rows: list[dict]) -> list[dict]:
     return list(out.values())
 
 
-def draw(rows: list[dict], n_findings: int, path: Path) -> None:
-    import matplotlib
+def frontier(gs: list[dict]) -> list[dict]:
+    """Points no cheaper point beats on score."""
+    best, out = -1.0, []
+    for g in sorted(gs, key=lambda g: g["mean_usd"]):
+        if g["mean_score"] > best:
+            best = g["mean_score"]
+            out.append(g)
+    return out
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
-    from matplotlib.ticker import FuncFormatter
 
-    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10})
-    fig, ax = plt.subplots(figsize=(10, 6.2), dpi=200)
-    fig.patch.set_facecolor(SURFACE)
-    ax.set_facecolor(SURFACE)
+def figure_data(rows: list[dict], n_findings: int, judge: str, labels: dict) -> dict:
     gs = groups(rows)
-    by_model = {}
+    models, vendors = {}, []
     for g in gs:
-        by_model.setdefault(g["model"], {})[g["subagents"]] = g
-    for pair in by_model.values():
-        if len(pair) == 2:
-            ax.plot([pair[False]["mean_usd"], pair[True]["mean_usd"]],
-                    [pair[False]["mean_score"], pair[True]["mean_score"]],
-                    color=AXIS, lw=1.5, zorder=1)
-    for g in gs:
-        color = COLORS[g["subagents"]]
-        ax.scatter(g["usd"], g["score"], s=18, color=color, alpha=0.45, lw=0, zorder=2)
-        ax.scatter([g["mean_usd"]], [g["mean_score"]], s=70, color=color,
-                   edgecolor=SURFACE, linewidth=2, zorder=3)
-        dx, dy, ha = LABEL_OFFSETS.get((g["model"], g["subagents"]), (7, -3, "left"))
-        ax.annotate(g["name"], (g["mean_usd"], g["mean_score"]), xytext=(dx, dy), ha=ha,
-                    textcoords="offset points", fontsize=8.5, color=INK2, zorder=4)
-    ax.set_xscale("log")
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"${v:g}"))
-    ax.set_xlabel("Cost per run (USD, log scale, list prices)", color=INK2)
-    ax.set_ylabel(f"Answer-key score (mean over {n_findings} findings)", color=INK2)
-    ax.set_ylim(bottom=0)
-    ax.grid(True, which="major", color=GRID, lw=0.8)
-    ax.set_axisbelow(True)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color(AXIS)
-    ax.tick_params(colors=MUTED, labelcolor=INK2)
-    ax.set_title("AI Village, 30 minutes: score against cost, with and without subagents",
-                 loc="left", color=INK, fontsize=12, pad=12)
-    handles = [Line2D([], [], marker="o", ls="", color=COLORS[False], label="No subagents"),
-               Line2D([], [], marker="o", ls="", color=COLORS[True], label="Subagents"),
-               Line2D([], [], marker="o", ls="", color=MUTED, alpha=0.45, markersize=4,
-                      label="Single run (large mark = mean of 2)")]
-    ax.legend(handles=handles, frameon=False, loc="upper left", labelcolor=INK2)
-    fig.tight_layout()
-    fig.savefig(path, facecolor=SURFACE)
+        name, color = vendor(g["model"])
+        if {"name": name, "color": color} not in vendors:
+            vendors.append({"name": name, "color": color})
+        m = models.setdefault(g["model"], {"name": g["name"], "color": color, "points": {}})
+        m["points"][str(g["subagents"]).lower()] = {"usd": g["mean_usd"], "score": g["mean_score"],
+                                                    "n": len(g["usd"])}
+        sub, dx, dy = LABELS[g["model"]]
+        m["label"] = {"sub": str(sub).lower(), "dx": dx, "dy": dy}
+    order = [v[0] for v in VENDOR.values()]
+    vendors.sort(key=lambda v: order.index(v["name"]))
+    return {
+        "models": list(models.values()), "vendors": vendors,
+        "frontier": [{"usd": g["mean_usd"], "score": g["mean_score"]} for g in frontier(gs)],
+        "label_positions": labels, "label_storage_key": "aivillage-score-vs-cost-labels-v1",
+        "y_label": f"score (mean of best {TOP_K} of {n_findings} findings)",
+        "caption": (f"AI Village, 30 minutes. Score: mean of each report's {TOP_K} best finding scores "
+                    f"against the {n_findings}-finding answer key (judge {judge}, no contradiction "
+                    "penalties). Cost per run at list prices, subagents included. Each mark is the "
+                    "mean of two runs; dashed lines join a model's runs without and with subagents."),
+    }
+
+
+def render_png(html: str, path: Path) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        page = Path(tmp) / "figure.html"
+        # Standalone page without the controls and value table.
+        page.write_text('<!doctype html><meta charset="utf-8">'
+                        + html.replace("</style>", ".controls,details{display:none}</style>"))
+        subprocess.run([find_chromium(), "--headless=new", "--hide-scrollbars", "--disable-gpu",
+                        "--virtual-time-budget=4000", "--window-size=1060,700",
+                        "--force-device-scale-factor=2", f"--screenshot={path}", page.as_uri()],
+                       check=True, capture_output=True)
 
 
 def main() -> None:
@@ -140,11 +158,17 @@ def main() -> None:
     rows = build_rows(grades, costs)
     n_findings = len(grades["reports"][0]["scores"])
     args.out.mkdir(parents=True, exist_ok=True)
-    draw(rows, n_findings, args.out / "score_vs_cost.png")
+    labels_file = args.out / "score_vs_cost_labels.json"
+    labels = json.loads(labels_file.read_text()) if labels_file.exists() else {}
+    judge = f"{grades.get('model')}, {grades.get('effort')} reasoning"
+    data = figure_data(rows, n_findings, judge, labels)
+    html = TEMPLATE.read_text().replace("__DATA__", json.dumps(data).replace("</", "<\\/"))
+    (args.out / "score_vs_cost.html").write_text(html)
+    render_png(html, args.out / "score_vs_cost.png")
     (args.out / "score_vs_cost.json").write_text(json.dumps(
         {"grades": str(grades_path.relative_to(ROOT) if grades_path.is_relative_to(ROOT) else grades_path),
          "judge": f"{grades.get('model')} ({grades.get('effort')})", "findings": n_findings,
-         "score": "mean finding score over all answer-key findings, before contradiction penalties",
+         "score": f"mean of the {TOP_K} highest finding scores per report, no contradiction penalties",
          "costs": costs["price_source"], "runs": rows,
          "groups": [{k: g[k] for k in ("name", "subagents", "mean_usd", "mean_score")}
                     for g in groups(rows)]}, indent=1) + "\n")

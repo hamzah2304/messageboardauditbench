@@ -8,7 +8,7 @@ An AI agent gets the complete AI Village logs and has to work out what went wron
 
 ![AI Village score against cost per run](figures/score_vs_cost.png)
 
-Mean finding score over the 96-finding answer key (GPT-6.1 Sol judge, no contradiction penalties) against cost per run at list prices, subagents included. Large marks are the mean of two runs. Built by `scripts/aivillage_run_costs.py` and `viewers/build_aivillage_cost_figure.py`.
+Mean of each report's 20 best finding scores against the 96-finding answer key (GPT-6.1 Sol judge, no contradiction penalties) against cost per run at list prices, subagents included. Large marks are the mean of two runs. Built by `scripts/aivillage_run_costs.py` and `viewers/build_aivillage_cost_figure.py`.
 
 ## What the pilot runs showed
 

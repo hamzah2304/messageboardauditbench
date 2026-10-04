@@ -1,0 +1,101 @@
+<title>AI Village Score vs Cost</title>
+<style>
+  :root{--bg:#f6f6f2;--card:#fff;--ink:#17181a;--muted:#666a70;--line:#dcded9;--grid:#e9eae5;--front:#6b6e72;--lead:#a9acaf;
+    --mono:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:1060px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:grid;gap:12px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 10px 6px;overflow-x:auto}
+  svg{display:block;min-width:700px;width:100%;height:auto}
+  svg text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--muted)}
+  .mono{font-family:var(--mono)!important;font-size:12.5px}
+  .grid{stroke:var(--grid)}.axis{stroke:var(--line)}
+  .model-label{fill:var(--ink)!important;font-size:14px;cursor:grab;user-select:none;touch-action:none}
+  .model-label:active{cursor:grabbing}
+  .note{color:var(--muted);margin:0;max-width:90ch}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px}
+  button{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink);padding:3px 9px;cursor:pointer}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:right;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:600}
+  .tablewrap{overflow-x:auto}.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px}
+</style>
+<main>
+<div class="panel"><svg id="chart" viewBox="0 0 1000 560" role="img" aria-label="AI Village answer-key score against cost per run, with and without subagents"></svg></div>
+<p class="note" id="caption"></p>
+<div class="controls"><span>Drag model names to move them.</span><button id="reset" type="button">Reset labels</button><button id="copy" type="button">Copy label positions</button><span id="status" role="status"></span></div>
+<details><summary>Values</summary><div class="tablewrap"><table><thead><tr><th>Model</th><th>Cost, no subagents</th><th>Score, no subagents</th><th>Cost, subagents</th><th>Score, subagents</th></tr></thead><tbody id="rows"></tbody></table></div></details>
+</main>
+<script type="application/json" id="data">{"models": [{"name": "Muse Spark 1.3", "color": "#0668e1", "points": {"false": {"usd": 11.638349999999999, "score": 0.2875, "n": 2}}, "label": {"sub": "false", "dx": 40, "dy": 50}}, {"name": "Opus 5", "color": "#d97757", "points": {"false": {"usd": 11.418199999999999, "score": 0.3225, "n": 2}, "true": {"usd": 21.0646, "score": 0.45499999999999996, "n": 2}}, "label": {"sub": "true", "dx": 34, "dy": 34}}, {"name": "Gemini 3.8 Flash", "color": "#2e9e4f", "points": {"false": {"usd": 2.09445, "score": 0.33, "n": 2}}, "label": {"sub": "false", "dx": -50, "dy": 54}}, {"name": "GPT-6 Astra", "color": "#202126", "points": {"false": {"usd": 13.70735, "score": 0.39749999999999996, "n": 2}, "true": {"usd": 58.2787, "score": 0.5675, "n": 2}}, "label": {"sub": "true", "dx": -10, "dy": -34}}, {"name": "Kimi K3", "color": "#c2185b", "points": {"false": {"usd": 8.0264, "score": 0.32999999999999996, "n": 2}}, "label": {"sub": "false", "dx": -40, "dy": 50}}, {"name": "GPT-6.1 Sol", "color": "#202126", "points": {"false": {"usd": 1.8433, "score": 0.395, "n": 2}, "true": {"usd": 6.542300000000001, "score": 0.5475, "n": 2}}, "label": {"sub": "true", "dx": -16, "dy": -6}}, {"name": "Opus 4.8", "color": "#d97757", "points": {"false": {"usd": 7.9926, "score": 0.2575, "n": 2}}, "label": {"sub": "false", "dx": 0, "dy": 46}}, {"name": "GLM 5.3", "color": "#00897b", "points": {"false": {"usd": 4.40515, "score": 0.355, "n": 2}}, "label": {"sub": "false", "dx": -24, "dy": -46}}, {"name": "DeepSeek V4 Flash", "color": "#7c55b6", "points": {"false": {"usd": 0.8161499999999999, "score": 0.2325, "n": 2}}, "label": {"sub": "false", "dx": 0, "dy": 46}}, {"name": "GPT-6 Luna", "color": "#202126", "points": {"false": {"usd": 0.14415, "score": 0.255, "n": 2}, "true": {"usd": 0.36805, "score": 0.33499999999999996, "n": 2}}, "label": {"sub": "false", "dx": 0, "dy": 46}}, {"name": "Sonnet 5.5", "color": "#d97757", "points": {"false": {"usd": 5.0225, "score": 0.35, "n": 2}, "true": {"usd": 12.36695, "score": 0.4625, "n": 2}}, "label": {"sub": "true", "dx": 30, "dy": -30}}], "vendors": [{"name": "Anthropic", "color": "#d97757"}, {"name": "OpenAI", "color": "#202126"}, {"name": "Google", "color": "#2e9e4f"}, {"name": "Meta", "color": "#0668e1"}, {"name": "Moonshot", "color": "#c2185b"}, {"name": "Z.ai", "color": "#00897b"}, {"name": "DeepSeek", "color": "#7c55b6"}], "frontier": [{"usd": 0.14415, "score": 0.255}, {"usd": 0.36805, "score": 0.33499999999999996}, {"usd": 1.8433, "score": 0.395}, {"usd": 6.542300000000001, "score": 0.5475}, {"usd": 58.2787, "score": 0.5675}], "label_positions": {}, "label_storage_key": "aivillage-score-vs-cost-labels-v1", "y_label": "score (mean of best 20 of 96 findings)", "caption": "AI Village, 30 minutes. Score: mean of each report's 20 best finding scores against the 96-finding answer key (judge gpt-6.1-sol, medium reasoning, no contradiction penalties). Cost per run at list prices, subagents included. Each mark is the mean of two runs; dashed lines join a model's runs without and with subagents."}</script>
+<script>
+const D=JSON.parse(document.getElementById('data').textContent), svg=document.getElementById('chart'), N='http://www.w3.org/2000/svg';
+document.getElementById('caption').textContent=D.caption;
+const el=(tag,attrs={},parent=svg)=>{const n=document.createElementNS(N,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n};
+const text=(x,y,t,attrs={})=>{const n=el('text',{x,y,...attrs});n.textContent=t;return n};
+const L=82,R=975,T=28,B=478,lo=.1,hi=100,yHi=.7;
+const X=v=>L+Math.log(v/lo)/Math.log(hi/lo)*(R-L), Y=v=>B-v/yHi*(B-T);
+for(const t of [.1,.2,.5,1,2,5,10,20,50,100]){const x=X(t);el('line',{x1:x,x2:x,y1:T,y2:B,class:'grid'});text(x,B+26,'$'+t,{'text-anchor':'middle',class:'mono'})}
+for(let i=0;i<=7;i++){const y=Y(i/10);el('line',{x1:L,x2:R,y1:y,y2:y,class:'grid'});text(L-12,y+4,(i*10)+'%',{'text-anchor':'end',class:'mono'})}
+el('line',{x1:L,x2:R,y1:B,y2:B,class:'axis'});
+text((L+R)/2,B+56,'estimated cost per run, USD at list price (log scale)',{'text-anchor':'middle','font-size':14});
+text(22,(T+B)/2,D.y_label,{'text-anchor':'middle','font-size':14,transform:`rotate(-90 22 ${(T+B)/2})`});
+// legend
+let lx=L+18;const ly1=T+22,ly2=T+52;
+const hollow=(x,y,c,parent=svg)=>el('circle',{cx:x,cy:y,r:6.5,fill:'#fff',stroke:c,'stroke-width':2.4},parent);
+const diamond=(x,y,c,parent=svg)=>el('path',{d:`M${x},${y-8.5} L${x+8.5},${y} L${x},${y+8.5} L${x-8.5},${y} Z`,fill:c,stroke:'#fff','stroke-width':1.4},parent);
+hollow(lx,ly1,'#3c3f44');text(lx+14,ly1+4.5,'no subagents',{class:'mono'});
+diamond(lx+150,ly1,'#3c3f44');text(lx+164,ly1+4.5,'subagents',{class:'mono'});
+for(const v of D.vendors){el('rect',{x:lx-6,y:ly2-6,width:12,height:12,rx:2,fill:v.color});const t=text(lx+12,ly2+4.5,v.name,{class:'mono'});lx+=26+t.getComputedTextLength()+14}
+// frontier
+const fp=D.frontier.map(g=>`${X(g.usd)},${Y(g.score)}`).join(' L');
+el('path',{d:'M'+fp,fill:'none',stroke:'var(--front)','stroke-width':2});
+const fm=D.frontier[Math.min(1,D.frontier.length-1)];
+text(X(fm.usd)+8,Y(fm.score)-46,'efficient frontier',{class:'mono'});
+// pairs and marks
+const marks=el('g'), leads=el('g'), names=el('g');
+for(const m of D.models){
+  const [a,b]=[m.points.false,m.points.true];
+  if(a&&b)el('line',{x1:X(a.usd),y1:Y(a.score),x2:X(b.usd),y2:Y(b.score),stroke:m.color,'stroke-width':1.6,'stroke-dasharray':'5 4'},marks);
+}
+for(const m of D.models)for(const sub of ['false','true']){const p=m.points[sub];if(!p)continue;
+  const node=sub==='true'?diamond(X(p.usd),Y(p.score),m.color,marks):hollow(X(p.usd),Y(p.score),m.color,marks);
+  el('title',{},node).textContent=`${m.name}, ${sub==='true'?'subagents':'no subagents'}: $${p.usd.toFixed(2)} per run, score ${(p.score*100).toFixed(1)}% (mean of ${p.n} runs)`;
+}
+// draggable labels
+const key=D.label_storage_key;let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
+const items=[];
+const point=e=>{const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse())};
+for(const m of D.models){const p=m.points[String(m.label.sub)]||m.points.false||m.points.true, ax=X(p.usd), ay=Y(p.score);
+  const pos=saved[m.name]||D.label_positions[m.name]||{x:ax+m.label.dx,y:ay+m.label.dy};
+  const lead=el('line',{stroke:'var(--lead)','stroke-width':1},leads);
+  const n=text(pos.x,pos.y,m.name,{class:'model-label'},names);n.setAttribute('tabindex','0');
+  const update=()=>{const x=+n.getAttribute('x'),y=+n.getAttribute('y'),w=n.getComputedTextLength();
+    const anchor=x>ax+12?'start':x<ax-12?'end':'middle';n.setAttribute('text-anchor',anchor);
+    const tx=anchor==='start'?x-4:anchor==='end'?x+4:x, ty=y>ay?y-15:y+5;
+    const dist=Math.hypot(tx-ax,ty-ay);
+    if(dist<14){lead.setAttribute('visibility','hidden');return}lead.setAttribute('visibility','visible');
+    const k=9/dist;lead.setAttribute('x1',ax+(tx-ax)*k);lead.setAttribute('y1',ay+(ty-ay)*k);lead.setAttribute('x2',tx);lead.setAttribute('y2',ty)};
+  items.push({m,n,update});
+  let drag=null;
+  n.addEventListener('pointerdown',e=>{const q=point(e);drag={dx:+n.getAttribute('x')-q.x,dy:+n.getAttribute('y')-q.y};n.setPointerCapture(e.pointerId);e.preventDefault()});
+  n.addEventListener('pointermove',e=>{if(!drag)return;const q=point(e);n.setAttribute('x',Math.max(4,Math.min(996,q.x+drag.dx)));n.setAttribute('y',Math.max(14,Math.min(B-4,q.y+drag.dy)));update()});
+  const finish=()=>{if(!drag)return;drag=null;save()};
+  n.addEventListener('pointerup',finish);n.addEventListener('pointercancel',finish);
+  n.addEventListener('keydown',e=>{const d={ArrowLeft:[-4,0],ArrowRight:[4,0],ArrowUp:[0,-4],ArrowDown:[0,4]}[e.key];if(!d)return;e.preventDefault();
+    n.setAttribute('x',+n.getAttribute('x')+d[0]);n.setAttribute('y',+n.getAttribute('y')+d[1]);update();save()});
+}
+requestAnimationFrame(()=>items.forEach(i=>i.update()));items.forEach(i=>i.update());
+const positions=()=>Object.fromEntries(items.map(i=>[i.m.name,{x:Math.round(+i.n.getAttribute('x')),y:Math.round(+i.n.getAttribute('y'))}]));
+const status=document.getElementById('status');
+function save(){try{localStorage.setItem(key,JSON.stringify(positions()));status.textContent='Positions saved in this browser.'}catch{status.textContent='This browser blocked saving; positions reset on reload. Use "Copy label positions".'}}
+document.getElementById('reset').addEventListener('click',()=>{try{localStorage.removeItem(key)}catch{}location.reload()});
+document.getElementById('copy').addEventListener('click',()=>{const s=JSON.stringify(positions(),null,1);
+  navigator.clipboard.writeText(s).then(()=>{status.textContent='Copied. Paste into score_vs_cost_labels.json to make them the default.'},
+  ()=>{status.textContent=s})});
+// table
+const tb=document.getElementById('rows');
+for(const m of D.models){const tr=document.createElement('tr');const f=p=>p?['$'+p.usd.toFixed(2),(p.score*100).toFixed(1)+'%']:['–','–'];
+  [m.name,...f(m.points.false),...f(m.points.true)].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;
+    if(i===0){const s=document.createElement('span');s.className='swatch';s.style.background=m.color;td.prepend(s)}tr.append(td)});tb.append(tr)}
+</script>
