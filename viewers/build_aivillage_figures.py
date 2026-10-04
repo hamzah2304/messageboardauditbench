@@ -54,7 +54,7 @@ COST_LABELS = {
     "claude-sonnet-5-5": (True, 30, -30), "claude-opus-5": (True, 34, 34),
     "z-ai/glm-5.3": (False, -24, -46), "google/gemini-3.8-flash": (False, -50, 54),
     "moonshotai/kimi-k3": (False, -40, 50), "claude-opus-4-8": (False, 0, 46),
-    "meta/muse-spark-1.3": (False, 40, 50), "gpt-6-luna": (False, 0, 46),
+    "meta/muse-spark-1.3": (False, 18, 4), "gpt-6-luna": (False, 0, 46),
     "deepseek/deepseek-v4-flash": (False, 0, 46),
 }
 ECI_LABELS = {
