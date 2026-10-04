@@ -8,7 +8,7 @@ IDS_JSON defaults to ids.json next to this script. Exit code 1 if any check fail
 Checks: every input finding is in exactly one merged finding's "sources" or in "dropped";
 every subfinding of a kept finding is in exactly one merged subfinding's "from" or in
 "dropped_subfindings" (a finding marked "unchanged" keeps all of its own); merged IDs are
-unique; each drop has a reason.
+unique; each drop has a reason; each merged finding names what went wrong ("failure").
 """
 import json
 import sys
@@ -34,6 +34,8 @@ def check(merged, ids):
     merged_ids = Counter()
     for m in merged["merged"]:
         merged_ids[m["id"]] += 1
+        if not m.get("failure"):
+            problems.append(f"{m['id']} does not say what went wrong (\"failure\")")
         own = {s for fid in m["sources"] for s in ids.get(fid, [])}
         if m.get("unchanged"):
             # One source finding kept exactly as extracted: all its subfindings come along.
