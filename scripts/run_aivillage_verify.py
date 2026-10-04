@@ -5,7 +5,7 @@
     python3 scripts/run_aivillage_verify.py OUT_DIR MERGED_FULL_JSON --status
 
 Findings are grouped by the Village goal period they probably fall in, at most 8 per group, with
-about two minutes of budget per finding. For each group this fills the findings into the config's
+about five minutes of budget per finding. For each group this fills the findings into the config's
 prompt, runs sandbox/docker/run_trial.sh (configs/aivillage-verify.toml) and saves each finding's
 verified/<ID>.json as OUT_DIR/results/<ID>.json.
 A finding with a saved result is skipped, so rerunning the same command resumes. A failed
@@ -25,12 +25,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "configs/aivillage-verify.toml"
-TEMPLATE = ROOT / "sandbox/prompts/aivillage-verify-v2.txt"
+TEMPLATE = ROOT / "sandbox/prompts/aivillage-verify-v3.txt"
 DATA = Path("/home/oscar_gilg18/Dev/MessageBoardAuditBench/data/aivillage/full-v2-reasoning")
 MODEL = "claude-sonnet-5-5"
 LAUNCH = datetime.date(2025, 4, 2)  # Day 1 of the Village
 GROUP_SIZE = 8
-MINUTES_PER_FINDING = 2
+MINUTES_PER_FINDING = 5
 SUB_VERDICTS = {"supported", "partly supported", "contradicted", "not found", "outside the records", "not checked"}
 lock = threading.Lock()
 start_lock = threading.Lock()
@@ -122,7 +122,7 @@ def verify(out, group):
     prompt.write_text(TEMPLATE.read_text().replace("{{GROUP_NOTE}}", group["note"]).replace("{{FINDING}}", text)
                       .replace("{{MINUTES_PER_FINDING}}", str(MINUTES_PER_FINDING)))
     env = {**os.environ, "ALLOW_NETWORKED_SUBSCRIPTION": "1", "CONFIG": str(CONFIG), "DATA_DIR": str(DATA),
-           "PROMPT_FILE_OVERRIDE": str(prompt), "BUDGET_MIN": str(MINUTES_PER_FINDING * len(todo) + 3)}
+           "PROMPT_FILE_OVERRIDE": str(prompt), "BUDGET_MIN": str(MINUTES_PER_FINDING * len(todo) + 4)}
     log = out / "logs" / f"{name}.log"
     with start_lock:  # simultaneous launches race on the image build, so start them a few seconds apart
         time.sleep(8)
@@ -157,6 +157,8 @@ def collect(out, findings, report_missing=False):
             fail(out, fid, "malformed", f"{run_dir}: {exc}")
             continue
         result["run_dir"] = run_dir
+        # Which prompt produced it: only v3 offers the "not checked" verdict.
+        result["prompt"] = TEMPLATE.name if "- not checked:" in Path(run_dir, "work/prompt.txt").read_text() else "aivillage-verify-v2.txt"
         result["format_problems"] = problems(result, finding)
         (out / "results" / f"{fid}.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
         print(json.dumps({"finding": fid, "verdict": result.get("verdict"), "format_problems": result["format_problems"]}), flush=True)
@@ -182,30 +184,25 @@ def main():
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--status", action="store_true")
-    ap.add_argument("--second-look", action="store_true",
-                    help="recheck, with more time, findings whose first result was drop or had a part not found")
+    ap.add_argument("--redo-older", action="store_true", help="redo findings whose result came from an earlier prompt version")
     ap.add_argument("--skip", nargs="*", default=[], help="group names another process is already running")
     args = ap.parse_args()
     findings = json.loads(args.merged.read_text())["merged"]
     if args.only:
         findings = [f for f in findings if f["id"] in args.only]
     out = args.out.resolve()
-    if args.second_look:
-        global TEMPLATE, MINUTES_PER_FINDING, GROUP_SIZE
-        TEMPLATE, MINUTES_PER_FINDING, GROUP_SIZE = ROOT / "sandbox/prompts/aivillage-verify-v3-second-look.txt", 6, 3
+    if args.redo_older:
+        # Results from before prompt v3 (shorter time limit, looser rewording rule) are set aside and redone.
         first, redo = out / "results-first-pass", []
         first.mkdir(exist_ok=True)
         for f in findings:
             path = out / "results" / f"{f['id']}.json"
-            if path.exists() and not (first / path.name).exists():
-                r = json.loads(path.read_text())
-                if r.get("verdict") == "drop" or any(sf.get("verdict") == "not found" for sf in r.get("subfindings", [])):
-                    path.rename(first / path.name)
-                    redo.append(f)
-            elif (first / path.name).exists() and not path.exists():
+            if path.exists() and json.loads(path.read_text()).get("prompt") != TEMPLATE.name:
+                path.rename(first / path.name)
+            if not path.exists():
                 redo.append(f)
         findings = redo
-        # Second-look runs get their own logs, so collect() cannot pick up the first pass's files again.
+        # Redone runs get their own logs, so collect() cannot pick up the first pass's files again.
         for log in (out / "logs").glob("*.log"):
             log.rename(log.with_suffix(".log.first-pass"))
     if not args.status:
