@@ -54,7 +54,7 @@ Citations look like `[turn:<id> "short exact quote"]`. The checker confirms the 
 | Path | What it is |
 |---|---|
 | [intro.md](intro.md) | The plan in half a page (also the Intro tab of the Google Doc) |
-| [prompt-v3-proposal.md](prompt-v3-proposal.md) | Current prompt with its change history, newest first |
+| [prompt-v3-proposal.md](prompt-v3-proposal.md) | Current prompt and what changed since the previous version (earlier changes: the Google Doc tabs and git history) |
 | [rubric-draft.md](rubric-draft.md) | Draft grading rubric |
 | [data-readme.txt](data-readme.txt) | Template for the README inside the data folder |
 | [runs.md](runs.md) | Every AI Village trial so far, with its setup and outcome |
