@@ -141,15 +141,30 @@ def instruction(low: int, high: int) -> str:
     )
 
 
+def memory_words(limit: str) -> str:
+    """Docker-style memory limit ("3g", "512m") as prose; "limited" when none is set."""
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([gGmM])[bB]?\s*", limit or "")
+    if not match:
+        return "limited"
+    return f"{match.group(1)} {'GB' if match.group(2).lower() == 'g' else 'MB'}"
+
+
 def render_prompt(
-    template: str, budget_min: int, low: int, high: int, findings_count: int = 0, subagents: bool = False
+    template: str,
+    budget_min: int,
+    low: int,
+    high: int,
+    findings_count: int = 0,
+    subagents: bool = False,
+    memory_limit: str = "",
 ) -> str:
     """Render shared config values without duplicating embedded length prose.
 
     `{{#FINDINGS_COUNT}}...{{/FINDINGS_COUNT}}` is kept only when a fixed number of findings
     is configured, `{{^FINDINGS_COUNT}}...{{/FINDINGS_COUNT}}` only when it is not.
     `{{#SUBAGENTS}}...{{/SUBAGENTS}}` is kept only when the config allows subagents,
-    `{{^SUBAGENTS}}...{{/SUBAGENTS}}` only when it does not.
+    `{{^SUBAGENTS}}...{{/SUBAGENTS}}` only when it does not. `{{MEMORY_LIMIT}}` becomes the
+    sandbox memory in words ("3g" -> "3 GB").
     """
     embedded_length = "{{#REPORT_LENGTH}}" in template
     text = re.sub(
@@ -171,6 +186,7 @@ def render_prompt(
         "REPORT_MIN_WORDS": f"{low:,}",
         "REPORT_MAX_WORDS": f"{high:,}",
         "FINDINGS_COUNT": str(findings_count),
+        "MEMORY_LIMIT": memory_words(memory_limit),
     }.items():
         text = text.replace("{{" + token + "}}", value)
     return text if embedded_length else text + instruction(low, high)
@@ -341,6 +357,7 @@ def main() -> None:
     parser.add_argument("--budget-min", type=int, default=20)
     parser.add_argument("--findings-count", type=int, default=0)
     parser.add_argument("--subagents", action="store_true")
+    parser.add_argument("--memory-limit", default="")
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
     parser.add_argument("--always", action="store_true")
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
@@ -357,7 +374,7 @@ def main() -> None:
     )
     if args.template:
         print(
-            render_prompt(args.template.read_text(), args.budget_min, low, high, args.findings_count, args.subagents),
+            render_prompt(args.template.read_text(), args.budget_min, low, high, args.findings_count, args.subagents, args.memory_limit),
             end="",
         )
     elif args.instruction:

@@ -281,3 +281,10 @@ def test_render_prompt_keeps_subagent_section_only_when_allowed():
     template = "Go.{{#SUBAGENTS}} Delegate.{{/SUBAGENTS}}{{^SUBAGENTS}} Work alone.{{/SUBAGENTS}}"
     assert render_prompt(template, 10, 0, 0, subagents=True) == "Go. Delegate." + instruction(0, 0)
     assert render_prompt(template, 10, 0, 0) == "Go. Work alone." + instruction(0, 0)
+
+
+def test_render_prompt_states_the_memory_limit():
+    from messageboard_audit_bench.report_length import memory_words
+
+    assert memory_words("3g") == "3 GB" and memory_words("512m") == "512 MB" and memory_words("") == "limited"
+    assert render_prompt("{{MEMORY_LIMIT}} shared.", 10, 0, 0, memory_limit="3g").startswith("3 GB shared.")

@@ -142,3 +142,14 @@ Prompt v3.14 smoke tests (`aivillage-v9-40-subagents`, one-week slice, `BUDGET_M
 | 17:49 | Sol | 3 | Each subagent wrote only under its own `/work/scratch/<name>/`; no sleep; 3,386 words |
 
 Five minutes on the slice cannot reach 20 findings or 8,000 words, so these only check that the prompt renders and that Codex now delegates.
+
+## 4 October, evening: prompt v3.15 checks
+
+`aivillage-v10-40-subagents` on the one-week slice with reasoning traces, `BUDGET_MIN=5`, replicate 9.
+
+| Start (UTC) | Model | Subagents started | Notes |
+|---|---|---|---|
+| 18:19 | Sonnet 5.5 | 0 | Ignored "use subagents" in 5 minutes; blocked from finishing 18 times; 3 tool calls touched the reasoning column |
+| 18:19 | Sol | 3 | Each subagent's instructions began with the standard paragraph, word for word (checked in the subagents' own logs); 29 tool calls touched the reasoning column; never blocked |
+
+The full `full-v2-noreasoning` folder was deleted from the shared `data/` at 18:12 (not by this session); v3.15 configs use `full-v2-reasoning`.
