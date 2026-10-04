@@ -1,6 +1,6 @@
 # AI Village trials
 
-Every trial so far, oldest first. Run folders are under `runs/` in the primary checkout (gitignored) and are named `<UTC start>_<harness>_<model>_r<replicate>_<config>_<id>`; each holds the prompt the agent saw, `report.md`, `transcript.jsonl`, `meta.json` and the config. Configs named here are in `configs/superseded/` unless marked current.
+Every trial so far, oldest first. Run folders are under `runs/` in the primary checkout (gitignored) and are named `<UTC start>_<harness>_<model>_r<replicate>_<config>_<id>`; each holds the prompt the agent saw, `report.md`, `transcript.jsonl`, `meta.json` and the config. Configs and prompts named here are in `configs/superseded/` and `sandbox/prompts/superseded/`; the current ones are `aivillage-v12-30` and prompt `aivillage-v12`.
 
 "Usable" means the run finished and its report can be compared with others. Citation counts are from `scripts/check_aivillage_citations.py` (id exists and quote appears in the record); runs before the quoted-citation format have no count.
 
@@ -56,7 +56,7 @@ Four runs of `aivillage-v4-full-10-reasoning` (Sonnet 5.5, Sonnet 5, Luna, Sol),
 
 Three first attempts failed while building the image, before any agent started, and left no run folder; the replicate-2 runs replaced them. Analysed in [notes/2026-10-04-reasoning-and-count-ablation.md](notes/2026-10-04-reasoning-and-count-ablation.md).
 
-## 4 October: default setup at 10 and 30 minutes (configs `aivillage-10` and `aivillage-30`, current; prompt `aivillage-v7`)
+## 4 October: default setup at 10 and 30 minutes (configs `aivillage-10` and `aivillage-30`; prompt `aivillage-v7`)
 
 All exactly 10 findings; full logs without reasoning; medium effort.
 
@@ -168,3 +168,7 @@ Full logs with reasoning traces, 20 findings, 8,000 to 10,000 words (11,000 acce
 | 19:04 | Luna | yes | 27.6 | 49 | 3 | 0 | 3,269 | 44/58 | **Incomplete**: 7 findings; ran out of time writing; 13 of 14 bad citations retyped from subagent messages |
 
 First runs of `gpt-6.1-sol` in this eval (the overnight Sol runs used `gpt-6-sol`). Analysed in [notes/2026-10-04-prompt-v3.16-30-minutes.md](notes/2026-10-04-prompt-v3.16-30-minutes.md).
+
+## 4 October, evening: benchmark batch, prompt v3.17, 30 minutes (configs `aivillage-v12-30`, `aivillage-v12-30-subagents`, current)
+
+32 runs from 11 models on Claude Code, Codex and the OpenRouter ReAct loop, launched with `scripts/aivillage_batch.sh`. The runs to grade and the folders to ignore are listed in [benchmark-2026-10-04-runs.md](benchmark-2026-10-04-runs.md).

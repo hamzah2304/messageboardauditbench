@@ -1,7 +1,7 @@
 """Goal periods queried per run: a goal counts if a tool input names a date inside it, a <60-day date range overlapping it, or its goal id."""
 import glob, json, os, re, sys
 from datetime import date
-os.chdir('/home/oscar_gilg18/Dev/MessageBoardAuditBench/.worktrees/claude-aivillage-pilot')
+os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/../../../../..')  # repo root
 G = [json.loads(l) for l in open('data/aivillage/full-v2-noreasoning/village_goals.jsonl')]
 goals = [(g['id'], date.fromisoformat(g['start_time'][:10]), date.fromisoformat((g.get('end_time') or '2026-09-21')[:10]), g['goal'][:50]) for g in G]
 D = re.compile(r'(20(?:25|26))-(\d\d)-(\d\d)')

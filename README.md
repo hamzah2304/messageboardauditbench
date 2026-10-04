@@ -5,6 +5,14 @@ recover the findings of a human audit. The repository holds two benchmarks. They
 separate Inspect evals that share one harness: the config format, prompt rendering,
 sandbox, agents, subscription runner and grading plumbing.
 
+> **New: the AI Village eval.** An agent gets the complete logs of AI Digest's AI Village
+> (18 months of frontier agents from several labs pursuing shared goals, each with its own
+> computer) in a sandbox with no internet, and reports the 20 most important things that
+> went wrong, citing a log record for every claim. The setup runs on Claude Code, Codex and
+> OpenRouter models, and a 32-run benchmark batch over 11 models is done; the answer key from
+> AI Digest's write-ups and the grader are in progress, and it is not yet an Inspect task.
+> Start at [`benchmark/incidents/aivillage/`](benchmark/incidents/aivillage/README.md).
+
 | benchmark | Inspect task | version | evidence | grading |
 |---|---|---:|---|---|
 | German wiki report | `german_wiki_report` | `10.0` | the collusion.wiki dump, `data/<variant>/` | claim sheets `v2` + `tldrh` |
@@ -44,8 +52,6 @@ uv run python scripts/run_eval.py german-wiki-report --version 9.0 -- -T agent=c
 [`docs/benchmark-versions.md`](docs/benchmark-versions.md) lists every version, what
 changed, and how to run it. The pre-rename task names (`messageboard_audit_bench`,
 `urlquery_audit_bench`, ...) still work as aliases.
-
-**AI Village (in development).** An agent investigates the full AI Village logs and reports what went wrong; the answer key will come from AI Digest's write-ups. Setup, prompt, run log and notes are in [`benchmark/incidents/aivillage/`](benchmark/incidents/aivillage/README.md). Not yet a registered Inspect eval.
 
 **Drafts for future evals.** `benchmark/incidents/` also holds two draft incidents:
 Anthropic's released Mythos 5 cybersecurity transcript, and the malicious-package

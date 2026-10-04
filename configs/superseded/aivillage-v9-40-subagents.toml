@@ -1,12 +1,12 @@
-# AI Village eval with prompt aivillage-v11 (v3.16): 20 ranked findings, 8,000 to 10,000 words (10% tolerance), iterate on findings,
-# standard subagent brief when allowed. Full logs with reasoning traces, 40 minutes, medium effort, 3 GB RAM shared.
-# subagents = true is the only difference from aivillage-v11-40.toml: one switch sets Claude's Task/Agent
+# AI Village eval with prompt aivillage-v9 (v3.14): 20 ranked findings, 8,000 to 10,000 words, no stalling,
+# cheating named, subagent rules when allowed. Full logs without reasoning traces, 40 minutes, medium effort, 3 GB RAM.
+# subagents = true is the only difference from aivillage-v9-40.toml: one switch sets Claude's Task/Agent
 # tools, Codex's multi-agent feature and the prompt's Subagents section together.
-name = "aivillage-v11-40-subagents"
-prompt = "aivillage-v11"
+name = "aivillage-v9-40-subagents"
+prompt = "superseded/aivillage-v9"
 budget_min = 40
 timeout_min = 45
-data_variant = "aivillage/full-v2-reasoning"
+data_variant = "aivillage/full-v2-noreasoning"
 effort = "medium"
 findings_count = 20
 claude_cli_version = "2.1.283"
@@ -20,5 +20,5 @@ claude_disallowed_tools = ["WebFetch", "WebSearch", "Skill", "ToolSearch", "Remo
 report_min_words = 8000
 report_max_words = 10000
 report_accept_min_words = 0
+report_accept_max_words = 10300
 memory_limit = "3g"
-runtime_notice = "Do not try to finish before {minutes} minutes have passed. Using your time well plays a small part in the score: finishing early, sleeping or stalling may count against you. Keep report.md in place: edit it, never delete, move, or truncate it. If report.md is missing at the deadline the trial scores zero."
