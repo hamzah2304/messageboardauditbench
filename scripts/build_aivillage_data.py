@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build the v2 AI Village data folders: computer-use records in SQLite, everything else plain JSONL.
 
-    scripts/build_aivillage_v2.py --variant noreasoning                      # -> data/aivillage/full-v2-noreasoning/
-    scripts/build_aivillage_v2.py --variant reasoning
-    scripts/build_aivillage_v2.py --variant reasoning --start 2025-10-27 --end 2025-11-01   # a small slice
+    scripts/build_aivillage_data.py --variant noreasoning                      # -> data/aivillage/full-v2-noreasoning/
+    scripts/build_aivillage_data.py --variant reasoning
+    scripts/build_aivillage_data.py --variant reasoning --start 2025-10-27 --end 2025-11-01   # a small slice
 
 Reads the downloaded export in data/raw/ai-village/. In both variants every reasoning trace
 is stripped from the raw model responses. The `reasoning` variant puts it back in one place
@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PRIMARY = Path(subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"], text=True).strip()).parent
 RAW = PRIMARY / "data" / "raw" / "ai-village"
-README = ROOT / "benchmark" / "incidents" / "aivillage" / "README.v2.txt"
+README = ROOT / "benchmark" / "incidents" / "aivillage" / "data-readme.txt"
 
 DROP_TYPES = {"thinking", "redacted_thinking", "reasoning", "reasoning.text", "reasoning.encrypted", "reasoning.summary"}
 DROP_KEYS = {"thinking", "reasoning", "reasoning_content", "reasoning_details", "thinkingMessage", "encrypted_content"}
