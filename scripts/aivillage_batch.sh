@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a batch of AI Village trials (prompt v3.17, 30 minutes) on this machine, Linux or macOS.
 #
-#   scripts/aivillage_batch.sh --replicates "3" [--claude 3] [--codex 3] [--react 5] [--cutoff HH:MM] [--sync-to fuzzy]
+#   scripts/aivillage_batch.sh --replicates "3" [--claude 3] [--codex 3] [--react 5] [--only "model ..."] [--cutoff HH:MM] [--sync-to fuzzy]
 #
 # Builds one queue per subscription from the model lists below (Claude and Codex models with and
 # without subagents, OpenRouter models without: they have no subagent tool), runs each queue with
@@ -17,7 +17,7 @@ CLAUDE_MODELS=(claude-opus-5 claude-opus-4-8 claude-opus-4-6 claude-sonnet-5-5)
 CODEX_MODELS=(gpt-6-astra gpt-6.1-sol gpt-6-luna)
 REACT_MODELS=(google/gemini-3.8-flash meta/muse-spark-1.3 moonshotai/kimi-k3 z-ai/glm-5.3 deepseek/deepseek-v4-flash)
 CONFIG=aivillage-v12-30
-REPLICATES="1"; P_CLAUDE=3; P_CODEX=3; P_REACT=5; SYNC_TO=""; CUTOFF=""
+REPLICATES="1"; P_CLAUDE=3; P_CODEX=3; P_REACT=5; SYNC_TO=""; CUTOFF=""; ONLY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --replicates) REPLICATES="$2"; shift 2 ;;
@@ -26,6 +26,7 @@ while [ $# -gt 0 ]; do
     --react) P_REACT="$2"; shift 2 ;;
     --sync-to) SYNC_TO="$2"; shift 2 ;;
     --cutoff) CUTOFF="$2"; shift 2 ;;
+    --only) ONLY="$2"; shift 2 ;;   # keep only these model ids
     *) echo "unknown option $1" >&2; exit 2 ;;
   esac
 done
@@ -38,6 +39,12 @@ for r in $REPLICATES; do
   for m in "${CODEX_MODELS[@]}"; do for c in "$CONFIG" "$CONFIG-subagents"; do echo "$c codex $m $r"; done; done
 done > "$OUT/codex.txt"
 for r in $REPLICATES; do for m in "${REACT_MODELS[@]}"; do echo "$CONFIG react $m $r"; done; done > "$OUT/react.txt"
+
+if [ -n "$ONLY" ]; then
+  for q in claude codex react; do
+    awk -v keep=" $ONLY " 'index(keep, " " $3 " ")' "$OUT/$q.txt" > "$OUT/$q.tmp" && mv "$OUT/$q.tmp" "$OUT/$q.txt"
+  done
+fi
 
 set -a; [ -f .env ] && . ./.env; set +a
 [ -f .venv/bin/activate ] && . .venv/bin/activate   # the runner's helpers need python3 >= 3.11
