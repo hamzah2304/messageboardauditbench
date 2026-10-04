@@ -153,10 +153,12 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--runs-root", type=Path, default=ROOT / "runs")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--run", action="append", default=[],
+                        help="extra run folder name to include beyond the manifest (repeatable)")
     args = parser.parse_args()
 
     rows = []
-    for name in manifest_runs(args.manifest):
+    for name in manifest_runs(args.manifest) + args.run:
         run_dir = args.runs_root / name
         info = parse_name(name)
         usage = summarize(run_dir, info["agent"])

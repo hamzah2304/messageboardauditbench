@@ -1,4 +1,4 @@
-<title>AI Village Score vs Cost</title>
+<title>__TITLE__</title>
 <style>
   :root{--bg:#f6f6f2;--card:#fff;--ink:#17181a;--muted:#666a70;--line:#dcded9;--grid:#e9eae5;--front:#6b6e72;--lead:#a9acaf;
     --mono:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,Menlo,monospace}
@@ -22,51 +22,52 @@
   .tablewrap{overflow-x:auto}.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px}
 </style>
 <main>
-<div class="panel"><svg id="chart" viewBox="0 0 1000 560" role="img" aria-label="AI Village answer-key score against cost per run, with and without subagents"></svg></div>
+<div class="panel"><svg id="chart" viewBox="0 0 1000 560" role="img"></svg></div>
 <p class="note" id="caption"></p>
 <div class="controls"><span>Drag model names to move them.</span><button id="reset" type="button">Reset labels</button><button id="copy" type="button">Copy label positions</button><span id="status" role="status"></span></div>
-<details><summary>Values</summary><div class="tablewrap"><table><thead><tr><th>Model</th><th>Cost, no subagents</th><th>Score, no subagents</th><th>Cost, subagents</th><th>Score, subagents</th></tr></thead><tbody id="rows"></tbody></table></div></details>
+<details><summary>Values</summary><div class="tablewrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div></details>
 </main>
 <script type="application/json" id="data">__DATA__</script>
 <script>
 const D=JSON.parse(document.getElementById('data').textContent), svg=document.getElementById('chart'), N='http://www.w3.org/2000/svg';
-document.getElementById('caption').textContent=D.caption;
+document.getElementById('caption').textContent=D.caption;svg.setAttribute('aria-label',D.aria);
 const el=(tag,attrs={},parent=svg)=>{const n=document.createElementNS(N,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n};
 const text=(x,y,t,attrs={})=>{const n=el('text',{x,y,...attrs});n.textContent=t;return n};
-const L=82,R=975,T=28,B=478,lo=.1,hi=100,yHi=.7;
-const X=v=>L+Math.log(v/lo)/Math.log(hi/lo)*(R-L), Y=v=>B-v/yHi*(B-T);
-for(const t of [.1,.2,.5,1,2,5,10,20,50,100]){const x=X(t);el('line',{x1:x,x2:x,y1:T,y2:B,class:'grid'});text(x,B+26,'$'+t,{'text-anchor':'middle',class:'mono'})}
+const A=D.x_axis,L=82,R=975,T=28,B=478,yHi=.7;
+const f=v=>A.log?Math.log(v):v, X=v=>L+(f(v)-f(A.min))/(f(A.max)-f(A.min))*(R-L), Y=v=>B-v/yHi*(B-T);
+for(const t of A.ticks){const x=X(t);el('line',{x1:x,x2:x,y1:T,y2:B,class:'grid'});text(x,B+26,A.prefix+t,{'text-anchor':'middle',class:'mono'})}
 for(let i=0;i<=7;i++){const y=Y(i/10);el('line',{x1:L,x2:R,y1:y,y2:y,class:'grid'});text(L-12,y+4,(i*10)+'%',{'text-anchor':'end',class:'mono'})}
 el('line',{x1:L,x2:R,y1:B,y2:B,class:'axis'});
-text((L+R)/2,B+56,'estimated cost per run, USD at list price (log scale)',{'text-anchor':'middle','font-size':14});
+text((L+R)/2,B+56,A.label,{'text-anchor':'middle','font-size':14});
 text(22,(T+B)/2,D.y_label,{'text-anchor':'middle','font-size':14,transform:`rotate(-90 22 ${(T+B)/2})`});
 // legend
 let lx=L+18;const ly1=T+22,ly2=T+52;
 const hollow=(x,y,c,parent=svg)=>el('circle',{cx:x,cy:y,r:6.5,fill:'#fff',stroke:c,'stroke-width':2.4},parent);
 const diamond=(x,y,c,parent=svg)=>el('path',{d:`M${x},${y-8.5} L${x+8.5},${y} L${x},${y+8.5} L${x-8.5},${y} Z`,fill:c,stroke:'#fff','stroke-width':1.4},parent);
 hollow(lx,ly1,'#3c3f44');text(lx+14,ly1+4.5,'no subagents',{class:'mono'});
-diamond(lx+150,ly1,'#3c3f44');text(lx+164,ly1+4.5,'subagents',{class:'mono'});
+if(D.models.some(m=>m.points.true)){diamond(lx+150,ly1,'#3c3f44');text(lx+164,ly1+4.5,'subagents',{class:'mono'})}
 for(const v of D.vendors){el('rect',{x:lx-6,y:ly2-6,width:12,height:12,rx:2,fill:v.color});const t=text(lx+12,ly2+4.5,v.name,{class:'mono'});lx+=26+t.getComputedTextLength()+14}
 // frontier
-const fp=D.frontier.map(g=>`${X(g.usd)},${Y(g.score)}`).join(' L');
-el('path',{d:'M'+fp,fill:'none',stroke:'var(--front)','stroke-width':2});
+if(D.frontier.length){const fp=D.frontier.map(g=>`${X(g.x)},${Y(g.score)}`).join(' L');
+el('path',{d:'M'+fp,fill:'none',stroke:'var(--front)','stroke-width':7,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.13});
 const fm=D.frontier[Math.min(1,D.frontier.length-1)];
-text(X(fm.usd)+8,Y(fm.score)-46,'efficient frontier',{class:'mono'});
+text(X(fm.x)+8,Y(fm.score)-46,'efficient frontier',{class:'mono',opacity:.6})}
 // pairs and marks
 const marks=el('g'), leads=el('g'), names=el('g');
 for(const m of D.models){
   const [a,b]=[m.points.false,m.points.true];
-  if(a&&b)el('line',{x1:X(a.usd),y1:Y(a.score),x2:X(b.usd),y2:Y(b.score),stroke:m.color,'stroke-width':1.6,'stroke-dasharray':'5 4'},marks);
+  for(const p of [a,b])if(p&&p.ci)el('line',{x1:X(p.ci[0]),x2:X(p.ci[1]),y1:Y(p.score),y2:Y(p.score),stroke:m.color,'stroke-width':1.2,opacity:.35},marks);
+  if(a&&b)el('line',{x1:X(a.x),y1:Y(a.score),x2:X(b.x),y2:Y(b.score),stroke:m.color,'stroke-width':1.6,'stroke-dasharray':'5 4'},marks);
 }
 for(const m of D.models)for(const sub of ['false','true']){const p=m.points[sub];if(!p)continue;
-  const node=sub==='true'?diamond(X(p.usd),Y(p.score),m.color,marks):hollow(X(p.usd),Y(p.score),m.color,marks);
-  el('title',{},node).textContent=`${m.name}, ${sub==='true'?'subagents':'no subagents'}: $${p.usd.toFixed(2)} per run, score ${(p.score*100).toFixed(1)}% (mean of ${p.n} runs)`;
+  const node=sub==='true'?diamond(X(p.x),Y(p.score),m.color,marks):hollow(X(p.x),Y(p.score),m.color,marks);
+  el('title',{},node).textContent=p.title;
 }
 // draggable labels
 const key=D.label_storage_key;let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
 const items=[];
 const point=e=>{const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse())};
-for(const m of D.models){const p=m.points[String(m.label.sub)]||m.points.false||m.points.true, ax=X(p.usd), ay=Y(p.score);
+for(const m of D.models){const p=m.points[String(m.label.sub)]||m.points.false||m.points.true, ax=X(p.x), ay=Y(p.score);
   const pos=saved[m.name]||D.label_positions[m.name]||{x:ax+m.label.dx,y:ay+m.label.dy};
   const lead=el('line',{stroke:'var(--lead)','stroke-width':1},leads);
   const n=text(pos.x,pos.y,m.name,{class:'model-label'},names);n.setAttribute('tabindex','0');
@@ -91,11 +92,12 @@ const status=document.getElementById('status');
 function save(){try{localStorage.setItem(key,JSON.stringify(positions()));status.textContent='Positions saved in this browser.'}catch{status.textContent='This browser blocked saving; positions reset on reload. Use "Copy label positions".'}}
 document.getElementById('reset').addEventListener('click',()=>{try{localStorage.removeItem(key)}catch{}location.reload()});
 document.getElementById('copy').addEventListener('click',()=>{const s=JSON.stringify(positions(),null,1);
-  navigator.clipboard.writeText(s).then(()=>{status.textContent='Copied. Paste into score_vs_cost_labels.json to make them the default.'},
+  navigator.clipboard.writeText(s).then(()=>{status.textContent='Copied. Paste into '+D.labels_file+' to make them the default.'},
   ()=>{status.textContent=s})});
 // table
+const hr=document.getElementById('head');for(const h of D.table.head){const th=document.createElement('th');th.textContent=h;hr.append(th)}
 const tb=document.getElementById('rows');
-for(const m of D.models){const tr=document.createElement('tr');const f=p=>p?['$'+p.usd.toFixed(2),(p.score*100).toFixed(1)+'%']:['–','–'];
-  [m.name,...f(m.points.false),...f(m.points.true)].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;
-    if(i===0){const s=document.createElement('span');s.className='swatch';s.style.background=m.color;td.prepend(s)}tr.append(td)});tb.append(tr)}
+for(const row of D.table.rows){const tr=document.createElement('tr');
+  row.cells.forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;
+    if(i===0){const s=document.createElement('span');s.className='swatch';s.style.background=row.color;td.prepend(s)}tr.append(td)});tb.append(tr)}
 </script>

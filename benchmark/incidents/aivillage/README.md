@@ -8,7 +8,11 @@ An AI agent gets the complete AI Village logs and has to work out what went wron
 
 ![AI Village score against cost per run](figures/score_vs_cost.png)
 
-Mean of each report's 20 best finding scores against the 96-finding answer key (GPT-6.1 Sol judge, no contradiction penalties) against cost per run at list prices, subagents included. Large marks are the mean of two runs. Built by `scripts/aivillage_run_costs.py` and `viewers/build_aivillage_cost_figure.py`.
+Mean of each report's 20 best finding scores against the 96-finding answer key (GPT-6.1 Sol judge, no contradiction penalties) against cost per run at list prices, subagents included. Large marks are the mean of two runs. Built by `scripts/aivillage_run_costs.py` and `viewers/build_aivillage_figures.py`.
+
+![AI Village score against ECI](figures/score_vs_eci.png)
+
+The same score for runs without subagents against Epoch's Capabilities Index; GPT-6.1 Sol and GPT-6 Luna have no ECI yet.
 
 ## What the pilot runs showed
 
