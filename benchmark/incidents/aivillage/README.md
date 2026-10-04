@@ -62,7 +62,7 @@ Citations look like `[turn:<id> "short exact quote"]`. The checker confirms the 
 | `scripts/build_aivillage_data.py` | Builds `data/aivillage/<full or slice>-v2-<variant>/` |
 | `scripts/check_aivillage_citations.py` | Citation checker |
 | `viewers/build_aivillage_reports.py` | Report viewer page |
-| `configs/aivillage-10.toml`, `configs/aivillage-slice-5.toml` | Current configs; older ones are in `configs/superseded/` |
+| `configs/aivillage-10.toml`, `configs/aivillage-30.toml`, `configs/aivillage-slice-5.toml` | Current configs (10 and 30 minutes; 5-minute slice check); older ones are in `configs/superseded/` |
 | `data/raw/ai-village/` (gitignored) | The Hugging Face export (gated; research use only) |
 | `data/raw/aivillage-sources/` (gitignored) | The 23 Substack posts as text and scraped AI Digest tweets, for building the answer key |
 
