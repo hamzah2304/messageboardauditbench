@@ -153,6 +153,11 @@ timeout_seconds() {
 PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/prompt.txt"
 python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" > "$PROMPT_OUT"
 python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$PROMPT_OUT"
+# memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
+[ -z "${CFG_MEMORY_LIMIT:-}" ] || cat >> "$PROMPT_OUT" <<MEMORY_NOTE
+
+Memory limit: your sandbox has ${CFG_MEMORY_LIMIT/g/ GB} of RAM, and any command that goes over it is killed. Several data files are far larger than that (agent_memories.jsonl.gz is 2.3 GB compressed; events.jsonl and claude_code_messages.jsonl are about 0.8 GB each; village.db is 9.6 GB), so never load a whole file into memory: query village.db with SQLite or stream files line by line.
+MEMORY_NOTE
 MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 [ -z "$RESUME_FROM" ] && cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
 PROMPT="$(cat "$RUN/prompt.txt")"
@@ -250,6 +255,7 @@ DOCKER_BASE=(--rm --network "$NET" --dns 0.0.0.0 --cap-drop ALL --security-opt n
   -e HTTPS_PROXY="http://$PROXY:3128" -e HTTP_PROXY="http://$PROXY:3128" -e NO_PROXY=
   -v "$RUN/work:/work" -v "$DATA_DIR:/work/data:ro" -v "$RUN/tool-telemetry:/telemetry"
   -w /work)
+[ -z "${CFG_MEMORY_LIMIT:-}" ] || DOCKER_BASE+=(--memory "$CFG_MEMORY_LIMIT" --memory-swap "$CFG_MEMORY_LIMIT")
 CANARY_ARGS=("${DOCKER_BASE[@]}" "$IMAGE")
 # The agent gets only its own credentials. The image already contains the helper scripts.
 DOCKER_ARGS=("${DOCKER_BASE[@]}" ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} ${REACT_ENV[@]+"${REACT_ENV[@]}"} ${AGENT_SECRET_MOUNTS[@]+"${AGENT_SECRET_MOUNTS[@]}"} "$IMAGE")
