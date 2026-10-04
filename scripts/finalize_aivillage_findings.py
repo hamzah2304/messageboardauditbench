@@ -81,7 +81,11 @@ def main():
             if sf["id"] in DECISIONS["subfindings"]:
                 hand = DECISIONS["subfindings"][sf["id"]]
                 dec["decision"], dec["reason"], by = hand["decision"], hand["reason"], hand["decided_by"]
-                dec["claim"] = sf["claim"]
+                dec["claim"] = hand.get("claim", sf["claim"])
+            elif dec["decision"] == "inconclusive" and DECISIONS.get("inconclusive_subfindings", {}).get("rule") == "drop":
+                rule = DECISIONS["inconclusive_subfindings"]
+                dec["decision"], by = "drop_inconclusive", rule["decided_by"]
+                dec["reason"] = rule["reason"] + " Adjudicator's note: " + dec["reason"]
             check = (r_subs if second else v_subs).get(sf["id"], {})
             subs.append({"id": sf["id"], "decision": dec["decision"], "claim": dec["claim"] if dec["decision"] == "rewrite" else sf["claim"],
                          "original_claim": sf["claim"], "reason": dec["reason"], "decided_by": by, "checked_twice": second,
@@ -133,7 +137,7 @@ def main():
                         group.get(mid, "dropped at merge"), dropped.get(e["id"], "")])
 
     labels = {"keep": "kept", "rewrite": "rewritten", "inconclusive": "inconclusive (original wording kept)",
-              "drop_screenshot": "set aside: depends on a screenshot", "drop_ambiguous": "dropped: ambiguous"}
+              "drop_screenshot": "set aside: depends on a screenshot", "drop_ambiguous": "dropped: ambiguous", "drop_inconclusive": "dropped: could not be settled"}
     articles, counts = [], {}
     for group, title in TITLES.items():
         items = [f for f in final if f["group"] == group]

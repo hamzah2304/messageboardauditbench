@@ -16,11 +16,10 @@ Discord; merging and filtering; checking against the Village records; adjudicati
 
 - `keep`: the records support the finding as written. In the answer key.
 - `rewrite`: a specific detail was corrected because cited records contradict it. In the answer key, with the corrected wording.
-- `inconclusive`: the check could not confirm or contradict it. Original wording kept. Not in the answer key.
 - `needs screenshots`: sound except that it depends on a screenshot, which the records do not hold. Set aside for a version of the eval with screenshots.
 - `drop`: ambiguous, contradicted, or (for rewritten findings) no longer a failure worth reporting once corrected.
 
-Subfinding decisions: `keep`, `rewrite`, `inconclusive`, `drop_screenshot`, `drop_ambiguous`.
+Subfinding decisions: `keep`, `rewrite`, `drop_screenshot`, `drop_ambiguous`, `drop_inconclusive` (the check could not settle it and it is not highly significant).
 
 ## Where each step's output lives
 
