@@ -159,7 +159,7 @@ def early_stop_reason(
         "delete, move, or truncate it. If report.md is missing at the "
         "deadline the trial scores zero. This is early-completion reminder "
         f"#{count}."
-    )
+    ) + (f" {note}" if (note := os.environ.get("MBAB_EARLY_STOP_NOTE", "").strip()) else "")
 
 
 def stop_reason(event: dict[str, Any], *, report: Path) -> str:

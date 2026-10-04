@@ -186,6 +186,8 @@ if [ "$AGENT" = claude ]; then
   fi
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/claude:/home/agent/.claude")
 fi
+# Optional per-config tool-output limit for Claude Code's Bash tool (characters; CLI default 30000).
+[ "$AGENT" != claude ] || [ -z "${CFG_BASH_MAX_OUTPUT_LENGTH:-}" ] || CLAUDE_ENV+=(-e "BASH_MAX_OUTPUT_LENGTH=$CFG_BASH_MAX_OUTPUT_LENGTH")
 # ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
 if [ "$AGENT" = react ]; then
@@ -211,9 +213,17 @@ if [ "$AGENT" = codex ]; then
     echo "no Codex credentials: run \`codex login\` on the host" >&2; exit 1
   fi
   # Keep the rollout for per-call token and reasoning-item auditing.
-  printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
+  printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
+  # Optional per-config limit on how much of each tool output Codex shows the model (tokens).
+  [ -z "${CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT:-}" ] || printf 'tool_output_token_limit = %s\n' "$CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" >> "$SECRETS/codex/config.toml"
+  printf '[features]\nhooks = true\n' >> "$SECRETS/codex/config.toml"
   if [ "$BENCHMARK_ID" = urlquery ]; then
     printf 'multi_agent = false\nmulti_agent_v2 = false\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
+  fi
+  # Optional per-config switch for Codex subagents (URLQuery always disables them above).
+  if [ "$BENCHMARK_ID" != urlquery ] && [ -n "${CFG_CODEX_MULTI_AGENT:-}" ]; then
+    MULTI_AGENT="$(printf '%s' "$CFG_CODEX_MULTI_AGENT" | tr 'A-Z' 'a-z')"
+    printf 'multi_agent = %s\nmulti_agent_v2 = %s\n' "$MULTI_AGENT" "$MULTI_AGENT" >> "$SECRETS/codex/config.toml"
   fi
   # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
   [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
@@ -336,7 +346,7 @@ START=$(date +%s); set +e
 HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
 EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
-TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH")
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}")
 case "$AGENT" in
   claude)
     CLAUDE_EARLY_RESUMES=0
