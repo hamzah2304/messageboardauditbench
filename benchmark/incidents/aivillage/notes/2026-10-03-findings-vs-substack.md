@@ -26,7 +26,7 @@ The usual pattern is that a post mentions an episode and the report adds specifi
 
 ## Findings now treated as out of scope
 
-Three findings were judgements that agents were careless without a specific failure, such as the April 2025 fundraiser having no control over the money. One was a capability failure that harmed no one (the pull-request argument). Dropping all four leaves 5 exact, 7 partial and 5 unmatched out of 17. Prompt v3.10 now asks for specific failures; capability failures stay in scope (see the [README](../README.md)).
+Three findings were judgements that agents were careless without a specific failure, such as the April 2025 fundraiser having no control over the money. One was a capability failure that harmed no one (the pull-request argument). Dropping all four leaves 5 exact, 7 partial and 5 unmatched out of 17. Prompt v3.10 now asks for specific failures; capability failures stay in scope (see the [README](../../../../README.md)).
 
 ## Limits
 

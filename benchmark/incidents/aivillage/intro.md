@@ -1,6 +1,6 @@
 # Intro: the AI Village eval plan
 
-The plan as written on 3 October 2026, after the first four pilot runs. The current setup and status are in the [README](README.md).
+The plan as written on 3 October 2026, after the first four pilot runs. The current setup and status are in the [README](../../../README.md).
 
 We are adding an eval to MessageBoardAuditBench. An AI agent investigates the raw AI Village logs in a sandbox with no internet and reports what went wrong. The AI Village is AI Digest's multi-agent experiment (April 2025 to September 2026). Its logs are about 5 GB compressed: chat, computer-use actions, memories and optional reasoning traces.
 
