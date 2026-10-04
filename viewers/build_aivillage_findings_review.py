@@ -47,6 +47,40 @@ class Article(HTMLParser):
         if self.skip or tag not in ALLOWED:
             return
         attrs = dict(attrs)
+        if tag == "div" and "twitter-embed" in attrs.get("class", ""):
+            try:
+                tweet = json.loads(attrs.get("data-attrs", "{}"))
+            except (ValueError, TypeError):
+                tweet = {}
+            self.number += 1
+            self.parts.append(
+                f'<blockquote class="embedded-post" data-uikit-section="{self.key}-source-{self.number}">'
+            )
+            self.parts.append("<p>" + html.escape(tweet.get("full_text", "")) + "</p>")
+            url = tweet.get("url", "")
+            if safe_url(url):
+                self.parts.append(
+                    '<p><a href="'
+                    + html.escape(url, quote=True)
+                    + '" target="_blank" rel="noopener noreferrer">'
+                    + html.escape(
+                        "@"
+                        + tweet.get("username", "unknown")
+                        + " · "
+                        + tweet.get("date", "")
+                        + " · "
+                        + url
+                    )
+                    + "</a></p>"
+                )
+            for photo in tweet.get("photos", []):
+                self.handle_starttag("img", [("src", photo.get("img_url", ""))])
+            quoted = tweet.get("quoted_tweet") or {}
+            if quoted.get("full_text"):
+                self.parts.append(
+                    "<p>Quoted post: " + html.escape(quoted["full_text"]) + "</p>"
+                )
+            self.parts.append("</blockquote>")
         output = []
         if tag in {"p", "blockquote", "figure", "h1", "h2", "h3", "h4"}:
             self.number += 1
@@ -110,6 +144,12 @@ def download_image(item, output):
         return {"url": url, "path": name, "error": str(exc)}
 
 
+def copy_generated(source: Path, destination: Path):
+    temporary = destination.with_name(destination.name + ".tmp")
+    shutil.copyfile(source, temporary)
+    temporary.replace(destination)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
@@ -117,19 +157,50 @@ def main():
     parser.add_argument("--extraction-suffix", default="")
     parser.add_argument("--prompt-file", default="extraction-prompt-v2.md")
     parser.add_argument("--previous-extraction-suffix")
+    parser.add_argument("--all-posts", action="store_true")
+    parser.add_argument("--extractions", type=Path)
+    parser.add_argument("--allow-pending", action="store_true")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "images").mkdir(exist_ok=True)
     articles = []
     images = {}
-    for key, slug in POSTS:
+    posts = POSTS
+    if args.all_posts:
+        posts = [
+            (p["slug"], p["slug"])
+            for p in json.loads((args.input / "screening-v2.json").read_text())["posts"]
+            if p["decision"] == "keep"
+        ]
+    for key, slug in posts:
         source = json.loads((args.input / f"{slug}.json").read_text())
-        extraction = json.loads(
-            (args.input / f"trial-{key}{args.extraction_suffix}.json").read_text()
+        extraction_base = (
+            (args.extractions / slug)
+            if args.extractions
+            else (args.input / f"trial-{key}{args.extraction_suffix}")
         )
+        if extraction_base.with_suffix(".json").exists():
+            extraction = json.loads(extraction_base.with_suffix(".json").read_text())
+        elif args.allow_pending:
+            extraction = {
+                "status": "pending",
+                "findings": [],
+                "excluded_source_claims": [],
+                "source_limits": [
+                    "Extraction is still running. Refresh to see the result."
+                ],
+            }
+        else:
+            raise FileNotFoundError(extraction_base.with_suffix(".json"))
+        if args.extractions and extraction.get("status") != "pending":
+            run = extraction["run"]
+            if run["model"] != "gpt-6.1-sol" or run["reasoning"]["effort"] != "high":
+                raise ValueError("Batch review requires GPT-6.1 Sol with high reasoning")
         if args.previous_extraction_suffix is not None:
             previous = json.loads(
-                (args.input / f"trial-{key}{args.previous_extraction_suffix}.json").read_text()
+                (
+                    args.input / f"trial-{key}{args.previous_extraction_suffix}.json"
+                ).read_text()
             )
             claims = {
                 sf["id"]: sf["claim"]
@@ -153,10 +224,10 @@ def main():
                 "extraction": extraction,
             }
         )
-        shutil.copyfile(
-            args.input / f"trial-{key}{args.extraction_suffix}.md",
-            args.output / f"trial-{key}.md",
-        )
+        if extraction_base.with_suffix(".md").exists():
+            shutil.copyfile(
+                extraction_base.with_suffix(".md"), args.output / f"trial-{key}.md"
+            )
     with ThreadPoolExecutor(max_workers=8) as pool:
         errors = [
             result
@@ -174,19 +245,33 @@ def main():
                 )
     data = {
         "model": "GPT-6.1 Sol",
+        "reasoning_effort": "high" if args.extractions else None,
         "prompt_url": "https://docs.google.com/document/d/18990mApAhiePaBvboLdEJNPudffXaLdGaIVNUH58xSE/edit?tab=t.b4p0fddg1zx8",
         "articles": articles,
         "image_cache_errors": errors,
     }
-    (args.output / "review.json").write_text(
-        json.dumps(data, ensure_ascii=False, indent=2)
-    )
-    shutil.copyfile(
+    temporary = args.output / "review.json.tmp"
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    temporary.replace(args.output / "review.json")
+    if args.all_posts:
+        export = {
+            "model": data["model"],
+            "reasoning_effort": data["reasoning_effort"],
+            "articles": [
+                {k: v for k, v in article.items() if k != "html"}
+                for article in articles
+            ],
+        }
+        export_temporary = args.output / "batch-findings.json.tmp"
+        export_temporary.write_text(json.dumps(export, ensure_ascii=False, indent=2))
+        export_temporary.replace(args.output / "batch-findings.json")
+    copy_generated(
         Path(__file__).with_name("aivillage_findings_review.template.html"),
         args.output / "index.html",
     )
-    shutil.copyfile(
-        args.input / args.prompt_file, args.output / "extraction-prompt-v2.md"
+    copy_generated(
+        (args.extractions or args.input) / args.prompt_file,
+        args.output / "extraction-prompt-v2.md",
     )
     print(
         json.dumps(
