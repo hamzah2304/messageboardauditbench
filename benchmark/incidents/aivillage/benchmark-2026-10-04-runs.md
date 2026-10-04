@@ -1,8 +1,8 @@
 # AI Village benchmark runs, 4 October 2026 (prompt v3.17, 30 minutes)
 
-The run folders to grade, and the folders from the same batch to ignore. Configs `aivillage-v12-30` (no subagents) and `aivillage-v12-30-subagents`; full logs with reasoning traces; 20 ranked findings; 8,000 to 10,000 words. Replicate 1 ran on the VM (heavily CPU-loaded: tool calls about 2 to 3 times slower than unloaded), replicate 2 on Oscar's Mac, so every model has one replicate on each machine; the Sonnet 5.5 subagents replicate 1 ran on the Mac. Muse Spark 1.3's replicate 1 is the folder labelled `r4` (a rerun). Opus 4.6 was dropped; Opus 4.8 has no subagent runs; the OpenRouter models have no subagent tool.
+The run folders to grade, and the folders from the same batch to ignore. Configs `aivillage-v12-30` (no subagents) and `aivillage-v12-30-subagents`; full logs with reasoning traces; 20 ranked findings; 8,000 to 10,000 words. Replicate 1 ran on the VM (heavily CPU-loaded: tool calls about 2 to 3 times slower than unloaded), replicate 2 on Oscar's Mac, so every model has one replicate on each machine; the Sonnet 5.5 subagents replicate 1 ran on the Mac. Muse Spark 1.3's replicate 1 is the folder labelled `r4` (a rerun). Opus 4.6 was dropped; Opus 4.8's two subagent runs were added later the same evening (started 22:21 UTC; the machine was not recorded); the OpenRouter models have no subagent tool.
 
-## Grade these (32 runs)
+## Grade these (34 runs)
 
 - `20261004T201424Z_react_meta_muse-spark-1.3_r4_aivillage-v12-30_ba14633557cb`
 - `20261004T202856Z_claude_claude-opus-5_r1_aivillage-v12-30_9ac74397f12e`
@@ -36,6 +36,8 @@ The run folders to grade, and the folders from the same batch to ignore. Configs
 - `20261004T213635Z_codex_gpt-6-luna_r2_aivillage-v12-30_21ba02356d76`
 - `20261004T213945Z_codex_gpt-6-luna_r2_aivillage-v12-30-subagents_d8f5f3aea0bb`
 - `20261004T214058Z_claude_claude-sonnet-5-5_r1_aivillage-v12-30-subagents_36f507e1d557`
+- `20261004T222126Z_claude_claude-opus-4-8_r1_aivillage-v12-30-subagents_ed0051c92b03`
+- `20261004T222156Z_claude_claude-opus-4-8_r2_aivillage-v12-30-subagents_e9eff1ea3bc2`
 
 ## Ignore these
 
