@@ -184,27 +184,12 @@ def main():
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--status", action="store_true")
-    ap.add_argument("--redo-older", action="store_true", help="redo findings whose result came from an earlier prompt version")
     ap.add_argument("--skip", nargs="*", default=[], help="group names another process is already running")
     args = ap.parse_args()
     findings = json.loads(args.merged.read_text())["merged"]
     if args.only:
         findings = [f for f in findings if f["id"] in args.only]
     out = args.out.resolve()
-    if args.redo_older:
-        # Results from before prompt v3 (shorter time limit, looser rewording rule) are set aside and redone.
-        first, redo = out / "results-first-pass", []
-        first.mkdir(exist_ok=True)
-        for f in findings:
-            path = out / "results" / f"{f['id']}.json"
-            if path.exists() and json.loads(path.read_text()).get("prompt") != TEMPLATE.name:
-                path.rename(first / path.name)
-            if not path.exists():
-                redo.append(f)
-        findings = redo
-        # Redone runs get their own logs, so collect() cannot pick up the first pass's files again.
-        for log in (out / "logs").glob("*.log"):
-            log.rename(log.with_suffix(".log.first-pass"))
     if not args.status:
         for sub in ("results", "prompts", "logs"):
             (out / sub).mkdir(parents=True, exist_ok=True)

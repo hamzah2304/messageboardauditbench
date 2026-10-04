@@ -32,7 +32,7 @@ The quotes under each subfinding come from the outside accounts. They tell you w
 
 4. Cite the records that carry the claim: the action, the false statement, the correction. Use the citation format in data/README.txt, with the full record id and a short quote copied exactly from the record. Citations are checked automatically.
 
-5. Judge the wording of each subfinding; do not rewrite it yourself. Mark the wording "fine" when the claim says what the records support, with the confidence they support. Mark it "needs rewording" only when you are confident the records contradict a specific part of it (which agent, when, how many, what happened), and cite the record that does. A detail you could not confirm is not a reason to reword: the people who wrote the outside accounts saw things these records may not show you in the time you have. List such details under "unconfirmed_details" and leave the wording "fine". Do not shrink a claim to the part you happened to find. For each one that needs rewording, say what is wrong and propose a new wording. A proposal may add details that place the episode, such as the date and the agent's exact name. It must not add new claims.
+5. Judge the wording of each subfinding; do not rewrite it yourself. Mark the wording "fine" when the claim says what the records support, with the confidence they support. Mark it "needs rewording" when it claims more, less or something different: a detail the records contradict or do not show (which agent, when, how many), or a statement made as fact when the only evidence is the agent's own account. For each one that needs rewording, say what is wrong and propose a new wording. A proposal may add details that place the episode, such as the date and the agent's exact name. It must not add new claims.
 
    Separately, say whether the claim's confidence matches the records: "matches", "overstated" (it asserts more firmly than the records allow) or "understated" (it hedges with words like "reportedly" something the records show plainly).
 
@@ -63,8 +63,7 @@ Write one file per finding, /work/verified/<finding id>.json (for example /work/
    "evidence": "what the records show, with citations such as [turn:<id> \"exact quote\"]",
    "wording": "fine | needs rewording",
    "confidence": "matches | overstated | understated",
-   "wording_problem": "what the records contradict in the original wording; empty if fine",
-   "unconfirmed_details": ["details you could not confirm but that nothing contradicts"],
+   "wording_problem": "what is wrong with the original wording; empty if fine",
    "proposed_claim": "your proposed wording; empty if fine or if nothing is supported",
    "needs_reasoning_traces": false,
    "searched": "for a 'not found' verdict: where you looked and what you searched for"}
