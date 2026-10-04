@@ -55,3 +55,20 @@ Four runs of `aivillage-v4-full-10-reasoning` (Sonnet 5.5, Sonnet 5, Luna, Sol),
 | 00:21 | Luna | `aivillage-v6-full-10-reasoning` (replicate 2) | 4 | 24/24 |
 
 Three first attempts failed while building the image, before any agent started, and left no run folder; the replicate-2 runs replaced them. Analysed in [notes/2026-10-04-reasoning-and-count-ablation.md](notes/2026-10-04-reasoning-and-count-ablation.md).
+
+## 4 October: default setup at 10 and 30 minutes (configs `aivillage-10` and `aivillage-30`, current; prompt `aivillage-v7`)
+
+All exactly 10 findings; full logs without reasoning; medium effort.
+
+| Start (UTC) | Model | Budget | Tool calls | Citations | Computer-use steps cited |
+|---|---|---|---|---|---|
+| 00:51 | Sonnet 5.5 | 30 min | 169 | 70/70 | 13 |
+| 00:51 | Opus 5 | 30 min | 146 | 72/72 | 17 |
+| 00:51 | Luna | 30 min | 92 | 46/46 | 28 |
+| 00:52 | Sol | 30 min | 126 | 81/81 | 33 |
+| 00:52 | Sonnet 5.5 | 10 min | 36 | 47/47 | 3 |
+| about 01:01 | Opus 5 | 10 min | 32 | 47/47 | 9 |
+| about 01:01 | Luna | 10 min | 38 | 26/29 | 6 |
+| about 01:01 | Sol | 10 min | 43 | 55/55 | 16 |
+
+All exited cleanly and used at least 90% of their budget.
