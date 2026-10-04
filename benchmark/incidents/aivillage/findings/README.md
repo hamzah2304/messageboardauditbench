@@ -11,14 +11,27 @@ Discord; merging and filtering; checking against the Village records; adjudicati
 | `subfindings.tsv` | One row per subfinding: its decision, who decided, whether it was checked twice, the final claim |
 | `extracted.tsv` | One row per extracted finding (343): its source, which merged finding it went into, and where that ended up |
 | `final-findings.json` | Everything above in full: final and original wording, reasons, the verifier's record citations, source quotes |
+| `removals.md` | What was removed at each step and why, in coarse buckets with the IDs in each |
+| `merge-review-decisions.json` | Drops at the merge step, before any check against the records: the merge agent's and Oscar's |
 | `review-decisions.json` | Decisions made by hand on top of the adjudicators' output, with who decided and why |
+
+## From 343 to 96
+
+| Step | Findings left |
+|---|---|
+| Extracted from Substack, X and Discord | 343 |
+| After merging duplicates and the merge agent's 8 drops | 217 |
+| After Oscar's review of the merged list (27 dropped) | 190 |
+| After the check against the records, adjudication and Oscar's reviews (94 removed, 8 of them set aside as needing screenshots) | 96 |
+
+`removal_bucket` in `findings.tsv` and `extracted.tsv` gives the coarse reason a finding is not in the answer key; `removals.md` lists every bucket with its IDs.
 
 ## Groups (`group` in findings.tsv)
 
 - `keep`: the records support the finding as written. In the answer key.
 - `rewrite`: a specific detail was corrected because cited records contradict it. In the answer key, with the corrected wording.
 - `needs screenshots`: sound except that it depends on a screenshot, which the records do not hold. Set aside for a version of the eval with screenshots.
-- `drop`: ambiguous, contradicted, or (for rewritten findings) no longer a failure worth reporting once corrected.
+- `drop`: not supported by the records, ambiguous, unsettled after two checks, or removed on Oscar's reviews (minor, duplicate, not significant, or no longer a failure once corrected). `removal_bucket` says which.
 
 Subfinding decisions: `keep`, `rewrite`, `drop_screenshot`, `drop_ambiguous`, `drop_inconclusive` (the check could not settle it and it is not highly significant).
 
@@ -37,5 +50,6 @@ Google Doc with all prompts: <https://docs.google.com/document/d/18990mApAhiePaB
 
 - Adjudicators judged from the verifier's output; they did not reopen the records.
 - Findings checked under the 2-minute limit were not all rechecked; only their inconclusive parts were.
-- The verifier's citations are machine-checked (record exists, quote appears in it); the check for the last 84 findings may not be reflected in every row.
-- "Significance" for keeping a rewritten or inconclusive finding is a judgement, recorded in `review-decisions.json`.
+- The verifier's citations were machine-checked (record exists, quote appears in it) for 106 of the 190 findings, where 571 of 585 passed; the other 84 were not checked.
+- "Significance" and the final strictness cuts are judgements made from headlines and the checked evidence, proposed by Claude Fable 5.1 and decided by Oscar; they are recorded in `review-decisions.json`. Importance was never ranked systematically.
+- M029 and M053 (both about o3 and an "Environment Matrix" file) may be one episode counted twice; this was not checked.

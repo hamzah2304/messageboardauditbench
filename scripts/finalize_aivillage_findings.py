@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 DOC = "https://docs.google.com/document/d/18990mApAhiePaBvboLdEJNPudffXaLdGaIVNUH58xSE/edit?tab=t.o65336c0l3nf"
+SCREENSHOT_BUCKET = "Depends on a screenshot (set aside for a version with screenshots)"
 DECISIONS = json.loads((Path(__file__).resolve().parents[1] / "benchmark/incidents/aivillage/findings/review-decisions.json").read_text())
 FIRST_ROUND_MODEL = "Claude Fable 5.1"
 LATER_MODEL = "Claude Opus 5.5"
@@ -97,11 +98,15 @@ def main():
         if m["id"] in DECISIONS["findings"]:
             hand = DECISIONS["findings"][m["id"]]
             group, d["reason"], decided_by = hand["group"], hand["reason"], hand["decided_by"]
+        bucket = ""
+        if group not in ("keep", "rewrite"):
+            bucket = (DECISIONS["findings"].get(m["id"], {}).get("bucket")
+                      or (SCREENSHOT_BUCKET if group == "needs screenshots" else "Not supported by the records, or ambiguous"))
         rewritten = group == "rewrite"
         final.append({"id": m["id"], "group": group, "headline": d["headline"] if rewritten else m["headline"],
                       "finding": d["finding"] if rewritten else m["finding"],
                       "original_headline": m["headline"], "original_finding": m["finding"], "reason": d["reason"],
-                      "decided_by": decided_by, "adjudicator": d["adjudicator"], "behavior_dates": v.get("behavior_dates", ""), "how_to_find": v.get("how_to_find", ""),
+                      "decided_by": decided_by, "removal_bucket": bucket, "adjudicator": d["adjudicator"], "behavior_dates": v.get("behavior_dates", ""), "how_to_find": v.get("how_to_find", ""),
                       "citation_check": cites.get(m["id"]), "notes": m["notes"], "sources": m["sources"], "subfindings": subs})
     (verify_dir / "final-findings.json").write_text(json.dumps(final, ensure_ascii=False, indent=2) + "\n")
 
@@ -109,9 +114,9 @@ def main():
     (store / "final-findings.json").write_text(json.dumps(final, ensure_ascii=False, indent=1) + "\n")
     with (store / "findings.tsv").open("w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
-        w.writerow(["id", "group", "in_answer_key", "decided_by", "reason", "headline", "extracted_from"])
+        w.writerow(["id", "group", "in_answer_key", "removal_bucket", "decided_by", "reason", "headline", "extracted_from"])
         for f in final:
-            w.writerow([f["id"], f["group"], "yes" if f["group"] in ("keep", "rewrite") else "no", f.get("decided_by", ""),
+            w.writerow([f["id"], f["group"], "yes" if f["group"] in ("keep", "rewrite") else "no", f.get("removal_bucket", ""), f.get("decided_by", ""),
                         f.get("reason", ""), f["headline"], " ".join(s["id"] for s in f.get("sources", []))])
     with (store / "subfindings.tsv").open("w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
@@ -143,14 +148,70 @@ def main():
     group = {f["id"]: f["group"] for f in final}
     into = {src: m["id"] for m in merge["merged"] for src in m["sources"]}
     dropped = {d["id"]: d["reason"] for d in merge["dropped"]}
+    merge_review = json.loads((store / "merge-review-decisions.json").read_text())
+    by_agent = merge_review["extracted_findings_dropped_by_merge_agent"]
+    oscar_at_merge = {d["id"]: merge_review["merged_findings"][d["merged_id"]]["bucket"] for d in merge["dropped"] if d.get("merged_id")}
+    final_bucket = {f["id"]: f.get("removal_bucket", "") for f in final}
+    rows = []
     with (store / "extracted.tsv").open("w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
-        w.writerow(["extracted_id", "source_type", "source_date", "source_url", "headline", "merged_into", "final_group", "dropped_at_merge_reason"])
+        w.writerow(["extracted_id", "source_type", "source_date", "source_url", "headline", "merged_into", "final_group",
+                    "removed_at", "removal_bucket", "dropped_at_merge_reason"])
         for path in sorted((merge_dir / "input/findings").glob("*.json")):
             e = json.loads(path.read_text())
             mid = into.get(e["id"], "")
-            w.writerow([e["id"], e["source"]["type"], e["source_date"], e["source"]["url"], e["headline"], mid,
-                        group.get(mid, "dropped at merge"), dropped.get(e["id"], "")])
+            final_group = group.get(mid, "dropped at merge")
+            if e["id"] in by_agent:
+                removed_at, bucket = "merge step (merge agent)", by_agent[e["id"]]["bucket"]
+            elif e["id"] in oscar_at_merge:
+                removed_at, bucket = "merge step (Oscar's review of the merged list)", oscar_at_merge[e["id"]]
+            elif final_group in ("keep", "rewrite"):
+                removed_at, bucket = "", ""
+            else:
+                removed_at, bucket = "after the check against the records", final_bucket[mid]
+            rows.append((removed_at, bucket, e["id"], mid))
+            w.writerow([e["id"], e["source"]["type"], e["source_date"], e["source"]["url"], e["headline"], mid, final_group,
+                        removed_at, bucket, dropped.get(e["id"], "")])
+
+    # Why things were removed, in coarse buckets, at each step.
+    md = ["# What was removed from the AI Village answer key, and why", "",
+          f"{len(rows)} findings were extracted from Substack, X and Discord. {len(merge['merged']) + len(merge_review['merged_findings'])} remained after merging "
+          f"duplicates, {len(final)} after Oscar's review of the merged list, and {len(key)} are in the final answer key. "
+          "Buckets are coarse; the exact reason for each finding is in `findings.tsv`, `extracted.tsv` and the two `*review-decisions.json` files.", ""]
+    stages = [("merge step (merge agent)", "Dropped by the merge agent (extracted findings)", 2),
+              ("merge step (Oscar's review of the merged list)", "Dropped on Oscar's review of the merged list (merged findings; IDs no longer in the list)", 3)]
+    for stage, title, col in stages:
+        md += [f"## {title}", "", "| Why | Count | IDs |", "|---|---|---|"]
+        if col == 2:
+            groups = {}
+            for removed_at, bucket, eid, _ in rows:
+                if removed_at == stage:
+                    groups.setdefault(bucket, []).append(eid)
+        else:
+            groups = {}
+            for mid, v in merge_review["merged_findings"].items():
+                groups.setdefault(v["bucket"], []).append(mid)
+        md += [f"| {b} | {len(ids)} | {' '.join(sorted(ids))} |" for b, ids in sorted(groups.items(), key=lambda kv: -len(kv[1]))] + [""]
+    md += ["## Removed after the check against the records (merged findings)", "", "| Why | Count | IDs |", "|---|---|---|"]
+    groups = {}
+    for f in final:
+        if f.get("removal_bucket"):
+            groups.setdefault(f["removal_bucket"], []).append(f["id"])
+    md += [f"| {b} | {len(ids)} | {' '.join(ids)} |" for b, ids in sorted(groups.items(), key=lambda kv: -len(kv[1]))] + [""]
+    sub = {}
+    for f in key:
+        for part in f["subfindings"]:
+            if part["decision"].startswith("drop"):
+                sub.setdefault(part["decision"], []).append(part["id"])
+    names = {"drop_screenshot": "Depends on a screenshot", "drop_ambiguous": "Ambiguous or contradicted by the records",
+             "drop_inconclusive": "Could not be settled by the checks"}
+    md += ["## Subfindings removed from findings that stay in the answer key", "", "| Why | Count | IDs |", "|---|---|---|"]
+    md += [f"| {names[k]} | {len(v)} | {' '.join(v)} |" for k, v in sorted(sub.items(), key=lambda kv: -len(kv[1]))] + [""]
+    kept = DECISIONS.get("kept_on_final_review", {})
+    md += ["## Proposed for removal but kept", "", f"{' '.join(kept.get('ids', []))}: {kept.get('note', '')}", "",
+           f"At the merge step: {merge_review['kept_note']}. Of those, only M179 is in the final answer key.", ""]
+    (store / "removals.md").write_text("\n".join(md))
+
 
     labels = {"keep": "kept", "rewrite": "rewritten", "inconclusive": "inconclusive (original wording kept)",
               "drop_screenshot": "set aside: depends on a screenshot", "drop_ambiguous": "dropped: ambiguous", "drop_inconclusive": "dropped: could not be settled"}
