@@ -141,7 +141,7 @@ reclaim_run_files() {
 cleanup() {
   docker rm -f "mbab-agent-$RUN_ID" >/dev/null 2>&1 || true
   reclaim_run_files
-  [ ! -f "$RUN/tool-telemetry/events.jsonl" ] || cp "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
+  [ ! -f "$RUN/tool-telemetry/events.jsonl" ] || ln -f "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
   docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true
   docker rm -f "$PROXY" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
@@ -479,7 +479,7 @@ for f in report.md final_message.md; do
     cp "$source" "$RUN/$f"
   fi
 done
-[ ! -f "$RUN/tool-telemetry/events.jsonl" ] || cp "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
+[ ! -f "$RUN/tool-telemetry/events.jsonl" ] || ln -f "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
 [ -f "$RUN/work/.mbab-runtime-policy.json" ] && cp "$RUN/work/.mbab-runtime-policy.json" "$RUN/runtime_policy.json"
 EARLY_STOP_ATTEMPTS=0
 [ -f "$RUN/runtime_policy.json" ] && EARLY_STOP_ATTEMPTS="$(jq -r '.early_finish_blocks // 0' "$RUN/runtime_policy.json" 2>/dev/null || echo 0)"
