@@ -28,6 +28,7 @@ header p{margin:0;color:var(--muted);font-size:13.5px;max-width:110ch}
 header a{color:var(--accent)}
 .status{font-size:12.5px;font-family:var(--f-mono);color:var(--muted)}
 .status.bad{color:var(--drop)}
+.filter{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
 .layout{display:grid;gap:16px;grid-template-columns:1fr}
 @media (min-width:1000px){.layout{grid-template-columns:230px minmax(0,1fr)}}
 nav{display:flex;flex-wrap:wrap;gap:6px;align-content:start}
@@ -97,7 +98,7 @@ summary{cursor:pointer;font-weight:600;font-size:14px}
     <div class="status" id="status" role="status" aria-live="polite">Connecting to the review store…</div>
   </header>
   <div class="layout">
-    <nav id="nav" aria-label="Posts"></nav>
+    <div style="display:grid;gap:8px;align-content:start;min-width:0"><label class="filter"><input type="checkbox" id="only-findings" checked> Only posts with findings</label><nav id="nav" aria-label="Posts"></nav></div>
     <div class="panes">
       <section class="pane" aria-labelledby="src-h">
         <h2 id="src-h">X post</h2>
@@ -122,6 +123,8 @@ let reviews = {};          // key -> stored review doc
 let db = null, comments = null, uid = null, canWrite = true;
 const pending = new Map(); // key -> timer for note saves
 
+const packs={};
+function loadPack(id){if(!packs[id])packs[id]=fetch('img/'+id+'.json').then(r=>r.ok?r.json():null).catch(()=>null);return packs[id]}
 function el(tag, cls, text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
 function setStatus(msg,bad){const s=document.getElementById('status');s.textContent=msg;s.classList.toggle('bad',!!bad)}
 
@@ -138,7 +141,9 @@ function summary(){
 
 function drawNav(){
   const nav=document.getElementById('nav');nav.textContent='';
+  const only=document.getElementById('only-findings').checked;
   posts.forEach((p,i)=>{
+    if(only&&!p.extraction.findings.length&&i!==current)return;
     const b=el('button');b.type='button';b.setAttribute('aria-current',i===current?'true':'false');
     const keys=p.extraction.findings.map(f=>p.id+'-'+f.id);
     const done=keys.filter(k=>reviews[k]&&reviews[k].decision).length;
@@ -194,7 +199,7 @@ function draw(){
   document.getElementById('post-caveat').textContent=p.media_status!=='ok'?'This post is no longer available on X, so the model saw its text only.':
     media.length?`The model saw the text and ${media.length} image${media.length>1?'s':''}. Videos appear as one thumbnail frame; quoted posts and linked pages were not supplied.`:'This post has no images. Quoted posts and linked pages were not supplied.';
   parts.forEach((t,i)=>{const d=el('div','part');if(parts.length>1)d.append(el('span','lab','Part '+(i+1)));d.append(el('p',null,t.trim()));
-    media.filter(m=>m.part===i+1).forEach(m=>{const f=el('figure');const im=el('img');im.loading='lazy';im.src=m.file;im.alt=m.alt||`Image ${m.n} from part ${m.part}`;
+    media.filter(m=>m.part===i+1).forEach(m=>{const f=el('figure');const im=el('img');im.loading='lazy';loadPack(p.id).then(pk=>{if(pk&&pk[m.n])im.src=pk[m.n];else f.append(el('figcaption',null,'Image could not be loaded.'))});im.alt=m.alt||`Image ${m.n} from part ${m.part}`;
       im.onclick=()=>f.classList.toggle('big');f.append(im,el('figcaption',null,`Image ${m.n}`+(m.type!=='photo'?` · thumbnail of a ${Math.round(m.duration_s||0)} s video`:'')));d.append(f)});
     pt.append(d)});
 
@@ -241,6 +246,8 @@ function draw(){
   }
 }
 
+document.getElementById('only-findings').onchange=drawNav;
+{const first=posts.findIndex(p=>p.extraction.findings.length);if(first>0)current=first;}
 draw();
 
 (async()=>{

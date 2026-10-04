@@ -3,8 +3,8 @@
 
     uv run python viewers/build_x_findings_review.py runs/x-extraction-YYYYMMDD OUT.html
 
-Images are referenced as img/<file>; publish <run>/media/*-medium.jpg at those
-paths alongside the page.
+Images load from img/<post id>.json, built by viewers/pack_x_images.py and
+published alongside the page.
 """
 import json
 import sys
@@ -22,9 +22,8 @@ for p in json.loads((run / "sample-posts.json").read_text()):
     posts.append({"id": p["id"], "date": p["date"], "author": p["author"], "url": p["url"], "text": p["text"],
                   "hand_picked": p["id"] in hand, "extraction": ex,
                   "media_status": media.get(p["id"], {}).get("status", "ok"),
-                  # Images are published next to the page under img/ (see the docstring).
                   "media": [{"n": m["n"], "part": m["part"], "type": m["type"], "duration_s": m.get("duration_s"),
-                             "alt": m.get("alt"), "file": "img/" + m["medium"]}
+                             "alt": m.get("alt")}
                             for m in media.get(p["id"], {}).get("media", [])]})
 summary = json.loads((run / "summary.json").read_text())
 data = {"model": "GPT-6.1 Sol", "effort": summary["reasoning_effort"], "posts": posts,

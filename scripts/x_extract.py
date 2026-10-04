@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROMPT_PATH = ROOT / "benchmark/incidents/aivillage/x-findings-prompt.md"
 MODEL = "gpt-6.1-sol"
 EFFORT = "high"
-MAX_OUTPUT = 12000
+MAX_OUTPUT = 24000  # 12,000 truncated two long threads in the full run
 # USD per token: input, cached input, output (https://developers.openai.com/api/docs/models/gpt-6.1-sol).
 RATES = (2e-6, 0.1e-6, 10e-6)
 PREFILTER_CONTEXT = (
@@ -137,7 +137,7 @@ def extract(run, post, prompt, media):
     if raw.exists():
         raise RuntimeError(f"Raw response exists for {post['id']}; inspect it before retrying")
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], max_retries=0, timeout=600)
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], max_retries=2, timeout=600)
     response = client.responses.create(**request)
     dump(raw, response.model_dump(mode="json"))
     if response.status != "completed":
@@ -156,6 +156,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("run")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--workers", type=int, default=16)
     args = ap.parse_args()
     run = ROOT / args.run
     prompt = PROMPT_PATH.read_text()
@@ -172,7 +173,7 @@ def main():
     print(f"{len(posts)} calls, {n_images} images; cost upper bound ${upper:.2f}")
     if args.dry_run:
         return
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         results = list(pool.map(lambda p: extract(run, p, prompt, media), posts))
     usage = [r["run"]["usage"] for r in results]
     inp = sum(u["input_tokens"] for u in usage)
