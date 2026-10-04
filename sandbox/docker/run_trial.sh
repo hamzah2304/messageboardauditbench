@@ -286,6 +286,8 @@ chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may 
 docker network create --internal "$NET" >/dev/null
 docker run -d --name "$PROXY" --network bridge "$IMAGE" python3 -u /sandbox/proxy.py --bind 0.0.0.0 --port 3128 --agent "$AGENT" >/dev/null
 docker network connect "$NET" "$PROXY"
+# The proxy starts in the background; wait until it listens, or the canary can race it and fail.
+for _ in $(seq 1 30); do docker logs "$PROXY" 2>&1 | grep -q "listening on" && break; sleep 1; done
 
 # The canary gets the identical network and data view, but never a credential.
 DOCKER_BASE=(--rm --network "$NET" --dns 0.0.0.0 --cap-drop ALL --security-opt no-new-privileges
