@@ -71,4 +71,4 @@ All exactly 10 findings; full logs without reasoning; medium effort.
 | 01:11 | Luna | 10 min | 38 | 26/29 | 6 |
 | 01:18 | Sol | 10 min | 43 | 55/55 | 16 |
 
-All exited cleanly and used at least 90% of their budget.
+All exited cleanly and used at least 90% of their budget. Analysed in [notes/2026-10-04-10-vs-30-minutes.md](notes/2026-10-04-10-vs-30-minutes.md).
