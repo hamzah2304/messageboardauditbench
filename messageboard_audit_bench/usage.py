@@ -364,11 +364,16 @@ def summarize_codex(run_dir: Path) -> dict[str, Any]:
         encrypted = 0
         peak = 0
         for ro in rollouts:
+            # Key by the thread a rollout belongs to: its first session_meta's
+            # `id`. Subagent threads share the parent's `session_id` and their
+            # rollouts repeat the parent's session_meta after their own.
             session_id = str(ro)
+            named = False
             for ev in _lines(ro):
                 p = ev.get("payload") or {}
-                if ev.get("type") == "session_meta":
-                    session_id = str(p.get("session_id") or p.get("id") or session_id)
+                if ev.get("type") == "session_meta" and not named:
+                    session_id = str(p.get("id") or p.get("session_id") or session_id)
+                    named = True
                 if ev.get("type") == "event_msg" and p.get("type") == "token_count":
                     info = p.get("info") or {}
                     if info.get("total_token_usage"):
