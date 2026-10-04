@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import random
 import re
 import threading
@@ -301,26 +302,39 @@ def perform(client, job, output, gate, deadline, attempts=5):
         validate(result, job)
         return "cached", result
     save(folder / "request.json", job["request"])
+    provider = "openrouter" if "openrouter.ai" in str(getattr(client, "base_url", "")) else "openai"
+    transport = dict(job["request"])
+    if provider == "openrouter":
+        transport["model"] = "openai/" + MODEL
+        transport["extra_body"] = {"provider": {"allow_fallbacks": False, "require_parameters": True}}
+    save(folder / "transport-request.json", {"provider": provider, "request": transport})
     for attempt in range(attempts):
         gate.enter(job["request"], deadline)
         if time.monotonic() >= deadline:
             raise TimeoutError("Run deadline reached")
         started = time.monotonic()
         try:
-            raw = client.with_options(timeout=min(240, max(1, deadline - started))).responses.with_raw_response.create(**job["request"])
+            raw = client.with_options(timeout=min(240, max(1, deadline - started))).responses.with_raw_response.create(**transport)
             response = raw.parse()
             body = response.model_dump(mode="json")
             save(folder / f"response-{attempt + 1}.json", body)
             headers = {k: v for k, v in raw.headers.items() if k.lower().startswith("x-ratelimit-") or k.lower() in {"retry-after", "x-request-id"}}
             save(folder / f"headers-{attempt + 1}.json", headers)
-            if response.model != MODEL and not response.model.startswith(MODEL + "-"):
+            if body.get("error"):
+                error_code = str(body["error"].get("code", "provider_response_error"))
+                if error_code in ACCOUNT_BLOCK_CODES or error_code == "402":
+                    gate.abort(error_code)
+                    raise AccountBlocked(error_code)
+                raise ValueError("Provider returned a response error")
+            returned_model = (response.model or "").removeprefix("openai/")
+            if returned_model != MODEL and not returned_model.startswith(MODEL + "-"):
                 raise ValueError("Returned model differs from requested Sol 6.1")
             if body.get("reasoning", {}).get("effort") not in {None, EFFORT}:
                 raise ValueError("Returned reasoning differs from requested medium")
             if response.status != "completed":
                 raise ValueError("Incomplete or refused response")
             result = validate(json.loads(response.output_text), job)
-            result.update({"request_sha256": job["id"], "response_id": response.id, "returned_model": response.model, "effort": EFFORT, "usage": body["usage"], "elapsed_seconds": time.monotonic() - started, "report_id": job["report_id"]})
+            result.update({"request_sha256": job["id"], "response_id": response.id, "returned_model": response.model, "effort": EFFORT, "usage": body["usage"], "elapsed_seconds": time.monotonic() - started, "report_id": job["report_id"], "provider": provider})
             save(result_path, result)
             return "complete", result
         except Exception as exc:
@@ -328,9 +342,11 @@ def perform(client, job, output, gate, deadline, attempts=5):
             code = getattr(exc, "code", None)
             # Keep error logs free of provider messages that may echo sensitive inputs.
             save(folder / f"error-{attempt + 1}.json", {"type": type(exc).__name__, "http_status": status, "code": code})
-            if code in ACCOUNT_BLOCK_CODES:
-                gate.abort(code)
-                raise AccountBlocked(code) from exc
+            if isinstance(exc, AccountBlocked):
+                raise
+            if status == 402 or code in ACCOUNT_BLOCK_CODES:
+                gate.abort(code or "http_402")
+                raise AccountBlocked(code or "http_402") from exc
             transient = (status in {429, 500, 502, 503, 504} and code not in ACCOUNT_BLOCK_CODES) or type(exc).__name__ in {"APIConnectionError", "APITimeoutError"}
             if not transient or attempt + 1 == attempts:
                 raise
@@ -377,7 +393,13 @@ def run(args):
     plan = read(plan_path)
     if plan["model"] != MODEL or plan["effort"] != EFFORT:
         raise ValueError("Plan settings differ from Sol 6.1 medium")
-    client = OpenAI(max_retries=0)
+    if args.provider == "openrouter":
+        key = os.environ.get("OPENROUTER_API_KEY")
+        if not key:
+            raise ValueError("OPENROUTER_API_KEY is missing")
+        client = OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1", max_retries=0)
+    else:
+        client = OpenAI(max_retries=0)
     deadline = time.monotonic() + args.deadline_minutes * 60
     gate = Gate(args.rpm, args.tpm)
     # Interleave reports rather than finish one report before beginning the next.
@@ -430,6 +452,7 @@ def main():
     p.add_argument("--goal-map", type=Path)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--plan", type=Path)
+    p.add_argument("--provider", choices=["openai", "openrouter"], default="openai")
     p.add_argument("--concurrency", type=int, default=32)
     p.add_argument("--group-size", type=int, default=3)
     p.add_argument("--max-subfindings", type=int, default=12)
