@@ -118,3 +118,27 @@ Problems in this batch:
 - **Network check.** 2 of 32 launches failed the pre-run check that the vendor host is reachable (both Codex); nothing ran and both were rerun.
 
 Analysed in [notes/2026-10-04-overnight-40-minutes.md](notes/2026-10-04-overnight-40-minutes.md).
+
+## 4 October, evening: subagent switch and prompt v3.14 checks
+
+Harness probes (prompt `subagent-probe`, one-week slice, 3 minutes; configs were temporary copies of `aivillage-v9-40*.toml`). The agent lists its tools and tries to start one subagent.
+
+| Start (UTC) | Model | Subagents | Result |
+|---|---|---|---|
+| 17:44 | Sonnet 5.5 | off | No `Agent` tool; "NO SUBAGENT TOOL" |
+| 17:44 | Sonnet 5.5 | on | `Agent` tool; subagent answered 51 |
+| 17:44 | Sol | off | **Had `spawn_agent` and used it** (subagent answered 51); also listed Notion tools from the ChatGPT account |
+| 17:44 | Sol | on | `spawn_agent` used |
+| 17:47 | Sol | off, after the fix | No collaboration tools, no Notion tools; "NO SUBAGENT TOOL" |
+| 17:48 | Sol | on, after the fix | `spawn_agent` used; no Notion tools |
+
+The fix: Codex's model catalog turns the collaboration tools on for GPT-6 models (`multi_agent_version`), whatever the `multi_agent` feature flag says, so with subagents off the runner now gives Codex its own catalog with that field removed; apps, plugins and browser or computer use are off for every benchmark.
+
+Prompt v3.14 smoke tests (`aivillage-v9-40-subagents`, one-week slice, `BUDGET_MIN=5`, replicate 9):
+
+| Start (UTC) | Model | Subagent calls | Notes |
+|---|---|---|---|
+| 17:49 | Sonnet 5.5 | 0 | Blocked from finishing 16 times; did real work between attempts but still ended its turn after almost every tool call; 2,362 words |
+| 17:49 | Sol | 3 | Each subagent wrote only under its own `/work/scratch/<name>/`; no sleep; 3,386 words |
+
+Five minutes on the slice cannot reach 20 findings or 8,000 words, so these only check that the prompt renders and that Codex now delegates.

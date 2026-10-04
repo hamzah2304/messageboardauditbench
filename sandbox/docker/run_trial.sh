@@ -57,6 +57,21 @@ case "$BENCHMARK_ID" in
   *) echo "unknown benchmark: $BENCHMARK_ID" >&2; exit 2 ;;
 esac
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
+# subagents = true/false is one switch for both harnesses: it sets Codex's multi-agent feature,
+# adds or removes Claude's Task/Agent tools, and keeps the prompt's {{#SUBAGENTS}} section.
+SUBAGENTS_ARG=()
+if [ -n "${CFG_SUBAGENTS:-}" ]; then
+  case "$(printf '%s' "$CFG_SUBAGENTS" | tr 'A-Z' 'a-z')" in
+    true)
+      CFG_CODEX_MULTI_AGENT=true; SUBAGENTS_ARG=(--subagents)
+      KEPT=(); for t in ${CLAUDE_DISALLOWED[@]+"${CLAUDE_DISALLOWED[@]}"}; do [ "$t" = Task ] || [ "$t" = Agent ] || KEPT+=("$t"); done
+      CLAUDE_DISALLOWED=(${KEPT[@]+"${KEPT[@]}"}) ;;
+    false)
+      CFG_CODEX_MULTI_AGENT=false
+      for t in Task Agent; do [[ " ${CLAUDE_DISALLOWED[*]-} " == *" $t "* ]] || CLAUDE_DISALLOWED+=("$t"); done ;;
+    *) echo "subagents must be true or false, got: $CFG_SUBAGENTS" >&2; exit 2 ;;
+  esac
+fi
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 # In a worktree the data files are symlinks to the primary checkout; bind-mount the real
 # directory, or the container sees dangling links to host paths.
@@ -151,7 +166,7 @@ timeout_seconds() {
 # On a resume the follow-up message lives only in the run dir: /work/prompt.txt stays the
 # parent's original prompt, exactly as the model has seen it all along.
 PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/prompt.txt"
-python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" > "$PROMPT_OUT"
+python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} > "$PROMPT_OUT"
 python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$PROMPT_OUT"
 # memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
 [ -z "${CFG_MEMORY_LIMIT:-}" ] || cat >> "$PROMPT_OUT" <<MEMORY_NOTE
@@ -221,15 +236,22 @@ if [ "$AGENT" = codex ]; then
   printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
   # Optional per-config limit on how much of each tool output Codex shows the model (tokens).
   [ -z "${CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT:-}" ] || printf 'tool_output_token_limit = %s\n' "$CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" >> "$SECRETS/codex/config.toml"
-  printf '[features]\nhooks = true\n' >> "$SECRETS/codex/config.toml"
-  if [ "$BENCHMARK_ID" = urlquery ]; then
-    printf 'multi_agent = false\nmulti_agent_v2 = false\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
+  # Subagents: URLQuery always disables them; elsewhere `subagents` / codex_multi_agent decide.
+  MULTI_AGENT=""
+  [ -z "${CFG_CODEX_MULTI_AGENT:-}" ] || MULTI_AGENT="$(printf '%s' "$CFG_CODEX_MULTI_AGENT" | tr 'A-Z' 'a-z')"
+  [ "$BENCHMARK_ID" != urlquery ] || MULTI_AGENT=false
+  # The model catalog turns the collaboration tools (spawn_agent etc.) on per model via
+  # multi_agent_version, whatever the multi_agent feature flag says. To switch them off, point
+  # Codex at its own built-in catalog with that field removed.
+  if [ "$MULTI_AGENT" = false ]; then
+    docker run --rm --network none --entrypoint sh "$IMAGE" -c 'mkdir -p /tmp/ch && CODEX_HOME=/tmp/ch codex-real debug models 2>/dev/null' \
+      | python3 -c 'import json, sys; d = json.load(sys.stdin); [m.pop("multi_agent_version", None) for m in d["models"]]; json.dump(d, sys.stdout)' \
+      > "$SECRETS/codex/model-catalog.json"
+    printf 'model_catalog_json = "/home/agent/.codex/model-catalog.json"\n' >> "$SECRETS/codex/config.toml"
   fi
-  # Optional per-config switch for Codex subagents (URLQuery always disables them above).
-  if [ "$BENCHMARK_ID" != urlquery ] && [ -n "${CFG_CODEX_MULTI_AGENT:-}" ]; then
-    MULTI_AGENT="$(printf '%s' "$CFG_CODEX_MULTI_AGENT" | tr 'A-Z' 'a-z')"
-    printf 'multi_agent = %s\nmulti_agent_v2 = %s\n' "$MULTI_AGENT" "$MULTI_AGENT" >> "$SECRETS/codex/config.toml"
-  fi
+  # Account-linked apps, plugins and browser or computer use reach outside the sandbox; always off.
+  printf '[features]\nhooks = true\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
+  [ -z "$MULTI_AGENT" ] || printf 'multi_agent = %s\nmulti_agent_v2 = %s\n' "$MULTI_AGENT" "$MULTI_AGENT" >> "$SECRETS/codex/config.toml"
   # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
   [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")

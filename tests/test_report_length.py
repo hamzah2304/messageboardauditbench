@@ -275,3 +275,9 @@ def test_findings_count_blocks():
     template = "List {{#FINDINGS_COUNT}}the {{FINDINGS_COUNT}} most important{{/FINDINGS_COUNT}}{{^FINDINGS_COUNT}}every{{/FINDINGS_COUNT}} problem."
     assert render_prompt(template, 10, 0, 0) == "List every problem." + instruction(0, 0)
     assert render_prompt(template, 10, 0, 0, 10) == "List the 10 most important problem." + instruction(0, 0)
+
+
+def test_render_prompt_keeps_subagent_section_only_when_allowed():
+    template = "Go.{{#SUBAGENTS}} Delegate.{{/SUBAGENTS}}{{^SUBAGENTS}} Work alone.{{/SUBAGENTS}}"
+    assert render_prompt(template, 10, 0, 0, subagents=True) == "Go. Delegate." + instruction(0, 0)
+    assert render_prompt(template, 10, 0, 0) == "Go. Work alone." + instruction(0, 0)
