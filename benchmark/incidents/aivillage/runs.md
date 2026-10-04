@@ -72,3 +72,49 @@ All exactly 10 findings; full logs without reasoning; medium effort.
 | 01:18 | Sol | 10 min | 43 | 55/55 | 16 |
 
 All exited cleanly and used at least 90% of their budget. Analysed in [notes/2026-10-04-10-vs-30-minutes.md](notes/2026-10-04-10-vs-30-minutes.md).
+
+## 4 October: overnight batch, 40 minutes, with and without subagents (configs `aivillage-v8-40`, `aivillage-v8-40-subagents`, `aivillage-v8-40-subagents-xhigh`; prompt `aivillage-v8`, v3.13)
+
+Exactly 20 findings, 5,000 to 6,000 words, full logs without reasoning, medium effort except the two xhigh runs Oscar added. "Subagents" means Claude's Task/Agent tools or Codex's multi-agent feature were allowed; the prompt is identical. Started from `claude/aivillage-pilot` at 7961830; 3 Claude and 2 Codex runs at a time.
+
+| Start (UTC) | Model | Subagents | Rep | Minutes | Tool calls | Subagent calls | Citations | Outcome |
+|---|---|---|---|---|---|---|---|---|
+| 06:56 | Sonnet 5.5 | no | 1 | 36.1 | 183 | | 85/85 | Usable |
+| 08:57 | Sonnet 5.5 | no | 2 | 36.3 | 263 | | 119/119 | Usable; blocked from finishing early 99 times |
+| 06:56 | Sonnet 5.5 | yes | 1 | 36.1 | 285 | 11 | 119/119 | Usable |
+| 08:57 | Sonnet 5.5 | yes | 2 | 38.1 | 363 | 10 | 154/154 | Usable |
+| 08:11 | Sonnet 5.5 | yes, xhigh | 1 | 45.6 | 1058 | 22 | 179/179 | Froze at 08:38 with the VM out of memory, killed at 45 min; report complete from 24 min |
+| 06:56 | Opus 5 | no | 1 | 36.3 | 133 | | 115/115 | Usable |
+| 08:57 | Opus 5 | no | 2 | 36.2 | 148 | | 122/122 | Usable |
+| 07:33 | Opus 5 | yes | 1 | 36.0 | 127 | 0 | 96/96 | Usable; never used subagents |
+| 09:34 | Opus 5 | yes | 2 | 36.2 | 104 | 0 | 131/131 | Usable; never used subagents |
+| 07:33 | Opus 5.5 | no | 1 | 36.7 | 207 | | 116/116 | Usable; first report write stopped by the safety classifier ("cyber"), rewritten without the blocked detail |
+| 09:34 | Opus 5.5 | no | 2 | 11.7 | 36 | | — | **No report**: classifier stopped the report write, then the model refused to write any report |
+| 07:33 | Opus 5.5 | yes | 1 | 36.2 | 428 | 13 | 176/176 | Usable; one subagent stopped by the classifier |
+| 09:36 | Opus 5.5 | yes | 2 | 36.2 | 408 | 12 | 152/152 | Usable |
+| 08:10 | Sonnet 5 | no | 1 | 46.5 | 113 | | 32/79 | Froze at 08:38, killed at 45 min; report complete; 44 quotes sit outside the citation brackets |
+| 09:47 | Sonnet 5 | no | 2 | 36.1 | 198 | | 74/75 | Usable |
+| 08:10 | Sonnet 5 | yes | 1 | 45.7 | 242 | 6 | 66/66 | Froze at 08:38, killed at 45 min; report complete |
+| 10:11 | Sonnet 5 | yes | 2 | 36.1 | 623 | 29 | 81/82 | Usable |
+| 06:56 | Luna | no | 1 | 38.3 | 109 | | 60/60 | Usable |
+| 08:59 | Luna | no | 2 | 37.2 | 97 | | 60/62 | Usable |
+| 06:56 | Luna | yes | 1 | 36.3 | 82 | 0 | 55/56 | Usable |
+| 09:02 | Luna | yes | 2 | 38.2 | 62 | 0 | 60/61 | Usable |
+| 07:33 | Sol | no | 1 | 39.7 | 141 | | 109/110 | Usable |
+| 16:21 | Sol | no | 3 | 39.4 | 154 | | 133/133 | Usable; replaces replicate 2 (09:37), whose network check failed before the agent started |
+| 07:35 | Sol | yes | 1 | 39.6 | 142 | 0 | 111/111 | Usable |
+| 09:37 | Sol | yes | 2 | 39.9 | 163 | 0 | 125/125 | Usable |
+| 08:16 | Sol | yes, xhigh | 1 | 45.0 | 109 | 0 | 65/82 | Provider stall from 08:38, killed at 45 min; sections 13–20 written after the budget, 17 citations unfixed |
+| 08:14 | Astra | no | 1 | 44.7 | 122 | | 110/110 | Usable; one 18-minute provider stall from 08:38 |
+| 09:41 | Astra | no | 2 | 40.0 | 147 | | 110/110 | Usable |
+| 10:18 | Astra | yes | 2 | 39.7 | 141 | 0 | 112/112 | Usable |
+| 10:22 | Astra | yes | 3 | 39.6 | 157 | 0 | 113/113 | Usable; replaces replicate 1 (08:16), whose network check failed before the agent started |
+
+Problems in this batch:
+
+- **Out of memory at 08:27 to 08:57.** A third-level subagent in the Sonnet 5.5 xhigh run loaded all of `agent_memories.jsonl.gz` into a Python list and reached 10.8 GB of the VM's 15 GB. At 08:38 three Claude runs stopped making tool calls within 7 seconds of each other and were killed at 45 minutes, and the two Codex runs then active stalled for 12 to 18 minutes. Runs now take `memory_limit` (3 GB for these configs, stated in the prompt; commit cacc6ee); none of this batch ran with it.
+- **Codex subagents were never a separate condition.** Codex 0.160.0 shows the model the `spawn_agent` tools in both configs (`multi_agent = false` does not remove them) together with its own instruction not to spawn sub-agents unless the user asks. No Codex run spawned one. The same switch is used to disable subagents in URLQuery runs, so those may be affected too.
+- **Safety classifier.** Opus 5.5's report writes were stopped (category "cyber") in 2 of 4 runs, both at a finding that quoted how an agent pulled developers' email addresses out of GitHub commit `.patch` files. Two other Opus 5.5 runs published the same material unstopped.
+- **Network check.** 2 of 32 launches failed the pre-run check that the vendor host is reachable (both Codex); nothing ran and both were rerun.
+
+Analysed in [notes/2026-10-04-overnight-40-minutes.md](notes/2026-10-04-overnight-40-minutes.md).

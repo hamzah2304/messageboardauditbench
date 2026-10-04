@@ -69,7 +69,7 @@ Citations look like `[turn:<id> "short exact quote"]`. The checker confirms the 
 ## Where the discussion lives
 
 - Google Doc with the Intro, every prompt version and every rubric version, as tabs: <https://docs.google.com/document/d/18990mApAhiePaBvboLdEJNPudffXaLdGaIVNUH58xSE/edit>
-- [Pilot readout](https://claude.ai/artifact/2TnoDfsqdMjuV1K6eXUiJY) (first four runs, before the interface changes), [full-data reports](https://claude.ai/artifact/Bfzr2q4NHPnH9GFKWaUiAT), [reports against the Substack](https://claude.ai/artifact/THt2uaHN4vuBVMRKZtqrBD). These are private claude.ai pages.
+- [Pilot readout](https://claude.ai/artifact/2TnoDfsqdMjuV1K6eXUiJY) (first four runs, before the interface changes), [full-data reports](https://claude.ai/artifact/Bfzr2q4NHPnH9GFKWaUiAT), [reports against the Substack](https://claude.ai/artifact/THt2uaHN4vuBVMRKZtqrBD), [overnight 40-minute reports](https://claude.ai/artifact/SW3aJDq8qwwHS4qH7J3m9x) and [their readout](https://claude.ai/artifact/9jFnXmuWpKVpxNhibAqepf). These are private claude.ai pages.
 
 ## Decisions so far
 
