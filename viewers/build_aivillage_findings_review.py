@@ -116,6 +116,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--extraction-suffix", default="")
     parser.add_argument("--prompt-file", default="extraction-prompt-v2.md")
+    parser.add_argument("--previous-extraction-suffix")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "images").mkdir(exist_ok=True)
@@ -126,6 +127,20 @@ def main():
         extraction = json.loads(
             (args.input / f"trial-{key}{args.extraction_suffix}.json").read_text()
         )
+        if args.previous_extraction_suffix is not None:
+            previous = json.loads(
+                (args.input / f"trial-{key}{args.previous_extraction_suffix}.json").read_text()
+            )
+            claims = {
+                sf["id"]: sf["claim"]
+                for finding in previous["findings"]
+                for sf in finding["subfindings"]
+            }
+            for finding in extraction["findings"]:
+                for sf in finding["subfindings"]:
+                    old = claims.get(sf["id"])
+                    if old and old != sf["claim"]:
+                        sf["previous_claim"] = old
         sanitized = Article(key)
         sanitized.feed(source["body_html"])
         images.update(sanitized.images)
@@ -169,10 +184,6 @@ def main():
     shutil.copyfile(
         Path(__file__).with_name("aivillage_findings_review.template.html"),
         args.output / "index.html",
-    )
-    shutil.copyfile(
-        Path(__file__).with_name("aivillage_feedback_recovery.js"),
-        args.output / "feedback-recovery.js",
     )
     shutil.copyfile(
         args.input / args.prompt_file, args.output / "extraction-prompt-v2.md"
