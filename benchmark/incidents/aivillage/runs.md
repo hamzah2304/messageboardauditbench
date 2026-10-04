@@ -67,8 +67,8 @@ All exactly 10 findings; full logs without reasoning; medium effort.
 | 00:51 | Luna | 30 min | 92 | 46/46 | 28 |
 | 00:52 | Sol | 30 min | 126 | 81/81 | 33 |
 | 00:52 | Sonnet 5.5 | 10 min | 36 | 47/47 | 3 |
-| about 01:01 | Opus 5 | 10 min | 32 | 47/47 | 9 |
-| about 01:01 | Luna | 10 min | 38 | 26/29 | 6 |
-| about 01:01 | Sol | 10 min | 43 | 55/55 | 16 |
+| 01:01 | Opus 5 | 10 min | 32 | 47/47 | 9 |
+| 01:11 | Luna | 10 min | 38 | 26/29 | 6 |
+| 01:18 | Sol | 10 min | 43 | 55/55 | 16 |
 
 All exited cleanly and used at least 90% of their budget.
