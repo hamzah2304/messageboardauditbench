@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Build the X findings review artifact page from an extraction run.
 
-    uv run python viewers/build_x_findings_review.py runs/x-extraction-sample-YYYYMMDD OUT.html
+    uv run python viewers/build_x_findings_review.py runs/x-extraction-YYYYMMDD OUT.html
+
+Images are referenced as img/<file>; publish <run>/media/*-medium.jpg at those
+paths alongside the page.
 """
 import json
 import sys
@@ -9,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 run, out = ROOT / sys.argv[1], Path(sys.argv[2])
+media = json.loads((run / "media.json").read_text()) if (run / "media.json").exists() else {}
 selection = json.loads((run / "selection.json").read_text())
 hand = set(selection.get("hand_picked", []))
 posts = []
@@ -16,7 +20,12 @@ for p in json.loads((run / "sample-posts.json").read_text()):
     ex = json.loads((run / f"{p['id']}.json").read_text())
     ex.pop("run", None)
     posts.append({"id": p["id"], "date": p["date"], "author": p["author"], "url": p["url"], "text": p["text"],
-                  "hand_picked": p["id"] in hand, "extraction": ex})
+                  "hand_picked": p["id"] in hand, "extraction": ex,
+                  "media_status": media.get(p["id"], {}).get("status", "ok"),
+                  # Images are published next to the page under img/ (see the docstring).
+                  "media": [{"n": m["n"], "part": m["part"], "type": m["type"], "duration_s": m.get("duration_s"),
+                             "alt": m.get("alt"), "file": "img/" + m["medium"]}
+                            for m in media.get(p["id"], {}).get("media", [])]})
 summary = json.loads((run / "summary.json").read_text())
 data = {"model": "GPT-6.1 Sol", "effort": summary["reasoning_effort"], "posts": posts,
         "prompt_url": "https://docs.google.com/document/d/18990mApAhiePaBvboLdEJNPudffXaLdGaIVNUH58xSE/edit?tab=t.63e1fm9fhnrm"}

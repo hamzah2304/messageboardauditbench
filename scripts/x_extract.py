@@ -8,11 +8,13 @@ directory; a raw response without a result stops the run for inspection.
 
     uv run python scripts/x_extract.py runs/x-extraction-sample-YYYYMMDD [--dry-run]
 
-The run directory must hold sample-posts.json (rows from x_screen.py decisions).
+The run directory must hold sample-posts.json (rows from x_screen.py decisions)
+and, to attach images, media.json from scripts/x_media.py.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import concurrent.futures
 import hashlib
 import json
@@ -52,8 +54,11 @@ Use this structure (include all fields; empty lists/strings when unnecessary):
 }
 Thread parts are separated by a line containing only ---; part 1 is the first.
 Quotes must be verbatim contiguous substrings of the post text, within one part,
-without invented ellipsis, spelling fixes or normalization. Preserve the URL and
-ID exactly. No screenshot, video or linked-page contents have been supplied.
+without invented ellipsis, spelling fixes or normalization. A quote read from an
+image instead sets "image_number" to that supplied image's number and
+"image_url" to its supplied URL; leave both null for quotes from the text.
+Preserve the URL and ID exactly. Video beyond its thumbnail and linked-page
+contents have not been supplied.
 Frozen logs have not been provided: all log evidence stays not yet verified.
 No external tools are available. Do not add a finding to meet a quota; an empty
 findings list is allowed.
@@ -64,17 +69,35 @@ def dump(path, obj):
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
 
 
-def body(post, prompt):
+def image_parts(run, post, media):
+    parts = []
+    for m in media.get(post["id"], {}).get("media", []):
+        label = f"Image {m['n']} (thread part {m['part']}, {m['type']}"
+        label += f", thumbnail of a {round(m['duration_s'] or 0)}-second video)" if m["type"] != "photo" else ")"
+        label += f"; URL {m['source_url']}"
+        if m.get("alt"):
+            label += f"; alt text: {m['alt']}"
+        data = base64.b64encode((run / "media" / m["large"]).read_bytes()).decode()
+        parts += [{"type": "input_text", "text": label},
+                  {"type": "input_image", "image_url": "data:image/jpeg;base64," + data, "detail": "high"}]
+    return parts
+
+
+def body(post, prompt, images=()):
     instructions = prompt.replace("{{TASK_STAGE}}", "extract").replace("{{PREFILTER_CONTEXT}}", PREFILTER_CONTEXT)
     instructions = instructions.replace("{{SOURCE_TEXT}}", "Supplied as JSON in the user input.")
     source = {k: post[k] for k in ("id", "date", "url", "author", "text")}
     return {"model": MODEL, "reasoning": {"effort": EFFORT}, "instructions": instructions + TRANSPORT,
-            "input": [{"role": "user", "content": "X post for JSON extraction:\n" + json.dumps(source, ensure_ascii=False)}],
+            "input": [{"role": "user", "content": [
+                {"type": "input_text", "text": "X post for JSON extraction:\n" + json.dumps(source, ensure_ascii=False)},
+                *images,
+                *([{"type": "input_text", "text": "Inspect every image above before extracting; cite image numbers for evidence taken from them."}] if images else [])]}],
             "text": {"format": {"type": "json_object"}}, "max_output_tokens": MAX_OUTPUT,
             "service_tier": "default", "store": False}
 
 
-def validate(data, post):
+def validate(data, post, media):
+    images = {m["n"]: m for m in media.get(post["id"], {}).get("media", [])}
     issues, ids = [], set()
     for f in data["findings"]:
         if f["id"] in ids:
@@ -91,19 +114,25 @@ def validate(data, post):
             for s in sf["source_support"]:
                 if s.get("message_id") != post["id"] or s.get("url") != post["url"]:
                     issues.append(sf["id"] + ": unknown post ID or URL")
+                elif s.get("image_number") is not None:
+                    if s["image_number"] not in images:
+                        issues.append(sf["id"] + f": cites unsupplied image {s['image_number']}")
                 elif not s["quote"] or s["quote"] not in post["text"]:
                     issues.append(sf["id"] + ": quote is not verbatim")
-                if s.get("image_number") is not None or s.get("image_url") is not None:
-                    issues.append(sf["id"] + ": claims unseen image evidence")
     return issues
 
 
-def extract(run, post, prompt):
+def extract(run, post, prompt, media):
     target = run / f"{post['id']}.json"
     if target.exists():
         return json.loads(target.read_text())
-    request = body(post, prompt)
-    dump(run / f"{post['id']}.request.json", request)
+    request = body(post, prompt, image_parts(run, post, media))
+    # Keep the request file readable: record image labels, not base64 payloads.
+    logged = json.loads(json.dumps(request))
+    for part in logged["input"][0]["content"]:
+        if part["type"] == "input_image":
+            part["image_url"] = "(base64 JPEG omitted)"
+    dump(run / f"{post['id']}.request.json", logged)
     raw = run / f"{post['id']}.response.json"
     if raw.exists():
         raise RuntimeError(f"Raw response exists for {post['id']}; inspect it before retrying")
@@ -114,7 +143,7 @@ def extract(run, post, prompt):
     if response.status != "completed":
         raise RuntimeError(f"Incomplete response for {post['id']}")
     data = json.loads(response.output_text)
-    issues = validate(data, post)
+    issues = validate(data, post, media)
     data["run"] = {"model": MODEL, "reasoning": {"effort": EFFORT},
                    "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(), "response_id": response.id,
                    "usage": response.usage.model_dump(mode="json"), "validation_issues": issues}
@@ -133,15 +162,18 @@ def main():
     (run / "extraction-prompt.md").write_text(prompt)
     (run / "transport-instruction.txt").write_text(TRANSPORT)
     posts = json.loads((run / "sample-posts.json").read_text())
-    # Upper bound: UTF-8 bytes as tokens plus overhead, full output budget.
+    media = json.loads((run / "media.json").read_text()) if (run / "media.json").exists() else {}
+    n_images = sum(len(v.get("media", [])) for v in media.values())
+    # Upper bound: UTF-8 bytes as tokens plus overhead, ~2,000 tokens per high-detail image, full output budget.
     upper = sum((len(json.dumps(body(p, prompt)).encode()) + 8192) * RATES[0] + MAX_OUTPUT * RATES[2] for p in posts)
-    dump(run / "run-plan.json", {"model": MODEL, "effort": EFFORT, "calls": len(posts),
+    upper += n_images * 2000 * RATES[0]
+    dump(run / "run-plan.json", {"model": MODEL, "effort": EFFORT, "calls": len(posts), "images": n_images,
                                  "max_output_tokens_per_call": MAX_OUTPUT, "cost_upper_usd": round(upper, 3)})
-    print(f"{len(posts)} calls; cost upper bound ${upper:.2f}")
+    print(f"{len(posts)} calls, {n_images} images; cost upper bound ${upper:.2f}")
     if args.dry_run:
         return
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda p: extract(run, p, prompt), posts))
+        results = list(pool.map(lambda p: extract(run, p, prompt, media), posts))
     usage = [r["run"]["usage"] for r in results]
     inp = sum(u["input_tokens"] for u in usage)
     cached = sum((u.get("input_tokens_details") or {}).get("cached_tokens", 0) for u in usage)

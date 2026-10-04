@@ -47,6 +47,11 @@ nav .c{font-size:11.5px;color:var(--muted)}
 .part .lab{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 .part p{margin:0;font-family:var(--f-read);font-size:15.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .part+.part{border-top:1px dashed var(--line);padding-top:10px}
+.part figure{margin:6px 0 0;display:grid;gap:4px}
+.part figure img{border:1px solid var(--line);border-radius:6px;background:var(--sunk);cursor:zoom-in}
+.part figure.big img{cursor:zoom-out}
+.part figcaption{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.imgref{font-family:var(--f-mono);font-size:11px;background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:1px 5px;margin-left:6px}
 .caveat{font-size:12.5px;color:var(--muted);margin:0}
 .card{border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:10px;background:var(--surface)}
 .card[data-decision="keep"]{border-left:4px solid var(--keep)}
@@ -97,7 +102,7 @@ summary{cursor:pointer;font-weight:600;font-size:14px}
       <section class="pane" aria-labelledby="src-h">
         <h2 id="src-h">X post</h2>
         <div class="meta" id="post-meta"></div>
-        <p class="caveat">Post text only. Screenshots, videos, quoted posts and linked pages were not supplied to the model.</p>
+        <p class="caveat" id="post-caveat"></p>
         <div id="post-text" style="display:grid;gap:10px"></div>
       </section>
       <section class="pane" aria-labelledby="f-h">
@@ -185,7 +190,13 @@ function draw(){
   meta.append(el('span',null,p.date),el('span',null,'@'+p.author),a);
   const pt=document.getElementById('post-text');pt.textContent='';
   const parts=p.text.split('\n---\n');
-  parts.forEach((t,i)=>{const d=el('div','part');if(parts.length>1)d.append(el('span','lab','Part '+(i+1)));d.append(el('p',null,t.trim()));pt.append(d)});
+  const media=p.media||[];
+  document.getElementById('post-caveat').textContent=p.media_status!=='ok'?'This post is no longer available on X, so the model saw its text only.':
+    media.length?`The model saw the text and ${media.length} image${media.length>1?'s':''}. Videos appear as one thumbnail frame; quoted posts and linked pages were not supplied.`:'This post has no images. Quoted posts and linked pages were not supplied.';
+  parts.forEach((t,i)=>{const d=el('div','part');if(parts.length>1)d.append(el('span','lab','Part '+(i+1)));d.append(el('p',null,t.trim()));
+    media.filter(m=>m.part===i+1).forEach(m=>{const f=el('figure');const im=el('img');im.loading='lazy';im.src=m.file;im.alt=m.alt||`Image ${m.n} from part ${m.part}`;
+      im.onclick=()=>f.classList.toggle('big');f.append(im,el('figcaption',null,`Image ${m.n}`+(m.type!=='photo'?` · thumbnail of a ${Math.round(m.duration_s||0)} s video`:'')));d.append(f)});
+    pt.append(d)});
 
   const root=document.getElementById('findings');root.textContent='';
   const ex=p.extraction;
@@ -199,7 +210,7 @@ function draw(){
     f.subfindings.forEach(sf=>{
       const s=el('section','sub');
       const sh=el('h4');sh.append(el('span','fid',sf.id),document.createTextNode(sf.claim));s.append(sh);
-      sf.source_support.forEach(q=>{s.append(el('blockquote',null,q.quote),el('div','loc',q.location+' · '+q.source_kind))});
+      sf.source_support.forEach(q=>{const b=el('blockquote',null,q.quote);if(q.image_number!=null)b.append(el('span','imgref','Image '+q.image_number));s.append(b,el('div','loc',q.location+' · '+q.source_kind))});
       if(sf.media_dependence){const k=el('p','kv');k.append(el('b',null,'Media dependence: '),document.createTextNode(sf.media_dependence));s.append(k)}
       if(sf.evidence_note){const k=el('p','kv');k.append(el('b',null,'Evidence note: '),document.createTextNode(sf.evidence_note));s.append(k)}
       if(sf.notes&&sf.notes.length){const ul=el('ul','notes');sf.notes.forEach(n=>ul.append(el('li',null,n)));s.append(ul)}
