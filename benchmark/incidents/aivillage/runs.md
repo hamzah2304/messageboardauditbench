@@ -150,6 +150,21 @@ Five minutes on the slice cannot reach 20 findings or 8,000 words, so these only
 | Start (UTC) | Model | Subagents started | Notes |
 |---|---|---|---|
 | 18:19 | Sonnet 5.5 | 0 | Ignored "use subagents" in 5 minutes; blocked from finishing 18 times; 3 tool calls touched the reasoning column |
-| 18:19 | Sol | 3 | Each subagent's instructions began with the standard paragraph, word for word (checked in the subagents' own logs); 29 tool calls touched the reasoning column; never blocked |
+| 18:19 | Sol | 3 | Whether the parent passed on the standard paragraph cannot be checked: Codex encrypts spawn messages, and each subagent's log holds a full copy of the parent's prompt, which contains the paragraph (an earlier version of this row wrongly took that copy as proof); 29 tool calls touched the reasoning column; never blocked |
 
 The full `full-v2-noreasoning` folder was deleted from the shared `data/` at 18:12 (not by this session); v3.15 configs use `full-v2-reasoning`.
+
+## 4 October, evening: prompt v3.16, 30 minutes (configs `aivillage-v11-30`, `aivillage-v11-30-subagents`)
+
+Full logs with reasoning traces, 20 findings, 8,000 to 10,000 words (11,000 accepted), 3 GB shared memory; all six started 19:03 to 19:04 UTC in parallel from 3bf3436.
+
+| Start (UTC) | Model | Subagents | Minutes | Tool calls | Subagents started | Early-finish attempts | Words | Citations | Outcome |
+|---|---|---|---|---|---|---|---|---|---|
+| 19:03 | Sonnet 5.5 | no | 27.2 | 68 | | 7 | 8,948 | 98/98 | Usable; about 4,150 words of templated padding |
+| 19:03 | Sonnet 5.5 | yes | 27.4 | 259 | 6 (all given the standard paragraph) | 30 | 6,685 | 140/140 | Usable but short |
+| 19:03 | GPT-6.1 Sol | no | 30.0 | 69 | | 0 | 9,044 | 91/91 | Usable; whole report written in one turn at minutes 19 to 27 |
+| 19:04 | GPT-6.1 Sol | yes | 29.6 | 52 | 3 | 0 | 9,699 | 176/176 | Usable; 17 of 20 findings from subagents |
+| 19:04 | Luna | no | 28.7 | 62 | | 2 | 8,131 | 75/75 | Usable; several general critiques |
+| 19:04 | Luna | yes | 27.6 | 49 | 3 | 0 | 3,269 | 44/58 | **Incomplete**: 7 findings; ran out of time writing; 13 of 14 bad citations retyped from subagent messages |
+
+First runs of `gpt-6.1-sol` in this eval (the overnight Sol runs used `gpt-6-sol`). Analysed in [notes/2026-10-04-prompt-v3.16-30-minutes.md](notes/2026-10-04-prompt-v3.16-30-minutes.md).
