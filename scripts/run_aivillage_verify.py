@@ -31,7 +31,7 @@ MODEL = "claude-sonnet-5-5"
 LAUNCH = datetime.date(2025, 4, 2)  # Day 1 of the Village
 GROUP_SIZE = 8
 MINUTES_PER_FINDING = 2
-SUB_VERDICTS = {"supported", "partly supported", "contradicted", "not found", "outside the records"}
+SUB_VERDICTS = {"supported", "partly supported", "contradicted", "not found", "outside the records", "not checked"}
 lock = threading.Lock()
 start_lock = threading.Lock()
 
@@ -119,7 +119,8 @@ def verify(out, group):
     name = group["name"]
     prompt = out / "prompts" / f"{name}.txt"
     text = "\n\n---\n\n".join(render(f) for f in todo)
-    prompt.write_text(TEMPLATE.read_text().replace("{{GROUP_NOTE}}", group["note"]).replace("{{FINDING}}", text))
+    prompt.write_text(TEMPLATE.read_text().replace("{{GROUP_NOTE}}", group["note"]).replace("{{FINDING}}", text)
+                      .replace("{{MINUTES_PER_FINDING}}", str(MINUTES_PER_FINDING)))
     env = {**os.environ, "ALLOW_NETWORKED_SUBSCRIPTION": "1", "CONFIG": str(CONFIG), "DATA_DIR": str(DATA),
            "PROMPT_FILE_OVERRIDE": str(prompt), "BUDGET_MIN": str(MINUTES_PER_FINDING * len(todo) + 3)}
     log = out / "logs" / f"{name}.log"
@@ -181,12 +182,32 @@ def main():
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--status", action="store_true")
+    ap.add_argument("--second-look", action="store_true",
+                    help="recheck, with more time, findings whose first result was drop or had a part not found")
     ap.add_argument("--skip", nargs="*", default=[], help="group names another process is already running")
     args = ap.parse_args()
     findings = json.loads(args.merged.read_text())["merged"]
     if args.only:
         findings = [f for f in findings if f["id"] in args.only]
     out = args.out.resolve()
+    if args.second_look:
+        global TEMPLATE, MINUTES_PER_FINDING, GROUP_SIZE
+        TEMPLATE, MINUTES_PER_FINDING, GROUP_SIZE = ROOT / "sandbox/prompts/aivillage-verify-v3-second-look.txt", 6, 3
+        first, redo = out / "results-first-pass", []
+        first.mkdir(exist_ok=True)
+        for f in findings:
+            path = out / "results" / f"{f['id']}.json"
+            if path.exists() and not (first / path.name).exists():
+                r = json.loads(path.read_text())
+                if r.get("verdict") == "drop" or any(sf.get("verdict") == "not found" for sf in r.get("subfindings", [])):
+                    path.rename(first / path.name)
+                    redo.append(f)
+            elif (first / path.name).exists() and not path.exists():
+                redo.append(f)
+        findings = redo
+        # Second-look runs get their own logs, so collect() cannot pick up the first pass's files again.
+        for log in (out / "logs").glob("*.log"):
+            log.rename(log.with_suffix(".log.first-pass"))
     if not args.status:
         for sub in ("results", "prompts", "logs"):
             (out / sub).mkdir(parents=True, exist_ok=True)
