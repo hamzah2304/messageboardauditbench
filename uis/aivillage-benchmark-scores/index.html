@@ -15,7 +15,7 @@
  for(const b of document.querySelectorAll('[data-quote]'))b.onclick=()=>locate(b.dataset.quote)
  }
  picker.onchange=()=>{rid=picker.value;lastDetail='';report();draw();summary()};
- function summary(){if(!grades)return;const r=scored();document.querySelector('#progress').textContent=`${grades.completed_jobs.toLocaleString()} / ${grades.total_jobs.toLocaleString()} calls completed · ${grades.reports.filter(r=>r.complete).length} / 32 reports complete`;document.querySelector('#report-score').textContent=r?.complete?`Mean coverage: ${r.mean_coverage.toFixed(2)} / 1`:`${Object.keys(r?.scores||{}).length} / 96 findings scored`}
+ function summary(){if(!grades)return;const r=scored();document.querySelector('#progress').textContent=`${grades.blocked?"Stopped: API credits exhausted · ":""}${grades.completed_jobs.toLocaleString()} / ${grades.total_jobs.toLocaleString()} calls completed · ${grades.reports.filter(r=>r.complete).length} / 32 reports complete`;document.querySelector('#report-score').textContent=r?.complete?`Mean coverage: ${r.mean_coverage.toFixed(2)} / 1`:`${Object.keys(r?.scores||{}).length} / 96 findings scored`}
  async function refresh(){try{const r=await fetch('grades.json',{cache:'no-store'});if(r.ok){grades=await r.json();summary();if(window.getSelection().isCollapsed)draw()}}catch(e){document.querySelector('#progress').textContent='Reconnecting to scores…'}}
  report();await refresh();setInterval(refresh,10000);
 })().catch(e=>document.querySelector('#progress').textContent=e.message);

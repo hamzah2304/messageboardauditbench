@@ -18,6 +18,12 @@ from pathlib import Path
 
 MODEL = "gpt-6.1-sol"
 EFFORT = "medium"
+ACCOUNT_BLOCK_CODES = {"credit_balance_exhausted", "insufficient_quota", "billing_hard_limit_reached"}
+
+
+class AccountBlocked(RuntimeError):
+    """A billing failure that must stop all queued API work."""
+
 
 
 def digest(obj):
@@ -257,6 +263,11 @@ class Gate:
         self.next_start = 0.0
         self.cooldown = 0.0
         self.rpm, self.tpm = rpm, tpm
+        self.blocked = None
+
+    def abort(self, code):
+        with self.lock:
+            self.blocked = code
 
     def defer(self, seconds):
         with self.lock:
@@ -267,6 +278,8 @@ class Gate:
         spacing = max(60 / self.rpm if self.rpm else 0, 60 * tokens / self.tpm if self.tpm else 0)
         while True:
             with self.lock:
+                if self.blocked:
+                    raise AccountBlocked(self.blocked)
                 now = time.monotonic()
                 wait = max(self.next_start, self.cooldown) - now
                 if wait <= 0:
@@ -315,7 +328,10 @@ def perform(client, job, output, gate, deadline, attempts=5):
             code = getattr(exc, "code", None)
             # Keep error logs free of provider messages that may echo sensitive inputs.
             save(folder / f"error-{attempt + 1}.json", {"type": type(exc).__name__, "http_status": status, "code": code})
-            transient = (status in {429, 500, 502, 503, 504} and code not in {"insufficient_quota", "billing_hard_limit_reached"}) or type(exc).__name__ in {"APIConnectionError", "APITimeoutError"}
+            if code in ACCOUNT_BLOCK_CODES:
+                gate.abort(code)
+                raise AccountBlocked(code) from exc
+            transient = (status in {429, 500, 502, 503, 504} and code not in ACCOUNT_BLOCK_CODES) or type(exc).__name__ in {"APIConnectionError", "APITimeoutError"}
             if not transient or attempt + 1 == attempts:
                 raise
             gate.defer(retry_delay(exc, attempt + 1))
@@ -367,6 +383,7 @@ def run(args):
     # Interleave reports rather than finish one report before beginning the next.
     jobs = sorted(plan["jobs"], key=lambda j: (j["goal_period"], j["report_id"], j["id"]))
     failures, latencies = [], []
+    blocked = None
     started = time.monotonic()
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
         futures = {pool.submit(perform, client, j, args.output, gate, deadline): j for j in jobs}
@@ -376,6 +393,11 @@ def run(args):
                 status, result = future.result()
                 if status != "cached":
                     latencies.append(result["elapsed_seconds"])
+            except AccountBlocked as exc:
+                blocked = str(exc)
+                for queued in futures:
+                    queued.cancel()
+                break
             except Exception as exc:
                 status = "failed"
                 failures.append({"job": job["id"], "report": job["report_id"], "type": type(exc).__name__})
@@ -386,7 +408,12 @@ def run(args):
                 save(plan_path.parent / "grades.json", aggregate(plan, args.output))
                 save(plan_path.parent / "status.json", {"finished_jobs": index, "total": len(jobs), "failures": failures, "concurrency": args.concurrency})
     grades = aggregate(plan, args.output)
+    if blocked:
+        grades["blocked"] = blocked
     save(plan_path.parent / "grades.json", grades)
+    save(plan_path.parent / "status.json", {"completed_jobs": grades["completed_jobs"], "total": len(jobs), "failures": failures, "concurrency": args.concurrency, "blocked": blocked})
+    if blocked:
+        raise SystemExit(f"Stopped: {blocked}; {len(grades['pending_jobs'])} jobs remain. Resume after restoring API credit.")
     if grades["pending_jobs"]:
         raise SystemExit(f"Incomplete: {len(grades['pending_jobs'])} jobs remain; rerun the same plan to resume.")
 

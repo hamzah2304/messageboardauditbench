@@ -175,3 +175,20 @@ def test_final_rewrites_use_corrected_claims():
     f['subfindings'][0].update(decision="rewrite", claim="corrected claim", original_claim="old claim")
     fs, excluded = g.normalize_findings([f])
     assert not excluded and fs[0]['subfindings'][0]['claim'] == 'corrected claim'
+
+
+def test_credit_exhaustion_stops_all_future_api_attempts(tmp_path):
+    class EmptyCreditClient(Client):
+        def create(self, **kwargs):
+            self.calls += 1
+            exc = RuntimeError("billing block")
+            exc.status_code = 429
+            exc.code = "credit_balance_exhausted"
+            raise exc
+    gate = g.Gate()
+    client = EmptyCreditClient()
+    with pytest.raises(g.AccountBlocked, match="credit_balance_exhausted"):
+        g.perform(client, job(), tmp_path, gate, time.monotonic() + 10)
+    with pytest.raises(g.AccountBlocked):
+        g.perform(client, job('f2'), tmp_path, gate, time.monotonic() + 10)
+    assert client.calls == 1
