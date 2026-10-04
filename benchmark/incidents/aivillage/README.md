@@ -4,6 +4,12 @@ An AI agent gets the complete AI Village logs and has to work out what went wron
 
 **Status, 4 October 2026.** The setup runs end to end on three harnesses: Claude Code, Codex, and a minimal ReAct loop for models served through OpenRouter. The benchmark batch has run: 32 reports from 11 models, listed in [benchmark-2026-10-04-runs.md](benchmark-2026-10-04-runs.md). The answer key and the grader are still being built, so these runs have no scores yet. Everything below was judged by hand, by model-assisted matching against the posts and by the citation checker.
 
+## Score against cost
+
+![AI Village score against cost per run](figures/score_vs_cost.png)
+
+Mean finding score over the 96-finding answer key (GPT-6.1 Sol judge, no contradiction penalties) against cost per run at list prices, subagents included. Large marks are the mean of two runs. Built by `scripts/aivillage_run_costs.py` and `viewers/build_aivillage_cost_figure.py`.
+
 ## What the pilot runs showed
 
 These come from the pilot trials run while the prompt and harness were being developed; [runs.md](runs.md) lists them all. One or two runs per model and condition, so differences between models are anecdotal.
