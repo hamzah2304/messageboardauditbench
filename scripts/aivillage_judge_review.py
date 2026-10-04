@@ -97,7 +97,7 @@ def prepare(root, out):
             s['evidence'] = cite.sub(lambda m: m.group(0) if any(r['id'] == f'{m[1]}:{m[2]}' and r['quote_verified'] for r in f['records']) else f'[{m[1]}:{m[2]} — record exists; verifier quotation not confirmed]', s['evidence'])
         findings.append(f)
     report = (root / 'runs' / REPORT / 'report.md').read_text()
-    prompt = (Path(__file__).resolve().parents[1] / 'judge-prompt-v8.txt').read_text()
+    prompt = (Path(__file__).resolve().parents[1] / 'benchmark/incidents/aivillage/judge-prompt-v8.txt').read_text()
     bundle = {'title': 'AI Village judge review', 'model': MODEL, 'effort': 'high', 'prompt_url': PROMPT_URL, 'report_run': REPORT, 'report_model': 'GPT-6.1 Sol', 'report_condition': '30 minutes; medium effort; no subagents; full logs with reasoning traces', 'selection': 'First ten findings in ID order whose latest verifier output says keep and whose cited records are available in chat/session/turn/event logs, selected without examining report coverage. Memory-only evidence was excluded from this small trial. Local scoring wordings narrow unsupported details; originals are preserved.', 'report': report, 'report_sha256': hashlib.sha256(report.encode()).hexdigest(), 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(), 'findings': findings}
     write(out / 'input.json', bundle)
     (out / 'prompt.txt').write_text(prompt)

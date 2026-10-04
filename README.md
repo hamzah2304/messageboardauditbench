@@ -8,10 +8,11 @@ sandbox, agents, subscription runner and grading plumbing.
 > **New: the AI Village eval.** An agent gets the complete logs of AI Digest's AI Village
 > (18 months of frontier agents from several labs pursuing shared goals, each with its own
 > computer) in a sandbox with no internet, and reports the 20 most important things that
-> went wrong, citing a log record for every claim. The setup runs on Claude Code, Codex and
-> OpenRouter models, and a 32-run benchmark batch over 11 models is done; the answer key from
-> AI Digest's write-ups and the grader are in progress, and it is not yet an Inspect task.
-> Start at [`benchmark/incidents/aivillage/`](benchmark/incidents/aivillage/README.md).
+> went wrong, citing a log record for every claim. A judge scores each report against 96
+> findings taken from humans' write-ups of the Village and checked against the logs. Across
+> 32 reports from 11 models, coverage ranges from 4% to 18% of the key. Start at
+> [`benchmark/incidents/aivillage/`](benchmark/incidents/aivillage/README.md); it is not yet
+> an Inspect task.
 
 | benchmark | Inspect task | version | evidence | grading |
 |---|---|---:|---|---|
