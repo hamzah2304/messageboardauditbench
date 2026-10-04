@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,7 @@ DATA = Path("/home/oscar_gilg18/Dev/MessageBoardAuditBench/data/aivillage/full-v
 MODEL = "claude-sonnet-5-5"
 SUB_VERDICTS = {"supported", "partly supported", "contradicted", "not found", "outside the records"}
 lock = threading.Lock()
+start_lock = threading.Lock()
 
 
 def render(finding):
@@ -73,6 +75,8 @@ def verify(out, finding):
     env = {**os.environ, "ALLOW_NETWORKED_SUBSCRIPTION": "1", "CONFIG": str(CONFIG), "DATA_DIR": str(DATA),
            "PROMPT_FILE_OVERRIDE": str(prompt)}
     log = out / "logs" / f"{fid}.log"
+    with start_lock:  # simultaneous launches race on the image build, so start them 20 seconds apart
+        time.sleep(20)
     with log.open("w") as f:
         subprocess.run(["sg", "docker", "-c", f"sandbox/docker/run_trial.sh claude {MODEL} 1"], cwd=ROOT, env=env,
                        stdout=f, stderr=subprocess.STDOUT)
