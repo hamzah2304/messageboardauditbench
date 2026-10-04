@@ -269,3 +269,39 @@ async def test_legacy_run_without_length_policy_is_unscored() -> None:
 
     assert math.isnan(score.value)
     assert score.answer == "disabled"
+
+
+def test_findings_count_blocks():
+    template = "List {{#FINDINGS_COUNT}}the {{FINDINGS_COUNT}} most important{{/FINDINGS_COUNT}}{{^FINDINGS_COUNT}}every{{/FINDINGS_COUNT}} problem."
+    assert render_prompt(template, 10, 0, 0) == "List every problem." + instruction(0, 0)
+    assert render_prompt(template, 10, 0, 0, 10) == "List the 10 most important problem." + instruction(0, 0)
+
+
+def test_render_prompt_keeps_subagent_section_only_when_allowed():
+    template = "Go.{{#SUBAGENTS}} Delegate.{{/SUBAGENTS}}{{^SUBAGENTS}} Work alone.{{/SUBAGENTS}}"
+    assert render_prompt(template, 10, 0, 0, subagents=True) == "Go. Delegate." + instruction(0, 0)
+    assert render_prompt(template, 10, 0, 0) == "Go. Work alone." + instruction(0, 0)
+
+
+def test_render_prompt_states_the_memory_limit():
+    from messageboard_audit_bench.report_length import memory_words
+
+    assert memory_words("3g") == "3 GB" and memory_words("512m") == "512 MB" and memory_words("") == "limited"
+    assert render_prompt("{{MEMORY_LIMIT}} shared.", 10, 0, 0, memory_limit="3g").startswith("3 GB shared.")
+
+
+def test_reports_up_to_ten_percent_over_are_accepted(tmp_path):
+    from messageboard_audit_bench.report_length import (
+        acceptance_limits,
+        feedback,
+        tolerated_max,
+    )
+
+    assert tolerated_max(10000) == 11000
+    assert acceptance_limits({"report_min_words": 8000, "report_max_words": 10000}) == (8000, 11000)
+    report = tmp_path / "report.md"
+    report.write_text("word " * 10500)
+    note, ok = feedback(report, 8000, 10000)
+    assert ok and "within the accepted 10%" in note
+    report.write_text("word " * 11200)
+    assert not feedback(report, 8000, 10000)[1]

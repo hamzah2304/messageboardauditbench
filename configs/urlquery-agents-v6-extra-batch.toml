@@ -1,0 +1,41 @@
+# One additional sample per model at each time limit; six in flight.
+# GPT-6 Sol also runs through the OpenRouter ReAct harness at both limits.
+max_parallel = 6
+
+[[arms]]
+config = "configs/urlquery-agents-v6-30.toml"
+replicates = 1
+models = [
+  "codex:gpt-6-astra",
+  "codex:gpt-6-sol",
+  "codex:gpt-6-luna",
+  "claude:claude-opus-5",
+  "claude:claude-opus-4-8",
+  "claude:claude-opus-4-6",
+  "claude:claude-sonnet-5-5",
+  "react:google/gemini-3.8-flash",
+  "react:meta/muse-spark-1.3",
+  "react:moonshotai/kimi-k3",
+  "react:z-ai/glm-5.3",
+  "react:deepseek/deepseek-v4-flash",
+  "react:openai/gpt-6-sol",
+]
+
+[[arms]]
+config = "configs/urlquery-agents-v6-10.toml"
+replicates = 1
+models = [
+  "codex:gpt-6-astra",
+  "codex:gpt-6-sol",
+  "codex:gpt-6-luna",
+  "claude:claude-opus-5",
+  "claude:claude-opus-4-8",
+  "claude:claude-opus-4-6",
+  "claude:claude-sonnet-5-5",
+  "react:google/gemini-3.8-flash",
+  "react:meta/muse-spark-1.3",
+  "react:moonshotai/kimi-k3",
+  "react:z-ai/glm-5.3",
+  "react:deepseek/deepseek-v4-flash",
+  "react:openai/gpt-6-sol",
+]

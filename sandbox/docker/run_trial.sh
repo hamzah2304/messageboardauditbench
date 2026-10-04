@@ -29,10 +29,12 @@ eval "$CONFIG_ASSIGNMENTS"
 REPORT_MIN_WORDS="${CFG_REPORT_MIN_WORDS:-0}"
 REPORT_MAX_WORDS="${CFG_REPORT_MAX_WORDS:-0}"
 REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
-REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$REPORT_MAX_WORDS}"
+# Default accepted maximum: 10% over the prompted one (report_length.tolerated_max).
+REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$(( REPORT_MAX_WORDS + REPORT_MAX_WORDS / 10 ))}"
 MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
 MIN_RUNTIME_FRACTION="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
-PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="$HERE/../prompts/$PROMPT_NAME.txt"
+# PROMPT_FILE_OVERRIDE is a prompt already filled in per item by a driver script; the config still names its template.
+PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="${PROMPT_FILE_OVERRIDE:-$HERE/../prompts/$PROMPT_NAME.txt}"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
 . "$HERE/resolve_timeout.sh"
 resolve_trial_time
@@ -57,6 +59,21 @@ case "$BENCHMARK_ID" in
   *) echo "unknown benchmark: $BENCHMARK_ID" >&2; exit 2 ;;
 esac
 read -r -a CLAUDE_DISALLOWED <<< "${CFG_CLAUDE_DISALLOWED_TOOLS:-}"
+# subagents = true/false is one switch for both harnesses: it sets Codex's multi-agent feature,
+# adds or removes Claude's Task/Agent tools, and keeps the prompt's {{#SUBAGENTS}} section.
+SUBAGENTS_ARG=()
+if [ -n "${CFG_SUBAGENTS:-}" ]; then
+  case "$(printf '%s' "$CFG_SUBAGENTS" | tr 'A-Z' 'a-z')" in
+    true)
+      CFG_CODEX_MULTI_AGENT=true; SUBAGENTS_ARG=(--subagents)
+      KEPT=(); for t in ${CLAUDE_DISALLOWED[@]+"${CLAUDE_DISALLOWED[@]}"}; do [ "$t" = Task ] || [ "$t" = Agent ] || KEPT+=("$t"); done
+      CLAUDE_DISALLOWED=(${KEPT[@]+"${KEPT[@]}"}) ;;
+    false)
+      CFG_CODEX_MULTI_AGENT=false
+      for t in Task Agent; do [[ " ${CLAUDE_DISALLOWED[*]-} " == *" $t "* ]] || CLAUDE_DISALLOWED+=("$t"); done ;;
+    *) echo "subagents must be true or false, got: $CFG_SUBAGENTS" >&2; exit 2 ;;
+  esac
+fi
 [ -d "$DATA_DIR" ] || { echo "no data at $DATA_DIR; run scripts/build_data.sh" >&2; exit 1; }
 # In a worktree the data files are symlinks to the primary checkout; bind-mount the real
 # directory, or the container sees dangling links to host paths.
@@ -115,8 +132,15 @@ save_sessions() {
   [ -d "$SECRETS/codex/sessions" ] && [ ! -d "$RUN/codex_sessions" ] && cp -R "$SECRETS/codex/sessions" "$RUN/codex_sessions" 2>/dev/null || true
   [ -d "$SECRETS/claude/projects" ] && [ ! -d "$RUN/claude_sessions" ] && cp -R "$SECRETS/claude/projects" "$RUN/claude_sessions" 2>/dev/null || true
 }
+# On a Linux host the container user (uid 1000) can differ from ours, so files the agent, the
+# telemetry hook or the CLI wrote under the run directory may be unreadable or undeletable here.
+# Hand them back before collecting them. Docker Desktop maps ownership itself, so this is a no-op there.
+reclaim_run_files() {
+  docker run --rm --network none --user 0 -v "$RUN:/run-dir" --entrypoint chown "$IMAGE" -R "$(id -u):$(id -g)" /run-dir >/dev/null 2>&1 || true
+}
 cleanup() {
   docker rm -f "mbab-agent-$RUN_ID" >/dev/null 2>&1 || true
+  reclaim_run_files
   [ ! -f "$RUN/tool-telemetry/events.jsonl" ] || ln -f "$RUN/tool-telemetry/events.jsonl" "$RUN/tool-events.jsonl"
   docker logs "$PROXY" > "$RUN/proxy.log" 2>&1 || true
   docker rm -f "$PROXY" >/dev/null 2>&1 || true
@@ -144,8 +168,27 @@ timeout_seconds() {
 # On a resume the follow-up message lives only in the run dir: /work/prompt.txt stays the
 # parent's original prompt, exactly as the model has seen it all along.
 PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/prompt.txt"
-python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" > "$PROMPT_OUT"
-python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" >> "$PROMPT_OUT"
+python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-limit "${CFG_MEMORY_LIMIT:-}" > "$PROMPT_OUT"
+python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" --notice "${CFG_RUNTIME_NOTICE:-}" >> "$PROMPT_OUT"
+# memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
+if [ -n "${CFG_MEMORY_LIMIT:-}" ]; then
+  # The data files larger than the limit, with their real sizes in this data variant.
+  BIG_FILES="$(python3 - "$DATA_DIR" "$CFG_MEMORY_LIMIT" <<'PY'
+import os, re, sys
+d, limit = sys.argv[1], sys.argv[2]
+n, unit = re.fullmatch(r"(\d+(?:\.\d+)?)([gGmM])", limit).groups()
+cap = float(n) * (1e9 if unit.lower() == "g" else 1e6)
+big = sorted(((os.path.getsize(os.path.join(d, f)), f) for f in os.listdir(d)
+              if os.path.isfile(os.path.join(d, f)) and os.path.getsize(os.path.join(d, f)) > cap / 10), reverse=True)
+print("; ".join(f"{f} is {s / 1e9:.1f} GB" + (" compressed" if f.endswith(".gz") else "") for s, f in big))
+PY
+)"
+  NO_WHOLE_FILES="Never"; [ -z "$BIG_FILES" ] || NO_WHOLE_FILES="Several data files are large ($BIG_FILES), so never"
+  cat >> "$PROMPT_OUT" <<MEMORY_NOTE
+
+Memory limit: your sandbox has ${CFG_MEMORY_LIMIT/g/ GB} of RAM, shared by everything running in it, including any subagents, and any command that goes over it is killed. ${NO_WHOLE_FILES} load a whole file into memory: query village.db with SQLite or stream files line by line.
+MEMORY_NOTE
+fi
 MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 [ -z "$RESUME_FROM" ] && cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
 PROMPT="$(cat "$RUN/prompt.txt")"
@@ -179,6 +222,8 @@ if [ "$AGENT" = claude ]; then
   fi
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/claude:/home/agent/.claude")
 fi
+# Optional per-config tool-output limit for Claude Code's Bash tool (characters; CLI default 30000).
+[ "$AGENT" != claude ] || [ -z "${CFG_BASH_MAX_OUTPUT_LENGTH:-}" ] || CLAUDE_ENV+=(-e "BASH_MAX_OUTPUT_LENGTH=$CFG_BASH_MAX_OUTPUT_LENGTH")
 # ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
 if [ "$AGENT" = react ]; then
@@ -191,6 +236,10 @@ if [ "$AGENT" = react ]; then
   fi
   [ -n "${OPENROUTER_API_KEY:-}" ] || { echo "no OpenRouter key: export OPENROUTER_API_KEY or write runs/.openrouter_key" >&2; exit 1; }
   REACT_ENV=(-e OPENROUTER_API_KEY)
+  if [ -n "${CFG_OPENROUTER_PROVIDER_ONLY:-}" ]; then
+    export MBAB_OPENROUTER_PROVIDER_ONLY="$CFG_OPENROUTER_PROVIDER_ONLY"
+    REACT_ENV+=(-e MBAB_OPENROUTER_PROVIDER_ONLY)
+  fi
 fi
 if [ "$AGENT" = codex ]; then
   mkdir -p "$SECRETS/codex"
@@ -200,10 +249,25 @@ if [ "$AGENT" = codex ]; then
     echo "no Codex credentials: run \`codex login\` on the host" >&2; exit 1
   fi
   # Keep the rollout for per-call token and reasoning-item auditing.
-  printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n[features]\nhooks = true\n' > "$SECRETS/codex/config.toml"
-  if [ "$BENCHMARK_ID" = urlquery ]; then
-    printf 'multi_agent = false\nmulti_agent_v2 = false\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
+  printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
+  # Optional per-config limit on how much of each tool output Codex shows the model (tokens).
+  [ -z "${CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT:-}" ] || printf 'tool_output_token_limit = %s\n' "$CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" >> "$SECRETS/codex/config.toml"
+  # Subagents: URLQuery always disables them; elsewhere `subagents` / codex_multi_agent decide.
+  MULTI_AGENT=""
+  [ -z "${CFG_CODEX_MULTI_AGENT:-}" ] || MULTI_AGENT="$(printf '%s' "$CFG_CODEX_MULTI_AGENT" | tr 'A-Z' 'a-z')"
+  [ "$BENCHMARK_ID" != urlquery ] || MULTI_AGENT=false
+  # The model catalog turns the collaboration tools (spawn_agent etc.) on per model via
+  # multi_agent_version, whatever the multi_agent feature flag says. To switch them off, point
+  # Codex at its own built-in catalog with that field removed.
+  if [ "$MULTI_AGENT" = false ]; then
+    docker run --rm --network none --entrypoint sh "$IMAGE" -c 'mkdir -p /tmp/ch && CODEX_HOME=/tmp/ch codex-real debug models 2>/dev/null' \
+      | python3 -c 'import json, sys; d = json.load(sys.stdin); [m.pop("multi_agent_version", None) for m in d["models"]]; json.dump(d, sys.stdout)' \
+      > "$SECRETS/codex/model-catalog.json"
+    printf 'model_catalog_json = "/home/agent/.codex/model-catalog.json"\n' >> "$SECRETS/codex/config.toml"
   fi
+  # Account-linked apps, plugins and browser or computer use reach outside the sandbox; always off.
+  printf '[features]\nhooks = true\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
+  [ -z "$MULTI_AGENT" ] || printf 'multi_agent = %s\nmulti_agent_v2 = %s\n' "$MULTI_AGENT" "$MULTI_AGENT" >> "$SECRETS/codex/config.toml"
   # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
   [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")
@@ -223,12 +287,15 @@ chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may 
 docker network create --internal "$NET" >/dev/null
 docker run -d --name "$PROXY" --network bridge "$IMAGE" python3 -u /sandbox/proxy.py --bind 0.0.0.0 --port 3128 --agent "$AGENT" >/dev/null
 docker network connect "$NET" "$PROXY"
+# On a busy host the proxy can take seconds to start; the canary would otherwise find its port closed.
+for _ in $(seq 60); do docker logs "$PROXY" 2>&1 | grep -q listening && break; sleep 0.5; done
 
 # The canary gets the identical network and data view, but never a credential.
 DOCKER_BASE=(--rm --network "$NET" --dns 0.0.0.0 --cap-drop ALL --security-opt no-new-privileges
   -e HTTPS_PROXY="http://$PROXY:3128" -e HTTP_PROXY="http://$PROXY:3128" -e NO_PROXY=
   -v "$RUN/work:/work" -v "$DATA_DIR:/work/data:ro" -v "$RUN/tool-telemetry:/telemetry"
   -w /work)
+[ -z "${CFG_MEMORY_LIMIT:-}" ] || DOCKER_BASE+=(--memory "$CFG_MEMORY_LIMIT" --memory-swap "$CFG_MEMORY_LIMIT")
 CANARY_ARGS=("${DOCKER_BASE[@]}" "$IMAGE")
 # The agent gets only its own credentials. The image already contains the helper scripts.
 DOCKER_ARGS=("${DOCKER_BASE[@]}" ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} ${REACT_ENV[@]+"${REACT_ENV[@]}"} ${AGENT_SECRET_MOUNTS[@]+"${AGENT_SECRET_MOUNTS[@]}"} "$IMAGE")
@@ -325,16 +392,40 @@ START=$(date +%s); set +e
 HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
 EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
-TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH")
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}")
 case "$AGENT" in
   claude)
-    record_runner_event cli_started
-    docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "$TIMEOUT" claude -p "$PROMPT" \
-      --model "$MODEL" --effort "$EFFORT" \
-      --dangerously-skip-permissions --no-chrome --setting-sources user \
-      ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
-      --output-format stream-json --verbose --include-partial-messages \
-      < /dev/null > "$RUN/transcript.jsonl" 2> "$RUN/stderr.log"; RC=$?; record_runner_event cli_finished 1 "$RC" ;;
+    CLAUDE_EARLY_RESUMES=0
+    for attempt in 1 2; do
+      remaining="$((HARD_DEADLINE - $(date +%s)))"
+      [ "$remaining" -gt 0 ] || { RC=124; break; }
+      claude_prompt="$PROMPT"
+      resume_args=()
+      if [ "$attempt" -gt 1 ]; then
+        session_id="$(jq -sr 'map(select(.type=="system" and .subtype=="init"))[0].session_id // empty' "$RUN/transcript.jsonl")"
+        [ -n "$session_id" ] || { echo "Claude ended early without a resumable session" >&2; RC=6; break; }
+        resume_args=(--resume "$session_id")
+        claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
+        CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
+        record_runner_event early_stop_resume_started "$attempt"
+      fi
+      record_runner_event cli_started "$attempt"
+      part="$RUN/transcript.part$attempt.jsonl"
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p "$claude_prompt" \
+        ${resume_args[@]+"${resume_args[@]}"} --model "$MODEL" --effort "$EFFORT" \
+        --dangerously-skip-permissions --no-chrome --setting-sources user \
+        ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
+        --output-format stream-json --verbose --include-partial-messages \
+        < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+      cat "$part" >> "$RUN/transcript.jsonl"
+      rm "$part"
+      record_runner_event cli_finished "$attempt" "$RC"
+      [ "$RC" -eq 0 ] || break
+      [ "$(date +%s)" -lt "$EARLIEST_FINISH_EPOCH" ] || break
+      grep -q '"subtype":"model_refusal_fallback"' "$RUN/transcript.jsonl" && break
+      grep -q '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" && break
+    done
+    cp "$RUN/stderr.attempt$attempt.log" "$RUN/stderr.log" 2>/dev/null || true ;;
   codex)
     # A capacity response can terminate Codex before it begins a turn. Relaunch
     # at most twice, against the original fixed deadline, and preserve attempts.
@@ -377,6 +468,7 @@ case "$AGENT" in
 esac
 set -e; END=$(date +%s)
 record_runner_event runner_finished 1 "$RC"
+reclaim_run_files
 for f in report.md final_message.md; do
   source="$RUN/work/$f"
   if [ -L "$source" ]; then
@@ -393,8 +485,9 @@ EARLY_STOP_ATTEMPTS=0
 [ -f "$RUN/runtime_policy.json" ] && EARLY_STOP_ATTEMPTS="$(jq -r '.early_finish_blocks // 0' "$RUN/runtime_policy.json" 2>/dev/null || echo 0)"
 META_TMP="$RUN/meta.runtime-policy.json"
 jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
+   --argjson early_stop_resume_attempts "${CLAUDE_EARLY_RESUMES:-0}" \
    --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
-   '. + {early_stop_attempts: $early_stop_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
+   '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
    "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 # Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
 save_sessions

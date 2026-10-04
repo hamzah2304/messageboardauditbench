@@ -45,6 +45,8 @@ uv run python scripts/run_eval.py german-wiki-report --version 9.0 -- -T agent=c
 changed, and how to run it. The pre-rename task names (`messageboard_audit_bench`,
 `urlquery_audit_bench`, ...) still work as aliases.
 
+**AI Village (in development).** An agent investigates the full AI Village logs and reports what went wrong; the answer key will come from AI Digest's write-ups. Setup, prompt, run log and notes are in [`benchmark/incidents/aivillage/`](benchmark/incidents/aivillage/README.md). Not yet a registered Inspect eval.
+
 **Drafts for future evals.** `benchmark/incidents/` also holds two draft incidents:
 Anthropic's released Mythos 5 cybersecurity transcript, and the malicious-package
 evidence cited by the RubyHack investigation. Each has a data builder, a config and a

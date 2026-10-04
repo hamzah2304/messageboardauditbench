@@ -71,6 +71,11 @@ def count_words(text: str) -> int:
     return len("".join(kept).split())
 
 
+def tolerated_max(high: int) -> int:
+    """Longest report accepted for a prompted maximum: 10% over, so agents need not trim to the word."""
+    return high + high // 10
+
+
 def limits(cfg: dict) -> tuple[int, int]:
     low, high = cfg.get("report_min_words", 0), cfg.get("report_max_words", 0)
     if any(type(value) is not int or value < 0 for value in (low, high)):
@@ -88,7 +93,7 @@ def acceptance_limits(cfg: dict) -> tuple[int, int]:
     """Return recorded scoring bounds, preserving the policy of older runs."""
     low, high = limits(cfg)
     minimum = cfg.get("report_accept_min_words", low)
-    maximum = cfg.get("report_accept_max_words", high)
+    maximum = cfg.get("report_accept_max_words", tolerated_max(high))
     if (
         any(type(value) is not int or value < 0 for value in (minimum, maximum))
         or minimum > maximum
@@ -141,8 +146,31 @@ def instruction(low: int, high: int) -> str:
     )
 
 
-def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
-    """Render shared config values without duplicating embedded length prose."""
+def memory_words(limit: str) -> str:
+    """Docker-style memory limit ("3g", "512m") as prose; "limited" when none is set."""
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([gGmM])[bB]?\s*", limit or "")
+    if not match:
+        return "limited"
+    return f"{match.group(1)} {'GB' if match.group(2).lower() == 'g' else 'MB'}"
+
+
+def render_prompt(
+    template: str,
+    budget_min: int,
+    low: int,
+    high: int,
+    findings_count: int = 0,
+    subagents: bool = False,
+    memory_limit: str = "",
+) -> str:
+    """Render shared config values without duplicating embedded length prose.
+
+    `{{#FINDINGS_COUNT}}...{{/FINDINGS_COUNT}}` is kept only when a fixed number of findings
+    is configured, `{{^FINDINGS_COUNT}}...{{/FINDINGS_COUNT}}` only when it is not.
+    `{{#SUBAGENTS}}...{{/SUBAGENTS}}` is kept only when the config allows subagents,
+    `{{^SUBAGENTS}}...{{/SUBAGENTS}}` only when it does not. `{{MEMORY_LIMIT}}` becomes the
+    sandbox memory in words ("3g" -> "3 GB").
+    """
     embedded_length = "{{#REPORT_LENGTH}}" in template
     text = re.sub(
         r"\{\{#REPORT_LENGTH\}\}(.*?)\{\{/REPORT_LENGTH\}\}",
@@ -150,10 +178,20 @@ def render_prompt(template: str, budget_min: int, low: int, high: int) -> str:
         template,
         flags=re.DOTALL,
     )
+    text = re.sub(r"\{\{#FINDINGS_COUNT\}\}(.*?)\{\{/FINDINGS_COUNT\}\}",
+                  lambda match: match.group(1) if findings_count else "", text, flags=re.DOTALL)
+    text = re.sub(r"\{\{\^FINDINGS_COUNT\}\}(.*?)\{\{/FINDINGS_COUNT\}\}",
+                  lambda match: "" if findings_count else match.group(1), text, flags=re.DOTALL)
+    text = re.sub(r"\{\{#SUBAGENTS\}\}(.*?)\{\{/SUBAGENTS\}\}",
+                  lambda match: match.group(1) if subagents else "", text, flags=re.DOTALL)
+    text = re.sub(r"\{\{\^SUBAGENTS\}\}(.*?)\{\{/SUBAGENTS\}\}",
+                  lambda match: "" if subagents else match.group(1), text, flags=re.DOTALL)
     for token, value in {
         "BUDGET_MIN": str(budget_min),
         "REPORT_MIN_WORDS": f"{low:,}",
         "REPORT_MAX_WORDS": f"{high:,}",
+        "FINDINGS_COUNT": str(findings_count),
+        "MEMORY_LIMIT": memory_words(memory_limit),
     }.items():
         text = text.replace("{{" + token + "}}", value)
     return text if embedded_length else text + instruction(low, high)
@@ -188,15 +226,17 @@ def describe_count(text: str, low: int, high: int) -> str:
         status = "empty report"
     elif count < low:
         status = "below the suggested range"
+    elif count > tolerated_max(high):
+        status = f"ABOVE the accepted maximum; remove at least {count - tolerated_max(high):,} words"
     elif count > high:
-        status = f"ABOVE maximum; remove at least {count - high:,} words"
+        status = "slightly above the target, within the accepted 10%"
     else:
         status = "within range"
     tldr = tldr_words(text)
     tldr_note = "" if tldr is None else f" TL;DR: {tldr:,} words (limit 200)."
     return (
-        f"Report length: {count:,} words; target {low:,}–{high:,}; strict upper "
-        f"limit {high:,}; {status}.{tldr_note}"
+        f"Report length: {count:,} words; target {low:,}–{high:,}; up to "
+        f"{tolerated_max(high):,} accepted; {status}.{tldr_note}"
     )
 
 
@@ -212,7 +252,7 @@ def feedback(path: Path, low: int, high: int) -> tuple[str, bool]:
             f"{low:,}–{high:,} words.",
             True,
         )
-    return describe_count(text, low, high), count_words(text) <= high
+    return describe_count(text, low, high), count_words(text) <= tolerated_max(high)
 
 
 def overlong_feedback(path: Path, low: int, high: int) -> str:
@@ -322,6 +362,9 @@ def main() -> None:
     parser.add_argument("--instruction", action="store_true")
     parser.add_argument("--template", type=Path)
     parser.add_argument("--budget-min", type=int, default=20)
+    parser.add_argument("--findings-count", type=int, default=0)
+    parser.add_argument("--subagents", action="store_true")
+    parser.add_argument("--memory-limit", default="")
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
     parser.add_argument("--always", action="store_true")
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
@@ -338,7 +381,7 @@ def main() -> None:
     )
     if args.template:
         print(
-            render_prompt(args.template.read_text(), args.budget_min, low, high),
+            render_prompt(args.template.read_text(), args.budget_min, low, high, args.findings_count, args.subagents, args.memory_limit),
             end="",
         )
     elif args.instruction:

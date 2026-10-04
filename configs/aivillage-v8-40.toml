@@ -1,0 +1,23 @@
+# AI Village eval with prompt aivillage-v8 (v3.13): 20 ranked findings, stronger push for breadth, larger
+# tool outputs (about 50,000 characters), no subagents. Full logs without reasoning traces, 40 minutes, medium effort.
+# The subagent condition is aivillage-v8-40-subagents.toml; otherwise identical.
+name = "aivillage-v8-40"
+prompt = "aivillage-v8"
+budget_min = 40
+timeout_min = 45
+data_variant = "aivillage/full-v2-noreasoning"
+effort = "medium"
+findings_count = 20
+claude_cli_version = "2.1.283"
+codex_cli_version = "0.160.0"
+min_runtime_fraction = 0.9
+bash_max_output_length = 50000
+codex_tool_output_token_limit = 12500
+codex_multi_agent = false
+early_stop_note = "Use the remaining time for breadth: examine goal periods you have not looked at or covered thinly, and replace weaker findings with more important ones you discover."
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Agent", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+report_min_words = 5000
+report_max_words = 6000
+report_accept_min_words = 0
+report_accept_max_words = 6200
+memory_limit = "3g"

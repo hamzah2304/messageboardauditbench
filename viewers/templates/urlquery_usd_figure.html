@@ -38,20 +38,20 @@ const groups=names.map(label=>({label, provider:D.runs.find(r=>r.label===label).
   budgets:[10,30].map(b=>{const runs=D.runs.filter(r=>r.label===label&&r.budget_min===b);
     return {b,runs,cost:runs.every(r=>r.cost_usd!=null)?mean(runs.map(r=>r.cost_usd)):null,score:runs.every(r=>r.performance!=null)?mean(runs.map(r=>r.performance)):null}})}));
 const complete=D.runs.filter(r=>r.status==='complete').length, scored=D.runs.filter(r=>r.performance!=null).length;
-document.getElementById('summary').textContent=`Final v6 run · ${complete} valid reports · ${D.excluded_runs.length} excluded · ${scored} performance values · ${D.finding_count??12} findings. Hollow and filled marks distinguish the two time budgets. Judge: ${D.grade_source?.judge??'pending'}.`;
+document.getElementById('summary').textContent=`${D.figure_subtitle??'Final v6 run'} · ${complete} valid reports · ${D.excluded_runs.length} excluded · ${scored} performance values · ${D.finding_count??12} findings. Hollow and filled marks distinguish the two time budgets. Judge: ${D.grade_source?.judge??'pending'}.`;
 const missingCost=D.runs.filter(r=>r.status==='complete'&&r.cost_usd==null);
 document.getElementById('costnote').textContent=D.cost_note+(missingCost.length?` ${missingCost.length} completed run(s) lack a reliable USD cost; the corresponding model-budget points are omitted.`:'')+' OpenAI price source: '+D.openai_price_source;
 const hasPending=groups.some(g=>g.budgets.some(q=>q.runs.length&&q.score==null));
 if(!hasPending)svg.setAttribute('viewBox','0 0 990 490');
 const el=(tag,attrs={},parent=svg)=>{let node=document.createElementNS(N,tag);for(let [k,v] of Object.entries(attrs))node.setAttribute(k,v);parent.appendChild(node);return node};
 const label=(x,y,t,attrs={})=>{let a=el('text',{x,y,...attrs});a.textContent=t;return a};
-const lo=.03,hi=20,yLo=.15,yHi=.55;
+const lo=.03,hi=20,yLo=0,yHi=.6;
 const left=180,right=740,plotTop=35,bottom=400,strip1=445,strip2=470;
 const X=x=>left+(Math.log(x/lo)/Math.log(hi/lo))*(right-left),Y=y=>bottom-(y-yLo)/(yHi-yLo)*(bottom-plotTop);
 for(let p=Math.ceil(Math.log10(lo));p<=Math.floor(Math.log10(hi));p++){
   let x=X(10**p);el('line',{x1:x,x2:x,y1:plotTop,y2:hasPending?strip2+10:bottom,class:'grid'});label(x,hasPending?strip2+27:bottom+27,'$'+(10**p),{'text-anchor':'middle',class:'tick'});
 }
-for(let v=.2;v<=.5001;v+=.1){let y=Y(v);el('line',{x1:left,x2:right,y1:y,y2:y,class:'grid'});label(left-12,y+4,v.toFixed(2),{'text-anchor':'end',class:'tick'})}
+for(let i=0;i<=6;i++){let v=i/10,y=Y(v);el('line',{x1:left,x2:right,y1:y,y2:y,class:'grid'});label(left-12,y+4,v.toFixed(2),{'text-anchor':'end',class:'tick'})}
 el('line',{x1:left,x2:right,y1:bottom,y2:bottom,class:'axis'});label(18,plotTop+120,'Performance (0–1)',{transform:'rotate(-90 18 '+(plotTop+120)+')'});
 label((left+right)/2,hasPending?strip2+53:bottom+53,'Estimated cost per run (USD, log scale)',{'text-anchor':'middle'});
 if(hasPending){label(left,strip1-12,'Pending grades');label(left-12,strip1+4,'10 min',{'text-anchor':'end'});label(left-12,strip2+4,'30 min',{'text-anchor':'end'})}
@@ -65,7 +65,7 @@ for(const g of groups){const c=colors[g.provider], [a,b]=g.budgets;
 }
 const labelled=groups.filter(g=>g.budgets[1].score!=null&&g.budgets[1].cost!=null).sort((a,b)=>b.budgets[1].score-a.budgets[1].score);
 const leftNames=new Set(['DeepSeek V4 Flash','GPT-6 Luna','Muse Spark 1.3','Sonnet 5','Opus 4.6']);
-const labelKey=D.finding_count===13?'urlquery-v6-usd-rescored-labels-v1':'urlquery-v6-usd-labels-v1';
+const labelKey=D.label_storage_key??(D.finding_count===13?'urlquery-v6-usd-rescored-labels-v1':'urlquery-v6-usd-labels-v1');
 let savedLabels={};try{savedLabels=JSON.parse(localStorage.getItem(labelKey)||'{}')}catch{}
 const labelNodes=[];
 for(const side of ['left','right']){
@@ -95,7 +95,7 @@ document.getElementById('reset-labels').addEventListener('click',()=>{try{localS
 const tbody=document.getElementById('rows');
 for(const g of groups){let tr=document.createElement('tr'),[a,b]=g.budgets;
   let cells=[g.label,a.runs.length?fmt(a.cost):'excluded',a.runs.length?(a.score==null?'pending':a.score.toFixed(3)):'excluded',b.runs.length?fmt(b.cost):'excluded',b.runs.length?(b.score==null?'pending':b.score.toFixed(3)):'excluded',
-    `${a.runs.concat(b.runs).filter(r=>r.status==='complete').length}/4`];
+    `${a.runs.concat(b.runs).filter(r=>r.status==='complete').length}/${D.expected_reports_by_model?.[g.label]??D.expected_reports_per_model??4}`];
   cells.forEach((v,i)=>{let td=document.createElement('td');td.textContent=v;if(i===0){let s=document.createElement('span');s.className='swatch';s.style.background=colors[g.provider];td.prepend(s)}if(v==='pending')td.className='pending';tr.append(td)});tbody.append(tr)
 }
 </script></main></body></html>

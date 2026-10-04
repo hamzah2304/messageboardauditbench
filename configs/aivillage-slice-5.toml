@@ -1,0 +1,17 @@
+# Quick check of the AI Village setup on a one-week slice (27 Oct - 1 Nov 2025). Otherwise as aivillage-10: logs without reasoning traces, prompt aivillage-v7,
+# exactly 10 findings, 10 minutes, medium effort. See benchmark/incidents/aivillage/README.md.
+name = "aivillage-slice-5"
+prompt = "aivillage-v7"
+budget_min = 5
+timeout_min = 10
+data_variant = "aivillage/slice-v2-noreasoning"
+effort = "medium"
+findings_count = 10
+claude_cli_version = "2.1.283"
+codex_cli_version = "0.160.0"
+min_runtime_fraction = 0.9
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Agent", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+report_min_words = 2500
+report_max_words = 3000
+report_accept_min_words = 0
+report_accept_max_words = 3200

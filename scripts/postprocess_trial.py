@@ -39,11 +39,11 @@ def _terminal_refusal(events: list[dict]) -> bool:
     if not events:
         return False
     final = events[-1]
-    if final.get("type") == "result" and final.get("stop_reason") in {
-        "refusal",
-        "content_filter",
-    }:
-        return True
+    if final.get("type") == "result":
+        if final.get("stop_reason") in {"refusal", "content_filter"}:
+            return True
+        if final.get("subtype") == "success" and final.get("is_error") is False:
+            return False
     if any(event.get("subtype") == "model_refusal_no_fallback" for event in events):
         return True
     # The custom ReAct transcript ends with a synthetic result after the
@@ -114,6 +114,8 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
         meta["model_refusal"] = {"events": 1, "terminal": True}
         returncode = 5
         meta["exit_code"] = returncode
+    else:
+        meta.pop("model_refusal", None)
 
     if meta.get("benchmark_id") == "urlquery":
         runner_path = run / "runner-events.jsonl"

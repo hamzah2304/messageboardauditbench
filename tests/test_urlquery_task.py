@@ -196,10 +196,12 @@ def test_native_urlquery_builds_the_pinned_clis_and_codex_lockdown(monkeypatch):
 
 def test_codex_lockdown_matches_the_subscription_runner():
     runner = (ROOT / "sandbox/docker/run_trial.sh").read_text()
-    line = next(x for x in runner.splitlines() if "multi_agent = false" in x)
-    # printf 'multi_agent = false\nmulti_agent_v2 = false\n...': split on the literal \n.
-    names = [part.split(" = ")[0].strip(" '") for part in line.split("printf", 1)[1].split("\\n") if " = false" in part]
-    assert tuple(names) == benchmarks.URLQUERY_CODEX_FEATURES_OFF
+    # URLQuery forces MULTI_AGENT=false, which the runner writes as multi_agent/multi_agent_v2; the
+    # always-off features are one printf line: printf '[features]\nhooks = true\napps = false\n...'.
+    assert '[ "$BENCHMARK_ID" != urlquery ] || MULTI_AGENT=false' in runner
+    line = next(x for x in runner.splitlines() if "apps = false" in x)
+    off = [part.split(" = ")[0].strip(" '") for part in line.split("printf", 1)[1].split("\\n") if " = false" in part]
+    assert ("multi_agent", "multi_agent_v2", *off) == benchmarks.URLQUERY_CODEX_FEATURES_OFF
 
 
 def test_scorer_defaults_the_article_by_transport():

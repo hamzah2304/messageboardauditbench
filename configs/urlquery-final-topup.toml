@@ -1,0 +1,27 @@
+# Fill the remaining eligible v6 cells to three reports per budget.
+# Existing valid ungraded reports cover one Opus 5 10-minute, two Sonnet 5.5
+# 10-minute, and one GLM 5.3 10-minute slot.
+max_parallel = 6
+
+[[arms]]
+config = "configs/urlquery-agents-v6-30.toml"
+replicates = 1
+models = [
+  "react:google/gemini-3.8-flash",
+  "claude:claude-opus-4-8",
+  "claude:claude-opus-5",
+  "claude:claude-sonnet-5-5",
+]
+
+[[arms]]
+config = "configs/urlquery-agents-v6-30.toml"
+replicates = 1
+models = [
+  "claude:claude-opus-5",
+  "claude:claude-sonnet-5-5",
+]
+
+[[arms]]
+config = "configs/urlquery-agents-v6-10.toml"
+replicates = 1
+models = ["react:z-ai/glm-5.3"]
