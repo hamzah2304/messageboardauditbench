@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot AI Village answer-key score against cost per run and against Epoch's ECI.
+"""Plot AI Village score against cost per run and against Epoch's ECI.
 
 The cost figure shows runs with and without subagents; the ECI figure shows
 runs without subagents only, for models Epoch has scored (eci_snapshot.json).
@@ -198,7 +198,7 @@ def main() -> None:
     n_findings = len(grades["reports"][0]["scores"])
     judge = f"{grades.get('model')}, {grades.get('effort')} reasoning"
     score = (f"Score: mean of each report's {TOP_K} best finding scores against the "
-             f"{n_findings}-finding answer key (judge {judge}, no contradiction penalties).")
+             f"{n_findings}-finding rubric (judge {judge}, no contradiction penalties).")
     y_label = f"score (mean of best {TOP_K} of {n_findings} findings)"
     gs = groups(rows)
     args.out.mkdir(parents=True, exist_ok=True)
@@ -209,7 +209,7 @@ def main() -> None:
         x_axis={"log": True, "min": 0.1, "max": 100, "ticks": [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100],
                 "prefix": "$", "format": "${:.2f}",
                 "label": "estimated cost per run, USD at list price (log scale)"},
-        title="AI Village Score vs Cost", aria="AI Village answer-key score against cost per run, with and without subagents",
+        title="AI Village Score vs Cost", aria="AI Village score against cost per run, with and without subagents",
         caption=(f"AI Village, 30 minutes. {score} Cost per run at list prices, subagents included. "
                  "Each mark is the mean of two runs; dashed lines join a model's runs without and with subagents."),
         y_label=y_label, x_head="Cost",
@@ -225,7 +225,7 @@ def main() -> None:
         gs, xs, ECI_LABELS,
         x_axis={"log": False, "min": 144, "max": 172, "ticks": list(range(144, 173, 4)), "prefix": "",
                 "format": "{:.1f}", "label": f"Epoch Capabilities Index (ECI), retrieved {eci['retrieved']}"},
-        title="AI Village Score vs ECI", aria="AI Village answer-key score against Epoch Capabilities Index, runs without subagents",
+        title="AI Village Score vs ECI", aria="AI Village score against Epoch Capabilities Index, runs without subagents",
         caption=(f"AI Village, 30 minutes, runs without subagents. {score} Each mark is the mean of two runs; "
                  "the faint bar is Epoch's 95% interval for the model's ECI. "
                  f"Not shown: {' and '.join(missing)}, which Epoch has not scored."),

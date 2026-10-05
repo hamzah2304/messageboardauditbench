@@ -3,18 +3,18 @@
 **TL;DR**
 
 - **Task.** An AI agent (a "slopvestigator") gets the full logs of the [AI Village](https://theaidigest.org/village), where frontier agents share a chat, run their own computers and pursue goals (April 2025 to September 2026). With 30 minutes and no internet, it writes a report on the 20 most important things that went wrong.
-- **Answer key.** 96 failures that people wrote about in AI Digest's posts, on X and on Discord, each checked against the logs.
+- **Rubric.** 96 findings: failures that people wrote about in AI Digest's posts, on X and on Discord, each checked against the logs.
 - **Result.** Reports score 16% to 68% (mean 36%). GPT-6 Astra and GPT-6.1 Sol with subagents score best (57% and 55%). Subagents raised the score for five of the six models that could use them.
 
-![The pipeline: people wrote about the Village and we turned their write-ups into 96 findings; an agent investigates the same logs and writes a report; a judge scores which findings the report covers.](benchmark/incidents/aivillage/figures/pipeline.png)
+![The pipeline: people wrote about the Village and we turned their write-ups into a rubric of 96 findings; an agent investigates the same logs and writes a report; a judge scores which findings the report covers.](benchmark/incidents/aivillage/figures/pipeline.png)
 
 ## How it works
 
-1. **Answer key.** A model extracted failures from 18 Substack posts, 157 X posts and Discord threads. We merged duplicates, had an agent check each one against the logs, and kept the 96 the logs support ([`findings/`](benchmark/incidents/aivillage/findings/)).
+1. **Rubric.** A model extracted failures from 18 Substack posts, 157 X posts and Discord threads. We merged duplicates, had an agent check each one against the logs, and kept the 96 the logs support ([`findings/`](benchmark/incidents/aivillage/findings/)).
 2. **Investigation.** The agent runs in a sandbox with the logs read-only and no internet, through Claude Code, Codex, or a minimal tool loop for OpenRouter models. Claude and Codex runs are done with and without subagents. The prompt is [`sandbox/prompts/aivillage-v12.txt`](sandbox/prompts/aivillage-v12.txt).
-3. **Grading.** A judge model (GPT-6.1 Sol) scores each of the 96 key findings from 0 to 1 for how fully the report states it ([`judge-prompt-v8.txt`](benchmark/incidents/aivillage/judge-prompt-v8.txt)).
+3. **Grading.** A judge model (GPT-6.1 Sol) scores each of the 96 rubric findings from 0 to 1 for how fully the report states it ([`judge-prompt-v8.txt`](benchmark/incidents/aivillage/judge-prompt-v8.txt)).
 
-**The score.** A report's score is the mean of its 20 best finding scores. The report lists 20 findings, so fully stating 20 different key findings scores 100%, and the 76 it had no room for don't count against it. Averaging all 96 instead ranks the reports almost identically; that number is in [`results/`](benchmark/incidents/aivillage/results/) as "coverage".
+**The score.** A report's score is the mean of its 20 best finding scores. The report lists 20 findings, so fully stating 20 different rubric findings scores 100%, and the 76 it had no room for don't count against it. Averaging all 96 instead ranks the reports almost identically; that number is in [`results/`](benchmark/incidents/aivillage/results/) as "coverage".
 
 ## Results
 
@@ -33,7 +33,7 @@ Cost per run is at list prices and includes subagents. GPT-6.1 Sol with subagent
 
 Runs without subagents against the Epoch Capabilities Index (ECI). GPT-6.1 Sol and GPT-6 Luna have no ECI yet.
 
-**Limits.** Two reports per model and condition, and they often differ as much as models do. The judge is also one of the tested models. The score only measures how much of the key a report covers; checks for false claims and for real failures the key lacks are not built yet.
+**Limits.** Two reports per model and condition, and they often differ as much as models do. The judge is also one of the tested models. The score only measures how much of the rubric a report covers; checks for false claims and for real failures the rubric lacks are not built yet.
 
 ## Run it
 

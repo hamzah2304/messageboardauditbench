@@ -37,7 +37,7 @@ def main(src: str, dst: str) -> None:
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" font-family="Liberation Sans, Arial, sans-serif">',
            f'<rect width="{width}" height="{height}" fill="{SURFACE}"/>',
            f'<text x="24" y="34" font-size="19" font-weight="600" fill="{INK}">Five of the six models that could use subagents scored higher with them</text>',
-           f'<text x="24" y="58" font-size="13.5" fill="{MUTED}">Mean of each report’s 20 best scores against the 96-finding key; one dot per report, bar = mean of two</text>']
+           f'<text x="24" y="58" font-size="13.5" fill="{MUTED}">Mean of each report’s 20 best scores against the 96-finding rubric; one dot per report, bar = mean of two</text>']
     for v in range(0, xmax + 1, 10):
         out.append(f'<line x1="{x(v)}" y1="{top - 10}" x2="{x(v)}" y2="{top + row_h * len(order)}" stroke="{GRID}"/>')
         out.append(f'<text x="{x(v)}" y="{top + row_h * len(order) + 20}" font-size="12" fill="{MUTED}" text-anchor="middle">{v}%</text>')
