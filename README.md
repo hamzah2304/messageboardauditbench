@@ -6,6 +6,8 @@
 - **Answer key.** 96 failures that people wrote about in AI Digest's posts, on X and on Discord, each checked against the logs.
 - **Result.** Reports score 16% to 68% (mean 36%). GPT-6 Astra and GPT-6.1 Sol with subagents score best (57% and 55%). Subagents raised the score for five of the six models that could use them.
 
+![The pipeline: people wrote about the Village and we turned their write-ups into 96 findings; an agent investigates the same logs and writes a report; a judge scores which findings the report covers.](benchmark/incidents/aivillage/figures/pipeline.png)
+
 ## How it works
 
 1. **Answer key.** A model extracted failures from 18 Substack posts, 157 X posts and Discord threads. We merged duplicates, had an agent check each one against the logs, and kept the 96 the logs support ([`findings/`](benchmark/incidents/aivillage/findings/)).
@@ -15,8 +17,6 @@
 **The score.** A report's score is the mean of its 20 best finding scores. The report lists 20 findings, so fully stating 20 different key findings scores 100%, and the 76 it had no room for don't count against it. Averaging all 96 instead ranks the reports almost identically; that number is in [`results/`](benchmark/incidents/aivillage/results/) as "coverage".
 
 ## Results
-
-![Score per report, by model, with and without subagents.](benchmark/incidents/aivillage/figures/scores_by_report.png)
 
 | | Score |
 |---|---|
