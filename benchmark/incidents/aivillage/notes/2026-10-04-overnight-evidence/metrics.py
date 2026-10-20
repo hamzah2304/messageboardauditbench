@@ -1,7 +1,7 @@
 """Per-run metrics for the 4 Oct AI Village v8-40 batch. Usage: metrics.py > metrics.json"""
 import glob, json, os, re, subprocess, sys
 from datetime import datetime
-ROOT = '/home/oscar_gilg18/Dev/MessageBoardAuditBench/.worktrees/claude-aivillage-pilot'
+ROOT = os.path.dirname(os.path.abspath(__file__)) + '/../../../../..'  # repo root
 os.chdir(ROOT)
 rows = []
 for d in sorted(glob.glob('runs/20261004T0[6-9]*_aivillage-v8-40*') + glob.glob('runs/20261004T1*_aivillage-v8-40*')):

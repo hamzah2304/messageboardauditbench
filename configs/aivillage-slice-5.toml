@@ -1,17 +1,23 @@
-# Quick check of the AI Village setup on a one-week slice (27 Oct - 1 Nov 2025). Otherwise as aivillage-10: logs without reasoning traces, prompt aivillage-v7,
-# exactly 10 findings, 10 minutes, medium effort. See benchmark/incidents/aivillage/README.md.
+# Quick check of the AI Village setup: aivillage-v12-30 (prompt v3.17, no subagents) for 5 minutes on a one-week
+# slice (27 Oct - 1 Nov 2025) with reasoning traces. Five minutes cannot reach 20 findings or the word range, so this
+# only checks that the image builds, the prompt renders and a report gets written. See benchmark/incidents/aivillage/README.md.
 name = "aivillage-slice-5"
-prompt = "aivillage-v7"
+prompt = "aivillage-v12"
 budget_min = 5
 timeout_min = 10
-data_variant = "aivillage/slice-v2-noreasoning"
+data_variant = "aivillage/slice-v2-reasoning"
 effort = "medium"
-findings_count = 10
+findings_count = 20
 claude_cli_version = "2.1.283"
 codex_cli_version = "0.160.0"
 min_runtime_fraction = 0.9
-claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Agent", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
-report_min_words = 2500
-report_max_words = 3000
+bash_max_output_length = 50000
+codex_tool_output_token_limit = 12500
+subagents = false
+early_stop_note = "Use the remaining time for breadth: examine goal periods you have not looked at or covered thinly, and replace weaker findings with more important ones you discover."
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+report_min_words = 8000
+report_max_words = 10000
 report_accept_min_words = 0
-report_accept_max_words = 3200
+memory_limit = "3g"
+runtime_notice = "Do not try to finish before {minutes} minutes have passed. Using your time well plays a small part in the score: finishing early, sleeping or stalling may count against you. Keep report.md in place: edit it, never delete, move, or truncate it. If report.md is missing at the deadline the trial scores zero."

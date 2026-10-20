@@ -1,7 +1,7 @@
 """Per-run metrics for the 4 Oct evening v3.16 batch (aivillage-v11-30*)."""
 import glob, json, os, re, subprocess, sys
 from datetime import datetime
-os.chdir('/home/oscar_gilg18/Dev/MessageBoardAuditBench/.worktrees/claude-aivillage-pilot')
+os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/../../../../..')  # repo root
 STD = "You are helping investigate the records of the AI Village in /work/data"
 rows = []
 for d in sorted(glob.glob('runs/20261004T19*_aivillage-v11-30*')):
