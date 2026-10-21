@@ -39,6 +39,35 @@ def _index(folder: Path) -> dict[str, dict]:
     return {r["graded_input"]: r for r in rows if r.get("graded_input")}
 
 
+def run_samples(benchmark_id: str, pattern: str) -> list[Sample]:
+    """One sample per run directory matching `pattern` under the benchmark's run root.
+
+    Shared by the grade tasks: the report is the input, and the run record's model, budget,
+    replicate and eligibility (slopvestigator_bench/eligibility.py) ride along as metadata.
+    Runs without a report are skipped here; the results table counts them as failures.
+    """
+    from slopvestigator_bench import eligibility
+    from slopvestigator_bench.benchmarks import SPECS, primary_root
+
+    samples = []
+    for run_dir in sorted((primary_root() / SPECS[benchmark_id].run_root).glob(pattern)):
+        if not (run_dir / "report.md").is_file():
+            continue
+        meta = json.loads((run_dir / "meta.json").read_text()) if (run_dir / "meta.json").is_file() else {}
+        if meta.get("benchmark_id"):  # older AI Village runs predate the field
+            reject_foreign_grading(meta["benchmark_id"], benchmark_id)
+        verdict = eligibility.check_meta(meta)
+        samples.append(Sample(
+            input=(run_dir / "report.md").read_text(), id=core.sanitise(run_dir.name),
+            metadata={"run": run_dir.name, "title": run_dir.name, "run_dir": str(run_dir),
+                      "data_variant": meta.get("data_variant"), "model": meta.get("model"),
+                      "model_served": meta.get("model_served"), "agent": meta.get("agent"),
+                      "config": meta.get("config"), "budget_min": meta.get("budget_min"),
+                      "replicate": meta.get("replicate"), "eligible": verdict.eligible,
+                      "ineligible_reasons": list(verdict.reasons)}))
+    return samples
+
+
 @solver
 def report_from_sample():
     """The report is the input; there is no agent to run."""
@@ -57,11 +86,16 @@ def _german_wiki_report_grade(
     rubric: str = "v2",
     judge: str = "openai/gpt-5.6-sol",
     variant: str | None = None,
+    runs: str | None = None,
+    judge_effort: str | None = None,
 ) -> Task:
-    """Grade every staged report in `dir` against `rubric`.
+    """Grade every staged report in `dir` (or every run matching `runs`) against `rubric`.
 
     Args:
       dir: a folder under benchmarks/german-wiki/graded_inputs/, or an absolute path.
+      runs: instead of `dir`, a glob of run directories under the primary checkout's runs/
+        (e.g. ``*_wiki-std-30_*``); each run's own data variant picks its rubric variant.
+      judge_effort: one reasoning effort for every sheet; unset, xhigh then high then medium.
       rubric: a key of `core.MODES`, such as "v2", "tldrh", "m5",
         "m5tldrh", "rh", or "rhtldrh".
       variant: explicit rubric variant for reports without an index; indexed
@@ -69,6 +103,11 @@ def _german_wiki_report_grade(
       judge: Inspect model used to grade. As on the audit task, a ``grader``
         model role supplied to Inspect takes precedence over this value.
     """
+    if runs:
+        samples = run_samples("messageboard", runs)
+        if not samples:
+            raise RuntimeError(f"no German wiki runs with a report match {runs!r}")
+        return _german_wiki_grade_task(samples, rubric, judge, variant, judge_effort, {"runs": runs})
     folder = staged_dir(dir)
     core.require_original_benchmark_folder(folder)
     rows = _index(folder)
@@ -96,10 +135,14 @@ def _german_wiki_report_grade(
         )
     if not samples:
         raise RuntimeError(f"no reports in {folder}")
+    return _german_wiki_grade_task(samples, rubric, judge, variant, judge_effort, {"staged_dir": folder.name})
+
+
+def _german_wiki_grade_task(samples, rubric, judge, variant, effort, source: dict) -> Task:
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=sheet_scorer(rubric=rubric, judge=judge, variant=variant),
+        scorer=sheet_scorer(rubric=rubric, judge=judge, variant=variant, effort=effort),
         model="mockllm/model",
         metadata={
             "benchmark": "German wiki report",
@@ -107,7 +150,8 @@ def _german_wiki_report_grade(
             "mode": "grading",
             "rubric": rubric,
             "judge": judge,
-            "staged_dir": folder.name,
+            "judge_effort": effort,
+            **source,
         },
     )
 
@@ -192,6 +236,7 @@ def aivillage_report_grade(
     dir: str | None = None,  # noqa: A002 — named like german_wiki_report_grade's
     judge: str | None = None,
     data_variant: str = "aivillage/full-v2-reasoning",
+    judge_effort: str | None = None,
 ) -> Task:
     """Grade finished AI Village reports against the 96 rubric findings.
 
@@ -206,22 +251,18 @@ def aivillage_report_grade(
       data_variant: the data the reports were written from, for ``dir`` reports; run
         directories record their own. It sets the goal periods and whether the judge is
         told the investigator saw reasoning traces.
+      judge_effort: the judge's reasoning effort; ``medium`` as published, ``high`` in the standard condition.
     """
-    from slopvestigator_bench.benchmarks import SPECS, primary_root
-    from slopvestigator_bench.grading.aivillage import aivillage_scorer
+    from slopvestigator_bench.benchmarks import SPECS
+    from slopvestigator_bench.grading.aivillage import EFFORT, aivillage_scorer
 
     if bool(runs) == bool(dir):
         raise ValueError("pass exactly one of runs or dir")
     samples = []
     if runs:
-        for run_dir in sorted((primary_root() / SPECS["aivillage"].run_root).glob(runs)):
-            if not (run_dir / "report.md").is_file():
-                continue
-            meta = json.loads((run_dir / "meta.json").read_text()) if (run_dir / "meta.json").is_file() else {}
-            samples.append(Sample(input=(run_dir / "report.md").read_text(), id=run_dir.name,
-                                  metadata={"run": run_dir.name, "title": run_dir.name, "run_dir": str(run_dir),
-                                            "data_variant": meta.get("data_variant", data_variant),
-                                            "model": meta.get("model"), "agent": meta.get("agent")}))
+        samples = run_samples("aivillage", runs)
+        for sample in samples:
+            sample.metadata["data_variant"] = sample.metadata["data_variant"] or data_variant
     else:
         folder = Path(dir) if Path(dir).is_absolute() else repo_root() / dir
         for path in sorted(folder.glob("*.md")):
@@ -232,7 +273,8 @@ def aivillage_report_grade(
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=aivillage_scorer(judge=judge),
+        scorer=aivillage_scorer(judge=judge, effort=judge_effort or EFFORT),
         model="mockllm/model",
-        metadata={"benchmark": SPECS["aivillage"].title, "benchmark_id": "aivillage", "mode": "grading", "judge": judge},
+        metadata={"benchmark": SPECS["aivillage"].title, "benchmark_id": "aivillage", "mode": "grading",
+                  "judge": judge, "judge_effort": judge_effort or EFFORT},
     )

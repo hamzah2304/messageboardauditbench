@@ -32,6 +32,7 @@ from inspect_ai.solver import TaskState
 
 from slopvestigator_bench.benchmarks import urlquery_manifest
 from slopvestigator_bench.grading import findings as fj
+from slopvestigator_bench.grading import judge as judging
 from slopvestigator_bench.grading.core import judge_name
 
 
@@ -78,8 +79,8 @@ async def grade_finding(model: Model, effort: str, headline: str, subs: list[str
     attempts = fj.TRANSPORTS[fj.transport(str(model))]["attempts"]
     try:
         for attempt in range(attempts):
-            out = await model.generate(_messages(prompt, fj.JSON_ONLY if attempt else ""),
-                                       config=_config(model, effort))
+            out = await judging.generate(model, _messages(prompt, fj.JSON_ONLY if attempt else ""),
+                                         _config(model, effort))
             raws.append(out.completion)
             usage.append(out.usage.model_dump() if out.usage else {})
             if _refused(out):
