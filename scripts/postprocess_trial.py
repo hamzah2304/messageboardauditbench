@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
+import socket
 import pathlib
 import sys
 
@@ -117,15 +120,22 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
     else:
         meta.pop("model_refusal", None)
 
-    if meta.get("benchmark_id") == "urlquery":
-        runner_path = run / "runner-events.jsonl"
-        capacity = runner_path.exists() and any(e.get("event") == "capacity_exhausted" for e in _events(runner_path))
-        refusal = bool(meta.get("model_refusal"))
-        exhausted = not (refusal or capacity) and returncode in (124, 137) and wall_seconds >= meta["active_time_limit_seconds"]
-        termination = ("refusal" if refusal else "capacity_exhausted" if capacity else
-                       "active_time_limit" if exhausted else "normal" if returncode == 0 else "error")
-        meta.update(stopped_at_active_limit=exhausted, termination=termination,
-                    report_finalization="cli_finished" if termination == "normal" else "not_confirmed")
+    # How the run ended and where it ran, the same fields for every benchmark (see
+    # slopvestigator_bench/eligibility.py, which reads them).
+    runner_path = run / "runner-events.jsonl"
+    capacity = runner_path.exists() and any(e.get("event") == "capacity_exhausted" for e in _events(runner_path))
+    refusal = bool(meta.get("model_refusal"))
+    limit = meta.get("active_time_limit_seconds") or 60 * int(meta.get("budget_min") or 0)
+    exhausted = not (refusal or capacity) and returncode in (124, 137) and wall_seconds >= limit
+    termination = ("refusal" if refusal else "capacity_exhausted" if capacity else
+                   "active_time_limit" if exhausted else "normal" if returncode == 0 else "error")
+    meta.update(stopped_at_active_limit=exhausted, termination=termination,
+                report_finalization="cli_finished" if termination == "normal" else "not_confirmed")
+    meta["safety_flags"] = sum(
+        1 for event in events
+        if event.get("type") == "system"
+        and event.get("subtype") in ("model_refusal_fallback", "model_refusal_no_fallback"))
+    meta["machine"] = {"host": socket.gethostname(), "cpus": os.cpu_count(), "platform": platform.platform()}
 
     usage_path = run / "usage.json"
     usage = json.loads(usage_path.read_text()) if usage_path.exists() else {}
