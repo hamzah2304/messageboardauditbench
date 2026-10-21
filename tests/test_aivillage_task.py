@@ -116,8 +116,8 @@ def test_missing_data_fails_before_a_trial(tmp_path, monkeypatch):
 class FakeJudge:
     """Scores every supplied finding `value`; fails the groups holding `fail`."""
 
-    def __init__(self, value=1.0, fail=None, name="openai/gpt-6.1-sol"):
-        self.value, self.fail, self.calls, self.name = value, fail, [], name
+    def __init__(self, value=1.0, fail=None, name="openai/gpt-6.1-sol", returns="gpt-6.1-sol-2026-09-01"):
+        self.value, self.fail, self.calls, self.name, self.returns = value, fail, [], name, returns
 
     def __str__(self):
         return self.name
@@ -131,7 +131,7 @@ class FakeJudge:
         findings = [{"finding_id": f["id"], "score": self.value, "contradicted": False, "quote": "", "reason": "r",
                      "sub_findings": [{"id": s["id"], "score": 1, "contradicted": False, "quote": "", "reason": "r"}
                                       for s in f["subfindings"]]} for f in payload["findings"]]
-        return ModelOutput.from_content(model="gpt-6.1-sol", content=json.dumps({"findings": findings}))
+        return ModelOutput.from_content(model=self.returns, content=json.dumps({"findings": findings}))
 
 
 def _state(report: str) -> TaskState:
@@ -160,6 +160,14 @@ async def test_scorer_pins_the_openrouter_route(primary, monkeypatch):
     monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
     await av.aivillage_scorer()(_state("A report."), Target(""))
     assert judge.calls[0][1].extra_body == {"provider": {"allow_fallbacks": False, "require_parameters": True}}
+
+
+async def test_scorer_refuses_a_grade_from_another_model(primary, monkeypatch):
+    judge = FakeJudge(name="openrouter/openai/gpt-6.1-sol", returns="openai/gpt-6-luna")
+    monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
+    score = await av.aivillage_scorer()(_state("A report."), Target(""))
+    assert score.answer == "ungraded"
+    assert "differs" in score.metadata["grade"]["failed_groups"][0]["error"]
 
 
 async def test_scorer_tops_twenty_and_leaves_failures_unscored(primary, monkeypatch):
