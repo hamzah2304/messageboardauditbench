@@ -86,8 +86,8 @@ docker build -q -t "$IMAGE" ${IMAGE_BUILD_ARGS[@]+"${IMAGE_BUILD_ARGS[@]}"} -f "
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 VARIANT="$(basename "$DATA_DIR")"
-# AI Village variants live one level down (aivillage/<variant>); record and check them by their full name.
-[ "$BENCHMARK_ID" != aivillage ] || VARIANT="$CFG_DATA_VARIANT"
+# AI Village variants live one level down (aivillage/<variant>); record and check the mounted one by its full name.
+[ "$BENCHMARK_ID" != aivillage ] || VARIANT="aivillage/$(basename "$DATA_DIR")"
 RUN="$RUNS_ROOT/${STAMP}_${AGENT}_${MODEL//\//_}_r${REPLICATE}_${CFG_NAME}_${RUN_ID:0:12}"
 # Secrets live under the run dir (not /tmp): Docker Desktop/colima only share $HOME with the VM.
 NET="mbab-inner-$RUN_ID"; PROXY="mbab-proxy-$RUN_ID"; SECRETS="$RUN/.secrets"

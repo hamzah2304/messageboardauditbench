@@ -3,7 +3,7 @@ import json
 
 from slopvestigator_bench import eligibility
 
-GOOD = {"model": "claude-opus-5", "report_exists": True, "report_words": 2800, "minimum_runtime_reached": True,
+GOOD = {"exit_code": 0, "model": "claude-opus-5", "report_exists": True, "report_words": 2800, "minimum_runtime_reached": True,
         "report_length_compliant": True, "data_manifest_status": "matches_manifest", "termination": "normal"}
 
 
@@ -42,3 +42,12 @@ def test_same_model_accepts_snapshots_not_other_versions():
     assert not same_model("claude-opus-5", "claude-opus-5-5")
     assert not same_model("claude-opus-5", "claude-opus-4-8")
     assert not same_model("gpt-6-luna", "gpt-6-luna-pro")
+
+
+def test_same_model_checks_the_owner_and_unfinished_runs_do_not_count():
+    from slopvestigator_bench.model_ids import same_model
+    assert same_model("openrouter/openai/gpt-6.1-sol", "openai/gpt-6.1-sol")
+    assert same_model("openai/gpt-6.1-sol", "gpt-6.1-sol")
+    assert not same_model("openrouter/openai/gpt-6.1-sol", "other/gpt-6.1-sol")
+    v = eligibility.check_meta({k: v for k, v in GOOD.items() if k != "exit_code"})
+    assert not v.eligible and "unfinished" in v.reasons

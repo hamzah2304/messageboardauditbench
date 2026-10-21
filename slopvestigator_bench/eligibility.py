@@ -28,6 +28,8 @@ class Verdict:
 
 def check_meta(meta: dict) -> Verdict:
     reasons = []
+    if "exit_code" not in meta:
+        reasons.append("unfinished")  # still running, or killed before the runner recorded the end
     model = str(meta.get("model", ""))
     served = str(meta.get("model_served") or model)
     if meta.get("model_fallback") or served != model:

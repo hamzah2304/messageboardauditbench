@@ -14,9 +14,17 @@ def base(model_id: str) -> str:
     return str(model_id).rsplit("/", 1)[-1]
 
 
+def owner(model_id: str) -> str | None:
+    """'openrouter/openai/gpt-6.1-sol' -> 'openai'; None when the id names no owner."""
+    parts = [p for p in str(model_id).split("/")[:-1] if p != "openrouter"]
+    return parts[-1] if parts else None
+
+
 def same_model(asked: str, returned: str) -> bool:
     """True for the same id, or the same id plus a date snapshot suffix (never another version:
-    'claude-opus-5-5' is not 'claude-opus-5')."""
+    'claude-opus-5-5' is not 'claude-opus-5'), from the same owner when both ids name one."""
+    if owner(asked) and owner(returned) and owner(asked) != owner(returned):
+        return False
     a, r = base(asked), base(returned)
     if not r or r == a:
         return True

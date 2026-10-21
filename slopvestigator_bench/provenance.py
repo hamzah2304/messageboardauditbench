@@ -111,7 +111,8 @@ def data_provenance(
             if name in expected and digest != expected[name]
         )
         missing = sorted(set(expected) - set(digests))
-        status = "matches_manifest" if not (mismatched or missing) else "differs_from_manifest"
+        unexpected = sorted(set(digests) - set(expected))  # data the manifest does not vouch for
+        status = "matches_manifest" if not (mismatched or missing or unexpected) else "differs_from_manifest"
 
     record = {
         "data_variant": data_variant,
@@ -122,6 +123,7 @@ def data_provenance(
     if status == "differs_from_manifest":
         record["data_manifest_mismatched"] = mismatched
         record["data_manifest_missing"] = missing
+        record["data_manifest_unexpected"] = unexpected
     return record
 
 

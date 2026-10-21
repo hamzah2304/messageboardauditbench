@@ -46,10 +46,14 @@ def existing(run_root: Path, model: lineup.Model, config: str, rep: int) -> list
 
 
 def finished(run_dir: Path) -> bool:
-    """The runner finalised the record: the trial ran and ended somehow. A launch that died
-    before that (credentials, preflight) never reached the model and may be launched again."""
+    """The trial reached the model: its CLI started (it may still be running, or have died
+    after). Such a run is a result and is never launched again. A launch that died before
+    the CLI started (credentials, preflight) never reached the model and may be launched again."""
     meta = run_dir / "meta.json"
-    return meta.exists() and '"exit_code"' in meta.read_text()
+    if meta.is_file() and '"exit_code"' in meta.read_text():
+        return True
+    events = run_dir / "runner-events.jsonl"
+    return events.is_file() and '"cli_started"' in events.read_text()
 
 
 def main() -> int:
