@@ -3,7 +3,10 @@
 `scripts/aivillage/grade_aivillage.py` runs the same requests as resumable batch jobs against the
 OpenAI Responses API; `aivillage_scorer` sends them through Inspect's model layer so the
 judge's calls land in the eval log. Both build each request from the helpers here, so a
-report gets the same judge input either way.
+report gets the same instructions, input, schema, effort and token cap either way. The wire
+format differs (Inspect may send chat messages rather than a Responses request), so the
+batch grades in `benchmarks/aivillage/` are the reference; native scores should agree
+closely, not byte for byte.
 
 A report is graded in groups of at most three findings from one goal period. Its score
 is the mean of its 20 best finding scores (`TOP_K`), the 20 findings a report writes;
@@ -36,6 +39,8 @@ from messageboard_audit_bench.runtime import repo_root
 MODEL = "gpt-6.1-sol"
 EFFORT = "medium"
 DEFAULT_JUDGE = "openai/" + MODEL
+# As the batch grader: no fallback provider, and fail rather than drop effort or the schema.
+OPENROUTER_ROUTE = {"provider": {"allow_fallbacks": False, "require_parameters": True}}
 TOP_K = 20
 GROUP_SIZE = 3
 MAX_SUBFINDINGS = 12
@@ -222,6 +227,7 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
         reasoning_effort=EFFORT,
         max_tokens=max_output_tokens(group),
         response_schema=ResponseSchema(name="finding_scores", json_schema=JSONSchema.model_validate(schema()), strict=True),
+        extra_body=OPENROUTER_ROUTE if str(model).startswith("openrouter/") else None,
     )
     messages = [ChatMessageSystem(content=rules), ChatMessageUser(content=request_input(report_id, group, report))]
     error = None

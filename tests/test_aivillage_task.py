@@ -116,11 +116,11 @@ def test_missing_data_fails_before_a_trial(tmp_path, monkeypatch):
 class FakeJudge:
     """Scores every supplied finding `value`; fails the groups holding `fail`."""
 
-    def __init__(self, value=1.0, fail=None):
-        self.value, self.fail, self.calls = value, fail, []
+    def __init__(self, value=1.0, fail=None, name="openai/gpt-6.1-sol"):
+        self.value, self.fail, self.calls, self.name = value, fail, [], name
 
     def __str__(self):
-        return "openai/gpt-6.1-sol"
+        return self.name
 
     async def generate(self, messages, config):
         payload = json.loads(messages[1].text.split("<findings_and_relevant_evidence>\n", 1)[1].rsplit("\n</", 1)[0])
@@ -152,6 +152,14 @@ async def test_scorer_sends_the_batch_graders_requests(primary, monkeypatch):
     assert messages[0].text == rules and "It also had reasoning traces" in rules
     assert config.response_schema.strict and config.reasoning_effort == "medium"
     assert config.max_tokens in {av.max_output_tokens(g) for g in groups}
+    assert config.extra_body is None
+
+
+async def test_scorer_pins_the_openrouter_route(primary, monkeypatch):
+    judge = FakeJudge(name="openrouter/openai/gpt-6.1-sol")
+    monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
+    await av.aivillage_scorer()(_state("A report."), Target(""))
+    assert judge.calls[0][1].extra_body == {"provider": {"allow_fallbacks": False, "require_parameters": True}}
 
 
 async def test_scorer_tops_twenty_and_leaves_failures_unscored(primary, monkeypatch):
