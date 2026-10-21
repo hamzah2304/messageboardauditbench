@@ -46,7 +46,7 @@ def test_resume_never_crosses_benchmarks():
 
 
 def ui_module():
-    spec = importlib.util.spec_from_file_location("urlquery_ui", ROOT / "viewers/build_urlquery_findings.py")
+    spec = importlib.util.spec_from_file_location("urlquery_ui", ROOT / "scripts/viewers/build_urlquery_findings.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

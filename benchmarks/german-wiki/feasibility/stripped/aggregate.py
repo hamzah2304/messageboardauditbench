@@ -6,7 +6,7 @@ from pathlib import Path
 
 import sys as _sys, pathlib as _pl
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[4]))
-from paths import CLAIMS, FEASIBILITY
+from slopvestigator_bench.paths import CLAIMS, FEASIBILITY
 HERE = _pl.Path(__file__).resolve().parent
 FEAS = HERE
 approved = json.loads((CLAIMS / "new_claims_approved.json").read_text())["approved"]

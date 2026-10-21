@@ -150,12 +150,12 @@ def main():
     metadata = {
         "report_id": args.report_id,
         "report_sha256": hashlib.sha256(source.encode()).hexdigest(),
-        "save_path": str(ROOT / "viewers/data" / (args.output_name.replace("_", "-") + "-review.json")),
+        "save_path": str(ROOT / "scripts/viewers/data" / (args.output_name.replace("_", "-") + "-review.json")),
     }
     seed = json.loads(args.comments.read_text()) if args.comments else None
     if seed and (seed["report_sha256"] != metadata["report_sha256"] or seed["report_id"] != metadata["report_id"]):
         raise ValueError("Comment export does not match the selected source snapshot")
-    output = ROOT / "viewers" / (args.output_name + ".html")
+    output = ROOT / "scripts" / "viewers" / (args.output_name + ".html")
     result = SHELL.replace("__BODY__", body).replace("__TOC__", "".join(toc))
     result = result.replace("__SOURCE__", html.escape("/file?p=" + quote(str(source_path), safe="")))
     result = result.replace("__META__", json.dumps(metadata).replace("<", "\\u003c"))

@@ -22,7 +22,7 @@ import sys
 import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
-from paths import RUBRICS
+from slopvestigator_bench.paths import RUBRICS
 
 SCALE = [
     ("1.0", "States it as a conclusion, hedged or not: the swarm probably came from OpenAI, "

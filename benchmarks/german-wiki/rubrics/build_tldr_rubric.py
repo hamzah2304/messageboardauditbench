@@ -17,7 +17,7 @@ rubrics cannot drift; only the instruction and the scored set differ.
 import ast, json, sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
-from paths import CLAIMS, RUBRICS
+from slopvestigator_bench.paths import CLAIMS, RUBRICS
 
 POINTS = ["N03", "N07", "N13", "N19", "N26"]
 

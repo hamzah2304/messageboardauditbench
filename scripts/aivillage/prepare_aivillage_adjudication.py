@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "viewers"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "viewers"))
 from build_aivillage_verified_review import check_citations
 
 SUB_KEYS = ("verdict", "evidence", "wording", "confidence", "wording_problem", "proposed_claim", "searched", "needs_reasoning_traces")

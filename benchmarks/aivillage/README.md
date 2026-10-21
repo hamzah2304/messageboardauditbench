@@ -67,7 +67,7 @@ uv run python scripts/aivillage/grade_aivillage.py prepare --findings benchmarks
 uv run python scripts/aivillage/grade_aivillage.py run --output runs/aivillage-grading-medium --concurrency 32
 python3 scripts/aivillage/summarize_aivillage_grades.py runs/aivillage-grading-medium/plans/<plan>/grades.json benchmarks/aivillage/results/
 uv run python scripts/aivillage/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md --out runs/aivillage-costs-20261004
-uv run python viewers/build_aivillage_figures.py
+uv run python scripts/viewers/build_aivillage_figures.py
 ```
 
 The batch grader and the Inspect scorer build the same judge requests (`slopvestigator_bench/grading/aivillage.py`).

@@ -31,7 +31,7 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from paths import ENV_FILE, GRADED_INPUTS  # noqa: E402
+from slopvestigator_bench.paths import ENV_FILE, GRADED_INPUTS  # noqa: E402
 
 from dotenv import load_dotenv  # noqa: E402
 

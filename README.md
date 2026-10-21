@@ -52,7 +52,7 @@ slopvestigator_bench/   the Inspect tasks, sandbox and graders (shared)
 sandbox/                    Docker image, runner, proxy, ReAct scaffold and prompts (shared)
 configs/                    trial conditions for all three
 scripts/                    data builds, batch grading, report collection
-viewers/                    build_*.py -> HTML views and figures
+scripts/viewers/                    build_*.py -> HTML views and figures
 docs/                       setup, data processing, versions, audits
 tests/
 data/, runs/, logs/         gitignored: built data and run outputs

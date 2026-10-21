@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Serve viewers/*.html with the two endpoints the audit/rubric pages expect.
+"""Serve scripts/viewers/*.html with the two endpoints the audit/rubric pages expect.
 
-  GET  /                  -> index of viewers/*.html
-  GET  /<name>.html       -> viewers/<name>.html
+  GET  /                  -> index of scripts/viewers/*.html
+  GET  /<name>.html       -> scripts/viewers/<name>.html
   GET  /file?p=<abs path> -> that file (must live under the repo root)
   POST /save?p=<abs path> -> write the request body to that file (repo root only)
 
@@ -11,7 +11,7 @@ Usage: python3 scripts/html_viewer.py [port]   (default 8765)
 import http.server, mimetypes, os, pathlib, sys, urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-VIEWERS = ROOT / "viewers"
+VIEWERS = ROOT / "scripts" / "viewers"
 
 
 def _inside_root(p):

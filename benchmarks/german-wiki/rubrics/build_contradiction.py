@@ -16,7 +16,7 @@ wording and the auditor's notes stay in step.
 import json, sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
-from paths import RUBRICS
+from slopvestigator_bench.paths import RUBRICS
 
 OUT = RUBRICS
 

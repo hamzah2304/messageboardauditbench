@@ -43,7 +43,7 @@ scripts/collect_reports.py                 # runs/ -> benchmarks/german-wiki/rep
 ```
 
 The eval runs the registered finding and summary graders inline; `--no-score` defers
-them. Every script resolves its inputs through `paths.py`, so the repo works from a plain
+them. Every script resolves its inputs through `slopvestigator_bench/paths.py`, so the repo works from a plain
 clone.
 
 The draft incidents are not Inspect conditions. Pilot one through the subscription
@@ -66,7 +66,7 @@ and the version used by new runs from this checkout.
 The headline score is **70% finding coverage and 30% holistic TLDR assessment**.
 Finding coverage is the mean of `max(2s - 1, 0)` across the 38 findings; the TLDR
 score is graded separately. The Inspect logs expose the component scores. The
-headline figures combine them using `viewers/build_headline_figures.py` and
+headline figures combine them using `scripts/viewers/build_headline_figures.py` and
 `benchmarks/german-wiki/figures/combined_score.json`.
 
 Start with:
@@ -96,7 +96,7 @@ configs/        trial conditions (budget, prompt, data variant, effort) for both
                 benchmarks; configs/superseded/ keeps retired ones for provenance
 benchmarks/german-wiki/experiments/    manifests and notes for the multi-cell rounds and ablations
 benchmarks/german-wiki/reports/        the model report corpus, by benchmark config
-viewers/        build_*.py -> browsable HTML for every artifact
+scripts/viewers/        build_*.py -> browsable HTML for every artifact
 data/           gitignored; rebuilt and checksum-verified by scripts/build_data.sh
 docs/           setup, data processing, audits, and publication evidence
 tests/          pytest suite for the task package and tooling
@@ -226,7 +226,7 @@ unchanged.
 - The dump is fetched from one upstream host but does not depend on it: any copy of the
   archive works via `MBAB_DUMP_ARCHIVE` or `MBAB_DUMP_URL`, because the pinned SHA256 is
   what establishes a copy is genuine.
-- Generated viewer HTML is gitignored — rebuild with `viewers/build_*.py`.
+- Generated viewer HTML is gitignored — rebuild with `scripts/viewers/build_*.py`.
 - Run metadata in older artifacts records the absolute path of the machine that produced
   it. Those paths are provenance, not configuration.
 - Every dependency carries an upper bound on purpose, so the benchmark keeps reproducing

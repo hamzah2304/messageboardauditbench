@@ -121,9 +121,9 @@ are kept in `benchmarks/transluce/reports/graded/judge_claude_opus_5_5/`. Their 
 unweighted. Grade files written from now on also record
 `headline_weights` and `score_mean_unweighted`.
 
-Validate grades by hand with `viewers/build_urlquery_audit_ui.py`. It builds a local
+Validate grades by hand with `scripts/viewers/build_urlquery_audit_ui.py`. It builds a local
 page, or with `--artifact PATH` a shared, redacted claude.ai page whose audits save per
-auditor. `viewers/build_urlquery_scoring_audit_ui.py` renders the fairness audit.
+auditor. `scripts/viewers/build_urlquery_scoring_audit_ui.py` renders the fairness audit.
 
 ## How the findings were built
 
@@ -140,13 +140,13 @@ overclaims a report should be penalised for. See
 
 Candidate findings come from the inert Transluce article:
 
-1. Extract candidates in `viewers/urlquery_findings.html`, which
-   `viewers/build_urlquery_findings.py` builds.
+1. Extract candidates in `scripts/viewers/urlquery_findings.html`, which
+   `scripts/viewers/build_urlquery_findings.py` builds.
 2. Write the candidates to `claims/new_claims.json`. Each one records its verbatim
    source quote, the source/report hash and the exact frozen dataset hash. Approve them
-   in `viewers/build_new_claims_ui.py --benchmark urlquery`.
+   in `scripts/viewers/build_new_claims_ui.py --benchmark urlquery`.
 3. Check each candidate against the frozen agent input only, and record the result in
-   `feasibility/feasibility.json` (`viewers/build_feasibility_ui.py --benchmark urlquery`).
+   `feasibility/feasibility.json` (`scripts/viewers/build_feasibility_ui.py --benchmark urlquery`).
 
 The original benchmark's rubrics never grade URLQuery reports, and URLQuery's judge never
 grades message-board reports. The grading entry points reject cross-benchmark input.

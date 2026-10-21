@@ -22,7 +22,7 @@ the two rubrics cannot drift.
 import ast, json, sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
-from paths import CLAIMS, RUBRICS
+from slopvestigator_bench.paths import CLAIMS, RUBRICS
 
 SRC = CLAIMS / "claims_v2.json"
 PER_SHEET = 5

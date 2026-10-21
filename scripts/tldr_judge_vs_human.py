@@ -18,7 +18,7 @@ import argparse, json, math, re, statistics as st, sys, pathlib
 from itertools import combinations
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from paths import ROOT, GRADED
+from slopvestigator_bench.paths import ROOT, GRADED
 
 SCORES = ROOT / "benchmarks" / "german-wiki" / "audit" / "tldr_human_scores.json"
 APPROX, STRICT = 0.1, 0.2

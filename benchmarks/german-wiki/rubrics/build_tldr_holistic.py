@@ -18,7 +18,7 @@ claims_v2.json, as in build_tldr_rubric.py, for the same reason.
 import json, sys, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
-from paths import CLAIMS, RUBRICS
+from slopvestigator_bench.paths import CLAIMS, RUBRICS
 
 SPEC = pathlib.Path(__file__).parent / "tldr_holistic.json"
 

@@ -1,6 +1,6 @@
 import base64
 
-from viewers import build_transluce_explorer as tx
+from scripts.viewers import build_transluce_explorer as tx
 
 PROGRAM = '<html><body><form id=f method=POST action="https://example.org/api?x=1"></form></body></html>'
 

@@ -177,7 +177,7 @@ recorded credentials, and this repository is public.
 
 ## Manual findings remain a separate step
 
-`viewers/build_urlquery_findings.py` (defaults to the cached
+`scripts/viewers/build_urlquery_findings.py` (defaults to the cached
 `data/transluce/agent-activity.html`) renders the article as published, using
 Transluce's own stylesheet and figures (cached once in
 `data/transluce/site_assets/`, images inlined), with every script, event handler,

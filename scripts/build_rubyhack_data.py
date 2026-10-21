@@ -27,7 +27,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from paths import DATA  # noqa: E402
+from slopvestigator_bench.paths import DATA  # noqa: E402
 
 SOURCES = (
     ("https://my.diffend.io/gems/zzsouthrunner/1.0.1", "0b63a3dbeb8218b8a31349768ada3180ede90015df2d6c6db1eca3061e8fb567"),
