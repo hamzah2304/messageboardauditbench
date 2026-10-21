@@ -38,7 +38,8 @@ def primary(tmp_path, monkeypatch):
 
 def test_registry_and_configs():
     assert benchmarks.SPECS["aivillage"].task == "aivillage_report"
-    assert benchmarks.config_names("aivillage") == ("aivillage-v12-30", "aivillage-v12-30-subagents")
+    assert benchmarks.config_names("aivillage") == ("aivillage-v12-30", "aivillage-v12-30-subagents",
+                                                    "aivillage-std-10", "aivillage-std-30")
     assert benchmarks.default_config("aivillage") == "aivillage-v12-30"
     for name in benchmarks.config_names("aivillage"):
         assert load_config(name, "aivillage")["data_variant"] == VARIANT
@@ -82,7 +83,7 @@ def test_native_task_applies_the_config(primary):
 
 
 def test_subagents_switch_matches_the_runner():
-    off, on = (load_config(n, "aivillage") for n in benchmarks.config_names("aivillage"))
+    off, on = (load_config(n, "aivillage") for n in benchmarks.AIVILLAGE_CONFIGS)
     assert {"Task", "Agent"} <= set(task_module._claude_disallowed_tools(off))
     assert not {"Task", "Agent"} & set(task_module._claude_disallowed_tools(on))
     assert task_module._codex_settings(off, "aivillage") == (

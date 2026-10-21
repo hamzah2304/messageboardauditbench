@@ -24,13 +24,14 @@ MANIFEST = benchmarks.urlquery_manifest()
 
 
 def test_manifest_owns_the_active_configs_and_every_one_matches_its_pins():
-    assert benchmarks.config_names("urlquery") == ("urlquery-agents-v6-30", "urlquery-agents-v6-10")
+    assert benchmarks.config_names("urlquery") == ("urlquery-agents-v6-30", "urlquery-agents-v6-10",
+                                                   "urlquery-std-10", "urlquery-std-30")
     for name in benchmarks.config_names("urlquery"):
         cfg = load_config(name, "urlquery")
         assert cfg["dataset_sha256"] == MANIFEST["dataset"]["sha256"]
         assert cfg["data_variant"] == f"urlquery/{MANIFEST['dataset']['snapshot']}"
     batch = (ROOT / MANIFEST["runtime"]["batch"]).read_text()
-    assert set(re.findall(r'configs/(urlquery-[a-z0-9-]+)\.toml', batch)) == set(benchmarks.config_names("urlquery"))
+    assert set(re.findall(r'configs/(urlquery-[a-z0-9-]+)\.toml', batch)) == set(MANIFEST["runtime"]["configs"])
 
 
 def test_each_task_accepts_only_its_own_configs():
