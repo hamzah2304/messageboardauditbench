@@ -10,9 +10,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from messageboard_audit_bench.audit import corpus_audit, trajectory_metrics
-from messageboard_audit_bench.transcripts import parse
-from messageboard_audit_bench.usage import summarize
+from slopvestigator_bench.audit import corpus_audit, trajectory_metrics
+from slopvestigator_bench.transcripts import parse
+from slopvestigator_bench.usage import summarize
 
 
 def refusal_signals(path: Path) -> int:

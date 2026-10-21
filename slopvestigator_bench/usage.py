@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Summarize what a trial cost: tokens (incl. reasoning), cache hits, cost, API calls, retries, how it ended.
 
-    python3 -m messageboard_audit_bench.usage runs/<run_dir>      # writes <run>/usage.json, prints it
+    python3 -m slopvestigator_bench.usage runs/<run_dir>      # writes <run>/usage.json, prints it
 
 Stdlib only, so run_trial.sh can call it on any python3 and transcripts.py can import it.
 One dialect per agent:

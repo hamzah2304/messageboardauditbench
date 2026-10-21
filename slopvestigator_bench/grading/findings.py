@@ -32,9 +32,9 @@ from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
 
-from messageboard_audit_bench.benchmarks import SPECS, primary_root, urlquery_manifest
-from messageboard_audit_bench.grading.core import JSON_ONLY, SYSTEM, extract_json
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.benchmarks import SPECS, primary_root, urlquery_manifest
+from slopvestigator_bench.grading.core import JSON_ONLY, SYSTEM, extract_json
+from slopvestigator_bench.runtime import repo_root
 
 __all__ = ["JSON_ONLY", "SYSTEM", "extract_json"]
 

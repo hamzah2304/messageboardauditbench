@@ -15,7 +15,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from messageboard_audit_bench.dataset_manifest import file_sha256, validate_dataset
+from slopvestigator_bench.dataset_manifest import file_sha256, validate_dataset
 
 
 def article_groups(source: Path) -> dict[str, set[str]]:

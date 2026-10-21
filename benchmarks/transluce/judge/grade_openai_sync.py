@@ -29,7 +29,7 @@ from benchmarks.transluce.judge.grade_openai_batch import (  # noqa: E402
 from benchmarks.transluce.judge.grade_openai_batch import (  # noqa: E402
     BASE as BATCH_BASE,
 )
-from messageboard_audit_bench.grading import findings as fj  # noqa: E402
+from slopvestigator_bench.grading import findings as fj  # noqa: E402
 
 OUT = fj.output_root() / "judge_gpt_6_astra_high_openai_sync"
 

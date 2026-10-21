@@ -31,7 +31,7 @@ scripts/build_data.sh                      # fetch + build data/, verified again
 uv run python scripts/incident_pipeline.py check --docker
 
 # through Inspect (set OPENAI_API_KEY for this example's agent and grader)
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=30 \
   --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
 uv run inspect view
@@ -88,7 +88,7 @@ benchmarks/german-wiki/      ground truth: human_report.txt (answer key), claims
                 rubrics, graded results, and the exact reports each grade came from
 benchmarks/transluce/
                 the URLQuery benchmark's manifest, findings rubric and judge
-messageboard_audit_bench/
+slopvestigator_bench/
                 the Inspect task package — wraps the sandbox as an inspect eval
 sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
 scripts/        data build/fetch, grading, report collection, analysis
@@ -127,10 +127,10 @@ works and no index file is needed.
 
 ```bash
 # both sheets, into an Inspect log each
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
+uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=/abs/path/to/my-reports -T rubric=v2 \
   --model-role grader=anthropic/claude-fable-5-1
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
+uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=/abs/path/to/my-reports -T rubric=tldrh \
   --model-role grader=anthropic/claude-fable-5-1
 
@@ -188,7 +188,7 @@ official Inspect SWE agents, `agent=react` through Inspect's own. A subscription
 remains available for results that must use a logged-in CLI, and imports that CLI's event
 stream after the run.
 
-**[`messageboard_audit_bench/README.md`](../../messageboard_audit_bench/README.md) is the full
+**[`slopvestigator_bench/README.md`](../../slopvestigator_bench/README.md) is the full
 reference** — every task option, the three harnesses, the integration boundary,
 minimum-runtime and report-length policy, and log export.
 

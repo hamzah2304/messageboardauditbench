@@ -6,8 +6,11 @@ import pytest
 from inspect_ai import eval
 from inspect_ai.model import ChatMessageUser, ModelOutput
 
-import messageboard_audit_bench.task as tasks
-from messageboard_audit_bench.grading.task import grade_reports, report_from_sample
+import slopvestigator_bench.task as tasks
+from slopvestigator_bench.grading.task import (
+    german_wiki_report_grade,
+    report_from_sample,
+)
 from tests.test_grading_scorer import judge, sheet_reply
 
 
@@ -25,7 +28,7 @@ def parent_log(variant="verbatim", epochs=(1,)):
 
 def test_followup_inherits_variant_and_accepts_default_backend(monkeypatch):
     monkeypatch.setattr(tasks, "read_eval_log", lambda _: parent_log("verbatim_anthropic"))
-    task = tasks.messageboard_audit_bench_continue("parent.eval", config="followup-5k-min5")
+    task = tasks.german_wiki_report_continue("parent.eval", config="followup-5k-min5")
     assert task.dataset[0].metadata["data_variant"] == "verbatim_anthropic"
     assert task.metadata["minimum_runtime_seconds"] == 300
     assert len(task.scorer) == 4
@@ -38,12 +41,12 @@ def test_followup_inherits_variant_and_accepts_default_backend(monkeypatch):
 def test_followup_rejects_ambiguous_or_missing_parents(monkeypatch, epochs, wanted, match):
     monkeypatch.setattr(tasks, "read_eval_log", lambda _: parent_log(epochs=epochs))
     with pytest.raises(ValueError, match=match):
-        tasks.messageboard_audit_bench_continue("parent.eval", parent_epochs=wanted)
+        tasks.german_wiki_report_continue("parent.eval", parent_epochs=wanted)
 
 
 def test_followup_rejects_fresh_config():
     with pytest.raises(ValueError, match="not a continuation config"):
-        tasks.messageboard_audit_bench_continue("unused.eval", config="blind")
+        tasks.german_wiki_report_continue("unused.eval", config="blind")
 
 
 @pytest.mark.parametrize("variant", ["verbatim", "verbatim_anthropic"])
@@ -51,7 +54,7 @@ def test_default_eval_runs_both_benchmark_graders(tmp_path, monkeypatch, variant
     monkeypatch.setenv("INSPECT_TRACE_FILE", str(tmp_path / "trace.log"))
     # Only replace execution: exercise the actual public task and its scorers
     # through Inspect, with canned judge replies instead of paid provider calls.
-    task = tasks.messageboard_audit_bench(agent="react", data_variant=variant)
+    task = tasks.german_wiki_report(agent="react", data_variant=variant)
     task.sandbox = None
     task.solver = report_from_sample()
     replies = [sheet_reply("v2", i, 1) for i in range(8)] + [sheet_reply("tldrh", 0, 1)]
@@ -127,13 +130,13 @@ def test_staged_grading_preserves_variant_and_needs_no_agent_model(tmp_path):
     (tmp_path / "report.md").write_text("A report")
     (tmp_path / "_index.jsonl").write_text(json.dumps({
         "graded_input": "report.md", "data_variant": "verbatim_anthropic"}) + "\n")
-    task = grade_reports(dir=str(tmp_path))
+    task = german_wiki_report_grade(dir=str(tmp_path))
     assert task.dataset[0].metadata["data_variant"] == "verbatim_anthropic"
     assert str(task.model) == "mockllm/model"
 
 
 def test_inline_grade_export_separates_epochs_and_reruns():
-    from messageboard_audit_bench.grading.export import grades_in
+    from slopvestigator_bench.grading.export import grades_in
 
     def log(eval_id):
         return SimpleNamespace(eval=SimpleNamespace(eval_id=eval_id), samples=[
@@ -147,7 +150,7 @@ def test_inline_grade_export_separates_epochs_and_reruns():
 
 
 def test_mixed_rubrics_export_without_overwriting(tmp_path):
-    from messageboard_audit_bench.grading.export import export
+    from slopvestigator_bench.grading.export import export
 
     log = SimpleNamespace(samples=[SimpleNamespace(scores={
         mode: SimpleNamespace(metadata={"grade": {
@@ -160,7 +163,7 @@ def test_mixed_rubrics_export_without_overwriting(tmp_path):
 
 
 def test_followup_staging_keeps_parent_epochs(tmp_path):
-    from messageboard_audit_bench.log_export import export_graded_inputs
+    from slopvestigator_bench.log_export import export_graded_inputs
 
     rows = []
     for epoch in (1, 2):

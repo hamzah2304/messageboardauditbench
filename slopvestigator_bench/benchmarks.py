@@ -37,8 +37,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from messageboard_audit_bench.dataset_manifest import file_sha256, validate_dataset
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.dataset_manifest import file_sha256, validate_dataset
+from slopvestigator_bench.runtime import repo_root
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class BenchmarkSpec:
     name: str            # public name; version tags are <name>-v<version>
     title: str
     task: str            # the Inspect task that runs fresh trials
-    legacy_task: str     # its name before the rename, kept as an alias ("" if none)
+    legacy_task: str     # its name before the rename, which older tags use ("" if none)
     eval_version: str    # MAJOR.MINOR; see docs/benchmark-versions.md
     evaluator_root: str  # evaluator-only material, never mounted into a trial
     run_root: str
@@ -156,7 +156,7 @@ def urlquery_manifest() -> dict[str, Any]:
 def config_names(benchmark_id: str) -> tuple[str, ...]:
     """The configs a benchmark's Inspect task accepts as fresh-trial conditions."""
     if benchmark_id == "messageboard":
-        from messageboard_audit_bench.incidents import incident
+        from slopvestigator_bench.incidents import incident
 
         return incident(WIKI_INCIDENT).configs
     if benchmark_id == "aivillage":
@@ -167,7 +167,7 @@ def config_names(benchmark_id: str) -> tuple[str, ...]:
 
 def draft_config_names() -> tuple[str, ...]:
     """Configs of the draft incidents (Mythos 5, RubyHack): runnable for validation only."""
-    from messageboard_audit_bench.incidents import incidents
+    from slopvestigator_bench.incidents import incidents
 
     return tuple(c for item in incidents().values() if item.id != WIKI_INCIDENT for c in item.configs)
 

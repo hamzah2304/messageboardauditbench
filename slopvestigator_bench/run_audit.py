@@ -17,10 +17,10 @@ from typing import Any
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 
-from messageboard_audit_bench.audit import observed_tool_results, trajectory_metrics
-from messageboard_audit_bench.native_telemetry import event_coverage, hook_coverage
-from messageboard_audit_bench.transcripts import parse
-from messageboard_audit_bench.usage import summarize
+from slopvestigator_bench.audit import observed_tool_results, trajectory_metrics
+from slopvestigator_bench.native_telemetry import event_coverage, hook_coverage
+from slopvestigator_bench.transcripts import parse
+from slopvestigator_bench.usage import summarize
 
 AUDIT_SCHEMA = 2
 

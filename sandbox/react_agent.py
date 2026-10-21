@@ -82,7 +82,7 @@ def chat(base, key, body):
     """POST /chat/completions with retries. Returns (response_json, retries, latency_ms of the successful attempt)."""
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
-                 "HTTP-Referer": "https://github.com/hamzah2304/messageboardauditbench", "X-Title": "messageboard_audit_bench"})
+                 "HTTP-Referer": "https://github.com/hamzah2304/messageboardauditbench", "X-Title": "slopvestigator_bench"})
     for attempt in range(6):
         t = time.time()
         try:
@@ -155,7 +155,7 @@ def main():
     msgs = [{"role": "system", "content": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]},
             {"role": "user", "content": prompt}]
     t0 = time.time(); turns = 0; stop = "end_turn"; cost = 0.0; retries = 0; latencies = []; providers = {}
-    session_id = f"messageboard_audit_bench-{uuid.uuid4()}"
+    session_id = f"slopvestigator_bench-{uuid.uuid4()}"
     usage = {k: 0 for k in USAGE_KEYS}
     emit({"type": "system", "subtype": "init", "cwd": a.cwd, "model": a.model, "effort": a.effort, "budget_min": a.budget_min,
           "tools": [t["function"]["name"] for t in TOOLS], "scaffold": "react_agent.py", "base_url": a.base_url,

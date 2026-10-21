@@ -13,12 +13,12 @@ from collections import Counter, deque
 from pathlib import Path
 from urllib.parse import unquote
 
-from messageboard_audit_bench.dataset_manifest import (
+from slopvestigator_bench.dataset_manifest import (
     file_sha256,
     identity,
     validate_dataset,
 )
-from messageboard_audit_bench.urlquery_data import (
+from slopvestigator_bench.urlquery_data import (
     catalog,
     digest,
     load_config,

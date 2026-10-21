@@ -31,7 +31,7 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
-from messageboard_audit_bench.grading import core
+from slopvestigator_bench.grading import core
 
 # Tried in order, dropping down when a provider rejects the level outright. Mirrors the
 # standalone grader's ladder.

@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import grade  # noqa: E402
 
-from messageboard_audit_bench.grading.findings import (  # noqa: E402
+from slopvestigator_bench.grading.findings import (  # noqa: E402
     headline_weights,
     output_root,
     reports_from,

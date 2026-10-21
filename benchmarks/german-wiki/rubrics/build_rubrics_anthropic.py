@@ -34,7 +34,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from paths import BENCH, DATA, RUBRICS  # noqa: E402
 from swap_provider import FILES, build_ip_map, read, swap_prose  # noqa: E402
-from messageboard_audit_bench.grading.core import MODES  # noqa: E402
+from slopvestigator_bench.grading.core import MODES  # noqa: E402
 
 OUT = RUBRICS / "anthropic"
 VERSION = "1.0"  # bump when the substitution rules, redactions or amendments change

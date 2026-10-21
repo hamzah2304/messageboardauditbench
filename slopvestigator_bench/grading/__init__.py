@@ -8,7 +8,7 @@ tests/test_grading_*.py mean anything: they compare two callers of the same func
 two reimplementations that happen to agree today.
 """
 
-from messageboard_audit_bench.grading.core import (
+from slopvestigator_bench.grading.core import (
     MODES,
     ModeSpec,
     aggregate,

@@ -23,8 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from messageboard_audit_bench.incidents import registered_mode_specs
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.incidents import registered_mode_specs
+from slopvestigator_bench.runtime import repo_root
 
 SYSTEM = (
     "You are a careful grader. Follow the grading sheet exactly and output strict JSON only."

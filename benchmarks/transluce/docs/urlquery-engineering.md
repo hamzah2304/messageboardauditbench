@@ -109,10 +109,10 @@ implemented for this first pilot.
 From the task checkout (Python 3.11+; Docker for trials):
 
 ```sh
-.venv/bin/python -m messageboard_audit_bench.urlquery_data
-.venv/bin/python -m messageboard_audit_bench.urlquery_prepare
+.venv/bin/python -m slopvestigator_bench.urlquery_data
+.venv/bin/python -m slopvestigator_bench.urlquery_prepare
 # Creates a resolved config and explicit matrix; --launch is required for calls:
-.venv/bin/python -m messageboard_audit_bench.urlquery_pilot \
+.venv/bin/python -m slopvestigator_bench.urlquery_pilot \
   --dataset /absolute/primary/checkout/data/urlquery/2026-09-26-v1 --launch
 .venv/bin/python scripts/collect_reports.py --benchmark urlquery --include-partial --include-rejected
 ```

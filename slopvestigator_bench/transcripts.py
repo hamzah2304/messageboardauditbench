@@ -24,7 +24,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import ToolCall, ToolCallError
 
-from messageboard_audit_bench.usage import summarize
+from slopvestigator_bench.usage import summarize
 
 
 @dataclass

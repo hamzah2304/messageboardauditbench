@@ -25,7 +25,7 @@ from pathlib import Path
 
 
 def primary_root() -> Path:
-    from messageboard_audit_bench.benchmarks import primary_root as shared_primary_root
+    from slopvestigator_bench.benchmarks import primary_root as shared_primary_root
 
     return shared_primary_root()
 

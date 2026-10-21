@@ -8,7 +8,7 @@ to the estimate and flags a disagreement, so neither number is taken on trust:
 - Claude Code: the CLI's own `modelUsage.costUSD`, which covers subagents.
   The estimate prices the same `modelUsage` tokens.
 - Codex: no recorded cost. Tokens are summed over every thread's rollout
-  (parent and subagents) by `messageboard_audit_bench.usage`.
+  (parent and subagents) by `slopvestigator_bench.usage`.
 - OpenRouter (react): the per-call `cost` OpenRouter billed. The headline uses
   it because routing between providers makes the list price only approximate.
 
@@ -26,7 +26,7 @@ import json
 import re
 from pathlib import Path
 
-from messageboard_audit_bench.usage import summarize
+from slopvestigator_bench.usage import summarize
 
 ROOT = Path(__file__).resolve().parents[2]
 

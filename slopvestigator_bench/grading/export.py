@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from messageboard_audit_bench.grading import core
+from slopvestigator_bench.grading import core
 
 
 def grades_in(log: Any) -> list[dict]:

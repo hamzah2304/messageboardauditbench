@@ -30,7 +30,7 @@ def repo_root() -> Path:
             return root
 
     raise RuntimeError(
-        "messageboard_audit_bench needs the repository's configs, sandbox, and "
+        "slopvestigator_bench needs the repository's configs, sandbox, and "
         "data. Run Inspect from a MessageBoardAuditBench checkout or set "
         f"{_ROOT_ENV} to its root."
     )

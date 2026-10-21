@@ -1,7 +1,7 @@
 # SlopvestigatorBench
 
 Formerly MessageBoardAuditBench; old GitHub links redirect here. The Python package keeps
-its name, `messageboard_audit_bench`, so existing Inspect task names and logs still work.
+its name, `slopvestigator_bench`, so existing Inspect task names and logs still work.
 
 Three sibling benchmarks for one question: can an AI agent investigate raw logs of AI
 agents misbehaving and find what human investigators found? In each, the agent gets the
@@ -22,9 +22,9 @@ Each benchmark is an Inspect eval in one package, so after `uv sync --frozen` (P
 3.11+, uv and Docker; `scripts/doctor.sh` checks them) a trial is:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report -T agent=claude --model anthropic/claude-opus-5
-uv run inspect eval messageboard_audit_bench/transluce_report   -T agent=codex  --model openai/gpt-6-astra
-uv run inspect eval messageboard_audit_bench/aivillage_report   -T agent=codex  --model openai/gpt-6.1-sol
+uv run inspect eval slopvestigator_bench/german_wiki_report -T agent=claude --model anthropic/claude-opus-5
+uv run inspect eval slopvestigator_bench/transluce_report   -T agent=codex  --model openai/gpt-6-astra
+uv run inspect eval slopvestigator_bench/aivillage_report   -T agent=codex  --model openai/gpt-6.1-sol
 ```
 
 `-T agent=` is `claude` (Claude Code), `codex` (Codex CLI) or `react` (a minimal tool loop
@@ -48,7 +48,7 @@ benchmarks/
   german-wiki/              answer key, rubrics, grades, report corpus, captured wiki pages
   transluce/                manifest, findings rubric and judge
   aivillage/                rubric, judge prompt, results and figures
-messageboard_audit_bench/   the Inspect tasks, sandbox and graders (shared)
+slopvestigator_bench/   the Inspect tasks, sandbox and graders (shared)
 sandbox/                    Docker image, runner, proxy, ReAct scaffold and prompts (shared)
 configs/                    trial conditions for all three
 scripts/                    data builds, batch grading, report collection

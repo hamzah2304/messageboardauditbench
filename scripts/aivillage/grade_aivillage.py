@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
-from messageboard_audit_bench.grading.aivillage import (  # noqa: F401 — the tests reach them through this module
+from slopvestigator_bench.grading.aivillage import (  # noqa: F401 — the tests reach them through this module
     EFFORT,
     MODEL,
     digest,

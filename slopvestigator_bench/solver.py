@@ -27,10 +27,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
-from messageboard_audit_bench.audit import trajectory_metrics
-from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
-from messageboard_audit_bench.runtime import repo_root
-from messageboard_audit_bench.transcripts import Parsed, parse
+from slopvestigator_bench.audit import trajectory_metrics
+from slopvestigator_bench.report_length import acceptance_limits, limits, measure
+from slopvestigator_bench.runtime import repo_root
+from slopvestigator_bench.transcripts import Parsed, parse
 
 REFUSAL_RERUN_LIMIT = 2
 TIMEOUT_GRACE_MINUTES = 5
@@ -281,7 +281,7 @@ def _fold(state: TaskState, run_dir: Path, agent: str) -> TaskState:
     if (run_dir / "meta.json").exists():
         meta = json.loads((run_dir / "meta.json").read_text())
     state.metadata["subscription_raw_artifacts"] = _raw_artifacts(run_dir)
-    from messageboard_audit_bench.run_audit import audit_run
+    from slopvestigator_bench.run_audit import audit_run
 
     state.metadata["run_audit"] = audit_run(run_dir)
     for key in ("isolation", "scaffold", "logging", "resource_names"):

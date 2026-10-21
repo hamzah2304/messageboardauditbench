@@ -14,15 +14,15 @@ from __future__ import annotations
 import re
 import tomllib
 
-from messageboard_audit_bench.benchmarks import (
+from slopvestigator_bench.benchmarks import (
     benchmark_spec,
     config_names,
     draft_config_names,
     urlquery_data_variant,
     urlquery_manifest,
 )
-from messageboard_audit_bench.report_length import acceptance_limits
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.report_length import acceptance_limits
+from slopvestigator_bench.runtime import repo_root
 
 CONFIG_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CLI_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")

@@ -1,7 +1,7 @@
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolCall, ToolCallError
 
-from messageboard_audit_bench.run_audit import (
+from slopvestigator_bench.run_audit import (
     _claude_raw_observations,
     _codex_raw_observations,
     _hook_evidence,

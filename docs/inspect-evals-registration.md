@@ -1,11 +1,11 @@
 # Inspect Evals registration handoff
 
-SlopvestigatorBench (package `messageboard_audit_bench`) is packaged as an externally managed Inspect eval. A
+SlopvestigatorBench (package `slopvestigator_bench`) is packaged as an externally managed Inspect eval. A
 fresh checkout can install it with `uv sync` and run its registered task as:
 
 ```bash
 scripts/build_data.sh
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=claude -T config=blind \
   -T time_limit_minutes=30 \
   -T min_runtime_fraction=0.75 \
@@ -80,7 +80,7 @@ these steps after review:
    to open the submission issue with:
    - the versioned arXiv URL;
    - a source URL of the form
-     `https://github.com/hamzah2304/messageboardauditbench/blob/<commit>/messageboard_audit_bench/task.py#L<task-line>`;
+     `https://github.com/hamzah2304/messageboardauditbench/blob/<commit>/slopvestigator_bench/task.py#L<task-line>`;
    - any additional GitHub maintainers.
 5. Upload complete eval logs for two models as required by the current register
    guide, then review the bot-generated metadata-only register PR. The register entry lives

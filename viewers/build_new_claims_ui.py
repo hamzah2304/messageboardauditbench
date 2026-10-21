@@ -17,8 +17,8 @@ import sys as _sys, pathlib as _pl
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
-from messageboard_audit_bench.benchmarks import benchmark_spec
-from messageboard_audit_bench.review_scope import validate_review_scope, replace_once
+from slopvestigator_bench.benchmarks import benchmark_spec
+from slopvestigator_bench.review_scope import validate_review_scope, replace_once
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")

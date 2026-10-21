@@ -40,7 +40,7 @@ every committed score, so call it out explicitly in the pull request:
   typos or formatting; grades are measured against these exact bytes.
 - **`sandbox/prompts/*`** are provenance-recorded. A changed prompt byte makes
   new runs incomparable with existing ones.
-- **`benchmarks/german-wiki/rubrics/`, `benchmarks/german-wiki/claims/`, `messageboard_audit_bench/grading/`** —
+- **`benchmarks/german-wiki/rubrics/`, `benchmarks/german-wiki/claims/`, `slopvestigator_bench/grading/`** —
   a changed sheet means existing grades were produced by a different instrument.
   Say what would need regrading.
 - **`benchmarks/german-wiki/graded/`, `benchmarks/german-wiki/graded_inputs/`, `benchmarks/german-wiki/reports/`** are the record

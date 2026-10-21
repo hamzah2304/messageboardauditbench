@@ -17,7 +17,7 @@ from paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY, RUBRICS, GRADED,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[3] / "scripts"))
 from extract_tldr import extract as extract_tldr  # noqa: F401  (used via core)
-from messageboard_audit_bench.grading import core
+from slopvestigator_bench.grading import core
 from dotenv import load_dotenv
 load_dotenv(ENV_FILE)
 from openai import OpenAI
@@ -29,7 +29,7 @@ from openai import OpenAI
 # hide that.
 #
 # The mode table, the prompt, the parsing, the arithmetic and the output path all live in
-# messageboard_audit_bench.grading.core, which the Inspect scorer imports too. This script
+# slopvestigator_bench.grading.core, which the Inspect scorer imports too. This script
 # keeps its CLI, its thread pool and its provider clients; it no longer keeps its own
 # definition of what a grade is, so the two paths cannot drift.
 _R = os.getenv("RUBRIC", "contra" if "--contra" in sys.argv else "v2" if "--v2" in sys.argv

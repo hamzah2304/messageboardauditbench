@@ -10,7 +10,7 @@ import grade as common
 import grade_openrouter
 import render_sheet
 
-from messageboard_audit_bench.benchmarks import primary_root
+from slopvestigator_bench.benchmarks import primary_root
 
 ROOT = Path(__file__).resolve().parents[3]
 # Grades and runs are gitignored and live only in the primary checkout.

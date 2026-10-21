@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from messageboard_audit_bench.grading import core
+from slopvestigator_bench.grading import core
 
 MAKER = re.compile(r"openai|chatgpt|\bgpt\b|\boai\b|codex", re.I)
 

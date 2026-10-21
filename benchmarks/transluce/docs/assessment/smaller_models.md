@@ -69,7 +69,7 @@ automatic retry or a change of provider/account.
 Launch from the task worktree:
 
 ```sh
-.venv/bin/python -m messageboard_audit_bench.urlquery_pilot \
+.venv/bin/python -m slopvestigator_bench.urlquery_pilot \
   --dataset /Users/oscargilg/Dev/messageboardauditbench/data/urlquery/2026-09-26-v1 \
   --matrix-config configs/superseded/urlquery-smaller-models.toml --launch
 ```

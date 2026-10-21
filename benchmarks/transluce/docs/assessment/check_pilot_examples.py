@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from urllib.parse import unquote
 
-from messageboard_audit_bench.dataset_manifest import file_sha256, validate_dataset
+from slopvestigator_bench.dataset_manifest import file_sha256, validate_dataset
 
 
 def check(dataset: Path) -> dict:

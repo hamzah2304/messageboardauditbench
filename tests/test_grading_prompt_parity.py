@@ -22,8 +22,8 @@ import hashlib
 
 import pytest
 
-from messageboard_audit_bench.grading import core
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.grading import core
+from slopvestigator_bench.runtime import repo_root
 
 # a committed report, so the digest is reproducible from a clean checkout
 FIXTURE = (

@@ -34,7 +34,7 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import JSONSchema
 
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.runtime import repo_root
 
 MODEL = "gpt-6.1-sol"
 EFFORT = "medium"
@@ -262,7 +262,7 @@ def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None)
       goals: the data's ``village_goals.jsonl``, which sets the goal-period groups. Defaults to the
         file in the sample's data variant.
     """
-    from messageboard_audit_bench.benchmarks import primary_root
+    from slopvestigator_bench.benchmarks import primary_root
 
     rubric = (repo_root() / RUBRIC).read_text()
 

@@ -20,7 +20,7 @@ are listed in [`benchmark.json`](benchmark.json):
 - **Rubric and judge:** the reviewed findings rubric and judge prompt, the
   headline weights, and the default judge.
 
-`messageboard_audit_bench.benchmarks` reads the manifest. The benchmark version, `1.0`,
+`slopvestigator_bench.benchmarks` reads the manifest. The benchmark version, `1.0`,
 lives there too. To run a specific version, use
 `uv run python scripts/run_eval.py transluce-report --version <MAJOR.MINOR> -- ...`; see
 [the version history](../../docs/benchmark-versions.md).
@@ -29,9 +29,9 @@ lives there too. To run a specific version, use
 
 A single trial goes through Inspect, like the original benchmark:
 
-    uv run inspect eval messageboard_audit_bench/transluce_report \
+    uv run inspect eval slopvestigator_bench/transluce_report \
       -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
-    uv run inspect eval messageboard_audit_bench/transluce_report \
+    uv run inspect eval slopvestigator_bench/transluce_report \
       -T agent=claude --model anthropic/claude-opus-5-5          # Inspect-native, no network
 
 With `backend=subscription`, the runner installs the exact CLI versions the config pins
@@ -44,8 +44,8 @@ Model matrices go through the batch launcher. It runs every trial through the sa
 `run_trial.sh`, and it adds per-subscription queues, a stop on authentication or capacity
 failure, fail-closed validation of each run record, and a `plan.json` per arm:
 
-    uv run python -m messageboard_audit_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml          # plan only
-    uv run python -m messageboard_audit_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml --launch
+    uv run python -m slopvestigator_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml          # plan only
+    uv run python -m slopvestigator_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml --launch
 
 `--dataset` defaults to the manifest's snapshot. Retired configs and prompts are kept
 in `configs/superseded/` and `sandbox/prompts/superseded/` so older runs stay
@@ -68,13 +68,13 @@ unscored. It is never recorded as zero. If the judge refuses the first headline,
 report's remaining headlines are skipped. The model report that suggested F13 is not
 treated as evidence in its prompt.
 
-The prompt and arithmetic are `messageboard_audit_bench.grading.findings`. Two entry
+The prompt and arithmetic are `slopvestigator_bench.grading.findings`. Two entry
 points share them:
 
 - **Inspect.** `transluce_report` scores each fresh trial. `transluce_report_grade`
   grades finished run directories:
 
-      uv run inspect eval messageboard_audit_bench/transluce_report_grade \
+      uv run inspect eval slopvestigator_bench/transluce_report_grade \
         -T launch=runs/urlquery/final-20260927-agents-v6/launch.json \
         -T judge=openrouter/openai/gpt-6-astra
 

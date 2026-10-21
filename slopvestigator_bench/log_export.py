@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from messageboard_audit_bench.benchmarks import reject_foreign_grading
-from messageboard_audit_bench.report_length import acceptance_limits, limits, measure
+from slopvestigator_bench.benchmarks import reject_foreign_grading
+from slopvestigator_bench.report_length import acceptance_limits, limits, measure
 
 # Continuation samples: which round-4 sample they resumed.
 PARENT_KEYS = (

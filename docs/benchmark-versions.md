@@ -8,12 +8,14 @@ results were run at German wiki report version `6.1` (labelled `6-B` at the time
 |---|---|---:|---|
 | German wiki report | `german_wiki_report` | `10.0` | `messageboard` |
 | Transluce report | `transluce_report` | `1.0` | `urlquery` |
+| AI Village report | `aivillage_report` | `1.0` | `aivillage` |
 
 The storage id is what run records, configs and grade files write as `benchmark_id`. It
 predates the public names and does not change. The tasks were called
-`messageboard_audit_bench` and `urlquery_audit_bench` before 2026-09-29. Those names, and
-the `_replay`, `_continue`, `grade_reports` and `urlquery_grade_reports` variants, still
-work as aliases.
+`messageboard_audit_bench` and `urlquery_audit_bench` before 2026-09-29, and the Python
+package was `messageboard_audit_bench` until 2026-10-21, so the tasks were
+`messageboard_audit_bench/german_wiki_report` and so on. `scripts/run_eval.py --version`
+uses whichever package and task names the tagged version had.
 
 ## What a version means
 
@@ -26,7 +28,7 @@ it.
   or a new optional feature.
 
 Code-only refactors that preserve behaviour need no bump. The version is declared once
-per benchmark, in `SPECS` in `messageboard_audit_bench/benchmarks.py`. Every Inspect log
+per benchmark, in `SPECS` in `slopvestigator_bench/benchmarks.py`. Every Inspect log
 records it as the task version.
 
 The version does not pin everything a score depends on. The config (budget, prompt, data
@@ -119,7 +121,7 @@ acceptance calculation. The revised count method is recorded as
 Prompts, data, rubrics and the judge are unchanged. Two further changes in `10.0` do not
 alter behaviour:
 
-- The task was renamed from `messageboard_audit_bench`.
+- The task was renamed from `slopvestigator_bench`.
 - The Mythos 5 and RubyHack drafts are no longer selectable as configs; they are drafts
   for separate evals.
 

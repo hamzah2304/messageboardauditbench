@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from messageboard_audit_bench.grading import core
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.grading import core
+from slopvestigator_bench.runtime import repo_root
 
 GRADED = repo_root() / "benchmarks" / "german-wiki" / "graded"
 # fields aggregate() derives rather than passes through

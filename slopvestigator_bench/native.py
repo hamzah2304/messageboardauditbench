@@ -30,10 +30,10 @@ from inspect_ai.tool import Tool, ToolDef, bash, text_editor
 from inspect_ai.util import LimitExceededError, sandbox, time_limit
 from inspect_swe import claude_code, codex_cli
 
-from messageboard_audit_bench.audit import trajectory_metrics
-from messageboard_audit_bench.native_telemetry import event_coverage, hook_coverage
-from messageboard_audit_bench.provenance import host_provenance
-from messageboard_audit_bench.report_length import (
+from slopvestigator_bench.audit import trajectory_metrics
+from slopvestigator_bench.native_telemetry import event_coverage, hook_coverage
+from slopvestigator_bench.provenance import host_provenance
+from slopvestigator_bench.report_length import (
     acceptance_limits,
     count_words,
     describe_count,
@@ -714,7 +714,7 @@ def inspect_native_agent(
             # Lazy import prevents the audit helper from creating a native
             # runtime import cycle. It reads the finalized trajectory only.
             try:
-                from messageboard_audit_bench.run_audit import audit_native
+                from slopvestigator_bench.run_audit import audit_native
 
                 state.metadata["run_audit"] = audit_native(
                     agent_state.messages, list(transcript().events), state.metadata

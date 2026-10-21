@@ -43,7 +43,7 @@ if __name__ == "__main__":
     cfg = load(sys.argv[1])
     sys.path.insert(
         0,
-        str(Path(__file__).resolve().parents[1] / "messageboard_audit_bench"),
+        str(Path(__file__).resolve().parents[1] / "slopvestigator_bench"),
     )
     from report_length import acceptance_limits
 

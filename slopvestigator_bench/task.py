@@ -3,41 +3,39 @@
 Every benchmark shares one harness: named configs, prompt rendering, the Inspect-native
 sandbox and agents, the subscription runner (sandbox/docker/run_trial.sh) and the grading
 plumbing. Each benchmark is its own task, with its own version, configs, prompts, data and
-rubric (see `messageboard_audit_bench.benchmarks`).
+rubric (see `slopvestigator_bench.benchmarks`).
 
   * `german_wiki_report` runs fresh collusion.wiki trials. The default ``inspect``
     backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt caching,
     and live logs. The ``subscription`` backend preserves the original
     subscription-authenticated CLI runner.
-      inspect eval messageboard_audit_bench/german_wiki_report \
+      inspect eval slopvestigator_bench/german_wiki_report \
         -T agent=claude -T backend=inspect -T time_limit_minutes=30 \
         --model anthropic/claude-opus-4-1
 
   * `transluce_report` runs fresh Transluce/urlquery.net trials on the pinned frozen
     snapshot and grades them with the per-finding judge.
-      inspect eval messageboard_audit_bench/transluce_report \
+      inspect eval slopvestigator_bench/transluce_report \
         -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
 
   * `aivillage_report` runs fresh AI Village trials on the logs built from AI Digest's
     dataset and grades them against the 96 rubric findings.
-      inspect eval messageboard_audit_bench/aivillage_report \
+      inspect eval slopvestigator_bench/aivillage_report \
         -T agent=codex --model openai/gpt-6.1-sol --model-role grader=openai/gpt-6.1-sol
 
   * `german_wiki_report_replay` imports runs already on disk under runs/,
     so `inspect view` can render past or interrupted runs with scoring.
-      inspect eval messageboard_audit_bench/german_wiki_report_replay
+      inspect eval slopvestigator_bench/german_wiki_report_replay
 
   * `german_wiki_report_continue` resumes one finished ReAct sample from
     its eval log: the stored conversation is the prefill, the report it wrote
     is put back in the sandbox, and a follow-up message asks for more.
-      inspect eval messageboard_audit_bench/german_wiki_report_continue \
+      inspect eval slopvestigator_bench/german_wiki_report_continue \
         -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epochs=1
 
 The fresh-trial tasks take ``-T version=<MAJOR.MINOR>`` and refuse to run if this
 checkout is a different version; ``scripts/run_eval.py --version`` runs any tagged
-version (docs/benchmark-versions.md). The pre-rename task names
-(``messageboard_audit_bench``, ``urlquery_audit_bench`` and the ``_replay`` /
-``_continue`` / ``urlquery_grade_reports`` variants) remain as deprecated aliases.
+version (docs/benchmark-versions.md), under the package and task names that version had.
 
 View any result with:  inspect view
 """
@@ -66,9 +64,9 @@ from inspect_ai.util import (
     SandboxEnvironmentSpec,
 )
 
-from messageboard_audit_bench import runtime_policy
-from messageboard_audit_bench import sandbox as _sandbox_policy  # noqa: F401
-from messageboard_audit_bench.benchmarks import (
+from slopvestigator_bench import runtime_policy
+from slopvestigator_bench import sandbox as _sandbox_policy  # noqa: F401
+from slopvestigator_bench.benchmarks import (
     SPECS,
     URLQUERY_CODEX_FEATURES_OFF,
     WIKI_INCIDENT,
@@ -80,32 +78,32 @@ from messageboard_audit_bench.benchmarks import (
     urlquery_dataset_dir,
     urlquery_manifest,
 )
-from messageboard_audit_bench.configs import CONFIG_NAME, load_config
-from messageboard_audit_bench.grading.aivillage import aivillage_scorer
-from messageboard_audit_bench.grading.core import variant_for_data
-from messageboard_audit_bench.grading.finding_scorer import finding_scorer
-from messageboard_audit_bench.grading.scorer import sheet_scorer
-from messageboard_audit_bench.incidents import (
+from slopvestigator_bench.configs import CONFIG_NAME, load_config
+from slopvestigator_bench.grading.aivillage import aivillage_scorer
+from slopvestigator_bench.grading.core import variant_for_data
+from slopvestigator_bench.grading.finding_scorer import finding_scorer
+from slopvestigator_bench.grading.scorer import sheet_scorer
+from slopvestigator_bench.incidents import (
     data_variants,
     default_rubrics,
     incident,
     incident_for_variant,
 )
-from messageboard_audit_bench.native import inspect_native_agent
-from messageboard_audit_bench.report_length import (
+from slopvestigator_bench.native import inspect_native_agent
+from slopvestigator_bench.report_length import (
     acceptance_limits,
     limits,
     memory_note,
     render_prompt,
 )
-from messageboard_audit_bench.runtime import repo_root
-from messageboard_audit_bench.sandbox import IsolatedDockerSandbox  # noqa: F401
-from messageboard_audit_bench.scorer import (
+from slopvestigator_bench.runtime import repo_root
+from slopvestigator_bench.sandbox import IsolatedDockerSandbox  # noqa: F401
+from slopvestigator_bench.scorer import (
     process_metrics,
     report_length,
     rubric_scorer,
 )
-from messageboard_audit_bench.solver import replay, subscription_agent
+from slopvestigator_bench.solver import replay, subscription_agent
 
 # Versions live in the benchmark registry; bump there when the agent-visible task,
 # eligibility rule, or default grading changes. See docs/benchmark-versions.md.
@@ -553,8 +551,6 @@ def _german_wiki_report(
 
 
 german_wiki_report = task(name="german_wiki_report")(_german_wiki_report)
-# Deprecated alias: the task's name before the rename.
-messageboard_audit_bench = task(name="messageboard_audit_bench")(_german_wiki_report)
 
 
 def incident_task(config: str, **kwargs) -> Task:
@@ -680,8 +676,6 @@ def aivillage_report(
         scorers=[aivillage_scorer(judge=judge), process_metrics(), report_length()],
         extra_sample_metadata={"subagents": bool(cfg.get("subagents"))},
     )
-# Deprecated alias: the task's name before the rename.
-urlquery_audit_bench = task(name="urlquery_audit_bench")(_transluce_report)
 
 
 def _german_wiki_report_replay(
@@ -743,7 +737,6 @@ def _german_wiki_report_replay(
 
 
 german_wiki_report_replay = task(name="german_wiki_report_replay")(_german_wiki_report_replay)
-messageboard_audit_bench_replay = task(name="messageboard_audit_bench_replay")(_german_wiki_report_replay)
 
 
 def _load_followup_config(config_name: str) -> dict:
@@ -894,7 +887,6 @@ def _german_wiki_report_continue(
 
 
 german_wiki_report_continue = task(name="german_wiki_report_continue")(_german_wiki_report_continue)
-messageboard_audit_bench_continue = task(name="messageboard_audit_bench_continue")(_german_wiki_report_continue)
 
 
 UNANSWERED_TOOL_CALL = (

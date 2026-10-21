@@ -33,8 +33,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Target, mean, scorer
 from inspect_ai.solver import TaskState
 
-from messageboard_audit_bench.solver import replay
-from messageboard_audit_bench.urlquery_data import primary_root
+from slopvestigator_bench.solver import replay
+from slopvestigator_bench.urlquery_data import primary_root
 
 
 @scorer(metrics={"report_words": [mean()], "active_minutes": [mean()]})

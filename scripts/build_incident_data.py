@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from messageboard_audit_bench.incidents import incident, incidents  # noqa: E402
-from messageboard_audit_bench.runtime import repo_root  # noqa: E402
+from slopvestigator_bench.incidents import incident, incidents  # noqa: E402
+from slopvestigator_bench.runtime import repo_root  # noqa: E402
 
 
 def main() -> int:

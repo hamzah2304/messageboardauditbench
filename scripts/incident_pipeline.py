@@ -13,15 +13,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from messageboard_audit_bench.grading import core  # noqa: E402
-from messageboard_audit_bench.incidents import (  # noqa: E402
+from slopvestigator_bench.grading import core  # noqa: E402
+from slopvestigator_bench.incidents import (  # noqa: E402
     Incident,
     incident,
     incidents,
 )
-from messageboard_audit_bench.provenance import data_provenance  # noqa: E402
-from messageboard_audit_bench.runtime import repo_root  # noqa: E402
-from messageboard_audit_bench.task import incident_task  # noqa: E402
+from slopvestigator_bench.provenance import data_provenance  # noqa: E402
+from slopvestigator_bench.runtime import repo_root  # noqa: E402
+from slopvestigator_bench.task import incident_task  # noqa: E402
 
 ROOT = repo_root()
 
@@ -257,7 +257,7 @@ def cmd_guide(args: argparse.Namespace) -> int:
     print(f"  uv run python scripts/incident_pipeline.py check {item.id} --docker")
     print("\nUngraded pilot (paid report model; no judge call):")
     if item.id == "wiki":
-        print("  uv run inspect eval messageboard_audit_bench/german_wiki_report \\")
+        print("  uv run inspect eval slopvestigator_bench/german_wiki_report \\")
         print(f"    -T agent=react -T config={config} -T time_limit_minutes={minutes} \\")
         print("    --model <provider/report-model> --no-score --epochs 1 --max-samples 1")
     else:
@@ -265,8 +265,8 @@ def cmd_guide(args: argparse.Namespace) -> int:
         print(f"  CONFIG={config} BUDGET_MIN={minutes} sandbox/docker/run_trial.sh react <provider/report-model> 1")
     print("\nExport, manually review, then grade both registered modes:")
     print("  uv run python scripts/export_inspect_reports.py --logs logs --out benchmarks/german-wiki/reports/native --graded-inputs pilot")
-    print(f"  uv run inspect eval messageboard_audit_bench/german_wiki_report_grade -T dir=<staged-folder> -T rubric={finding} --model-role grader=<provider/judge-model>")
-    print(f"  uv run inspect eval messageboard_audit_bench/german_wiki_report_grade -T dir=<staged-folder> -T rubric={summary} --model-role grader=<provider/judge-model>")
+    print(f"  uv run inspect eval slopvestigator_bench/german_wiki_report_grade -T dir=<staged-folder> -T rubric={finding} --model-role grader=<provider/judge-model>")
+    print(f"  uv run inspect eval slopvestigator_bench/german_wiki_report_grade -T dir=<staged-folder> -T rubric={summary} --model-role grader=<provider/judge-model>")
     print("  uv run python scripts/export_grades.py logs/<finding-grade-run>.eval")
     print("  uv run python scripts/export_grades.py logs/<summary-grade-run>.eval")
     print(

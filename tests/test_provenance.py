@@ -1,6 +1,6 @@
 import hashlib
 
-from messageboard_audit_bench.provenance import data_provenance, host_provenance
+from slopvestigator_bench.provenance import data_provenance, host_provenance
 
 
 def test_host_provenance_identifies_config_prompt_sources_and_unknown_image() -> None:

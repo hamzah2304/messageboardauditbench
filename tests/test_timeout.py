@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.runtime import repo_root
 
 
 def _resolve(

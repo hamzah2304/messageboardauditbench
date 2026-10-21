@@ -11,7 +11,7 @@ from pathlib import Path
 
 from build_urlquery_usd_figure import PRICE_SOURCE, ROOT, cost_of, read_json
 
-from messageboard_audit_bench.benchmarks import primary_root
+from slopvestigator_bench.benchmarks import primary_root
 
 FIGURES = ROOT / "viewers" / "figures"
 RUNS = ROOT / "runs" / "urlquery"

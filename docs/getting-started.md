@@ -84,7 +84,7 @@ uses API keys, without a host Claude Code or Codex login. For example, with
 `OPENAI_API_KEY` set:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=30 \
   --model openai/gpt-5.6-sol \
   --model-role grader=openai/gpt-5.6-sol \
@@ -134,7 +134,7 @@ To defer all scoring, use Inspect's `--no-score`, then `inspect score LOG.eval`.
 The Mythos 5 integration is a runnable transfer-study draft:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=react -T config=mythos5 -T time_limit_minutes=30 \
   --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
 ```
@@ -146,7 +146,7 @@ The RubyHack package-forensics incident runs the same way. Its selected corpus
 is much smaller, so start with the 10-minute condition and an independent judge:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=react -T config=rubyhack -T time_limit_minutes=10 \
   --model openai/gpt-5.6-sol \
   --model-role grader=anthropic/claude-fable-5-1
@@ -161,7 +161,7 @@ limits.
 The provider-attribution ablation uses the same task and time parameter:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=react -T config=blind -T time_limit_minutes=30 \
   -T data_variant=verbatim_anthropic \
   --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
@@ -174,7 +174,7 @@ configs used an earlier prompt and remain available to the direct runner.
 For a ReAct continuation, use the parent `.eval` log:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report_continue \
+uv run inspect eval slopvestigator_bench/german_wiki_report_continue \
   -T parent_log=logs/PARENT.eval -T parent_epochs=1,2,3 \
   -T config=followup-5k-min5 \
   --model-role grader=openai/gpt-5.6-sol --max-samples 1
@@ -198,12 +198,12 @@ uv run python scripts/export_inspect_reports.py --logs logs --out benchmarks/ger
 uv run python scripts/export_grades.py logs/EVAL_LOG.eval
 
 # A grading-only eval: no agent execution or Docker.
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
+uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=round4_blind120 -T rubric=v2 \
   --model-role grader=openai/gpt-5.6-sol
 ```
 
-`grade_reports` accepts a folder under `benchmarks/german-wiki/graded_inputs/` or an absolute
+`german_wiki_report_grade` accepts a folder under `benchmarks/german-wiki/graded_inputs/` or an absolute
 path. Its `_index.jsonl` supplies each report's data variant. For an unindexed
 Anthropic report folder, pass `-T variant=anthropic`. Run it again with
 `-T rubric=tldrh` for summary grades. Missing or failed sheets are recorded in
@@ -211,7 +211,7 @@ score metadata; inspect these before publishing aggregates.
 
 Subscription trial setup, credentials and the direct Docker runner are described
 in [`sandbox/README.md`](../sandbox/README.md). Import existing subscription
-runs with `messageboard_audit_bench/german_wiki_report_replay`; this spends
+runs with `slopvestigator_bench/german_wiki_report_replay`; this spends
 judge tokens but does not rerun the agents.
 
 ## Historical experiment launcher
@@ -237,16 +237,16 @@ locations. Set `CHROME_BIN` to an executable path to override discovery.
 
 The Transluce report reads a frozen urlquery.net snapshot that lives only in the primary
 checkout's gitignored `data/urlquery/2026-09-26-v1/`. It is built from public
-urlquery.net JSON (`messageboard_audit_bench.urlquery_data` and `urlquery_prepare`, driven
+urlquery.net JSON (`slopvestigator_bench.urlquery_data` and `urlquery_prepare`, driven
 by `configs/urlquery-data.toml`). The task checks it against the pinned hash before an
 agent starts.
 
 ```bash
 # one trial, graded by the default judge (Opus 5.5, article omitted)
-uv run inspect eval messageboard_audit_bench/transluce_report \
+uv run inspect eval slopvestigator_bench/transluce_report \
   -T agent=claude --model anthropic/claude-opus-5-5
 # a model matrix through the batch launcher, then grade the finished runs
-uv run python -m messageboard_audit_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml --launch
+uv run python -m slopvestigator_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml --launch
 uv run python benchmarks/transluce/judge/grade.py --batch runs/urlquery/<plan-dir> --plan   # resume-aware call count
 ```
 

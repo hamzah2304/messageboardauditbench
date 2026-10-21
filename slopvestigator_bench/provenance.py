@@ -8,8 +8,8 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-from messageboard_audit_bench.incidents import incident_for_variant
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.incidents import incident_for_variant
+from slopvestigator_bench.runtime import repo_root
 
 
 def _sha256(path: Path) -> str | None:
@@ -143,7 +143,7 @@ def host_provenance(
             prompt,
             dockerfile,
             root / "uv.lock",
-            *root.glob("messageboard_audit_bench/*.py"),
+            *root.glob("slopvestigator_bench/*.py"),
             *root.glob("sandbox/*.py"),
             *root.glob("sandbox/*.sh"),
         }

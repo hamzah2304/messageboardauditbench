@@ -1,6 +1,6 @@
 """Grade reports that already exist on disk.
 
-`grade_reports` is the Inspect replacement for `grade_with_rubrics.py --dir <name>`. Its
+`german_wiki_report_grade` is the Inspect replacement for `grade_with_rubrics.py --dir <name>`. Its
 dataset is a staged report folder — `benchmarks/german-wiki/graded_inputs/<dir>/`, produced either by
 `scripts/stage_graded_inputs.py` or by `log_export.export_graded_inputs()` — and its sample
 ids are the same sanitised stems the grade filenames have always used, so a run of this
@@ -19,10 +19,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput
 from inspect_ai.solver import Generate, TaskState, solver
 
-from messageboard_audit_bench.benchmarks import reject_foreign_grading
-from messageboard_audit_bench.grading import core
-from messageboard_audit_bench.grading.scorer import sheet_scorer
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.benchmarks import reject_foreign_grading
+from slopvestigator_bench.grading import core
+from slopvestigator_bench.grading.scorer import sheet_scorer
+from slopvestigator_bench.runtime import repo_root
 
 
 def staged_dir(name: str) -> Path:
@@ -113,8 +113,6 @@ def _german_wiki_report_grade(
 
 
 german_wiki_report_grade = task(name="german_wiki_report_grade")(_german_wiki_report_grade)
-# Deprecated alias: the task's name before the rename.
-grade_reports = task(name="grade_reports")(_german_wiki_report_grade)
 
 
 def _transluce_report_grade(
@@ -140,13 +138,13 @@ def _transluce_report_grade(
       article_context: ``omitted`` or ``full``; defaults to ``omitted`` for Anthropic
         judges and ``full`` otherwise.
     """
-    from messageboard_audit_bench.benchmarks import (
+    from slopvestigator_bench.benchmarks import (
         SPECS,
         primary_root,
         urlquery_manifest,
     )
-    from messageboard_audit_bench.grading import findings
-    from messageboard_audit_bench.grading.finding_scorer import finding_scorer
+    from slopvestigator_bench.grading import findings
+    from slopvestigator_bench.grading.finding_scorer import finding_scorer
 
     run_root = primary_root() / SPECS["urlquery"].run_root
     run_dirs = findings.reports_from(
@@ -186,8 +184,6 @@ def _transluce_report_grade(
 
 
 transluce_report_grade = task(name="transluce_report_grade")(_transluce_report_grade)
-# Deprecated alias: the task's name before the rename.
-urlquery_grade_reports = task(name="urlquery_grade_reports")(_transluce_report_grade)
 
 
 @task
@@ -211,8 +207,8 @@ def aivillage_report_grade(
         directories record their own. It sets the goal periods and whether the judge is
         told the investigator saw reasoning traces.
     """
-    from messageboard_audit_bench.benchmarks import SPECS, primary_root
-    from messageboard_audit_bench.grading.aivillage import aivillage_scorer
+    from slopvestigator_bench.benchmarks import SPECS, primary_root
+    from slopvestigator_bench.grading.aivillage import aivillage_scorer
 
     if bool(runs) == bool(dir):
         raise ValueError("pass exactly one of runs or dir")

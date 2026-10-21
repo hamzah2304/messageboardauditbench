@@ -30,9 +30,9 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
-from messageboard_audit_bench.benchmarks import urlquery_manifest
-from messageboard_audit_bench.grading import findings as fj
-from messageboard_audit_bench.grading.core import judge_name
+from slopvestigator_bench.benchmarks import urlquery_manifest
+from slopvestigator_bench.grading import findings as fj
+from slopvestigator_bench.grading.core import judge_name
 
 
 def default_effort(judge: str) -> str:

@@ -29,15 +29,15 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from messageboard_audit_bench.benchmarks import (
+from slopvestigator_bench.benchmarks import (
     default_config,
     primary_root,
     urlquery_dataset_dir,
     validate_trial_data,
 )
-from messageboard_audit_bench.configs import validate_config
-from messageboard_audit_bench.dataset_manifest import file_sha256
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.configs import validate_config
+from slopvestigator_bench.dataset_manifest import file_sha256
+from slopvestigator_bench.runtime import repo_root
 
 MATRIX = [("codex", "gpt-6-astra", 1), ("codex", "gpt-6-sol", 1),
           ("claude", "claude-opus-5-5", 1), ("claude", "claude-opus-5-5", 2)]

@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.runtime import repo_root
 
 MATURITIES = {"candidate", "pilot", "reviewed", "published"}
 RESULT_STATUSES = {"none", "pilot", "published"}

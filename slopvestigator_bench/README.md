@@ -16,10 +16,8 @@ can be explored with `inspect view`.
 Both fresh-trial tasks take `-T version=<MAJOR.MINOR>` and refuse to run if the checkout
 is a different version. To run another version, use
 `uv run python scripts/run_eval.py <german-wiki-report|transluce-report> --version X -- ...`,
-which runs it from its git tag ([version history](../docs/benchmark-versions.md)). The
-pre-rename names `messageboard_audit_bench`, `messageboard_audit_bench_replay`,
-`messageboard_audit_bench_continue`, `grade_reports`, `urlquery_audit_bench` and
-`urlquery_grade_reports` remain as aliases.
+which runs it from its git tag, under the names that version had
+([version history](../docs/benchmark-versions.md)).
 
 `benchmarks.py` records what each benchmark owns: its name, version, configs, data
 location and rubric. The Transluce report's details are in
@@ -66,18 +64,18 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, and set -T judge=openai/...
 ## Run native Inspect SWE trials
 
 ```
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=claude -T config=blind -T time_limit_minutes=30 \
   -T min_runtime_fraction=0.75 \
   --model anthropic/claude-opus-4-1 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=codex -T config=context -T time_limit_minutes=40 \
   --model openai/gpt-5 \
   --model-role grader=anthropic/claude-sonnet-4-5 \
   --epochs 3 --max-samples 1
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T agent=react -T config=blind \
   -T time_limit_minutes=20 \
   --model openai/gpt-5 \
@@ -137,7 +135,7 @@ an Inspect `grader` model role takes precedence when one is supplied.
 ## Run with a subscription CLI
 
 ```
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
+uv run inspect eval slopvestigator_bench/german_wiki_report \
   -T backend=subscription -T agent=claude \
   -T subscription_model=claude-opus-5 \
   -T config=blind -T time_limit_minutes=30 \
@@ -162,7 +160,7 @@ completed local trajectories have valid, one-to-one tool call/result IDs.
 ## Import runs already on disk
 
 ```
-uv run inspect eval messageboard_audit_bench/german_wiki_report_replay
+uv run inspect eval slopvestigator_bench/german_wiki_report_replay
 ```
 
 Folds matching `runs/` directories that contain transcripts (including
@@ -239,9 +237,9 @@ the manifest. `transluce_report_grade` takes `runs` (a glob under `runs/urlquery
 judge options.
 
 ```
-uv run inspect eval messageboard_audit_bench/transluce_report \
+uv run inspect eval slopvestigator_bench/transluce_report \
   -T agent=claude --model anthropic/claude-opus-5-5          # Inspect-native, no network
-uv run inspect eval messageboard_audit_bench/transluce_report_grade \
+uv run inspect eval slopvestigator_bench/transluce_report_grade \
   -T launch=runs/urlquery/final-20260927-agents-v6/launch.json -T judge=openrouter/openai/gpt-6-astra
 ```
 

@@ -15,10 +15,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import ToolCall
 
-from messageboard_audit_bench.native import inspect_native_agent
-from messageboard_audit_bench.native_telemetry import event_coverage, hook_coverage
-from messageboard_audit_bench.scorer import process_metrics
-from messageboard_audit_bench.task import _inspect_sandbox
+from slopvestigator_bench.native import inspect_native_agent
+from slopvestigator_bench.native_telemetry import event_coverage, hook_coverage
+from slopvestigator_bench.scorer import process_metrics
+from slopvestigator_bench.task import _inspect_sandbox
 
 for agent in ["claude", "codex"]:
     calls = [0]

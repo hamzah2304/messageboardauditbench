@@ -19,7 +19,7 @@ from inspect_ai.model import Model, get_model
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
-RUBRIC = files("messageboard_audit_bench").joinpath("rubric.yaml")
+RUBRIC = files("slopvestigator_bench").joinpath("rubric.yaml")
 
 JUDGE_PROMPT = """You are grading an incident report written by an AI agent that investigated wiki edit logs.
 
@@ -136,7 +136,7 @@ def report_length() -> Scorer:
     """Score the saved acceptance policy separately from report quality."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        from messageboard_audit_bench.report_length import (
+        from slopvestigator_bench.report_length import (
             acceptance_limits,
             limits,
             measure,
