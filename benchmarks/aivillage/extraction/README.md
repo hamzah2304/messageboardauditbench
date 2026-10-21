@@ -5,8 +5,8 @@ findings. The later steps are documented in `../findings/README.md`.
 
 | Source | Prompt | Script | Output (gitignored) |
 |---|---|---|---|
-| Substack (18 articles, high reasoning) | `substack-findings-prompt.md` | `scripts/extract_aivillage_substack.py`, quotes checked by `scripts/check_aivillage_extractions.py` | `logs/aivillage-substack-failures-20261004` |
-| X (157 screened posts, high reasoning) | `../x-findings-prompt.md` | `scripts/x_screen.py`, `scripts/x_extract.py` | `runs/x-extraction-20261004` |
+| Substack (18 articles, high reasoning) | `substack-findings-prompt.md` | `scripts/aivillage/extract_aivillage_substack.py`, quotes checked by `scripts/aivillage/check_aivillage_extractions.py` | `logs/aivillage-substack-failures-20261004` |
+| X (157 screened posts, high reasoning) | `../x-findings-prompt.md` | `scripts/aivillage/x_screen.py`, `scripts/aivillage/x_extract.py` | `runs/x-extraction-20261004` |
 | Discord (1,308 screened conversations, medium reasoning) | `discord-findings-prompt.md` | `discord_extract_all_run.py`, which builds its requests with `discord_extract_sample_run.py` | `runs/discord-extraction-failures-full-medium-20261004` |
 
 The two prompt files are the text under the "Extraction prompt" heading of the Google Doc tabs

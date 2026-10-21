@@ -9,7 +9,7 @@ directory; a raw response without a result stops the run for inspection.
     uv run python scripts/aivillage/x_extract.py runs/x-extraction-sample-YYYYMMDD [--dry-run]
 
 The run directory must hold sample-posts.json (rows from x_screen.py decisions)
-and, to attach images, media.json from scripts/x_media.py.
+and, to attach images, media.json from scripts/aivillage/x_media.py.
 """
 from __future__ import annotations
 

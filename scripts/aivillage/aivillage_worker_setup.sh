@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare a second machine (e.g. a Mac) to run AI Village trials with scripts/aivillage_batch.sh.
+# Prepare a second machine (e.g. a Mac) to run AI Village trials with scripts/aivillage/aivillage_batch.sh.
 #
 #   scripts/aivillage/aivillage_worker_setup.sh [vm-ssh-alias, default fuzzy]
 #

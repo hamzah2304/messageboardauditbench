@@ -32,7 +32,7 @@ def prepare(root, out):
     assert len(chosen) == 10
     merged = json.loads((root / 'logs/aivillage-merged-findings-review/review.json').read_text())
     originals = {f['id']: f for a in merged['articles'] for f in a.get('extraction', {}).get('findings', [])}
-    checker_path = root / '.worktrees/claude-aivillage-pilot/scripts/check_aivillage_citations.py'
+    checker_path = root / 'scripts/aivillage/check_aivillage_citations.py'
     spec = importlib.util.spec_from_file_location('checker', checker_path)
     checker = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(checker)
