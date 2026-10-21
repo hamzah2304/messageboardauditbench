@@ -8,8 +8,8 @@ its data and runs are covered [at the end](#the-transluce-report).
 ## Install and verify the data
 
 ```bash
-git clone https://github.com/hamzah2304/messageboardauditbench
-cd messageboardauditbench
+git clone https://github.com/hamzah2304/slopvestigator-bench
+cd slopvestigator-bench
 uv sync --frozen
 scripts/build_data.sh
 scripts/build_data.sh --verify

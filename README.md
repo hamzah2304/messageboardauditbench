@@ -1,4 +1,7 @@
-# MessageBoardAuditBench
+# SlopvestigatorBench
+
+Formerly MessageBoardAuditBench; old GitHub links redirect here. The Python package keeps
+its name, `messageboard_audit_bench`, so existing Inspect task names and logs still work.
 
 Three sibling benchmarks for one question: can an AI agent investigate raw logs of AI
 agents misbehaving and find what human investigators found? In each, the agent gets the

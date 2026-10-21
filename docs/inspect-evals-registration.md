@@ -1,6 +1,6 @@
 # Inspect Evals registration handoff
 
-MessageBoardAuditBench is packaged as an externally managed Inspect eval. A
+SlopvestigatorBench (package `messageboard_audit_bench`) is packaged as an externally managed Inspect eval. A
 fresh checkout can install it with `uv sync` and run its registered task as:
 
 ```bash
