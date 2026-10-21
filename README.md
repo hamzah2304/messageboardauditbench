@@ -28,6 +28,7 @@ uv run inspect eval messageboard_audit_bench/aivillage_report   -T agent=codex  
 for any Inspect model). Each task grades its report inline with its own judge; set the
 judge with `--model-role grader=<model>`, or skip grading with `--no-score`. The
 `*_grade` tasks grade reports that already exist.
+`scripts/e2e_smoke.sh` runs one short trial of each, end to end.
 
 ## What they share
 
