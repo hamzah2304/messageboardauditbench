@@ -22,7 +22,9 @@ def test_any_existing_run_counts_as_done(tmp_path):
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == []  # no meta.json yet: still running or died
     (run / "meta.json").write_text('{"launch_status": "preparing"}')      # died before reaching the model
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == []
-    (run / "runner-events.jsonl").write_text('{"event": "cli_started"}\n')  # reached the model: running or died
+    (run / "runner-events.jsonl").write_text('{"event": "cli_started"}\n')  # logged before docker run: not proof
+    assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == []
+    (run / "transcript.part1.jsonl").write_text('{"type": "assistant"}\n')  # reached the model: running or died
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == [run]
     (run / "meta.json").write_text('{"exit_code": 1}')                    # a failed run is a result
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == [run]

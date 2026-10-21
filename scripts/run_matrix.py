@@ -46,14 +46,19 @@ def existing(run_root: Path, model: lineup.Model, config: str, rep: int) -> list
 
 
 def finished(run_dir: Path) -> bool:
-    """The trial reached the model: its CLI started (it may still be running, or have died
-    after). Such a run is a result and is never launched again. A launch that died before
-    the CLI started (credentials, preflight) never reached the model and may be launched again."""
+    """The trial reached the model (it may still be running, or have died after). Such a run is a
+    result and is never launched again. A launch that died before the model produced anything
+    (credentials, preflight, an interrupted start) may be launched again."""
     meta = run_dir / "meta.json"
     if meta.is_file() and '"exit_code"' in meta.read_text():
         return True
-    events = run_dir / "runner-events.jsonl"
-    return events.is_file() and '"cli_started"' in events.read_text()
+    return reached_model(run_dir)
+
+
+def reached_model(run_dir: Path) -> bool:
+    """The agent produced output: a non-empty transcript (whole, or a part still being written).
+    The runner logs cli_started just before docker run, so that event alone does not prove it."""
+    return any(p.stat().st_size > 0 for p in run_dir.glob("transcript*.jsonl"))
 
 
 def main() -> int:

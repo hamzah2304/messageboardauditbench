@@ -119,8 +119,7 @@ def rows(primary: Path, log_dir: Path | None) -> list[Row]:
                 if not meta_path.is_file():
                     continue
                 meta = json.loads(meta_path.read_text())
-                events = run_dir / "runner-events.jsonl"
-                started = events.is_file() and '"cli_started"' in events.read_text()
+                started = any(p.stat().st_size > 0 for p in run_dir.glob("transcript*.jsonl"))
                 if "exit_code" not in meta and not started:  # never reached the model (see run_matrix)
                     continue
                 verdict = eligibility.check_meta(meta)
