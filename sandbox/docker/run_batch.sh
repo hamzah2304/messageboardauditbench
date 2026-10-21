@@ -3,7 +3,7 @@
 #
 #   <agent> <model> <config> [replicate] # config = configs/<name>.toml; '#' starts a comment
 #   claude claude-opus-5 blind-20 1
-#   codex  gpt-5.6-sol   context-40 1
+#   codex  gpt-6.1-sol   urlquery-std-30 1
 #   react  moonshotai/kimi-k3 blind-20 1
 #
 #   sandbox/docker/run_batch.sh matrix.txt
