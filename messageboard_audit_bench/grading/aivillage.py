@@ -237,6 +237,12 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
             if out.stop_reason == "max_tokens":
                 error = "truncated"
                 continue
+            # As the batch grader: refuse a grade from a model other than the one asked for
+            # (a dated snapshot of it is fine).
+            asked, returned = str(model).rsplit("/", 1)[-1], (out.model or "").rsplit("/", 1)[-1]
+            if returned and returned != asked and not returned.startswith(asked + "-"):
+                error = f"returned model {out.model} differs from {model}"
+                continue
             return {"status": "ok", **validate(json.loads(out.completion), job)}
         except Exception as exc:  # noqa: BLE001 — recorded, not raised: other groups stand
             error = f"{type(exc).__name__}: {exc}"[:500]
