@@ -27,7 +27,7 @@ python3 viewers/build_urlquery_usd_figure.py
 
 The [data file](urlquery_usd_figure.json) has one row per run. Its `performance`
 values are the `score_mean` from the 48 complete GPT-6 Astra high-effort grades
-in `reports/urlquery/graded/judge_gpt_6_astra_high/`. Those grades use the
+in `benchmarks/transluce/reports/graded/judge_gpt_6_astra_high/`. Those grades use the
 reviewed findings file (`findings_sha256` recorded in the JSON), which differs
 from the current `urlquery/main` `findings_v1.json`; interpret the points as
 scores under that reviewed rubric. The grade files themselves stay untracked

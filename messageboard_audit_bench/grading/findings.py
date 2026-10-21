@@ -1,16 +1,16 @@
 """The URLQuery finding judge: the sheet, the prompt, the parsing, the arithmetic, the path.
 
 URLQuery is graded per headline finding rather than per claim sheet: one judge call per
-headline in benchmarks/urlquery/claims/findings_reviewed.json, scoring the headline 0-1
+headline in benchmarks/transluce/claims/findings_reviewed.json, scoring the headline 0-1
 (tenths) and each of its sub-findings 0-1 (quarters). This module is the provider-free
 core, the counterpart of `grading.core` for the message-board sheets. Two callers share it:
 
 * `grading.finding_scorer.finding_scorer`, the Inspect scorer on `transluce_report`
   and `transluce_report_grade`; and
-* benchmarks/urlquery/judge/grade.py, the resumable batch grader that wrote the existing
-  grade files under reports/urlquery/graded/.
+* benchmarks/transluce/judge/grade.py, the resumable batch grader that wrote the existing
+  grade files under benchmarks/transluce/reports/graded/.
 
-The prompt bytes are those of the original benchmarks/urlquery/judge/render_sheet.py;
+The prompt bytes are those of the original benchmarks/transluce/judge/render_sheet.py;
 tests/test_urlquery_judge.py pins them.
 
 Scan coverage is computed here, not by the judge: the judge is told which of each

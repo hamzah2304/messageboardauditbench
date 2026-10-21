@@ -7,7 +7,7 @@ JSON for an explorable subset of its reports.
 Everything lands in the primary checkout's gitignored data/transluce/:
   urlquery-agent-activity-2026-09-23.zip + the unzipped catalogue
   agent-activity.html        the blog post (cited report ids come from here)
-  reports/<report_id>.json   one raw urlquery report per id, cached
+  benchmarks/german-wiki/reports/<report_id>.json   one raw urlquery report per id, cached
   subset.json                which ids were chosen and why
 
 urlquery's terms allow personal, non-commercial use and forbid redistribution,

@@ -264,16 +264,16 @@ def cmd_guide(args: argparse.Namespace) -> int:
         # Drafts are not part of any Inspect eval yet; the shell runner takes any config.
         print(f"  CONFIG={config} BUDGET_MIN={minutes} sandbox/docker/run_trial.sh react <provider/report-model> 1")
     print("\nExport, manually review, then grade both registered modes:")
-    print("  uv run python scripts/export_inspect_reports.py --logs logs --out reports/native --graded-inputs pilot")
+    print("  uv run python scripts/export_inspect_reports.py --logs logs --out benchmarks/german-wiki/reports/native --graded-inputs pilot")
     print(f"  uv run inspect eval messageboard_audit_bench/german_wiki_report_grade -T dir=<staged-folder> -T rubric={finding} --model-role grader=<provider/judge-model>")
     print(f"  uv run inspect eval messageboard_audit_bench/german_wiki_report_grade -T dir=<staged-folder> -T rubric={summary} --model-role grader=<provider/judge-model>")
     print("  uv run python scripts/export_grades.py logs/<finding-grade-run>.eval")
     print("  uv run python scripts/export_grades.py logs/<summary-grade-run>.eval")
     print(
         "  uv run python scripts/score_reports.py "
-        f"--incident {item.id} benchmark/graded/judge_<judge> \\\n"
-        f"    --json-out benchmark/results/{item.id}/scores.json \\\n"
-        f"    --markdown-out benchmark/results/{item.id}/README.md  # {finding} + {summary}"
+        f"--incident {item.id} benchmarks/german-wiki/graded/judge_<judge> \\\n"
+        f"    --json-out benchmarks/german-wiki/results/{item.id}/scores.json \\\n"
+        f"    --markdown-out benchmarks/german-wiki/results/{item.id}/README.md  # {finding} + {summary}"
     )
     print("\nBefore publication:")
     for requirement in item.review.get("publication_requirements", []):
@@ -295,9 +295,9 @@ def cmd_new(args: argparse.Namespace) -> int:
     if not prefix:
         raise ValueError("prefix must contain a letter or digit")
     targets = [
-        ROOT / "benchmark" / "incidents" / f"{incident_id}.json",
+        ROOT / "benchmarks" / "german-wiki" / "incidents" / f"{incident_id}.json",
         ROOT / "configs" / f"{incident_id}.toml",
-        ROOT / "benchmark" / "rubrics" / incident_id,
+        ROOT / "benchmarks" / "german-wiki" / "rubrics" / incident_id,
         ROOT / "scripts" / f"build_{incident_id.replace('-', '_')}_data.py",
     ]
     if any(path.exists() for path in targets):
@@ -306,9 +306,9 @@ def cmd_new(args: argparse.Namespace) -> int:
     rubric_dir.mkdir(parents=True)
     builder = f"scripts/build_{incident_id.replace('-', '_')}_data.py"
     finding, summary = incident_id.replace("-", ""), f"{incident_id.replace('-', '')}tldrh"
-    answer_key = f"benchmark/rubrics/{incident_id}/{incident_id}_report.txt"
-    claims_file = f"benchmark/rubrics/{incident_id}/claims_{incident_id.replace('-', '_')}.json"
-    rubric_builder = f"benchmark/rubrics/build_rubrics_{incident_id.replace('-', '_')}.py"
+    answer_key = f"benchmarks/german-wiki/rubrics/{incident_id}/{incident_id}_report.txt"
+    claims_file = f"benchmarks/german-wiki/rubrics/{incident_id}/claims_{incident_id.replace('-', '_')}.json"
+    rubric_builder = f"benchmarks/german-wiki/rubrics/build_rubrics_{incident_id.replace('-', '_')}.py"
     manifest = {
         "schema": 1,
         "id": incident_id,

@@ -83,7 +83,7 @@ td.zero{color:var(--ink3)}
     <p class="read" id="read1"></p>
     <div class="panel" id="fig1"></div>
     <div class="legend" id="leg1"></div>
-    <div class="tools"><button class="csv" data-csv="ranks">copy CSV</button><span>or benchmark/figures/rank_compare.csv</span></div>
+    <div class="tools"><button class="csv" data-csv="ranks">copy CSV</button><span>or benchmarks/german-wiki/figures/rank_compare.csv</span></div>
     <p class="cap" id="cap1"></p>
     <details><summary>Numbers</summary><div class="tbl" id="tbl1"></div></details>
   </section>
@@ -302,7 +302,7 @@ function tabs() {
   const c = el('button', 'csv', 'copy CSV'); c.dataset.csv = 'ranks';
   c.onclick = () => navigator.clipboard.writeText(CSV.ranks || '').then(() => {
     c.textContent = 'copied'; setTimeout(() => { c.textContent = 'copy CSV'; }, 1200); }).catch(() => {});
-  box.append(c, el('span', null, 'or benchmark/figures/rank_compare.csv'));
+  box.append(c, el('span', null, 'or benchmarks/german-wiki/figures/rank_compare.csv'));
 }
 const cav = document.getElementById('cav');
 ['A slope is one model’s rank on the standard corpus joined to its rank on the swapped '

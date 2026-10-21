@@ -1,7 +1,7 @@
 """Grade reports that already exist on disk.
 
 `grade_reports` is the Inspect replacement for `grade_with_rubrics.py --dir <name>`. Its
-dataset is a staged report folder — `benchmark/graded_inputs/<dir>/`, produced either by
+dataset is a staged report folder — `benchmarks/german-wiki/graded_inputs/<dir>/`, produced either by
 `scripts/stage_graded_inputs.py` or by `log_export.export_graded_inputs()` — and its sample
 ids are the same sanitised stems the grade filenames have always used, so a run of this
 task exports over the existing corpus rather than beside it.
@@ -27,7 +27,7 @@ from messageboard_audit_bench.runtime import repo_root
 
 def staged_dir(name: str) -> Path:
     path = Path(name)
-    return path if path.is_absolute() else repo_root() / "benchmark" / "graded_inputs" / name
+    return path if path.is_absolute() else repo_root() / "benchmarks" / "german-wiki" / "graded_inputs" / name
 
 
 def _index(folder: Path) -> dict[str, dict]:
@@ -61,7 +61,7 @@ def _german_wiki_report_grade(
     """Grade every staged report in `dir` against `rubric`.
 
     Args:
-      dir: a folder under benchmark/graded_inputs/, or an absolute path.
+      dir: a folder under benchmarks/german-wiki/graded_inputs/, or an absolute path.
       rubric: a key of `core.MODES`, such as "v2", "tldrh", "m5",
         "m5tldrh", "rh", or "rhtldrh".
       variant: explicit rubric variant for reports without an index; indexed
@@ -127,7 +127,7 @@ def _transluce_report_grade(
 ) -> Task:
     """Grade finished Transluce report run directories with the per-finding judge.
 
-    The Inspect counterpart of benchmarks/urlquery/judge/grade.py: the same prompts and
+    The Inspect counterpart of benchmarks/transluce/judge/grade.py: the same prompts and
     arithmetic, with the grade file for each report in ``Score.metadata["grade"]``.
 
     Args:

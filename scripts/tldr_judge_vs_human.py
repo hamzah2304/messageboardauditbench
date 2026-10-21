@@ -20,7 +20,7 @@ from itertools import combinations
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from paths import ROOT, GRADED
 
-SCORES = ROOT / "benchmark" / "audit" / "tldr_human_scores.json"
+SCORES = ROOT / "benchmarks" / "german-wiki" / "audit" / "tldr_human_scores.json"
 APPROX, STRICT = 0.1, 0.2
 
 

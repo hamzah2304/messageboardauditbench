@@ -9,7 +9,7 @@ The task shape is the same as the wiki incident: give an agent the raw transcrip
 (and nothing else), ask for an incident report, grade it against the human write-up.
 The write-up here is the blog post's Mythos 5 section; this document is the first
 pass at turning that section into a graded finding set with a derivability call on
-each item, the same way `benchmark/feasibility/` does for the wiki.
+each item, the same way `benchmarks/german-wiki/feasibility/` does for the wiki.
 
 ## What the agent would be given
 
@@ -148,7 +148,7 @@ that asserts them from the transcript is over-claiming.
 1. **Contamination is the hard blocker.** The transcript is one day old, heavily
    press-covered, and names PyPI / `mlflow-ui` explicitly — the prompt can't hide
    the source the way `blind-v2.txt` hides the wiki. And the released README reuses
-   **the same canary GUID already in `benchmark/human_report.txt`**
+   **the same canary GUID already in `benchmarks/german-wiki/human_report.txt`**
    (`26b5c67b-…`), so a canary hit can't attribute the leak. Decide whether this
    corpus is usable for *scoring* frontier models or only as a transfer/ablation
    probe.

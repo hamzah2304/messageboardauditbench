@@ -20,8 +20,8 @@ ROOT = Path(__file__).parents[1]
 
 def test_namespaces_and_fail_closed_grading():
     original, new = benchmark_spec("messageboard"), benchmark_spec("urlquery")
-    assert original.evaluator_root == "benchmark" and new.evaluator_root == "benchmarks/urlquery"
-    assert new.run_root == "runs/urlquery" and new.report_root == "reports/urlquery"
+    assert original.evaluator_root == "benchmarks/german-wiki" and new.evaluator_root == "benchmarks/transluce"
+    assert new.run_root == "runs/urlquery" and new.report_root == "benchmarks/transluce/reports"
     with pytest.raises(ValueError, match="unknown benchmark"):
         benchmark_spec("typo")
     assert (original.task, new.task) == ("german_wiki_report", "transluce_report")
@@ -127,14 +127,15 @@ def test_collector_separates_nested_urlquery_reports(tmp_path):
     command = [sys.executable, str(ROOT / "scripts/collect_reports.py"), "--runs", str(runs), "--out", str(out)]
     subprocess.run(command, check=True, capture_output=True)
     assert not (out / "index.jsonl").read_text().strip()
+    command[-1] = str(out := tmp_path / "transluce-reports")
     subprocess.run(command + ["--benchmark", "urlquery"], check=True, capture_output=True)
-    row = json.loads((out / "urlquery/index.jsonl").read_text())
+    row = json.loads((out / "index.jsonl").read_text())
     assert row["benchmark_id"] == "urlquery" and row["dataset_sha256"] == "a" * 64
     assert not row["partial"] and row["report_finalization"] == "not_confirmed"
-    assert (out / "urlquery" / row["report"]).read_text() == (run / "report.md").read_text()
+    assert (out / row["report"]).read_text() == (run / "report.md").read_text()
     from messageboard_audit_bench.grading.task import grade_reports
     with pytest.raises(ValueError, match="cross-benchmark grading"):
-        grade_reports(dir=str((out / "urlquery" / row["report"]).parent))
+        grade_reports(dir=str((out / row["report"]).parent))
     meta.pop("dataset_sha256")
     (run / "meta.json").write_text(json.dumps(meta))
     result = subprocess.run(command + ["--benchmark", "urlquery"], capture_output=True, text=True)

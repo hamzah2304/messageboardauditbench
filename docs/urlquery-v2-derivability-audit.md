@@ -22,7 +22,7 @@ The revised [findings export](urlquery-findings-v2-reviewed.json) preserves
 the review comments on the remaining items. Its text and verdict fields are
 the authoritative reviewed sheet. This table records why each revised point
 is supportable and what remains uncertain. The source is Hugo's 27 September
-2026 revision (`a5c4fdc:benchmarks/urlquery/claims/findings_v2.json`) plus
+2026 revision (`a5c4fdc:benchmarks/transluce/claims/findings_v2.json`) plus
 the user's exported comments. The original article quotes in the export are
 provenance; some now use stronger language than the reviewed claim and should
 not be treated as independent evidence.

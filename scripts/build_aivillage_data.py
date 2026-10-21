@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PRIMARY = Path(subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"], text=True).strip()).parent
 RAW = PRIMARY / "data" / "raw" / "ai-village"
-README = ROOT / "benchmark" / "incidents" / "aivillage" / "data-readme.txt"
+README = ROOT / "benchmarks" / "aivillage" / "data-readme.txt"
 
 DROP_TYPES = {"thinking", "redacted_thinking", "reasoning", "reasoning.text", "reasoning.encrypted", "reasoning.summary"}
 DROP_KEYS = {"thinking", "reasoning", "reasoning_content", "reasoning_details", "thinkingMessage", "encrypted_content"}

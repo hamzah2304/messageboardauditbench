@@ -70,7 +70,7 @@ def latest(state_path: Path) -> Path:
             continue
         grades = []
         for transport in ("batch", "sync"):
-            path = (primary_root() / "reports" / "urlquery" / "graded"
+            path = (primary_root() / "benchmarks" / "transluce" / "reports" / "graded"
                     / f"judge_gpt_6_astra_high_openai_{transport}" / f"{name}.json")
             if path.exists() and (grade := read_json(path)).get("n_scored") == 13:
                 grades.append(grade)
@@ -196,7 +196,7 @@ def final_balanced(selection_file: Path) -> Path:
          "replicate": row["replicate"], "reasons": ["comparison_harness_dropped"]}
         for row in dropped]
     expected = payload["grade_source"]
-    grade_root = (primary_root() / "reports" / "urlquery" / "graded"
+    grade_root = (primary_root() / "benchmarks" / "transluce" / "reports" / "graded"
                   / "judge_gpt_6_astra_high_openai_batch")
     for name in selected:
         if Path(name).name != name or any(row["run_dir"] == name for row in rows):

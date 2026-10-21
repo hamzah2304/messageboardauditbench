@@ -20,7 +20,7 @@ SUMS=data/SHA256SUMS.variants
 if [ "${1:-}" != "--verify" ]; then
   [ -f data/raw/revisions.jsonl ] || scripts/fetch_data.sh
   python3 scripts/strip_analysis_fields.py data/raw data/raw_stripped
-  python3 scripts/fill_verbatim.py data/raw_stripped data/verbatim benchmark/human_report.txt
+  python3 scripts/fill_verbatim.py data/raw_stripped data/verbatim benchmarks/german-wiki/human_report.txt
   python3 scripts/swap_provider.py data/verbatim data/verbatim_anthropic
   python3 scripts/build_incident_data.py
 fi

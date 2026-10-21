@@ -5,7 +5,7 @@ the shared Docker runner (sandbox/docker/run_trial.sh), exactly as the Inspect t
 subscription backend does; this module adds what a large matrix needs on top: one
 lane or queue per subscription, a stop on authentication/capacity failure for that
 subscription, fail-closed validation of each run's record, and a plan.json per arm
-that the batch grader (benchmarks/urlquery/judge/grade.py --batch/--launch) reads.
+that the batch grader (benchmarks/transluce/judge/grade.py --batch/--launch) reads.
 
 No model calls until --launch. Plans are exclusive-create artifacts and are never
 silently resumed. `--batch` plans several configs (prompt/budget arms) at once and

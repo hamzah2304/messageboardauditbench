@@ -10,11 +10,11 @@
   harness comparison.
 
 Sources (all settled on main, cross-checked here):
-  benchmark/figures/headline_eci.json               index, fallbacks, caveats, per-budget means
-  benchmark/graded/judge_claude_fable_5_1/v2/       per-report grades (Fable 5.1, v2 rubric, 38 points)
-  benchmark/graded/judge_claude_fable_5_1/tldrh/    per-report holistic TL;DR grade (Fable 5.1, one 0-1 score)
-  benchmark/graded_inputs/round4_blind*/_index.jsonl  per-report token usage, joined by graded filename
-  benchmark/prices.json                             list prices, USD per million tokens (OpenRouter, 2026-09-07)
+  benchmarks/german-wiki/figures/headline_eci.json               index, fallbacks, caveats, per-budget means
+  benchmarks/german-wiki/graded/judge_claude_fable_5_1/v2/       per-report grades (Fable 5.1, v2 rubric, 38 points)
+  benchmarks/german-wiki/graded/judge_claude_fable_5_1/tldrh/    per-report holistic TL;DR grade (Fable 5.1, one 0-1 score)
+  benchmarks/german-wiki/graded_inputs/round4_blind*/_index.jsonl  per-report token usage, joined by graded filename
+  benchmarks/german-wiki/prices.json                             list prices, USD per million tokens (OpenRouter, 2026-09-07)
 The strict transform max(2s - 1, 0) is imported from scripts/report_performance.py. The build
 aborts if a per-budget mean differs from the JSON, and prints how the computed cost of the
 Claude Code runs compares with the cost Claude Code itself reported.

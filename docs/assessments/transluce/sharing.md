@@ -29,7 +29,7 @@ URLs, source bytes and comment anchors do not change when the index is regrouped
 Each report's own archived `prompt.txt` is also checked against its run-index
 hash, preventing a mislabelled index from assigning it to a different cohort.
 
-The private static source is the **primary checkout's** `reports/share-site/`,
+The private static source is the **primary checkout's** `benchmarks/transluce/reports/share-site/`,
 not a task worktree's directory, with public-output directory `dist/`. The builder
 defaults to that shared location and refuses a missing Sites binding. It remains
 safe when a task worktree is removed. Both are gitignored in the benchmark

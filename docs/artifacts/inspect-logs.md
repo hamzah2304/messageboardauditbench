@@ -27,7 +27,7 @@ are referenced by the results; four other unfinished logs are excluded and
 listed in the manifest.
 Do not average every archived sample: use the tracked report indexes, grades,
 and figure builders to reproduce the published selection. Historical runs often
-used `--no-score`; their grades are stored separately under `benchmark/graded/`.
+used `--no-score`; their grades are stored separately under `benchmarks/german-wiki/graded/`.
 The current task runs both graders by default.
 
 The archives do not include `.env`, account credentials, the complete legacy

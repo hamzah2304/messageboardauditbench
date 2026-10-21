@@ -6,16 +6,16 @@ the Inspect solvers and the grading plumbing). What differs is recorded here:
 * ``german-wiki-report`` (Inspect task ``german_wiki_report``; storage id
   ``messageboard``) — the original MessageBoardAuditBench on the collusion.wiki
   incident. Its corpus, configs and rubrics are the ``wiki`` incident manifest under
-  ``benchmark/incidents/``, and its data lives in ``data/<variant>/``. The other
+  ``benchmarks/german-wiki/incidents/``, and its data lives in ``data/<variant>/``. The other
   manifests there (Mythos 5, RubyHack) are drafts for future evals, not part of it.
 * ``transluce-report`` (Inspect task ``transluce_report``; storage id ``urlquery``) —
   the Transluce urlquery.net agent-activity audit. Its manifest is
-  ``benchmarks/urlquery/benchmark.json``: one frozen, hash-pinned snapshot under the
+  ``benchmarks/transluce/benchmark.json``: one frozen, hash-pinned snapshot under the
   primary checkout's ``data/urlquery/``, its trial configs, and its per-finding rubric.
 * ``aivillage-report`` (Inspect task ``aivillage_report``; storage id ``aivillage``) —
   the AI Village logs, from AI Digest's gated Hugging Face dataset, built into the
   primary checkout's ``data/aivillage/``. Its rubric, judge prompt and results live in
-  ``benchmark/incidents/aivillage/``; its configs are ``AIVILLAGE_CONFIGS``.
+  ``benchmarks/aivillage/``; its configs are ``AIVILLAGE_CONFIGS``.
 
 The storage ids predate the public names and stay as they are: they are written into
 every run record, config and grade file.
@@ -58,16 +58,17 @@ class BenchmarkSpec:
 SPECS = {
     "messageboard": BenchmarkSpec(
         "messageboard", "german-wiki-report", "German wiki report", "german_wiki_report",
-        "messageboard_audit_bench", "10.0", "benchmark", "runs", "reports", "logs",
+        "messageboard_audit_bench", "10.0", "benchmarks/german-wiki", "runs",
+        "benchmarks/german-wiki/reports", "logs",
     ),
     "urlquery": BenchmarkSpec(
         "urlquery", "transluce-report", "Transluce report", "transluce_report",
-        "urlquery_audit_bench", "1.0", "benchmarks/urlquery", "runs/urlquery",
-        "reports/urlquery", "logs/urlquery",
+        "urlquery_audit_bench", "1.0", "benchmarks/transluce", "runs/urlquery",
+        "benchmarks/transluce/reports", "logs/urlquery",
     ),
     "aivillage": BenchmarkSpec(
         "aivillage", "aivillage-report", "AI Village report", "aivillage_report",
-        "", "1.0", "benchmark/incidents/aivillage", "runs", "reports/aivillage", "logs/aivillage",
+        "", "1.0", "benchmarks/aivillage", "runs", "benchmarks/aivillage/reports", "logs/aivillage",
     ),
 }
 BY_NAME = {spec.name: spec for spec in SPECS.values()}
@@ -134,7 +135,7 @@ def primary_root() -> Path:
 
 @lru_cache(maxsize=1)
 def urlquery_manifest() -> dict[str, Any]:
-    """benchmarks/urlquery/benchmark.json, validated."""
+    """benchmarks/transluce/benchmark.json, validated."""
     path = repo_root() / SPECS["urlquery"].evaluator_root / "benchmark.json"
     data = json.loads(path.read_text())
     if data.get("schema") != 1 or data.get("id") != "urlquery":

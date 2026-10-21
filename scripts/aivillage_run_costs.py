@@ -14,7 +14,7 @@ to the estimate and flags a disagreement, so neither number is taken on trust:
 
 Usage:
   uv run python scripts/aivillage_run_costs.py \
-      --manifest benchmark/incidents/aivillage/benchmark-2026-10-04-runs.md \
+      --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md \
       --out runs/aivillage-costs-20261004
 """
 

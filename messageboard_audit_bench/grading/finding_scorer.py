@@ -1,7 +1,7 @@
 """The URLQuery finding judge, as an Inspect scorer.
 
 One call per headline finding, the same prompt bytes the batch grader
-(benchmarks/urlquery/judge/grade.py) sends, through Inspect's model layer so the judge's
+(benchmarks/transluce/judge/grade.py) sends, through Inspect's model layer so the judge's
 calls land in the eval log and obey ``--max-connections``. The judge is any Inspect model:
 ``anthropic/claude-opus-5-5`` (the default) or ``openrouter/openai/gpt-6-astra``, the
 final-run judge. The full grade file, as the batch grader writes it, goes into

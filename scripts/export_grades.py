@@ -5,7 +5,7 @@
 
 Everything downstream of grading — scripts/report_performance.py, the headline and combined
 figures, the audit viewers, scripts/tldr_judge_vs_human.py — reads
-benchmark/graded/[judge_<model>/]<rubric>/graded_<key>.json. This puts the Inspect path's
+benchmarks/german-wiki/graded/[judge_<model>/]<rubric>/graded_<key>.json. This puts the Inspect path's
 grades there, unchanged, so none of them has to learn what an eval log is.
 
 The grades are copied out of the score metadata rather than recomputed. A second
@@ -28,7 +28,7 @@ from messageboard_audit_bench.grading import core, export  # noqa: E402
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("log", help="path to the .eval log")
-    ap.add_argument("--out-dir", help="write here instead of benchmark/graded/…")
+    ap.add_argument("--out-dir", help="write here instead of benchmarks/german-wiki/graded/…")
     ap.add_argument("--force", action="store_true", help="overwrite existing grade files")
     ap.add_argument("--dry-run", action="store_true", help="say what would be written")
     args = ap.parse_args()

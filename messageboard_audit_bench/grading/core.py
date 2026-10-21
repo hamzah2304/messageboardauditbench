@@ -1,6 +1,6 @@
 """What a grade is: the sheets, the prompt, the parsing, the arithmetic, the path.
 
-Every definition here was lifted from benchmark/rubrics/grade_with_rubrics.py rather than
+Every definition here was lifted from benchmarks/german-wiki/rubrics/grade_with_rubrics.py rather than
 rewritten, because 719 committed grade files were produced by that code and must remain
 reproducible from it. The legacy script now imports these functions instead of defining
 them, so the two paths cannot diverge; tests/test_grading_aggregate_parity.py replays every
@@ -55,8 +55,8 @@ class ModeSpec:
     prefix: str         # rubric_id prefix: R1..R6, V1..V8, TLDR, TLDRH
     numbered: bool      # False when the single sheet's rubric_id carries no number
     tldr_only: bool     # the summary alone is what this rubric judges
-    directory: str | None = None  # optional subdirectory under benchmark/rubrics
-    answer_key: str = "human_report.txt"  # relative to benchmark/
+    directory: str | None = None  # optional subdirectory under benchmarks/german-wiki/rubrics
+    answer_key: str = "human_report.txt"  # relative to benchmarks/german-wiki/
 
 
 MODES: dict[str, ModeSpec] = {
@@ -84,7 +84,7 @@ def judge_name(model: str) -> str:
 
     Inspect names models `provider/model`; the standalone grader names them `model`. If the
     two disagreed, Sol's grades would file under `judge_openai_gpt_5_6_sol/` from one path
-    and `benchmark/graded/` from the other, and a corpus that is supposed to be one judge's
+    and `benchmarks/german-wiki/graded/` from the other, and a corpus that is supposed to be one judge's
     work would be split across two directories.
     """
     return model.split("/", 1)[-1] if "/" in model else model
@@ -100,7 +100,7 @@ def rubric_ids(mode: str) -> list[str]:
 # Rubric variants. A data variant that rewrites who the agents are (verbatim_anthropic,
 # built by scripts/swap_provider.py) needs sheets and an answer key rewritten the same
 # way, or the judge marks "Anthropic agents on AWS" as contradicting "OpenAI agents on
-# Azure". benchmark/rubrics/build_rubrics_anthropic.py builds those files; this table says
+# Azure". benchmarks/german-wiki/rubrics/build_rubrics_anthropic.py builds those files; this table says
 # which data variant reads which.
 VARIANT_FOR_DATA: dict[str, str] = {"verbatim_anthropic": "anthropic"}
 VARIANTS = (None, "anthropic")
@@ -119,7 +119,7 @@ def require_original_benchmark_folder(folder: Path) -> None:
     """Reject known foreign scopes even when a caller bypasses normal staging."""
     resolved = folder.resolve()
     root = repo_root().resolve()
-    for relative in ("reports/urlquery", "runs/urlquery", "benchmarks/urlquery"):
+    for relative in ("runs/urlquery", "benchmarks/transluce"):
         foreign = (root / relative).resolve()
         if resolved == foreign or foreign in resolved.parents:
             raise ValueError(
@@ -151,7 +151,7 @@ def _check_variant(variant: str | None) -> None:
 
 def _rubrics_dir(variant: str | None = None, mode: str | None = None) -> Path:
     _check_variant(variant)
-    d = repo_root() / "benchmark" / "rubrics"
+    d = repo_root() / "benchmarks" / "german-wiki" / "rubrics"
     d = d / variant if variant else d
     directory = MODES[mode].directory if mode else None
     return d / directory if directory else d
@@ -165,7 +165,7 @@ def human_report(variant: str | None = None, mode: str | None = None) -> str:
         name = MODES[mode].answer_key
     else:
         name = f"human_report_{variant}.txt" if variant else "human_report.txt"
-    return (repo_root() / "benchmark" / name).read_text()
+    return (repo_root() / "benchmarks" / "german-wiki" / name).read_text()
 
 
 def load_sheets(mode: str, variant: str | None = None) -> tuple[list[dict], dict[str, str]]:
@@ -359,13 +359,13 @@ def aggregate(
 def out_dir(judge: str, mode: str, variant: str | None = None) -> Path:
     """Where a judge's grades for one rubric are filed.
 
-    The default judge keeps writing to benchmark/graded/ (where every committed grade
+    The default judge keeps writing to benchmarks/german-wiki/graded/ (where every committed grade
     lives); any other judge gets its own namespace so the two never collide. A rubric
     variant gets a further subdirectory, so grades against the swapped answer key never
     sit next to grades against the real one.
     """
     _check_variant(variant)
-    graded = repo_root() / "benchmark" / "graded"
+    graded = repo_root() / "benchmarks" / "german-wiki" / "graded"
     name = judge_name(judge)
     path = graded if name == DEFAULT_JUDGE else graded / f"judge_{sanitise(name)}"
     if mode != "recall":

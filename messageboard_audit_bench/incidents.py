@@ -114,7 +114,7 @@ def _load(path: Path) -> Incident:
 
 @lru_cache(maxsize=1)
 def incidents() -> dict[str, Incident]:
-    directory = repo_root() / "benchmark" / "incidents"
+    directory = repo_root() / "benchmarks" / "german-wiki" / "incidents"
     paths = sorted(directory.glob("*.json"), key=lambda path: (path.stem != "wiki", path.stem))
     loaded = {path.stem: _load(path) for path in paths}
     if not loaded:

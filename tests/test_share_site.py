@@ -85,7 +85,7 @@ def test_rejects_path_escape_and_duplicate_slug(tmp_path):
 
 def test_rejects_changed_ai_report(tmp_path):
     config = fixture_config(tmp_path)
-    reports = tmp_path / "reports/urlquery"
+    reports = tmp_path / "benchmarks/transluce/reports"
     reports.mkdir(parents=True)
     report = reports / "report.md"
     report.write_text("Changed")
@@ -213,7 +213,7 @@ def test_successful_run_export_crosslinks_approval_and_portable_archive(tmp_path
     row["prompt_sha256"] = prompt_digest
     row["report_path"] = "/outside/secret.md"
     index_path.write_text(json.dumps(index))
-    with pytest.raises(ValueError, match="reports/urlquery"):
+    with pytest.raises(ValueError, match="benchmarks/transluce/reports"):
         MODULE["collect"](tmp_path, config)
     index["benchmark_id"] = "original"
     index_path.write_text(json.dumps(index))
@@ -302,11 +302,11 @@ def test_cli_uses_shared_site_and_requires_existing_binding(tmp_path, monkeypatc
     monkeypatch.setattr(sys, "argv", ["build_share_site.py", "--config", str(config)])
     with pytest.raises(SystemExit):
         main()
-    binding = tmp_path / "reports/share-site/.openai/hosting.json"
+    binding = tmp_path / "benchmarks/transluce/reports/share-site/.openai/hosting.json"
     binding.parent.mkdir(parents=True)
     binding.write_text('{"project_id":"existing"}')
     main()
-    assert (tmp_path / "reports/share-site/dist/index.html").is_file()
+    assert (tmp_path / "benchmarks/transluce/reports/share-site/dist/index.html").is_file()
     additions = tmp_path / "additions.toml"
     additions.write_text("run_indexes=[]\nprompt_groups=[]\napproved_runs=[]\n")
     monkeypatch.setattr(sys, "argv", ["build_share_site.py", "--config", str(config),

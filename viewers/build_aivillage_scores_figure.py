@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dot plot of AI Village score per report (mean of its 20 best finding scores), one row per model, coloured by subagent access.
 
-    python3 viewers/build_aivillage_scores_figure.py benchmark/incidents/aivillage/results/scores-by-report.tsv \
-        benchmark/incidents/aivillage/figures/scores_by_report.svg
+    python3 viewers/build_aivillage_scores_figure.py benchmarks/aivillage/results/scores-by-report.tsv \
+        benchmarks/aivillage/figures/scores_by_report.svg
 
 Writes plain SVG (no plotting dependency); render to PNG with any SVG renderer.
 """

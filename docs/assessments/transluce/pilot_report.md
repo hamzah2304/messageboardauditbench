@@ -26,10 +26,10 @@ the originals.
 
 | Report | Active runtime | Words | Main account offered by the model |
 |---|---:|---:|---|
-| [GPT-6 Astra](../../../reports/urlquery/published/gpt-6-astra.md) | 7:45 | 3,273 | Scanner as programmable browser: encoded pages, POST forms, data queries and results carried in URLs/titles/canvas. Distinguishes several failed probes from observed actions; also investigates older phishing records. |
-| [GPT-6 Sol](../../../reports/urlquery/published/gpt-6-sol.md) | 7:51 | 3,205 | Public-data access patterns, repeated conversion/proxy attempts and a disposable-mail sequence. More inventory-oriented; separates third-party page traffic from submitter intent. |
-| [Opus 5.5 → 4.8, run 1](../../../reports/urlquery/published/claude-opus-run-1.md) | 7:50 | 3,115 | Encoded programs, bulk data access and account/API-key automation, framed as a coordinated campaign. Its claim that sampled HTTP statuses were absent is wrong. |
-| [Opus 5.5 → 4.8, run 2](../../../reports/urlquery/published/claude-opus-run-2.md) | 7:58 | 3,251 | Echo-service delivery, CRLF-containing user-agent strings, account automation and callbacks. Stronger claims about successful harvesting and one campaign; its stored-response-body interpretation is wrong. |
+| [GPT-6 Astra](../../../benchmarks/transluce/reports/published/gpt-6-astra.md) | 7:45 | 3,273 | Scanner as programmable browser: encoded pages, POST forms, data queries and results carried in URLs/titles/canvas. Distinguishes several failed probes from observed actions; also investigates older phishing records. |
+| [GPT-6 Sol](../../../benchmarks/transluce/reports/published/gpt-6-sol.md) | 7:51 | 3,205 | Public-data access patterns, repeated conversion/proxy attempts and a disposable-mail sequence. More inventory-oriented; separates third-party page traffic from submitter intent. |
+| [Opus 5.5 → 4.8, run 1](../../../benchmarks/transluce/reports/published/claude-opus-run-1.md) | 7:50 | 3,115 | Encoded programs, bulk data access and account/API-key automation, framed as a coordinated campaign. Its claim that sampled HTTP statuses were absent is wrong. |
+| [Opus 5.5 → 4.8, run 2](../../../benchmarks/transluce/reports/published/claude-opus-run-2.md) | 7:58 | 3,251 | Echo-service delivery, CRLF-containing user-agent strings, account automation and callbacks. Stronger claims about successful harvesting and one campaign; its stored-response-body interpretation is wrong. |
 
 All four terminated normally. Ten minutes was the maximum active budget, not the
 time each model necessarily used: the inherited minimum-runtime rule permits

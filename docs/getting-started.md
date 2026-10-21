@@ -194,7 +194,7 @@ Historical Codex followups use native subscription session resume through
 ## Export or grade existing reports
 
 ```bash
-uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
+uv run python scripts/export_inspect_reports.py --logs logs --out benchmarks/german-wiki/reports/native
 uv run python scripts/export_grades.py logs/EVAL_LOG.eval
 
 # A grading-only eval: no agent execution or Docker.
@@ -203,7 +203,7 @@ uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
   --model-role grader=openai/gpt-5.6-sol
 ```
 
-`grade_reports` accepts a folder under `benchmark/graded_inputs/` or an absolute
+`grade_reports` accepts a folder under `benchmarks/german-wiki/graded_inputs/` or an absolute
 path. Its `_index.jsonl` supplies each report's data variant. For an unindexed
 Anthropic report folder, pass `-T variant=anthropic`. Run it again with
 `-T rubric=tldrh` for summary grades. Missing or failed sheets are recorded in
@@ -247,9 +247,9 @@ uv run inspect eval messageboard_audit_bench/transluce_report \
   -T agent=claude --model anthropic/claude-opus-5-5
 # a model matrix through the batch launcher, then grade the finished runs
 uv run python -m messageboard_audit_bench.urlquery_pilot --batch configs/urlquery-final-batch.toml --launch
-uv run python benchmarks/urlquery/judge/grade.py --batch runs/urlquery/<plan-dir> --plan   # resume-aware call count
+uv run python benchmarks/transluce/judge/grade.py --batch runs/urlquery/<plan-dir> --plan   # resume-aware call count
 ```
 
-[`benchmarks/urlquery/README.md`](../benchmarks/urlquery/README.md) covers the configs,
+[`benchmarks/transluce/README.md`](../benchmarks/transluce/README.md) covers the configs,
 the judge choice and the grade files. URLQuery reports can quote recorded secrets, so
 keep them out of tracked folders; the exporters refuse them.

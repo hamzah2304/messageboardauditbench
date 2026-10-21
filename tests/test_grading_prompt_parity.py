@@ -7,7 +7,7 @@ a judge given a slightly different prompt still returns plausible numbers.
 
 So this fixes the assembled prompt for a committed report against a recorded digest, per
 mode. The digests below were taken when the grading core was factored out of
-benchmark/rubrics/grade_with_rubrics.py, and were verified byte-for-byte against that
+benchmarks/german-wiki/rubrics/grade_with_rubrics.py, and were verified byte-for-byte against that
 script as it stood immediately before the refactor, for all five modes.
 
 A failure here is not necessarily a bug: editing a rubric sheet is a legitimate act and
@@ -28,7 +28,7 @@ from messageboard_audit_bench.runtime import repo_root
 # a committed report, so the digest is reproducible from a clean checkout
 FIXTURE = (
     repo_root()
-    / "benchmark"
+    / "benchmarks" / "german-wiki"
     / "graded_inputs"
     / "round4_blind10"
     / "r4b10__claude__claude-haiku-4-5__rep1.md"

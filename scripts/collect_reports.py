@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Gather every run's report into one folder, keyed by data variant, prompt and time budget.
 
-    scripts/collect_reports.py [--out reports] [--runs runs] [--include-partial] [--include-rejected]
+    scripts/collect_reports.py [--benchmark messageboard|urlquery] [--out DIR] [--runs runs] [--include-partial] [--include-rejected]
 
 Layout:
-    reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
-    reports/<condition>_<variant>_<effort>_p<prompt8>/CONDITIONS.json
-    reports/prompts/<prompt8>.txt                 the exact prompt those runs saw
-    reports/index.jsonl                           one line per report with the run's metadata
+    benchmarks/german-wiki/reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
+    benchmarks/german-wiki/reports/<condition>_<variant>_<effort>_p<prompt8>/CONDITIONS.json
+    benchmarks/german-wiki/reports/prompts/<prompt8>.txt                 the exact prompt those runs saw
+    benchmarks/german-wiki/reports/index.jsonl                           one line per report with the run's metadata
 <prompt8> is a hash of the rendered prompt, so editing a prompt or budget under the same
 condition name lands in a new folder instead of mixing with older runs. The
 variant and effort are also part of the folder key.
@@ -38,16 +38,15 @@ from messageboard_audit_bench.benchmarks import benchmark_spec  # noqa: E402
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(ROOT / "reports"))
+    ap.add_argument("--out", help="output folder; defaults to the benchmark's report root")
     ap.add_argument("--runs", default=str(ROOT / "runs"))
     ap.add_argument("--include-partial", action="store_true")
     ap.add_argument("--include-rejected", action="store_true")
     ap.add_argument("--benchmark", choices=("messageboard", "urlquery"), default="messageboard")
     a = ap.parse_args()
-    out, runs = Path(a.out), Path(a.runs)
     spec = benchmark_spec(a.benchmark)
+    out, runs = Path(a.out or ROOT / spec.report_root), Path(a.runs)
     if a.benchmark == "urlquery":
-        out = out / Path(spec.report_root).relative_to("reports")
         runs = runs / Path(spec.run_root).relative_to("runs")
     rows = []
     for d in sorted(runs.iterdir()):

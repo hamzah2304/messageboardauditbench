@@ -13,7 +13,7 @@ Writes score_vs_cost.html and score_vs_eci.html (labels can be dragged; "Copy
 label positions" gives JSON to paste into <figure>_labels.json, which sets the
 defaults) and a headless-Chrome PNG screenshot of each for the README.
 
-  uv run python scripts/aivillage_run_costs.py --manifest benchmark/incidents/aivillage/benchmark-2026-10-04-runs.md \
+  uv run python scripts/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md \
       --out runs/aivillage-costs-20261004
   uv run python viewers/build_aivillage_figures.py
 """
@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
 TEMPLATE = ROOT / "viewers" / "templates" / "aivillage_figure.html"
 TOP_K = 20
-OUT = ROOT / "benchmark" / "incidents" / "aivillage" / "figures"
+OUT = ROOT / "benchmarks" / "aivillage" / "figures"
 NAMES = {
     "claude-opus-5": "Opus 5", "claude-opus-4-8": "Opus 4.8", "claude-sonnet-5-5": "Sonnet 5.5",
     "gpt-6-astra": "GPT-6 Astra", "gpt-6.1-sol": "GPT-6.1 Sol", "gpt-6-luna": "GPT-6 Luna",

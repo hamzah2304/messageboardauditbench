@@ -8,7 +8,7 @@ recall against wall-clock budget. Fourteen pairs is far past the point where col
 can carry identity, so identity comes from the panel, and colour carries magnitude
 only: one hue, plus grey for the reference.
 
-Runs from grades in benchmark/graded/graded_r3b*.json. Self-contained: inline SVG,
+Runs from grades in benchmarks/german-wiki/graded/graded_r3b*.json. Self-contained: inline SVG,
 no libraries.
 """
 import json, re, statistics as st, sys, pathlib
@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from paths import GRADED, VIEWERS, ROOT
 
 OUT = VIEWERS / "performance.html"
-ECI = ROOT / "benchmark" / "eci_scores.json"     # Epoch Capabilities Index, looked up separately
+ECI = ROOT / "benchmarks" / "german-wiki" / "eci_scores.json"     # Epoch Capabilities Index, looked up separately
 NAMES = {"gpt_5_6_sol": "GPT-5.6 Sol", "openai_gpt_5_6_sol": "GPT-5.6 Sol",
          "gpt_5_6_luna": "GPT-5.6 Luna", "gpt_5_6_terra": "GPT-5.6 Terra",
          "gpt_6_astra": "GPT-6 Astra", "google_gemini_3_8_flash": "Gemini 3.8 Flash",

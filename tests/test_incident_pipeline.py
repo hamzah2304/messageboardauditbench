@@ -63,7 +63,7 @@ def test_incident_config_defaults_reach_the_actual_task() -> None:
 
 
 def test_new_command_creates_the_complete_candidate_scaffold(tmp_path, monkeypatch) -> None:
-    for directory in ("benchmark/incidents", "benchmark/rubrics", "configs", "scripts"):
+    for directory in ("benchmarks/german-wiki/incidents", "benchmarks/german-wiki/rubrics", "configs", "scripts"):
         (tmp_path / directory).mkdir(parents=True, exist_ok=True)
     (tmp_path / ".gitignore").write_text("")
     monkeypatch.setattr(pipeline, "ROOT", tmp_path)
@@ -79,11 +79,11 @@ def test_new_command_creates_the_complete_candidate_scaffold(tmp_path, monkeypat
         )
     )
 
-    manifest = (tmp_path / "benchmark/incidents/example.json").read_text()
+    manifest = (tmp_path / "benchmarks/german-wiki/incidents/example.json").read_text()
     assert result == 0
     assert '"finding_mode": "example"' in manifest
     assert (tmp_path / "configs/example.toml").is_file()
     assert (tmp_path / "scripts/build_example_data.py").is_file()
-    assert (tmp_path / "benchmark/rubrics/build_rubrics_example.py").is_file()
-    assert (tmp_path / "benchmark/rubrics/example/claims_example.json").is_file()
+    assert (tmp_path / "benchmarks/german-wiki/rubrics/build_rubrics_example.py").is_file()
+    assert (tmp_path / "benchmarks/german-wiki/rubrics/example/claims_example.json").is_file()
     assert "/data/example" in (tmp_path / ".gitignore").read_text()

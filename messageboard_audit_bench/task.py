@@ -594,7 +594,7 @@ def _transluce_report(
     including ``version``.
 
     Args:
-        config: A URLQuery config from benchmarks/urlquery/benchmark.json
+        config: A URLQuery config from benchmarks/transluce/benchmark.json
             (default ``urlquery-agents-v6-30``).
         judge: Inspect model for the per-finding judge; defaults to
             ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` with the full

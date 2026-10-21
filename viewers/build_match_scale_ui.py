@@ -10,16 +10,16 @@ the point) sitting above real judge evidence, so the user can place actual excer
 the proposed scale and see whether it separates anything or whether everything bunches.
 
 Inputs
-  benchmark/rubrics/rubric_{1..6}.json   the 30 claims
-  benchmark/graded/graded_<key>.json     the judge's score/quote/reason per claim
-  benchmark/graded_inputs/<dir>/         the reports those keys name, and _index.jsonl
-  benchmark/claims/anchors_reports.json  validated spans where the judge quote is not
+  benchmarks/german-wiki/rubrics/rubric_{1..6}.json   the 30 claims
+  benchmarks/german-wiki/graded/graded_<key>.json     the judge's score/quote/reason per claim
+  benchmarks/german-wiki/graded_inputs/<dir>/         the reports those keys name, and _index.jsonl
+  benchmarks/german-wiki/claims/anchors_reports.json  validated spans where the judge quote is not
                                          verbatim in its report — preferred for display
 
 Only round-3 keys (r3b*) are used: they were graded on the current rubric sheets.
 
 Output is a single self-contained page that autosaves to
-benchmark/rubric_review/match_scale.json through the html-viewer's POST /save endpoint,
+benchmarks/german-wiki/rubric_review/match_scale.json through the html-viewer's POST /save endpoint,
 with a localStorage mirror and merge-on-load by updated_at (mechanism copied from
 build_audit_ui.py).
 """
@@ -29,8 +29,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from paths import ROOT, RUBRICS, GRADED, GRADED_INPUTS, VIEWERS
 
 OUT = VIEWERS / "match_scale.html"
-SAVE_PATH = ROOT / "benchmark" / "rubric_review" / "match_scale.json"
-ANCHORS_REPORTS = ROOT / "benchmark" / "claims" / "anchors_reports.json"
+SAVE_PATH = ROOT / "benchmarks" / "german-wiki" / "rubric_review" / "match_scale.json"
+ANCHORS_REPORTS = ROOT / "benchmarks" / "german-wiki" / "claims" / "anchors_reports.json"
 
 PER_GROUP = 6            # excerpts shown per score group, spread over models
 ROUND_PREFIX = "r3b"     # graded on the current sheets

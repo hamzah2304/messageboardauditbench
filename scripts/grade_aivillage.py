@@ -318,7 +318,7 @@ def main():
     p.add_argument("--expected-findings", type=int, default=96)
     p.add_argument("--reports", type=Path)
     p.add_argument("--runs-root", type=Path, default=Path(__file__).resolve().parents[1] / "runs")
-    p.add_argument("--rubric", type=Path, default=Path(__file__).resolve().parents[1] / "benchmark/incidents/aivillage/judge-prompt-v8.txt")
+    p.add_argument("--rubric", type=Path, default=Path(__file__).resolve().parents[1] / "benchmarks/aivillage/judge-prompt-v8.txt")
     p.add_argument("--goals", type=Path)
     p.add_argument("--goal-map", type=Path)
     p.add_argument("--output", type=Path, required=True)

@@ -180,7 +180,7 @@ def main():
                         "up": sum(1 for p in pairs if p["long"] > p["short"]),
                         "flat": sum(1 for p in pairs if p["long"] == p["short"]),
                         "down": sum(1 for p in pairs if p["long"] < p["short"])}}
-    # Raw data beside benchmark/figures/headline_eci.{json,csv}: one row per matched pair,
+    # Raw data beside benchmarks/german-wiki/figures/headline_eci.{json,csv}: one row per matched pair,
     # which is the grain everything on the page is aggregated from, so anyone can rebuild
     # any of the four figures without running this script.
     DATA_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -210,7 +210,7 @@ def main():
     print(f"  biggest claim gains: " + ", ".join(f"{d['id']} {d['delta']:+.3f}" for d in deltas[:4]))
     print(f"  unmoved: " + ", ".join(d["id"] for d in deltas if abs(d["delta"]) < 0.005))
 COPY = ('<button class="csv" data-csv="%s">copy CSV</button>'
-        '<span>or benchmark/figures/followup_5k.csv</span>')
+        '<span>or benchmarks/german-wiki/figures/followup_5k.csv</span>')
 
 BODY = """<main>
   <h1>Longer reports with ten more minutes</h1>

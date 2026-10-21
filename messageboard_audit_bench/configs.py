@@ -5,7 +5,7 @@ Every benchmark uses the same flat config format: ``prompt``, ``budget_min``,
 denylist and optionally ``min_runtime_fraction``. A config names its benchmark with
 ``benchmark_id`` (default ``messageboard``). URLQuery configs also pin the frozen
 dataset (``dataset_sha256``) and the exact CLI versions the subscription runner
-installs; both must agree with benchmarks/urlquery/benchmark.json.
+installs; both must agree with benchmarks/transluce/benchmark.json.
 
 The shell runner reads the same files through scripts/read_config.py.
 """

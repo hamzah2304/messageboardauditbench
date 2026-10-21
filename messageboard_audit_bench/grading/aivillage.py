@@ -39,7 +39,7 @@ DEFAULT_JUDGE = "openai/" + MODEL
 TOP_K = 20
 GROUP_SIZE = 3
 MAX_SUBFINDINGS = 12
-EVALUATOR_ROOT = Path("benchmark/incidents/aivillage")
+EVALUATOR_ROOT = Path("benchmarks/aivillage")
 FINDINGS = EVALUATOR_ROOT / "findings/final-findings.json"
 RUBRIC = EVALUATOR_ROOT / "judge-prompt-v8.txt"
 

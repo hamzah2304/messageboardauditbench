@@ -59,5 +59,5 @@ tools follow the same agreement.
 - Never edit a script that a running trial is executing in place (the shell
   reads it incrementally); write a copy and `mv` it over.
 - Reports and grades that feed the README numbers are tracked under
-  `reports/` and `benchmark/`. Regenerate through the scripts that produced
+  `benchmarks/<benchmark>/`. Regenerate through the scripts that produced
   them and commit the outputs with the code change that changed them.

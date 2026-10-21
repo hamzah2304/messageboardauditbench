@@ -7,8 +7,8 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "benchmarks/urlquery/claims/findings_reviewed.json"
-GRADES = ROOT / "reports/urlquery/graded/judge_gpt_6_astra_high_fairness_v3"
+SOURCE = ROOT / "benchmarks/transluce/claims/findings_reviewed.json"
+GRADES = ROOT / "benchmarks/transluce/reports/graded/judge_gpt_6_astra_high_fairness_v3"
 USER_AUDIT = ROOT / "docs/urlquery-scoring-fairness-audit-user-20260929.json"
 OUTPUT = ROOT / "logs/urlquery-scoring-fairness-audit.html"
 

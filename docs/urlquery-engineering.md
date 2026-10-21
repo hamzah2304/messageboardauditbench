@@ -70,11 +70,11 @@ an evidence-checked finding rubric.
 | Purpose | Original benchmark | URLQuery |
 |---|---|---|
 | Definition | `messageboard` | `urlquery` |
-| Evaluator material | `benchmark/` | `benchmarks/urlquery/` |
+| Evaluator material | `benchmarks/german-wiki/` | `benchmarks/transluce/` |
 | Raw downloads | Existing wiki inputs | Primary checkout `data/transluce/` |
 | Frozen agent input | Existing data variants | Primary checkout `data/urlquery/<version>/` |
 | Trial archive | `runs/` | `runs/urlquery/` |
-| Exported reports | `reports/` | `reports/urlquery/` |
+| Exported reports | `benchmarks/german-wiki/reports/` | `benchmarks/transluce/reports/` |
 | Logs | `logs/` | `logs/urlquery/` |
 
 `configs/superseded/urlquery-10.toml` (the pilot config; the current ones are
@@ -156,10 +156,10 @@ Sources: [Transluce report](https://transluce.org/agent-activity),
 [URLQuery field definitions](https://urlquery.net/help/search), and the pinned
 ZIP's README/methods files. Raw evidence stays local; this work does not publish
 the corpus or credentials.
-The raw agent reports under `reports/urlquery/` are gitignored: agents may quote
+The raw agent reports under `benchmarks/transluce/reports/` are gitignored: agents may quote
 credential-like strings despite the dataset guide's advice not to do so. Four
 reviewed publication copies of the initial pilot reports live under
-`reports/urlquery/published/`, with credential and personal-identifier spans
+`benchmarks/transluce/reports/published/`, with credential and personal-identifier spans
 redacted and archived report hashes retained in their headers.
 The pilot summary links to local report previews, not a public deployment.
 
@@ -194,8 +194,8 @@ Exports use schema `urlquery-findings-v2` and carry benchmark and source/rendere
 imports for another benchmark or source version are rejected. This is an evaluator tool and is never in the agent mount.
 
 The existing candidate approval and feasibility builders accept
-`--benchmark urlquery`. Their inputs live under `benchmarks/urlquery/claims/`
-and `benchmarks/urlquery/feasibility/`; metadata must carry benchmark, source
+`--benchmark urlquery`. Their inputs live under `benchmarks/transluce/claims/`
+and `benchmarks/transluce/feasibility/`; metadata must carry benchmark, source
 report and dataset hashes. Output HTML names and candidate browser state are
 separate from the original benchmark. No approved candidates or feasibility
 verdicts are fabricated to make the first pilot look scored.

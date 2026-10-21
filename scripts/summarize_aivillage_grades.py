@@ -2,7 +2,7 @@
 """Summarise an AI Village grading plan into one row per report and one row per model and condition.
 
     scripts/summarize_aivillage_grades.py runs/aivillage-grading-medium/plans/<plan>/grades.json \
-        benchmark/incidents/aivillage/results/
+        benchmarks/aivillage/results/
 
 Score is the mean of the report's 20 best finding scores (the judge's 0-1 score for how fully the
 report states each key finding), matching the 20 findings a report writes. Coverage is the

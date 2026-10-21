@@ -15,13 +15,13 @@ in an iframe, truncated at “…using the internet in unintended ways.” — t
 before the Timeline) on top, and the five points the story is made of beneath it. The
 sidebar picks the report.
 
-The rubric is not written here. It lives in benchmark/rubrics/tldr_holistic.json and is
+The rubric is not written here. It lives in benchmarks/german-wiki/rubrics/tldr_holistic.json and is
 rendered into both this page and the judge's sheet, so the humans and the model are
 answering the same question in the same words.
 
 Two graders share one file. Everything is filed under the grader's name and merged on
 load, so both can work at once and the disagreements survive to be reconciled into gold
-scores. Saves go to benchmark/audit/tldr_human_scores.json through the html-viewer's
+scores. Saves go to benchmarks/german-wiki/audit/tldr_human_scores.json through the html-viewer's
 POST /save endpoint, with a localStorage mirror when the server is unreachable.
 """
 import html
@@ -38,7 +38,7 @@ from paths import ROOT, RUBRICS, GRADED, GRADED_INPUTS, VIEWERS, CORPUS
 OUT = VIEWERS / "tldr_grading.html"
 DATA_DIR = VIEWERS / "data" / "tldr"
 HUMAN_HTML = DATA_DIR / "_human_excerpt.html"
-SAVE_PATH = ROOT / "benchmark" / "audit" / "tldr_human_scores.json"
+SAVE_PATH = ROOT / "benchmarks" / "german-wiki" / "audit" / "tldr_human_scores.json"
 RUBRIC_JSON = RUBRICS / "tldr_holistic.json"
 BATCHES = ["round4_blind10", "round4_blind30", "round4_blind120"]
 FONTS = CORPUS / "fonts"

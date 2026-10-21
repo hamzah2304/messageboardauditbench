@@ -283,11 +283,11 @@ def export_logs(
 def export_graded_inputs(
     rows: Iterable[dict[str, Any]], reports_root: Path, graded_inputs: Path, round_name: str
 ) -> list[Path]:
-    """Copy exported reports into the layout benchmark/rubrics/grade_with_rubrics.py --dir reads.
+    """Copy exported reports into the layout benchmarks/german-wiki/rubrics/grade_with_rubrics.py --dir reads.
 
     One folder per (round, condition, budget): ``<graded_inputs>/<round>_<condition><budget>/``, files named
     ``b<budget>__<agent>__<model>__rep<N>.md`` (plus ``_served-<model>`` when the run switched model), and an
-    ``_index.jsonl`` with the export rows, matching ``benchmark/graded_inputs/round2_blind30``.
+    ``_index.jsonl`` with the export rows, matching ``benchmarks/german-wiki/graded_inputs/round2_blind30``.
     """
     written: list[Path] = []
     by_dir: dict[Path, list[dict[str, Any]]] = {}
