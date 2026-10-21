@@ -74,9 +74,10 @@ numbers identify nondeterministic runs; they do not seed model sampling. Configs
 `configs/<name>.toml` and hold the benchmark-relevant conditions: which prompt
 (`sandbox/prompts/<name>.txt`), the time budget the prompt states, the hard
 kill timeout, the data variant, the reasoning effort, and the Claude Code tools
-withheld from the agent. Shipped configs: `blind-20`, `blind-40`, `context-20`,
-`context-40` (the `context` prompt prepends a summary of the OpenAI/Hugging Face
-incident and says to treat this one as separate), plus `default` = `blind-20`.
+withheld from the agent. The standard condition shared by all three evals is
+`configs/standard.toml`; `scripts/standard_configs.py` writes its per-eval configs,
+`<wiki|urlquery|aivillage>-std-<10|30>`. The published rounds' configs (`blind-*`,
+`urlquery-agents-v6-*`, `aivillage-v12-30*`) stay for reproduction.
 
 In the subscription runner, Claude Code and Codex get the remaining budget
 after every tool call via lifecycle hooks (`sandbox/time_left.sh`, wired
@@ -86,9 +87,9 @@ feedback and enforces the deadline independently with an Inspect scoped time
 limit.
 
 ```
-CONFIG=blind-20   sandbox/docker/run_trial.sh claude claude-opus-5 1
-CONFIG=context-40 sandbox/docker/run_trial.sh codex  gpt-5.6-sol   1
-CONFIG=blind-20   sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
+CONFIG=wiki-std-30      sandbox/docker/run_trial.sh claude claude-opus-5 1
+CONFIG=urlquery-std-10  sandbox/docker/run_trial.sh codex  gpt-6.1-sol   1
+CONFIG=aivillage-std-30 sandbox/docker/run_trial.sh react  moonshotai/kimi-k3 1
 ```
 
 Run names include the config name and end in a unique run ID. `meta.json` records the config, its hash,
@@ -97,19 +98,15 @@ rendered prompt the agent saw. Env vars `PROMPT`, `BUDGET_MIN`, `TIMEOUT`,
 `DATA_DIR`, `EFFORT` override single values for one-off experiments; prefer a
 new config file for anything you will compare against.
 
-Batch of many trials, concurrently:
+The standard condition's whole matrix (lineup x evals x budgets x replicates, from
+`configs/lineup.toml` and `configs/standard.toml`), with no retries:
 
 ```
-cat > matrix.txt <<'M'
-# agent  model                   config      replicate
-claude   claude-opus-5           blind-20    1
-claude   claude-opus-5           context-20  1
-codex    gpt-5.6-sol             blind-40    1
-react    moonshotai/kimi-k3      blind-20    1
-react    google/gemini-3.8-flash context-40  1
-M
-sandbox/docker/run_batch.sh matrix.txt     # detached; progress in runs/batch_<stamp>.log
+uv run python scripts/run_matrix.py --plan     # what exists and what is missing
+uv run python scripts/run_matrix.py --runs 5   # run what is missing; logs in logs/matrix/<stamp>/
 ```
+
+`sandbox/docker/run_batch.sh <matrix.txt>` still runs an arbitrary list of trials.
 
 Lanes run concurrently. The claude and codex lanes run one trial at a time
 (one subscription each; `LANE_PARALLEL=1` lifts that); the react lane runs

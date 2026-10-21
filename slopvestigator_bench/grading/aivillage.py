@@ -34,13 +34,12 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 from inspect_ai.util import JSONSchema
 
+from slopvestigator_bench.grading import judge as judging
 from slopvestigator_bench.runtime import repo_root
 
 MODEL = "gpt-6.1-sol"
 EFFORT = "medium"
 DEFAULT_JUDGE = "openai/" + MODEL
-# As the batch grader: no fallback provider, and fail rather than drop effort or the schema.
-OPENROUTER_ROUTE = {"provider": {"allow_fallbacks": False, "require_parameters": True}}
 TOP_K = 20
 GROUP_SIZE = 3
 MAX_SUBFINDINGS = 12
@@ -220,15 +219,16 @@ def grading_groups(goals: list[dict]) -> tuple[list[dict], list[dict]]:
     return findings, group_findings(findings, goals, {}, GROUP_SIZE, MAX_SUBFINDINGS)
 
 
-async def _grade_group(model: Model, rules: str, report_id: str, group: dict, report: str, attempts: int = 3) -> dict:
+async def _grade_group(model: Model, rules: str, report_id: str, group: dict, report: str,
+                       effort: str = EFFORT, attempts: int = 3) -> dict:
     """One judge call. Returns validated scores or a failure status; never raises."""
     job = {"findings": group["findings"], "report": report}
-    config = GenerateConfig(reasoning_effort=EFFORT, max_tokens=max_output_tokens(group))
-    if str(model).startswith("openrouter/"):
+    config = GenerateConfig(reasoning_effort=effort, max_tokens=max_output_tokens(group))
+    if judging.is_openrouter(model):
         # Inspect sends response_format.json_schema.description = null, and OpenRouter then
         # drops the whole schema without error; send the format ourselves, without it.
         response_format = {"type": "json_schema", "json_schema": {"name": "finding_scores", "strict": True, "schema": schema()}}
-        config = config.merge(GenerateConfig(extra_body={**OPENROUTER_ROUTE, "response_format": response_format}))
+        config = config.merge(GenerateConfig(extra_body={"response_format": response_format}))
     else:
         config = config.merge(GenerateConfig(
             response_schema=ResponseSchema(name="finding_scores", json_schema=JSONSchema.model_validate(schema()), strict=True)))
@@ -236,15 +236,9 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
     error = None
     for _ in range(attempts):
         try:
-            out = await model.generate(messages, config=config)
+            out = await judging.generate(model, messages, config)
             if out.stop_reason == "max_tokens":
                 error = "truncated"
-                continue
-            # As the batch grader: refuse a grade from a model other than the one asked for
-            # (a dated snapshot of it is fine).
-            asked, returned = str(model).rsplit("/", 1)[-1], (out.model or "").rsplit("/", 1)[-1]
-            if returned and returned != asked and not returned.startswith(asked + "-"):
-                error = f"returned model {out.model} differs from {model}"
                 continue
             return {"status": "ok", **validate(json.loads(out.completion), job)}
         except Exception as exc:  # noqa: BLE001 — recorded, not raised: other groups stand
@@ -253,7 +247,7 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
 
 
 @scorer(metrics={"score": [mean(), stderr()], "coverage": [mean()]})
-def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None) -> Scorer:
+def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str = EFFORT) -> Scorer:
     """Grade an AI Village report against the 96 rubric findings.
 
     Args:
@@ -261,6 +255,7 @@ def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None)
         also works). A ``grader`` model role takes precedence.
       goals: the data's ``village_goals.jsonl``, which sets the goal-period groups. Defaults to the
         file in the sample's data variant.
+      effort: the judge's reasoning effort; ``medium`` as published, ``high`` in the standard condition.
     """
     from slopvestigator_bench.benchmarks import primary_root
 
@@ -274,10 +269,10 @@ def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None)
         report = state.output.completion if state.output else ""
         report_id = str(state.metadata.get("run") or state.sample_id)
         rules = instructions(rubric, reasoning_available(variant))
-        results = await asyncio.gather(*(_grade_group(model, rules, report_id, g, report) for g in groups))
+        results = await asyncio.gather(*(_grade_group(model, rules, report_id, g, report, effort) for g in groups))
         failed = [r for r in results if r["status"] != "ok"]
         scores = {f["finding_id"]: f for r in results if r["status"] == "ok" for f in r["findings"]}
-        grade = {"judge": str(model), "effort": EFFORT, "report_sha256": digest(report), "findings": scores, "failed_groups": failed}
+        grade = {"judge": str(model), "effort": effort, "report_sha256": digest(report), "findings": scores, "failed_groups": failed}
         if failed:
             return Score.unscored(
                 reason=f"{sum(len(r['finding_ids']) for r in failed)} of {len(findings)} findings unscored",

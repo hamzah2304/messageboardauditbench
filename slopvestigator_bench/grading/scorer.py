@@ -32,19 +32,16 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
 from slopvestigator_bench.grading import core
+from slopvestigator_bench.grading import judge as judging
 
 # Tried in order, dropping down when a provider rejects the level outright. Mirrors the
 # standalone grader's ladder.
 EFFORTS = ("xhigh", "high", "medium")
 
 
-def _is_anthropic(model: Model) -> bool:
-    return str(model).startswith("anthropic/") or "claude" in str(model)
-
-
 def _config(model: Model, effort: str) -> GenerateConfig:
     """Effort goes in a different field per provider, and only Anthropic takes `effort`."""
-    if _is_anthropic(model):
+    if judging.is_anthropic(model):
         return GenerateConfig(effort=effort, max_tokens=32000)
     return GenerateConfig(reasoning_effort=effort, max_tokens=16000)
 
@@ -71,14 +68,15 @@ async def grade_sheet(
     report_md: str,
     templates: dict[str, str],
     variant: str | None = None,
+    efforts: tuple[str, ...] = EFFORTS,
 ) -> tuple[dict[str, dict], str]:
     """One sheet. Returns (claims, effort actually used); raises only if nothing parses."""
     spec = core.MODES[mode]
     system, prefix, suffix = core.build_prompt(mode, rubric_id, report_md, templates, variant)
     last: Exception | None = None
-    for effort in EFFORTS:
+    for effort in efforts:
         try:
-            out = await model.generate(_messages(system, prefix, suffix), config=_config(model, effort))
+            out = await judging.generate(model, _messages(system, prefix, suffix), _config(model, effort))
         except Exception as exc:  # noqa: BLE001 — an effort the provider rejects, or a real error
             last = exc
             if "effort" in str(exc).lower():
@@ -87,9 +85,8 @@ async def grade_sheet(
         data = core.extract_json(out.completion)
         if data is None:
             # one retry, telling it to drop the wrapper
-            out = await model.generate(
-                _messages(system, prefix, suffix + core.JSON_ONLY),
-                config=_config(model, effort),
+            out = await judging.generate(
+                model, _messages(system, prefix, suffix + core.JSON_ONLY), _config(model, effort)
             )
             data = core.extract_json(out.completion)
         if data is None:
@@ -102,7 +99,8 @@ async def grade_sheet(
 
 @scorer(metrics=[mean(), stderr()])
 def sheet_scorer(
-    rubric: str = "v2", judge: str | Model | None = None, variant: str | None = None
+    rubric: str = "v2", judge: str | Model | None = None, variant: str | None = None,
+    effort: str | None = None,
 ) -> Scorer:
     """Grade the report against every sheet of `rubric`.
 
@@ -113,6 +111,11 @@ def sheet_scorer(
         so `--model-role grader=openai/gpt-5.6-sol` works as it does for the other scorers.
       variant: a rubric variant (`core.VARIANTS`); the task derives it from the data
         variant, so a verbatim_anthropic run is judged against the swapped answer key.
+      effort: one reasoning effort for every sheet (``high`` in the standard condition).
+        Unset, each sheet tries xhigh, then high, then medium, as the published grades did.
+
+    A report with any failed sheet is unscored: the surviving sheets' grades stay in the
+    metadata, but no score is computed from part of the rubric.
     """
     if rubric not in core.MODES:
         raise ValueError(f"unknown rubric {rubric!r}; expected one of {sorted(core.MODES)}")
@@ -132,29 +135,38 @@ def sheet_scorer(
         for spec in sets:
             rubric_id = spec["rubric_id"]
             try:
-                items, effort = await grade_sheet(
-                    model, rubric, rubric_id, report_md, templates, selected_variant
+                items, used = await grade_sheet(
+                    model, rubric, rubric_id, report_md, templates, selected_variant,
+                    (effort,) if effort else EFFORTS,
                 )
             except Exception as exc:  # noqa: BLE001 — recorded, not raised: other sheets stand
                 failures[rubric_id] = f"{type(exc).__name__}: {exc}"[:300]
+                continue
+            # Claim sheets return one item per claim; a holistic sheet (unnumbered: tldr, tldrh,
+            # origin) returns one item named after the sheet.
+            holistic = not core.MODES[rubric].numbered and set(items) == {rubric_id}
+            if set(items) != set(spec["claim_ids"]) and not holistic:
+                # A parseable sheet that skips or invents claims would score part of the rubric.
+                failures[rubric_id] = f"returned {len(set(items) & set(spec['claim_ids']))} of {spec['n_claims']} claims"
                 continue
             per_claim.update(items)
             per_rubric[rubric_id] = {
                 "score": round(sum(i["score"] for i in items.values()), 2),
                 "max": len(items),
-                "effort": effort,
+                "effort": used,
             }
 
         # recorded bare, the way every existing grade file records it
         out = core.aggregate(
             key, title, core.judge_name(str(model)), rubric, per_claim, per_rubric, sets, selected_variant
         )
-        if out["max"] == 0:
+        if failures:
             return Score.unscored(
-                reason="every sheet failed",
+                reason=f"{len(failures)} of {len(sets)} sheets failed",
                 answer="ungraded",
                 explanation="; ".join(f"{k}: {v}" for k, v in failures.items())[:600],
-                metadata={"grader": str(model), "rubric": rubric, "failures": failures},
+                metadata={"grader": str(model), "rubric": rubric, "failures": failures,
+                          **({"grade": out} if out["max"] else {})},
             )
 
         value = out["contradiction"] if rubric == "contradiction" else out["accuracy"]

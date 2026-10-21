@@ -154,15 +154,20 @@ def urlquery_manifest() -> dict[str, Any]:
 
 
 def config_names(benchmark_id: str) -> tuple[str, ...]:
-    """The configs a benchmark's Inspect task accepts as fresh-trial conditions."""
+    """The configs a benchmark's Inspect task accepts as fresh-trial conditions: its published
+    ones, then the standard condition's (configs/standard.toml)."""
+    from slopvestigator_bench import standard
+
     if benchmark_id == "messageboard":
         from slopvestigator_bench.incidents import incident
 
-        return incident(WIKI_INCIDENT).configs
-    if benchmark_id == "aivillage":
-        return AIVILLAGE_CONFIGS
-    benchmark_spec(benchmark_id)
-    return tuple(urlquery_manifest()["runtime"]["configs"])
+        published = incident(WIKI_INCIDENT).configs
+    elif benchmark_id == "aivillage":
+        published = AIVILLAGE_CONFIGS
+    else:
+        benchmark_spec(benchmark_id)
+        published = tuple(urlquery_manifest()["runtime"]["configs"])
+    return (*published, *standard.config_names(benchmark_id))
 
 
 def draft_config_names() -> tuple[str, ...]:

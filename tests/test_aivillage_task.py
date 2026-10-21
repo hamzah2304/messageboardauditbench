@@ -16,6 +16,7 @@ import slopvestigator_bench.task as task_module
 from slopvestigator_bench import benchmarks
 from slopvestigator_bench.configs import load_config
 from slopvestigator_bench.grading import aivillage as av
+from slopvestigator_bench.grading import core
 from slopvestigator_bench.grading import task as grading_task
 
 ROOT = Path(__file__).parents[1]
@@ -38,7 +39,8 @@ def primary(tmp_path, monkeypatch):
 
 def test_registry_and_configs():
     assert benchmarks.SPECS["aivillage"].task == "aivillage_report"
-    assert benchmarks.config_names("aivillage") == ("aivillage-v12-30", "aivillage-v12-30-subagents")
+    assert benchmarks.config_names("aivillage") == ("aivillage-v12-30", "aivillage-v12-30-subagents",
+                                                    "aivillage-std-10", "aivillage-std-30")
     assert benchmarks.default_config("aivillage") == "aivillage-v12-30"
     for name in benchmarks.config_names("aivillage"):
         assert load_config(name, "aivillage")["data_variant"] == VARIANT
@@ -82,7 +84,7 @@ def test_native_task_applies_the_config(primary):
 
 
 def test_subagents_switch_matches_the_runner():
-    off, on = (load_config(n, "aivillage") for n in benchmarks.config_names("aivillage"))
+    off, on = (load_config(n, "aivillage") for n in benchmarks.AIVILLAGE_CONFIGS)
     assert {"Task", "Agent"} <= set(task_module._claude_disallowed_tools(off))
     assert not {"Task", "Agent"} & set(task_module._claude_disallowed_tools(on))
     assert task_module._codex_settings(off, "aivillage") == (
@@ -190,7 +192,21 @@ def test_grade_task_reads_run_directories(primary):
     (run / "report.md").write_text("A report.")
     (run / "meta.json").write_text(json.dumps({"data_variant": VARIANT, "model": "gpt-6-luna", "agent": "codex"}))
     task = grading_task.aivillage_report_grade(runs="*_aivillage-v12-30_*")
-    assert [s.id for s in task.dataset] == [run.name]
+    assert [s.id for s in task.dataset] == [core.sanitise(run.name)]
+    assert task.dataset[0].metadata["run"] == run.name
     assert task.dataset[0].metadata["data_variant"] == VARIANT
     with pytest.raises(ValueError, match="exactly one"):
         grading_task.aivillage_report_grade()
+
+
+def test_german_wiki_grades_run_directories_with_eligibility(primary):
+    run = primary / "runs" / "20261022T000000Z_claude_claude-opus-5_r1_wiki-std-30_abc"
+    run.mkdir(parents=True)
+    (run / "report.md").write_text("A report.")
+    (run / "meta.json").write_text(json.dumps({"benchmark_id": "messageboard", "model": "claude-opus-5",
+                                               "data_variant": "verbatim", "model_served": "claude-opus-4-8",
+                                               "model_fallback": {"fallback_model": "claude-opus-4-8"}}))
+    task = grading_task.german_wiki_report_grade(runs="*_wiki-std-30_*", judge_effort="high")
+    meta = task.dataset[0].metadata
+    assert meta["eligible"] is False and "model_switched" in meta["ineligible_reasons"]
+    assert task.metadata["judge_effort"] == "high" and task.metadata["runs"] == "*_wiki-std-30_*"

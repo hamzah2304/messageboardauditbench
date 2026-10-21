@@ -267,7 +267,7 @@ def test_every_task_is_registered_under_the_package() -> None:
 
 
 def test_draft_incidents_are_not_german_wiki_conditions() -> None:
-    assert set(_CONFIGS) == {"blind", "context", "blind-anthropic"}
+    assert set(_CONFIGS) == {"blind", "context", "blind-anthropic", "wiki-std-10", "wiki-std-30"}
     for draft in ("mythos5", "rubyhack"):
         with pytest.raises(ValueError, match="draft incident"):
             build_task(config=draft)

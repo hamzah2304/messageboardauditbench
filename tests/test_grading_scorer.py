@@ -114,7 +114,7 @@ async def test_unparseable_reply_is_retried_then_recorded_as_a_sheet_failure() -
     assert "TLDRH" in score.metadata["failures"]
 
 
-async def test_one_bad_sheet_does_not_discard_the_others() -> None:
+async def test_one_bad_sheet_leaves_the_report_unscored_but_keeps_the_others() -> None:
     sets, _ = core.load_sheets("v2")
     replies = ["still not json", "also not json"]  # V1 fails: one try plus the retry
     replies += [sheet_reply("v2", i, 0.9) for i in range(1, len(sets))]
@@ -122,8 +122,8 @@ async def test_one_bad_sheet_does_not_discard_the_others() -> None:
 
     grade = score.metadata["grade"]
     assert list(score.metadata["failures"]) == ["V1"]
-    assert 0 < grade["max"] < 38, "the surviving sheets should still be graded"
-    assert grade["accuracy"] == 0.9
+    assert math.isnan(score.value), "a score from part of the rubric is not a score"
+    assert 0 < grade["max"] < 38, "the surviving sheets' grades are kept for inspection"
 
 
 async def test_a_total_failure_is_unscored_and_exports_nothing(tmp_path: Path) -> None:
@@ -175,3 +175,30 @@ async def test_exported_grade_matches_what_the_standalone_grader_would_write(
 def test_unknown_rubric_fails_at_construction() -> None:
     with pytest.raises(ValueError, match="unknown rubric"):
         sheet_scorer(rubric="not-a-rubric")
+
+
+async def test_a_sheet_missing_a_claim_fails_and_nothing_is_exported() -> None:
+    sets, _ = core.load_sheets("v2")
+    replies = [sheet_reply("v2", i, 0.9) for i in range(len(sets))]
+    short = json.loads(replies[0])
+    short["items"] = short["items"][1:]  # parseable, but one claim never graded
+    replies[0] = json.dumps(short)
+    score = await sheet_scorer(rubric="v2", judge=judge(replies))(state(), Target(""))
+
+    assert math.isnan(score.value) and "of" in score.metadata["failures"][sets[0]["rubric_id"]]
+
+    class _Sample:
+        scores = {"sheet_scorer": score}
+        metadata: dict = {}
+        epoch = 1
+
+    class _Log:
+        samples = [_Sample()]
+
+    assert export.grades_in(_Log()) == []
+
+
+async def test_a_holistic_sheet_scores_as_one_item() -> None:
+    reply = json.dumps({"rubric_id": "TLDRH", "items": [{"id": "TLDRH", "score": 0.3, "quote": "", "reason": "x"}]})
+    score = await sheet_scorer(rubric="tldrh", judge=judge([reply]))(state(), Target(""))
+    assert score.value == 0.3 and not score.metadata["failures"]
