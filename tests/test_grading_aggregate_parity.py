@@ -10,7 +10,7 @@ import pytest
 from messageboard_audit_bench.grading import core
 from messageboard_audit_bench.runtime import repo_root
 
-GRADED = repo_root() / "benchmark" / "graded"
+GRADED = repo_root() / "benchmarks" / "german-wiki" / "graded"
 # fields aggregate() derives rather than passes through
 DERIVED = ("total", "max", "accuracy", "contradiction", "n_contradicted", "worst")
 # fields later versions of the grader added; a rebuilt dict may carry them, nothing else

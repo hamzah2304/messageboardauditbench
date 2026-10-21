@@ -1,4 +1,4 @@
-"""Eval log -> benchmark/graded/.../graded_<key>.json.
+"""Eval log -> benchmarks/german-wiki/graded/.../graded_<key>.json.
 
 The compatibility seam. `scripts/report_performance.py`, the headline and combined
 figures, the audit viewers and the judge-vs-human comparison all read that file layout;

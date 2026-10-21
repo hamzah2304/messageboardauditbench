@@ -20,7 +20,7 @@ from dotenv import dotenv_values
 from inspect_ai.log import read_eval_log
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MANIFEST = ROOT / "experiments" / "round4.toml"
+DEFAULT_MANIFEST = ROOT / "benchmarks" / "german-wiki" / "experiments" / "round4.toml"
 RUNNER = ROOT / "scripts" / "run_inspect_matrix.sh"
 
 

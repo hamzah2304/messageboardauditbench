@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PRIMARY = Path(subprocess.check_output(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
                                        cwd=ROOT, text=True).strip()).parent
 CSV = PRIMARY / "data/aivillage/aidigest-posts-with-x-stats.csv"
-PROMPT = ROOT / "benchmark/incidents/aivillage/x-findings-prompt.md"
+PROMPT = ROOT / "benchmarks/aivillage/x-findings-prompt.md"
 MODEL = "gpt-6-luna"
 REASONING = "low"
 INPUT_RATE, OUTPUT_RATE = 0.10 / 1e6, 0.50 / 1e6

@@ -6,7 +6,7 @@ count against the run's token accounting, and obey `--max-connections` like ever
 else.
 
 The whole aggregate dict goes into `Score.metadata`, not just the number. That is what lets
-`export.py` reproduce `benchmark/graded/.../graded_<key>.json` byte for byte, which in turn
+`export.py` reproduce `benchmarks/german-wiki/graded/.../graded_<key>.json` byte for byte, which in turn
 is why no figure, viewer or analysis script has to change.
 
 Failure is per sheet, never fatal: one unparseable response should not throw away the other

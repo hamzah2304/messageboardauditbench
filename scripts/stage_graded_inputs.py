@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Stage a round's reports into benchmark/graded_inputs/<dir>/ for `grade_with_rubrics.py --dir <dir>`.
+"""Stage a round's reports into benchmarks/german-wiki/graded_inputs/<dir>/ for `grade_with_rubrics.py --dir <dir>`.
 
-    scripts/stage_graded_inputs.py reports/round3 \
+    scripts/stage_graded_inputs.py benchmarks/german-wiki/reports/round3 \
         blind-10=round3_blind10:r3b10 blind-30=round3_blind30:r3b30 blind-120=round3_blind120:r3b120
 
 Each `<config>=<out dir>:<key prefix>` spec selects that config's rows from the round's
@@ -26,7 +26,7 @@ def main():
         sys.exit(__doc__)
     raw = sys.argv[1]
     from_git = None
-    if ":" in raw and not Path(raw).exists():        # <git ref>:<path>, e.g. origin/branch:reports/round4
+    if ":" in raw and not Path(raw).exists():        # <git ref>:<path>, e.g. origin/branch:benchmarks/german-wiki/reports/round4
         from_git, raw = raw.split(":", 1)
     src = Path(raw) if Path(raw).is_absolute() else ROOT / raw
     # <config>=<dir>:<prefix>, or <config>@<budget>=<dir>:<prefix> where a round runs

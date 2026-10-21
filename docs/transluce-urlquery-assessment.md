@@ -215,7 +215,7 @@ any extra processing.
    the target list in 9).
 4. **A rubric.** About 15 points from the table above, built with the same
    `build_rubrics_v2.py` flow, plus a feasibility pass like
-   `benchmark/feasibility/` to mark which points are derivable.
+   `benchmarks/german-wiki/feasibility/` to mark which points are derivable.
 5. **A prompt variant.** The blind prompt works as is for a standalone
    task. For the joint task, mount both datasets and say nothing about
    their relationship.
@@ -244,7 +244,7 @@ will share it.
   `/screenshot` path exists on the page but was not tested for bulk use.
 - Counts above were computed with Python over `all-reports.csv` and
   `report-sources.csv`; wiki overlap counts are `grep -ci` over
-  `data/verbatim/revisions.jsonl` and `benchmark/human_report.txt`.
+  `data/verbatim/revisions.jsonl` and `benchmarks/german-wiki/human_report.txt`.
 - The 20 sampled JSONs and the decoded program are in this session's
   scratchpad, not in the repo.
 

@@ -120,7 +120,7 @@ def main():
     parser.add_argument("--render", action="store_true")
     args = parser.parse_args()
     root = repo_root()
-    data = summarize(args.experiment, root / "reports/urlquery")
+    data = summarize(args.experiment, root / "benchmarks/transluce/reports")
     if args.render:
         for row in data["attempts"]:
             if "report_path" in row:

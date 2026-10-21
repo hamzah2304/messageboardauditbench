@@ -17,6 +17,7 @@ marginal.toml
 # --- data: fetched + built, verified by data/SHA256SUMS.variants ---
 # rebuild with scripts/fetch_data.sh && scripts/build_data.sh
 /data/raw
+/data/aivillage
 /data/augmented
 /data/mythos5
 /data/rubyhack
@@ -31,14 +32,14 @@ data/verbatim_anthropic/*
 
 # --- raw agent transcripts (multi-MB, not needed to reproduce grades) ---
 baselines/*/transcript.jsonl
-reports/**/transcript.jsonl
+benchmarks/german-wiki/reports/**/transcript.jsonl
 # Raw URLQuery exports can quote recorded secrets. Only reviewed publication copies are tracked.
-/reports/urlquery/*
-!/reports/urlquery/published/
-/reports/urlquery/published/*
-!/reports/urlquery/published/*.md
+/benchmarks/transluce/reports/*
+!/benchmarks/transluce/reports/published/
+/benchmarks/transluce/reports/published/*
+!/benchmarks/transluce/reports/published/*.md
 # Private hosted report sources and generated publication bundles.
-/reports/share-site
+/benchmarks/transluce/reports/share-site
 
 # --- generated viewers: rebuild with viewers/build_*.py ---
 viewers/*.html

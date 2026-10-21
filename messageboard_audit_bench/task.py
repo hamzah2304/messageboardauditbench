@@ -18,6 +18,11 @@ rubric (see `messageboard_audit_bench.benchmarks`).
       inspect eval messageboard_audit_bench/transluce_report \
         -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
 
+  * `aivillage_report` runs fresh AI Village trials on the logs built from AI Digest's
+    dataset and grades them against the 96 rubric findings.
+      inspect eval messageboard_audit_bench/aivillage_report \
+        -T agent=codex --model openai/gpt-6.1-sol --model-role grader=openai/gpt-6.1-sol
+
   * `german_wiki_report_replay` imports runs already on disk under runs/,
     so `inspect view` can render past or interrupted runs with scoring.
       inspect eval messageboard_audit_bench/german_wiki_report_replay
@@ -28,7 +33,7 @@ rubric (see `messageboard_audit_bench.benchmarks`).
       inspect eval messageboard_audit_bench/german_wiki_report_continue \
         -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epochs=1
 
-Both fresh-trial tasks take ``-T version=<MAJOR.MINOR>`` and refuse to run if this
+The fresh-trial tasks take ``-T version=<MAJOR.MINOR>`` and refuse to run if this
 checkout is a different version; ``scripts/run_eval.py --version`` runs any tagged
 version (docs/benchmark-versions.md). The pre-rename task names
 (``messageboard_audit_bench``, ``urlquery_audit_bench`` and the ``_replay`` /
@@ -70,11 +75,13 @@ from messageboard_audit_bench.benchmarks import (
     check_version,
     config_names,
     default_config,
+    primary_root,
     reject_foreign_grading,
     urlquery_dataset_dir,
     urlquery_manifest,
 )
 from messageboard_audit_bench.configs import CONFIG_NAME, load_config
+from messageboard_audit_bench.grading.aivillage import aivillage_scorer
 from messageboard_audit_bench.grading.core import variant_for_data
 from messageboard_audit_bench.grading.finding_scorer import finding_scorer
 from messageboard_audit_bench.grading.scorer import sheet_scorer
@@ -88,6 +95,7 @@ from messageboard_audit_bench.native import inspect_native_agent
 from messageboard_audit_bench.report_length import (
     acceptance_limits,
     limits,
+    memory_note,
     render_prompt,
 )
 from messageboard_audit_bench.runtime import repo_root
@@ -152,9 +160,9 @@ def _min_runtime_fraction(min_runtime_fraction: float | None) -> float:
     return result
 
 
-def _minimum_runtime_instruction(budget_seconds: int, fraction: float) -> str:
+def _minimum_runtime_instruction(budget_seconds: int, fraction: float, notice: str = "") -> str:
     """The shared, parameterized prompt contract for early completion."""
-    return runtime_policy.instruction(fraction, budget_seconds / 60)
+    return runtime_policy.instruction(fraction, budget_seconds / 60, notice)
 
 
 def _prompt_for(
@@ -168,9 +176,47 @@ def _prompt_for(
     budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
     fraction = _min_runtime_fraction(min_runtime_fraction)
     text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
-    return render_prompt(text, budget_minutes, *limits(cfg), int(cfg.get("findings_count") or 0)) + (
-        _minimum_runtime_instruction(budget_minutes * 60, fraction)
+    memory = cfg.get("memory_limit", "")
+    # The same prompt the subscription runner writes: template, runtime notice, memory note.
+    return (
+        render_prompt(text, budget_minutes, *limits(cfg), int(cfg.get("findings_count") or 0),
+                      bool(cfg.get("subagents")), memory)
+        + _minimum_runtime_instruction(budget_minutes * 60, fraction, cfg.get("runtime_notice", ""))
+        + (memory_note(memory, _data_mount(cfg["data_variant"], benchmark_id)[0]) if memory else "")
     )
+
+
+def _claude_disallowed_tools(cfg: dict) -> list[str]:
+    """The config's denylist; ``subagents`` adds or removes Task/Agent, as the runner does."""
+    tools = list(cfg.get("claude_disallowed_tools", []))
+    if "subagents" not in cfg:
+        return tools
+    if cfg["subagents"]:
+        return [t for t in tools if t not in {"Task", "Agent"}]
+    return tools + [t for t in ("Task", "Agent") if t not in tools]
+
+
+def _codex_settings(cfg: dict, benchmark_id: str) -> tuple[tuple[str, ...], dict[str, str]]:
+    """Codex features to switch off, and other config overrides, as the runner sets them."""
+    if benchmark_id == "urlquery":
+        return URLQUERY_CODEX_FEATURES_OFF, {}
+    overrides = {}
+    if "codex_tool_output_token_limit" in cfg:
+        overrides["tool_output_token_limit"] = str(cfg["codex_tool_output_token_limit"])
+    if "subagents" not in cfg:
+        return (), overrides
+    if cfg["subagents"]:
+        return (), {**overrides, "features.multi_agent": "true", "features.multi_agent_v2": "true"}
+    return ("multi_agent", "multi_agent_v2"), overrides
+
+
+def _agent_env(cfg: dict, agent: str) -> dict[str, str]:
+    env = {}
+    if agent == "claude" and cfg.get("bash_max_output_length"):
+        env["BASH_MAX_OUTPUT_LENGTH"] = str(cfg["bash_max_output_length"])
+    if cfg.get("early_stop_note"):
+        env["MBAB_EARLY_STOP_NOTE"] = cfg["early_stop_note"]
+    return env
 
 
 def _scaffold(agent: str, backend: str) -> str:
@@ -191,6 +237,12 @@ def _data_mount(data_variant: str, benchmark_id: str) -> tuple[Path, dict[str, s
             "MBAB_BENCHMARK_ID": "urlquery",
             "MBAB_DATASET_SHA256": urlquery_manifest()["dataset"]["sha256"],
         }
+    if benchmark_id == "aivillage":
+        # Built once, in the primary checkout (scripts/build_aivillage_data.py).
+        data_dir = primary_root() / "data" / data_variant
+        if not data_dir.is_dir():
+            raise FileNotFoundError(f"no AI Village data at {data_dir}; run scripts/build_aivillage_data.py")
+        return data_dir.resolve(), {"MBAB_BENCHMARK_ID": "aivillage"}
     data_dir = (repo_root().resolve() / "data" / data_variant).resolve()
     # A task worktree holds per-file symlinks to the primary checkout's data.
     # A bind mount cannot follow those, so mount the directory they resolve to.
@@ -257,6 +309,8 @@ def _inspect_sandbox(
                     environment=environment,
                     working_dir="/work",
                     volumes=[f"{data_dir}:/work/data:ro"],
+                    **({"mem_limit": cfg["memory_limit"], "memswap_limit": cfg["memory_limit"]}
+                       if cfg and cfg.get("memory_limit") else {}),
                 )
             }
         ),
@@ -366,14 +420,17 @@ def _audit_task(
         metadata=sample_metadata,
     )
     if backend == "inspect":
+        codex_features_off, codex_config = _codex_settings(cfg, benchmark_id)
         selected_solver = inspect_native_agent(
             agent=agent,
             time_limit_seconds=budget_min * 60,
-            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
+            claude_disallowed_tools=_claude_disallowed_tools(cfg),
             report_min_words=limits(cfg)[0],
             report_max_words=limits(cfg)[1],
             min_runtime_fraction=runtime_fraction,
-            codex_features_off=URLQUERY_CODEX_FEATURES_OFF if benchmark_id == "urlquery" else (),
+            codex_features_off=codex_features_off,
+            codex_config=codex_config,
+            agent_env=_agent_env(cfg, agent),
         )
         selected_sandbox = _inspect_sandbox(cfg["data_variant"], benchmark_id, cfg)
         generate_config = GenerateConfig(
@@ -537,7 +594,7 @@ def _transluce_report(
     including ``version``.
 
     Args:
-        config: A URLQuery config from benchmarks/urlquery/benchmark.json
+        config: A URLQuery config from benchmarks/transluce/benchmark.json
             (default ``urlquery-agents-v6-30``).
         judge: Inspect model for the per-finding judge; defaults to
             ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` with the full
@@ -577,6 +634,52 @@ def _transluce_report(
 
 
 transluce_report = task(name="transluce_report")(_transluce_report)
+
+
+@task
+def aivillage_report(
+    agent: str = "claude",
+    backend: str = "inspect",
+    subscription_model: str | None = None,
+    config: str | None = None,
+    subagents: bool | None = None,
+    allow_networked_subscription: bool = True,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float | None = None,
+    judge: str | None = None,
+    version: str | None = None,
+) -> Task:
+    """Run one sandboxed AI Village report trial and grade it against the 96 rubric findings.
+
+    Arguments shared with ``german_wiki_report`` mean the same thing there,
+    including ``version``.
+
+    Args:
+        config: ``aivillage-v12-30`` (default) or ``aivillage-v12-30-subagents``.
+        subagents: shorthand for the config: ``true`` picks ``aivillage-v12-30-subagents``.
+        min_runtime_fraction: defaults to the config's (0.9).
+        judge: Inspect model for the judge; defaults to ``openai/gpt-6.1-sol``, the
+            published judge. A ``grader`` model role takes precedence.
+    """
+    check_version("aivillage", version)
+    if config is not None and subagents is not None:
+        raise ValueError("pass config or subagents, not both")
+    config = config or ("aivillage-v12-30-subagents" if subagents else default_config("aivillage"))
+    cfg = _load_config(config, "aivillage")
+    return _audit_task(
+        "aivillage",
+        agent=agent,
+        backend=backend,
+        subscription_model=subscription_model,
+        config=config,
+        allow_networked_subscription=allow_networked_subscription,
+        time_limit_minutes=time_limit_minutes,
+        min_runtime_fraction=(cfg.get("min_runtime_fraction", 0.75) if min_runtime_fraction is None
+                              else min_runtime_fraction),
+        data_variant=None,
+        scorers=[aivillage_scorer(judge=judge), process_metrics(), report_length()],
+        extra_sample_metadata={"subagents": bool(cfg.get("subagents"))},
+    )
 # Deprecated alias: the task's name before the rename.
 urlquery_audit_bench = task(name="urlquery_audit_bench")(_transluce_report)
 

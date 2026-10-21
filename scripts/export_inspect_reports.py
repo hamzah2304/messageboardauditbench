@@ -2,7 +2,7 @@
 """Export report artifacts from native Inspect ``.eval`` logs.
 
 Usage:
-    uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
+    uv run python scripts/export_inspect_reports.py --logs logs --out benchmarks/german-wiki/reports/native
 
 The default only exports ``backend=inspect`` samples. Pass ``--backend all`` to
 export imported subscription samples too. Reports are grouped by agent scaffold;
@@ -27,7 +27,7 @@ from messageboard_audit_bench.runtime import repo_root
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--logs", default=str(repo_root() / "logs"))
-    parser.add_argument("--out", default=str(repo_root() / "reports" / "native"))
+    parser.add_argument("--out", default=str(repo_root() / "benchmarks" / "german-wiki" / "reports" / "native"))
     parser.add_argument(
         "--backend",
         choices=("inspect", "subscription", "all"),
@@ -45,7 +45,7 @@ def main() -> int:
     parser.add_argument(
         "--graded-inputs",
         metavar="ROUND",
-        help="also copy the reports into benchmark/graded_inputs/<ROUND>_<condition><budget>/ "
+        help="also copy the reports into benchmarks/german-wiki/graded_inputs/<ROUND>_<condition><budget>/ "
         "(the layout grade_with_rubrics.py --dir reads)",
     )
     parser.add_argument(
@@ -70,9 +70,9 @@ def main() -> int:
         from messageboard_audit_bench.log_export import export_graded_inputs
 
         written = export_graded_inputs(
-            rows, Path(args.out), repo_root() / "benchmark" / "graded_inputs", args.graded_inputs
+            rows, Path(args.out), repo_root() / "benchmarks" / "german-wiki" / "graded_inputs", args.graded_inputs
         )
-        print(f"{len(written)} graded inputs -> benchmark/graded_inputs/{args.graded_inputs}_*")
+        print(f"{len(written)} graded inputs -> benchmarks/german-wiki/graded_inputs/{args.graded_inputs}_*")
     return 0
 
 

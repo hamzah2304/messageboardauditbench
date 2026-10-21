@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build viewers/rubric_review.html — approve, reject or rewrite each proposed rubric change.
 
-Reads benchmark/rubric_review/suggestions.json (S1..S7, each with a problem, the change,
+Reads benchmarks/german-wiki/rubric_review/suggestions.json (S1..S7, each with a problem, the change,
 and a before/after pair of rubric text) and emits one self-contained page:
 
 - one card per suggestion, in a single reading column, with the before text muted on the
@@ -9,7 +9,7 @@ and a before/after pair of rubric text) and emits one self-contained page:
 - approve / reject / needs work per suggestion, plus a comment;
 - the edit is kept separately from the proposal (after_original beside after_edited), so
   the original wording is never lost and a one-click revert is always available;
-- the page autosaves to benchmark/rubric_review/decisions.json through the html-viewer's
+- the page autosaves to benchmarks/german-wiki/rubric_review/decisions.json through the html-viewer's
   POST /save endpoint (localStorage mirror when the server is unreachable) — the same
   persistence mechanism as viewers/build_audit_ui.py.
 """
@@ -19,8 +19,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from paths import ROOT, VIEWERS
 
 OUT = VIEWERS / "rubric_review.html"
-SUGGESTIONS = ROOT / "benchmark" / "rubric_review" / "suggestions.json"
-DECISIONS = ROOT / "benchmark" / "rubric_review" / "decisions.json"
+SUGGESTIONS = ROOT / "benchmarks" / "german-wiki" / "rubric_review" / "suggestions.json"
+DECISIONS = ROOT / "benchmarks" / "german-wiki" / "rubric_review" / "decisions.json"
 
 
 def main():

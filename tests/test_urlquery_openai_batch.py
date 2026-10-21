@@ -1,6 +1,6 @@
 """Check the Batch API adapter preserves the reviewed finding judge's results."""
 
-from benchmarks.urlquery.judge.grade_openai_batch import parse_response
+from benchmarks.transluce.judge.grade_openai_batch import parse_response
 
 
 def test_batch_response_uses_reviewed_finding_validation() -> None:

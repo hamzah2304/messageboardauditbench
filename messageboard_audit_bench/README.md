@@ -23,7 +23,7 @@ pre-rename names `messageboard_audit_bench`, `messageboard_audit_bench_replay`,
 
 `benchmarks.py` records what each benchmark owns: its name, version, configs, data
 location and rubric. The Transluce report's details are in
-[`benchmarks/urlquery/README.md`](../benchmarks/urlquery/README.md); its options are
+[`benchmarks/transluce/README.md`](../benchmarks/transluce/README.md); its options are
 listed [below](#transluce-report-options).
 
 ## Layout
@@ -197,7 +197,7 @@ To export native reports for the repository's report/grade tooling, use the
 public Inspect Log API wrapper rather than reading `.eval` files directly:
 
 ```
-uv run python scripts/export_inspect_reports.py --logs logs --out reports/native
+uv run python scripts/export_inspect_reports.py --logs logs --out benchmarks/german-wiki/reports/native
 ```
 
 This defaults to native `backend=inspect` samples. `--backend all` also exports
@@ -228,7 +228,7 @@ sandbox reports the current whitespace-based count on demand.
 
 | option | default | meaning |
 |---|---|---|
-| `config` | `urlquery-agents-v6-30` | a config listed in `benchmarks/urlquery/benchmark.json` (`urlquery-agents-v6-30`, `urlquery-agents-v6-10`) |
+| `config` | `urlquery-agents-v6-30` | a config listed in `benchmarks/transluce/benchmark.json` (`urlquery-agents-v6-30`, `urlquery-agents-v6-10`) |
 | `judge` | `anthropic/claude-opus-5-5` | any `anthropic/<model>` or `openrouter/<model>`; `openrouter/openai/gpt-6-astra` is the final-run judge. A `grader` model role takes precedence |
 | `judge_effort` | `xhigh` (Anthropic), `high` (others) | the judge's reasoning effort |
 | `article_context` | `omitted` (Anthropic), `full` (others) | whether the judge reads Transluce's article or only the reviewed findings and their quotes |

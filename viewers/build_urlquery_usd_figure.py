@@ -195,7 +195,7 @@ def main() -> None:
         print(f"{html}: {sum(r['status'] == 'complete' for r in rows)}/{len(rows)} eligible reports, "
               f"{len(excluded)} excluded, {sum(r['performance'] is not None for r in rows)} scores")
         return
-    eci_source = read_json(ROOT / "benchmark" / "eci_scores.json")
+    eci_source = read_json(ROOT / "benchmarks" / "german-wiki" / "eci_scores.json")
     eci_names = {"Opus 5": "Claude Opus 5", "Opus 4.8": "Claude Opus 4.8",
                  "Sonnet 5": "Claude Sonnet 5"}
     eci_rows = {row["name"]: row for row in eci_source["models"]}
@@ -207,7 +207,7 @@ def main() -> None:
         capability_details[label] = ({"eci": entry["eci"], "source_model": entry["eci_model"],
                                       "exact": entry["exact"]} if entry else None)
     cap_payload = {**payload, "capability": capability, "capability_details": capability_details,
-                   "capability_source": "benchmark/eci_scores.json",
+                   "capability_source": "benchmarks/german-wiki/eci_scores.json",
                    "capability_note": "Epoch Capabilities Index snapshot retrieved 2026-09-07. Gemini 3.8 Flash uses Gemini 3.7 Flash and Muse Spark 1.3 uses Muse Spark 1.2 as prior-generation proxies. GPT-6 Sol, GPT-6 Luna, Opus 4.6, and DeepSeek V4 Flash lack a recorded value and are omitted from this plot. All 47 eligible report scores remain in the table."}
     CAPABILITY_OUT.write_text(json.dumps(cap_payload, indent=2, ensure_ascii=False) + "\n")
     cap_template = (ROOT / "viewers" / "templates" / "urlquery_capability_figure.html").read_text()

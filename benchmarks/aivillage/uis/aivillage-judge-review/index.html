@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Village judge review</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#20312e;background:#f4f5f1;font-size:15px}*{box-sizing:border-box}body{margin:0;padding-bottom:58px}header{padding:16px 24px;background:#fff;border-bottom:1px solid #d5ddd6}h1{font-size:23px;margin:0 0 6px}h2{font-size:20px;line-height:1.35}h3{font-size:16px}p{line-height:1.6}header p{margin:4px 0;font-size:13px;color:#59675f}.layout{display:grid;grid-template-columns:245px minmax(380px,1fr) minmax(360px,.95fr);height:calc(100vh - 177px);min-height:500px}nav,main,aside{overflow:auto;padding:18px}nav{border-right:1px solid #d5ddd6;padding:14px 10px}aside{background:#fff;border-left:1px solid #d5ddd6}main{padding:20px 24px}button{font:inherit;cursor:pointer;border:1px solid #b8c6bc;background:white;border-radius:6px;padding:6px 10px;color:inherit}nav button{display:block;width:100%;text-align:left;margin:0 0 9px;padding:12px;font-size:13px;line-height:1.4}nav button.active{background:#e1ece3;border-color:#567c65}nav small{display:block;margin-top:6px;color:#53635a}.card{background:white;border:1px solid #d6ded8;border-radius:9px;padding:15px 18px;margin:14px 0}.judge{border-left:3px solid #3b7862;padding-left:13px;margin-top:16px}.label{font-size:12px;letter-spacing:.03em;color:#65736a}.score{font-size:21px;font-weight:650;color:#235a42}.pill{display:inline-block;font-size:12px;background:#e7eee8;padding:4px 8px;border-radius:20px}.warn{background:#fff0d2;color:#735000}blockquote{margin:12px 0;border-left:3px solid #b9cabc;padding:6px 12px;color:#43564b;line-height:1.5}details{margin:12px 0;font-size:13px}summary{cursor:pointer;color:#34654d}code{font-size:11px;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.65 system-ui,sans-serif;tab-size:2;margin-top:14px}mark{background:#ffe49a;padding:3px 0}a{color:#275e47}aside h2{margin:0 0 8px}.report-tools{position:sticky;top:-18px;background:white;padding:12px 0;z-index:1;border-bottom:1px solid #ddd}.hint{font-size:13px;color:#68766d}.sub-id{font-size:12px;color:#607166}.flag{color:#9a591e}ul{padding-left:20px;line-height:1.6}.error{color:#9f231d}#report-search{width:100%;padding:7px;margin:8px 0;border:1px solid #bac8be;border-radius:5px;font:inherit}@media(max-width:1000px){.layout{grid-template-columns:190px 1fr;height:auto}aside{grid-column:1/-1;max-height:70vh}main{max-height:80vh}}@media(max-width:650px){.layout{display:block}nav{max-height:230px}main{padding:12px}header{padding:12px}}
+</style></head><body>
+<header><h1>AI Village judge review</h1><p id="summary">Loading ten findings…</p><p>Review each finding and subfinding against the report. Select text or use the comment controls to leave feedback.</p><details><summary>What was scored</summary><p id="selection"></p><p id="condition"></p><p>Equal finding weights. Scores measure coverage and understanding. Citation quality, ranking and time use are separate. Main-claim contradiction flags require review before applying a penalty.</p><a id="prompt-link" target="_blank" rel="noopener">Judge prompt in Google Docs</a> · <a href="review.json" download>Download scores and inputs</a></details></header>
+<div class="layout"><nav id="findings" aria-label="Findings"></nav><main id="detail"></main><aside><div class="report-tools"><h2>Investigator report</h2><p class="hint">Click a judge quotation to find it here.</p><input id="report-search" placeholder="Search the report" aria-label="Search the report"><button id="search">Find</button> <button id="reset">Full report</button><span id="match" class="hint"></span></div><pre id="report"></pre></aside></div>
+<script src="/_uikit/uikit.js"></script><script>
+(async()=>{
+ const kit=await UIKit.init({comments:true});
+ const d=await fetch('review.json').then(r=>{if(!r.ok)throw Error('Scores could not load');return r.json()});
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const para=s=>`<p>${esc(s)}</p>`;
+ const notes=ss=>ss?.length?`<ul>${ss.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'';
+ document.querySelector('#summary').textContent=`10 findings · GPT-6.1 Sol, high reasoning · Mean coverage score ${d.mean_score.toFixed(2)} / 1 · ${d.contradiction_flags} main-claim contradiction flags`;
+ document.querySelector('#selection').textContent=d.selection;
+ document.querySelector('#condition').textContent=`Report: ${d.report_model}; ${d.report_condition}.`;
+ document.querySelector('#prompt-link').href=d.prompt_url;
+ const report=document.querySelector('#report');report.textContent=d.report;
+ function locate(quote){
+  if(!quote){report.textContent=d.report;return}
+  const at=d.report.indexOf(quote);
+  if(at<0){document.querySelector('#match').textContent=' Exact text not found';return}
+  report.innerHTML=esc(d.report.slice(0,at))+'<mark>'+esc(quote)+'</mark>'+esc(d.report.slice(at+quote.length));
+  document.querySelector('#match').textContent=' Match highlighted';
+  report.querySelector('mark').scrollIntoView({block:'center',behavior:'smooth'});
+ }
+ document.querySelector('#search').onclick=()=>{
+  const q=document.querySelector('#report-search').value;if(!q)return;
+  const at=d.report.toLowerCase().indexOf(q.toLowerCase());locate(at<0?q:d.report.slice(at,at+q.length));
+ };
+ document.querySelector('#report-search').onkeydown=e=>{if(e.key==='Enter')document.querySelector('#search').click()};
+ document.querySelector('#reset').onclick=()=>{locate('');document.querySelector('#match').textContent=''};
+ function judgement(j){return `<div class="judge"><div class="label">SOL’S SCORE</div><span class="score">${j.score} / 1</span>${j.contradicted?' <span class="pill warn">Contradiction flagged</span>':''}${para(j.reason)}${j.quote?`<blockquote>${esc(j.quote)}</blockquote><button class="quote" data-quote="${esc(j.quote)}">Show in report</button>${j.quote_verified?'':' <span class="flag">Exact quotation needs checking</span>'}`:'<p class="hint">No supporting quotation identified in the report.</p>'}</div>`}
+ function show(id){
+  const f=d.findings.find(f=>f.id===id)||d.findings[0];
+  for(const b of document.querySelectorAll('nav button'))b.classList.toggle('active',b.dataset.id===f.id);
+  const j=f.judge;
+  document.querySelector('#detail').innerHTML=`<section data-uikit-section="${f.id}"><div class="label">${f.id} · ${esc(f.verification.behavior_dates)}</div><h2>${esc(f.headline)}</h2><div class="card">${para(f.finding)}${notes(f.notes)}${judgement(j)}</div>${f.subfindings.map(s=>{const sj=j.sub_findings.find(x=>x.id===s.id);return `<section class="card" data-uikit-section="${esc(s.id)}"><span class="sub-id">${esc(s.id)}</span>${para(s.claim)}${notes(s.notes)}${judgement(sj)}<details><summary>Log evidence and verifier caveats</summary>${para(s.evidence)}</details></section>`}).join('')}<details class="card"><summary>Checked key records (${f.records.length})</summary>${f.records.map(r=>`<div><code>${esc(r.id)}</code><blockquote>${esc(r.quote)}</blockquote><p class="hint">${r.quote_verified?'Quote found in frozen records':'Record exists; quotation was not confirmed'}</p></div>`).join('')}</details><details class="card"><summary>${f.wording_changed?'Original wording and local changes':'Original extracted wording'}</summary><p class="hint">The underlying extraction dataset was not edited for this trial.</p>${para(f.original.finding)}${f.original.subfindings.map(s=>`<p><b>${esc(s.id)}</b> ${esc(s.claim)}</p>`).join('')}</details><details><summary>Run details</summary><p class="hint">Returned model: ${esc(j.returned_model)}<br>Response: ${esc(j.response_id)}<br>Investigator run: ${esc(d.report_run)}<br>Verifier output: ${esc(f.verification_path)}</p></details></section>`;
+  for(const b of document.querySelectorAll('.quote'))b.onclick=()=>locate(b.dataset.quote);
+  document.querySelector('main').scrollTop=0;
+ }
+ for(const f of d.findings){const b=document.createElement('button');b.dataset.id=f.id;b.innerHTML=`${esc(f.headline)}<small>${f.id} · ${f.judge.score.toFixed(1)} / 1${f.judge.contradicted?' · ⚑':''}</small>`;b.onclick=()=>{location.hash=f.id};document.querySelector('nav').append(b)}
+ window.addEventListener('hashchange',()=>show(location.hash.slice(1)));show(location.hash.slice(1));
+})().catch(e=>{document.querySelector('#summary').textContent=e.message;document.querySelector('#summary').classList.add('error')});
+</script></body></html>

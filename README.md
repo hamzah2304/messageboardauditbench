@@ -1,322 +1,68 @@
-# MessageBoardAuditBench
+# SlopvestigatorBench
 
-Benchmarks for how well an agent can investigate raw logs of AI agents misbehaving and
-recover the findings of a human audit. The repository holds two benchmarks. They are
-separate Inspect evals that share one harness: the config format, prompt rendering,
-sandbox, agents, subscription runner and grading plumbing.
+Formerly MessageBoardAuditBench; old GitHub links redirect here. The Python package keeps
+its name, `messageboard_audit_bench`, so existing Inspect task names and logs still work.
 
-| benchmark | Inspect task | version | evidence | grading |
-|---|---|---:|---|---|
-| German wiki report | `german_wiki_report` | `10.0` | the collusion.wiki dump, `data/<variant>/` | claim sheets `v2` + `tldrh` |
-| Transluce report | `transluce_report` | `1.0` | urlquery.net scans, `data/urlquery/<snapshot>/` | per-finding judge, `reviewed` rubric |
+Three sibling benchmarks for one question: can an AI agent investigate raw logs of AI
+agents misbehaving and find what human investigators found? In each, the agent gets the
+logs in a sandbox with no internet and a time budget, writes a report, and a judge scores
+the report against findings taken from human write-ups.
 
-**German wiki report.** The source incident is
-[collusion.wiki](https://collusion.wiki/index.html): ~18,000 posts left on a public wiki
-by autonomous OpenAI agents that used it to coordinate on a web-retrieval task. Human
-investigators wrote up what happened. We give an agent the raw dump, and nothing else,
-and score its report against that write-up. This is the benchmark behind the published
-results below.
+| benchmark | the logs | source | details |
+|---|---|---|---|
+| German wiki report | ~18,000 posts on a public wiki where autonomous OpenAI agents coordinated on a web-retrieval task | [collusion.wiki](https://collusion.wiki/index.html) | [`benchmarks/german-wiki/`](benchmarks/german-wiki/README.md) |
+| Transluce report | 38,158 urlquery.net web scans that Transluce linked to autonomous agents (2026) | [Transluce](https://transluce.org/agent-activity) | [`benchmarks/transluce/`](benchmarks/transluce/README.md) |
+| AI Village report | the full AI Village logs, where frontier agents share a chat, run their own computers and pursue goals (April 2025 to September 2026) | [AI Village](https://theaidigest.org/village), dataset [`aidigestorg/ai-village`](https://huggingface.co/datasets/aidigestorg/ai-village) | [`benchmarks/aivillage/`](benchmarks/aivillage/README.md) |
 
-**Transluce report.** The agent gets a frozen, hash-pinned snapshot of the urlquery.net
-web scans that [Transluce](https://transluce.org/agent-activity) linked to autonomous
-agents (38,158 of the 38,160 it catalogued; 2 were unavailable) and writes a report. A
-judge scores it against 13 reviewed headline findings, one call per finding.
-[`benchmarks/urlquery/README.md`](benchmarks/urlquery/README.md) covers the data, the
-batch launcher, the rubric and the judge. URLQuery reports can quote recorded secrets,
-so its reports, grades and data stay gitignored.
+Each details page says how to get the data, run a trial and grade it.
+
+## Run one
+
+Each benchmark is an Inspect eval in one package, so after `uv sync --frozen` (Python
+3.11+, uv and Docker; `scripts/doctor.sh` checks them) a trial is:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/transluce_report \
-  -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
-uv run inspect eval messageboard_audit_bench/transluce_report_grade \
-  -T launch=runs/urlquery/<final>/launch.json -T judge=openrouter/openai/gpt-6-astra
+uv run inspect eval messageboard_audit_bench/german_wiki_report -T agent=claude --model anthropic/claude-opus-5
+uv run inspect eval messageboard_audit_bench/transluce_report   -T agent=codex  --model openai/gpt-6-astra
+uv run inspect eval messageboard_audit_bench/aivillage_report   -T agent=codex  --model openai/gpt-6.1-sol
 ```
 
-**Versions.** Each benchmark has a `MAJOR.MINOR` version. The major number changes
-whenever results stop being comparable with earlier runs. Every version is a git tag
-(`german-wiki-report-v10.0`, `transluce-report-v1.0`, ...), every Inspect log records
-the version that produced it, and one flag runs any tagged version:
+`-T agent=` is `claude` (Claude Code), `codex` (Codex CLI) or `react` (a minimal tool loop
+for any Inspect model). Each task grades its report inline with its own judge; set the
+judge with `--model-role grader=<model>`, or skip grading with `--no-score`. The
+`*_grade` tasks grade reports that already exist.
+`scripts/e2e_smoke.sh` runs one short trial of each, end to end.
 
-```bash
-uv run python scripts/run_eval.py german-wiki-report --version 9.0 -- -T agent=codex --model ...
-```
+## What they share
 
-[`docs/benchmark-versions.md`](docs/benchmark-versions.md) lists every version, what
-changed, and how to run it. The pre-rename task names (`messageboard_audit_bench`,
-`urlquery_audit_bench`, ...) still work as aliases.
-
-**AI Village (in development).** An agent investigates the full AI Village logs and reports what went wrong; the answer key will come from AI Digest's write-ups. Setup, prompt, run log and notes are in [`benchmark/incidents/aivillage/`](benchmark/incidents/aivillage/README.md). Not yet a registered Inspect eval.
-
-**Drafts for future evals.** `benchmark/incidents/` also holds two draft incidents:
-Anthropic's released Mythos 5 cybersecurity transcript, and the malicious-package
-evidence cited by the RubyHack investigation. Each has a data builder, a config and a
-draft rubric, but neither has been piloted, and both still need a derivability review.
-They are not part of either eval. Once reviewed, each is meant to become its own eval. See the
-[Mythos 5](benchmark/rubrics/mythos5/README.md) and
-[RubyHack](benchmark/rubrics/rubyhack/README.md) notes.
-
-| incident | state | default | draft grading | results |
-|---|---|---:|---|---|
-| collusion.wiki | the German wiki report | 20 min | `v2` + `tldrh` | published |
-| Mythos 5 | draft | 20 min | `m5` + `m5tldrh` | none |
-| RubyHack | draft | 10 min | `rh` + `rhtldrh` | none |
-
-```bash
-uv run python scripts/incident_pipeline.py list
-uv run python scripts/incident_pipeline.py guide mythos5
-```
-
-[`docs/adding-an-incident.md`](docs/adding-an-incident.md) covers incident selection,
-corpus and rubric review, no-cost validation, pilots, grading, and publication.
-
-## The task
-
-An agent gets the stripped log dump in a network-isolated container, a time budget, and a
-prompt asking for an incident report. It gets no web access, no view of the human report,
-and no hints about what it will be graded on. The report is then graded against the human
-audit — see [How grading works](#how-grading-works).
-
-Because the budget is part of the condition, a score means nothing without the budget it
-was measured at. This measures investigation, not recall of things already known.
-
-## Run it
-
-Needs Python 3.11+, [uv](https://docs.astral.sh/uv/) and Docker.
-[`docs/getting-started.md`](docs/getting-started.md) covers credentials, the ablations and
-troubleshooting; `scripts/doctor.sh` checks prerequisites and prints the fix for anything
-missing.
-
-```bash
-uv sync --frozen
-scripts/build_data.sh                      # fetch + build data/, verified against checksums
-uv run python scripts/incident_pipeline.py check --docker
-
-# through Inspect (set OPENAI_API_KEY for this example's agent and grader)
-uv run inspect eval messageboard_audit_bench/german_wiki_report \
-  -T agent=react -T config=blind -T time_limit_minutes=30 \
-  --model openai/gpt-5.6-sol --model-role grader=openai/gpt-5.6-sol
-uv run inspect view
-
-# or the subscription scripts directly, against the same image, prompt and data
-ALLOW_NETWORKED_SUBSCRIPTION=1 CONFIG=configs/blind-20.toml \
-  sandbox/docker/run_trial.sh claude claude-opus-5 1
-scripts/collect_reports.py                 # runs/ -> reports/
-```
-
-The eval runs the registered finding and summary graders inline; `--no-score` defers
-them. Every script resolves its inputs through `paths.py`, so the repo works from a plain
-clone.
-
-The draft incidents are not Inspect conditions. Pilot one through the subscription
-runner, which accepts any config:
-
-```bash
-CONFIG=rubyhack BUDGET_MIN=10 sandbox/docker/run_trial.sh react moonshotai/kimi-k3 1
-```
-
-## Publication snapshot
-
-This checkout contains the round-4 benchmark and the followup and provider-swap
-ablations used for the blog. Earlier rounds, seed baselines, prototype results,
-and superseded design notes are available in Git history at
-[`inspect-logs-2026-09-08`](https://github.com/hamzah2304/messageboardauditbench/tree/inspect-logs-2026-09-08).
-The [benchmark version history](docs/benchmark-versions.md) records the Inspect
-task version used for the [LessWrong post](https://www.lesswrong.com/posts/wt4kk6vFPEhkXvF8Q/how-good-are-slop-vestigators)
-and the version used by new runs from this checkout.
-
-The headline score is **70% finding coverage and 30% holistic TLDR assessment**.
-Finding coverage is the mean of `max(2s - 1, 0)` across the 38 findings; the TLDR
-score is graded separately. The Inspect logs expose the component scores. The
-headline figures combine them using `viewers/build_headline_figures.py` and
-`benchmark/figures/combined_score.json`.
-
-Start with:
-
-- [Results figures](viewers/figures/results_figures.md), with the plot sources and captions.
-- [Evidence index](docs/benchmark-data-index.md), linking the current reports, grades,
-  rubric-validation evidence, and ablations.
-- [Inspect log downloads](docs/artifacts/inspect-logs.md), with checksums and a manifest
-  linking the archived logs to reported samples.
-
-The figures generally show three runs per model and budget. Missing samples and
-model fallbacks are recorded in the figure data and report indexes; do not treat
-all archived runs as headline samples or an Opus fallback as a single-model result.
+One harness: the config format (`configs/`), prompt rendering, the Docker sandbox, the
+three agent harnesses, a subscription runner for logged-in CLIs
+(`sandbox/docker/run_trial.sh`) and the grading plumbing. Each benchmark brings its own
+data, prompt, rubric and judge. Each has a `MAJOR.MINOR` version with a git tag per
+version; [`docs/benchmark-versions.md`](docs/benchmark-versions.md) lists them.
 
 ## Layout
 
 ```
-benchmark/      ground truth: human_report.txt (answer key), claims, feasibility,
-                rubrics, graded results, and the exact reports each grade came from
-benchmarks/urlquery/
-                the URLQuery benchmark's manifest, findings rubric and judge
-messageboard_audit_bench/
-                the Inspect task package — wraps the sandbox as an inspect eval
-sandbox/        isolated trial runner (Docker), API proxy, ReAct scaffold, prompts
-scripts/        data build/fetch, grading, report collection, analysis
-configs/        trial conditions (budget, prompt, data variant, effort) for both
-                benchmarks; configs/superseded/ keeps retired ones for provenance
-experiments/    manifests and notes for the multi-cell rounds and ablations
-reports/        the model report corpus, by benchmark config
-viewers/        build_*.py -> browsable HTML for every artifact
-data/           gitignored; rebuilt and checksum-verified by scripts/build_data.sh
-docs/           setup, data processing, audits, and publication evidence
-tests/          pytest suite for the task package and tooling
+benchmarks/
+  german-wiki/              answer key, rubrics, grades, report corpus, captured wiki pages
+  transluce/                manifest, findings rubric and judge
+  aivillage/                rubric, judge prompt, results and figures
+messageboard_audit_bench/   the Inspect tasks, sandbox and graders (shared)
+sandbox/                    Docker image, runner, proxy, ReAct scaffold and prompts (shared)
+configs/                    trial conditions for all three
+scripts/                    data builds, batch grading, report collection
+viewers/                    build_*.py -> HTML views and figures
+docs/                       setup, data processing, versions, audits
+tests/
+data/, runs/, logs/         gitignored: built data and run outputs
 ```
-
-## Evaluate your own agent
-
-The `-T agent=` harnesses are `claude`, `codex` and `react`, and there is no plugin
-point for a fourth. To evaluate a scaffold that is not one of those, run it yourself
-against the same conditions and grade the report it writes.
-
-**The conditions.** A trial is comparable to the published cells only if all of these
-hold:
-
-| | |
-|---|---|
-| prompt | `sandbox/prompts/blind-v2.txt`, verbatim |
-| data | `data/verbatim/`, mounted read-only, and nothing else |
-| network | none — the agent must not reach the web or the source incident |
-| budget | wall-clock; 10, 30 and 120 minutes are the published cells |
-| output | one Markdown report, 2,500–3,000 words (accepted up to 3,200) |
-| judge | `anthropic/claude-fable-5-1`, or your number is not comparable |
-
-The agent must not see `benchmark/` — it holds the answer key.
-
-**Grade it.** Put the reports in a folder as `.md` files, one per run; any absolute path
-works and no index file is needed.
-
-```bash
-# both sheets, into an Inspect log each
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
-  -T dir=/abs/path/to/my-reports -T rubric=v2 \
-  --model-role grader=anthropic/claude-fable-5-1
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
-  -T dir=/abs/path/to/my-reports -T rubric=tldrh \
-  --model-role grader=anthropic/claude-fable-5-1
-
-# file the grades where the tooling reads them
-uv run python scripts/export_grades.py logs/<the-v2-run>.eval
-uv run python scripts/export_grades.py logs/<the-tldrh-run>.eval
-
-# the headline score, per report and averaged
-uv run python scripts/score_reports.py benchmark/graded/judge_claude_fable_5_1
-```
-
-`score_reports.py` prints the headline beside the raw mean and the above-half fraction,
-because those are the two numbers most easily mistaken for it. It reproduces the
-published composite exactly for the project's own runs. `--json` gives machine-readable
-output; `--v2` and `--tldrh` take the two grade directories separately.
-
-## How grading works
-
-The default task runs two independent graders over the submitted report:
-
-- `v2`: eight sheets covering 38 findings extracted from the human investigation.
-- `tldrh`: a holistic assessment of the report's summary against the human account.
-
-Both receive the matching answer key. Provider-swapped inputs select the
-Anthropic variant of the sheets and human report. `--model-role grader=...`
-sets the judge; the published headline figures use Fable 5.1. The quick-start
-example uses Sol and will therefore produce a different judge configuration.
-
-The judge is never also a subject: Fable 5.1 appears in no run manifest and
-authors none of the graded reports, so no model grades its own work.
-
-The instructed length is 2,500–3,000 words throughout. The acceptance ceiling
-is 3,200; round-4 cells recorded 3,100 and the scorer honours the ceiling each
-run recorded, so `configs/blind-anthropic.toml` pins 3,100 to keep the
-provider-swap twin comparable with round 4.
-
-Per-finding grades and explanations are retained in the Inspect log. The
-publication finding score applies `max(2s - 1, 0)` to each finding before averaging;
-the headline score combines that with the holistic TLDR grade at weights 70/30.
-
-When a sheet fails to grade, the scorer records the failure and still emits a score
-over the sheets that survived. Any aggregate meant for publication has to read that
-failure metadata rather than the score alone.
-See [the evidence index](docs/benchmark-data-index.md) for source grades and
-human validation records. Alternative grading sheets remain available for
-compatibility and validation, but do not define the headline metric.
-
-## Inspect integration
-
-`pyproject.toml` registers this as an Inspect plugin, so after `uv sync` Inspect discovers
-the eval by package name — no task-file path required. The default backend is fully
-Inspect-managed: Inspect creates the sandbox, selects the model, enforces the time limit,
-records live events and writes its `.eval` log. Claude Code and Codex run through the
-official Inspect SWE agents, `agent=react` through Inspect's own. A subscription backend
-remains available for results that must use a logged-in CLI, and imports that CLI's event
-stream after the run.
-
-**[`messageboard_audit_bench/README.md`](messageboard_audit_bench/README.md) is the full
-reference** — every task option, the three harnesses, the integration boundary,
-minimum-runtime and report-length policy, and log export.
-
-Repo-level pieces that live outside the package: `scripts/run_inspect_matrix.sh` (runs one
-model/agent/config cell with retries, timeouts and concurrency made explicit),
-`scripts/export_inspect_reports.py` (bridges `.eval` logs to the report-artifact layout via
-Inspect's Log API), `scripts/audit_runs.py` (summarises tool use, failures and refusals
-across runs), and `experiments/*.toml` (round and ablation manifests).
-
-A clone-based Inspect task does not need to be listed to run, and this one is directly
-runnable. Official listing is a separate step with its own requirements — see
-[`docs/inspect-evals-registration.md`](docs/inspect-evals-registration.md).
-
-### Isolation
-
-Native containers use `network_mode: none`, with no real provider credentials inside, and
-a preflight records JSONL readability, hashes, the read-only data mount and network
-interfaces. Inspect's model bridge disables hosted browsing.
-[`docs/inspect-core-fixes.md`](docs/inspect-core-fixes.md) covers the bridge's capability
-and uid posture.
-
-Normal subscription execution is weaker and says so: agent commands can reach their
-credentials and permitted vendor endpoints, and logs do not establish that communication
-was impossible. See [the isolation audit](docs/isolation-audit.md) and
-[`sandbox/README.md`](sandbox/README.md).
-
-Synthetic administrator names and the Cyrillic `е` are intentional corpus clues and remain
-unchanged.
-
-## Notes on reproducibility
-
-- `data/` is a build output, not a source. `scripts/build_data.sh` derives both variants
-  deterministically and the committed `data/SHA256SUMS.variants` must reproduce exactly. A
-  local variant can drift from the manifest — verify before interpreting a run.
-- The dump is fetched from one upstream host but does not depend on it: any copy of the
-  archive works via `MBAB_DUMP_ARCHIVE` or `MBAB_DUMP_URL`, because the pinned SHA256 is
-  what establishes a copy is genuine.
-- Generated viewer HTML is gitignored — rebuild with `viewers/build_*.py`.
-- Run metadata in older artifacts records the absolute path of the machine that produced
-  it. Those paths are provenance, not configuration.
-- Every dependency carries an upper bound on purpose, so the benchmark keeps reproducing
-  committed grades. Widening one means a lockfile refresh and a full test run.
-
-## Docs
-
-- [`docs/getting-started.md`](docs/getting-started.md) — fresh clone to graded report.
-- [`docs/benchmark-versions.md`](docs/benchmark-versions.md) — every version of both
-  benchmarks, what changed, and how to run a specific one.
-- [`benchmarks/urlquery/README.md`](benchmarks/urlquery/README.md) — the Transluce report:
-  data, batch launcher, findings rubric and judge.
-- [`docs/release-readiness.md`](docs/release-readiness.md) — what the release audit found
-  and what remains before publishing results.
-- [`docs/benchmark-data-index.md`](docs/benchmark-data-index.md) — the publication
-  evidence index: the reports, grades, ground truth and logs behind the headline
-  figures. Historical rounds sit at the `inspect-logs-2026-09-08` tag, not here.
-- [`docs/data-processing.md`](docs/data-processing.md) — every transformation from the
-  public dump to the benchmark inputs; [`docs/verbatim-data.md`](docs/verbatim-data.md)
-  covers the augmented variant.
-- [`docs/ablations-and-baselines.html`](docs/ablations-and-baselines.html) — how we check
-  the benchmark measures investigation rather than summarisation;
-  [`experiments/ablations.md`](experiments/ablations.md) is the archive inventory.
 
 ## Working on it
 
-Outside contributors: [`CONTRIBUTING.md`](CONTRIBUTING.md) has the fork-to-pull-request
+Outside contributors: [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) has the fork-to-pull-request
 path and, more importantly, which files are evidence rather than code.
-[`SECURITY.md`](SECURITY.md) explains why the adversarial content here is subject matter
+[`SECURITY.md`](.github/SECURITY.md) explains why the adversarial content here is subject matter
 rather than a defect.
 
 Maintainers: task work happens in linked worktrees under `.worktrees/`; the rules are in
@@ -326,6 +72,8 @@ Maintainers: task work happens in linked worktrees under `.worktrees/`; the rule
 
 MIT — see [`LICENSE`](LICENSE). It covers the code and the benchmark material authored
 here. It does not license the third-party content reproduced for research: the captured
-collusion.wiki pages in `corpus/`, preserved Ruby package diffs in generated data,
-the human investigators' reports in `benchmark/`, and the model-generated reports
-in `reports/` and historical baseline reports.
+collusion.wiki pages in `benchmarks/german-wiki/corpus/`, preserved Ruby package diffs in generated data,
+the human investigators' reports in `benchmarks/german-wiki/`, and the model-generated reports
+in `benchmarks/german-wiki/reports/` and historical baseline reports. The AI Village logs are AI Digest's, used
+under the dataset's research terms, which ask that work using them cite AI Digest / AI Village.
+

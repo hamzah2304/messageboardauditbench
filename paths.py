@@ -11,8 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-# --- benchmark ground truth ---
-BENCH = ROOT / "benchmark"
+# --- German wiki report: ground truth, corpus and reports ---
+BENCH = ROOT / "benchmarks" / "german-wiki"
 HUMAN_REPORT = BENCH / "human_report.txt"      # the human incident report (answer key)
 CLAIMS = BENCH / "claims"                      # claims.json, new_claims*.json, claim_matching.json
 FEASIBILITY = BENCH / "feasibility"            # feasibility{,_verbatim,_compare}.json + batches
@@ -22,10 +22,10 @@ GRADED_INPUTS = BENCH / "graded_inputs"        # the exact reports each grade co
 PROMPTS = BENCH / "prompts"
 SNIPPETS = BENCH / "snippets"
 
-# --- harness / corpus ---
+# --- harness ---
 DATA = ROOT / "data"                           # gitignored; scripts/build_data.sh
-CORPUS = ROOT / "corpus"                       # raw message-board exports
-REPORTS = ROOT / "reports"                     # model report corpus
+CORPUS = BENCH / "corpus"                      # captured collusion.wiki pages and site chrome
+REPORTS = BENCH / "reports"                    # model report corpus
 CONFIGS = ROOT / "configs"
 
 # --- viewers ---

@@ -120,8 +120,8 @@ variant, effort, and rendered prompt. Legacy time-bearing config names are
 normalized to their prompt condition:
 
 ```
-scripts/collect_reports.py     # -> reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
-                               #    + CONDITIONS.json per folder, reports/prompts/<prompt8>.txt, reports/index.jsonl
+scripts/collect_reports.py     # -> benchmarks/german-wiki/reports/<condition>_<variant>_<effort>_p<prompt8>/<agent>_<model>_r<replicate>_<stamp>.md
+                               #    + CONDITIONS.json per folder, benchmarks/german-wiki/reports/prompts/<prompt8>.txt, benchmarks/german-wiki/reports/index.jsonl
 ```
 
 Each run writes `runs/<timestamp>_<agent>_<model>_r<replicate>_<config>_<run-id>/`: `canary.log`,

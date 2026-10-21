@@ -176,7 +176,7 @@ FIGS = "\n\n".join([
     chrome.figure(2, "The same ranking, twice", "fig1", legend_id="leg1",
                   read_id="read1", cap_id="cap1",
                   tools='<button class="csv" data-csv="ranks">copy CSV</button>'
-                        '<span>or benchmark/figures/rank_compare.csv</span>',
+                        '<span>or benchmarks/german-wiki/figures/rank_compare.csv</span>',
                   table_id="tbl1"),
 ])
 
@@ -390,7 +390,7 @@ function tabs() {
   const c = el('button', 'csv', 'copy CSV'); c.dataset.csv = 'ranks';
   c.onclick = () => navigator.clipboard.writeText(CSV.ranks || '').then(() => {
     c.textContent = 'copied'; setTimeout(() => { c.textContent = 'copy CSV'; }, 1200); }).catch(() => {});
-  box.append(c, el('span', null, 'or benchmark/figures/rank_compare.csv'));
+  box.append(c, el('span', null, 'or benchmarks/german-wiki/figures/rank_compare.csv'));
 }
 const cav = document.getElementById('cav');
 ['A slope is one model’s rank on the standard corpus joined to its rank on the swapped '

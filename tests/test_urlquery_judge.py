@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks" / "urlquery" / "judge"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks" / "transluce" / "judge"))
 grade = pytest.importorskip("grade")
 render_sheet = pytest.importorskip("render_sheet")
 grade_openrouter = pytest.importorskip("grade_openrouter")

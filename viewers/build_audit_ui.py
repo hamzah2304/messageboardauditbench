@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Build viewers/audit.html — audit the recall judge claim by claim.
 
-Reads every benchmark/graded_inputs/<dir>/ that has an _index.jsonl (round 2 and 3
-batches), the matching benchmark/graded/graded_<key>.json, the six rubric sheets and the
-published human report (corpus/wiki_index.html, via scripts/wiki_report.py). Emits one
+Reads every benchmarks/german-wiki/graded_inputs/<dir>/ that has an _index.jsonl (round 2 and 3
+batches), the matching benchmarks/german-wiki/graded/graded_<key>.json, the six rubric sheets and the
+published human report (benchmarks/german-wiki/corpus/wiki_index.html, via scripts/wiki_report.py). Emits one
 self-contained page:
 
 - pick a report; every judge quote is highlighted in the model report (colour = score);
 - pick a claim; the model pane scrolls to its quote and the human pane — the published
   page itself, in an iframe, with its own stylesheets — scrolls to the anchored passage;
 - score and comment inline, in a card that opens under the matched line;
-- the page autosaves to benchmark/audit/judge_audit.json through the html-viewer's
+- the page autosaves to benchmarks/german-wiki/audit/judge_audit.json through the html-viewer's
   POST /save endpoint (localStorage mirror when the server is unreachable).
 
-Anchors, not guesses. benchmark/claims/anchors_human.json gives verbatim spans that are
-known to occur in the rendered article; benchmark/claims/anchors_reports.json does the
+Anchors, not guesses. benchmarks/german-wiki/claims/anchors_human.json gives verbatim spans that are
+known to occur in the rendered article; benchmarks/german-wiki/claims/anchors_reports.json does the
 same for the judge quotes that are not verbatim in their model report. Where no anchor
 exists the quote is matched exactly or with whitespace/punctuation normalised, and if
 that fails the claim is reported as having no anchor rather than highlighted approximately.
@@ -34,16 +34,16 @@ OUT = VIEWERS / ("audit_v2.html" if IS_V2 else "audit.html")
 DATA_DIR = VIEWERS / "data" / ("audit_v2" if IS_V2 else "audit")   # per-report payloads; the two
 # rubrics share report keys but not scores, so they must not share a payload directory
 HUMAN_HTML = DATA_DIR / "_human.html"          # the published report, styled, for the iframe
-AUDIT_PATH = ROOT / "benchmark" / "audit" / (
+AUDIT_PATH = ROOT / "benchmarks" / "german-wiki" / "audit" / (
     f"judge_audit_v2_{re.sub(r'[^0-9a-zA-Z]+','_',_JUDGE).strip('_')}.json" if IS_V2
     else "judge_audit.json")
 # where the grades for this build live
 GRADE_DIR = (GRADED / f"judge_{re.sub(r'[^0-9a-zA-Z]+','_',_JUDGE).strip('_')}" / "v2") if IS_V2 else GRADED
 N_SHEETS = 8 if IS_V2 else 6
 SHEET_JSON = "v2" if IS_V2 else "rubric"
-ANCHORS_HUMAN = ROOT / "benchmark" / "claims" / "anchors_human.json"
-ANCHORS_REPORTS = ROOT / "benchmark" / "claims" / "anchors_reports.json"
-BUILD_RUBRICS = ROOT / "benchmark" / "rubrics" / "build_rubrics.py"
+ANCHORS_HUMAN = ROOT / "benchmarks" / "german-wiki" / "claims" / "anchors_human.json"
+ANCHORS_REPORTS = ROOT / "benchmarks" / "german-wiki" / "claims" / "anchors_reports.json"
+BUILD_RUBRICS = ROOT / "benchmarks" / "german-wiki" / "rubrics" / "build_rubrics.py"
 # one-time copy of the pre-namespacing audit file, taken before the page can rewrite it
 AUDIT_BACKUP = AUDIT_PATH.with_name("judge_audit.pre-auditors.json")
 

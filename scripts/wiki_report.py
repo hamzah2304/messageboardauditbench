@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The human report as the site publishes it: corpus/wiki_index.html.
+"""The human report as the site publishes it: benchmarks/german-wiki/corpus/wiki_index.html.
 
 `article_html()` returns the <article class="essay"> subtree with scripts removed —
 what the audit UI shows in an iframe alongside the site's own stylesheets.

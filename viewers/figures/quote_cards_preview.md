@@ -43,7 +43,7 @@ JSON markup: `**bold**` marks the matched passage; a blank line starts a new par
 
 ## Verification notes
 
-- The six cluster findings are copied verbatim from `benchmark/claims/claims_v2.json` (N07–N10 and N37–N38).
+- The six cluster findings are copied verbatim from `benchmarks/german-wiki/claims/claims_v2.json` (N07–N10 and N37–N38).
 - The two methodology examples are copied verbatim from N07 and N16. N16 retains the important causal mechanism: the agent chose a ZZZ-prefixed backup so it would be deleted last.
 - All four retained attribution excerpts were checked against their stored round-4 reports. Their headers show the actual budget and harness. The two-hour “Opus 5” run is labelled as served by Opus 4.8.
 - Judge scores are not shown for attribution excerpts because they are not single scored human/model matches.

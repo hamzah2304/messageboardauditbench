@@ -12,7 +12,7 @@ uv run python scripts/incident_pipeline.py list
 uv run python scripts/incident_pipeline.py guide rubyhack
 ```
 
-Each incident has one manifest under `benchmark/incidents/`. That manifest is
+Each incident has one manifest under `benchmarks/german-wiki/incidents/`. That manifest is
 the source of truth for its corpus variants and file shape, public configs,
 default time, finding and summary rubrics, evidence limitations, review gates,
 and results status. The task, sandbox, corpus builder dispatcher, score tool,
@@ -190,7 +190,7 @@ scripts/collect_reports.py
 scripts/stage_graded_inputs.py reports example-incident=pilot_example:pex
 ```
 
-(For an Inspect pilot, `scripts/export_inspect_reports.py --logs logs --out reports/native
+(For an Inspect pilot, `scripts/export_inspect_reports.py --logs logs --out benchmarks/german-wiki/reports/native
 --graded-inputs pilot` does both.) Staging prints the exact directory. Review its Markdown and
 `_index.jsonl`; do not grade rejected or partial reports as ordinary samples.
 
@@ -216,9 +216,9 @@ uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
 uv run python scripts/export_grades.py logs/<finding-grade-run>.eval
 uv run python scripts/export_grades.py logs/<summary-grade-run>.eval
 uv run python scripts/score_reports.py \
-  --incident example-incident benchmark/graded/judge_<judge> \
-  --json-out benchmark/results/example-incident/scores.json \
-  --markdown-out benchmark/results/example-incident/README.md
+  --incident example-incident benchmarks/german-wiki/graded/judge_<judge> \
+  --json-out benchmarks/german-wiki/results/example-incident/scores.json \
+  --markdown-out benchmarks/german-wiki/results/example-incident/README.md
 ```
 
 Inspect per-finding reasons and quotes before accepting the aggregate. Audit a

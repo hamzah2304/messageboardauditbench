@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """The published headline score for a set of graded reports, including your own.
 
-    scripts/score_reports.py benchmark/graded/judge_claude_fable_5_1
+    scripts/score_reports.py benchmarks/german-wiki/graded/judge_claude_fable_5_1
     scripts/score_reports.py --incident rubyhack <judge-dir> \
-      --json-out benchmark/results/rubyhack/scores.json \
-      --markdown-out benchmark/results/rubyhack/README.md
+      --json-out benchmarks/german-wiki/results/rubyhack/scores.json \
+      --markdown-out benchmarks/german-wiki/results/rubyhack/README.md
 
 The headline is 70% finding coverage and 30% holistic summary quality:
 

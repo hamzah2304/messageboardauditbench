@@ -154,6 +154,21 @@ def memory_words(limit: str) -> str:
     return f"{match.group(1)} {'GB' if match.group(2).lower() == 'g' else 'MB'}"
 
 
+def memory_note(limit: str, data_dir: Path) -> str:
+    """The prompt's closing note on a config's `memory_limit`, naming the data files too big to load."""
+    if not limit:
+        return ""
+    n, unit = re.fullmatch(r"(\d+(?:\.\d+)?)([gGmM])", limit).groups()
+    cap = float(n) * (1e9 if unit.lower() == "g" else 1e6)
+    files = [path for path in data_dir.iterdir() if path.is_file()]
+    big = sorted(((path.stat().st_size, path.name) for path in files if path.stat().st_size > cap / 10), reverse=True)
+    sizes = "; ".join(f"{f} is {size / 1e9:.1f} GB" + (" compressed" if f.endswith(".gz") else "") for size, f in big)
+    never = f"Several data files are large ({sizes}), so never" if sizes else "Never"
+    return (f"\nMemory limit: your sandbox has {memory_words(limit)} of RAM, shared by everything running in it, "
+            f"including any subagents, and any command that goes over it is killed. {never} load a whole file into "
+            "memory: query village.db with SQLite or stream files line by line.\n")
+
+
 def render_prompt(
     template: str,
     budget_min: int,
@@ -365,6 +380,8 @@ def main() -> None:
     parser.add_argument("--findings-count", type=int, default=0)
     parser.add_argument("--subagents", action="store_true")
     parser.add_argument("--memory-limit", default="")
+    parser.add_argument("--memory-note", type=Path, metavar="DATA_DIR",
+                        help="print the memory-limit note for --memory-limit and this data directory")
     parser.add_argument("--hook", choices=["PostToolUse", "Stop"])
     parser.add_argument("--always", action="store_true")
     parser.add_argument("--report", type=Path, default=Path("/work/report.md"))
@@ -379,7 +396,9 @@ def main() -> None:
             }
         )
     )
-    if args.template:
+    if args.memory_note:
+        print(memory_note(args.memory_limit, args.memory_note), end="")
+    elif args.template:
         print(
             render_prompt(args.template.read_text(), args.budget_min, low, high, args.findings_count, args.subagents, args.memory_limit),
             end="",

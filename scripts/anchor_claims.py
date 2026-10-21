@@ -9,22 +9,22 @@ a source text and then *checking* that every span really is a substring of it:
              report_quote is passed as a hint, but only 26 of 30 survive a literal
              substring test -- the other four are paraphrased or elided -- so the
              anchors, not the quotes, are what a highlighter can trust.
-             -> benchmark/claims/anchors_human.json
+             -> benchmarks/german-wiki/claims/anchors_human.json
 
   --v2       the same job for the auditor's finer 39-claim list, whose entries carry
              no rubric quote to hint from and where a claim may genuinely have no
              support in the report. Fills "spans" and "report_quote" in place in
-             benchmark/claims/claims_v2.json, leaving anchors_human.json (still live
+             benchmarks/german-wiki/claims/claims_v2.json, leaving anchors_human.json (still live
              in the audit UI) alone. Resumable: a claim with spans is skipped.
-             -> benchmark/claims/claims_v2.json
+             -> benchmarks/german-wiki/claims/claims_v2.json
 
   --reports  repairs for judge quotes that do not occur in the model report they
-             grade. For every (report, claim) in benchmark/graded/graded_<key>.json
-             whose quote is unfindable in benchmark/graded_inputs/<dir>/<stem>.md,
+             grade. For every (report, claim) in benchmarks/german-wiki/graded/graded_<key>.json
+             whose quote is unfindable in benchmarks/german-wiki/graded_inputs/<dir>/<stem>.md,
              Sol is shown the report, the claim, the quote and the judge's reason and
              asked what the judge was pointing at. Nothing is invented: a pair that
              fails validation twice is recorded with an empty span list.
-             -> benchmark/claims/anchors_reports.json
+             -> benchmarks/german-wiki/claims/anchors_reports.json
 
 Spans shorter than 25 characters are dropped. A failed span is fed back once with the
 strings that were not found; whatever still will not validate is kept under
@@ -32,7 +32,7 @@ strings that were not found; whatever still will not validate is kept under
 
 Why the second pass exists at all: 8.2% of the recall judge's non-empty quotes (166 of
 2,034) are not findable in the report they grade. The contradiction rubric in
-benchmark/graded/contradiction/ misses on only 5.1% (9 of 177) over the same 109
+benchmarks/german-wiki/graded/contradiction/ misses on only 5.1% (9 of 177) over the same 109
 reports. The asymmetry is the expected one -- a contradiction quote has to point at
 something the report actually said, whereas a recall quote can be the judge
 paraphrasing an absence or stitching together evidence scattered across sections --
@@ -312,7 +312,7 @@ def anchor_v2(prompt, source, tries=2):
 
 
 def run_v2(force):
-    """Fill report_quote + spans on every claim in benchmark/claims/claims_v2.json.
+    """Fill report_quote + spans on every claim in benchmarks/german-wiki/claims/claims_v2.json.
 
     Rewrites that file in place, preserving id/section/claim/descends_from/note and
     the claim order; anchors_human.json (v1, live in the audit UI) is untouched.

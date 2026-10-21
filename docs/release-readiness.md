@@ -89,7 +89,7 @@ trial: an audit found the local build differing from the committed manifest.
 Background, if you need it. Rebuilding reproduced the committed hashes, but that
 does not by itself establish which bytes every historical batch consumed. For
 the retained corpus the evidence points one way:
-`benchmark/rubrics/anthropic/VERSION.json` hashes the `swap_provider.py` that
+`benchmarks/german-wiki/rubrics/anthropic/VERSION.json` hashes the `swap_provider.py` that
 built the data its answer key grades, and that hash matches the current file;
 its note names the three batches that ran on the earlier build
 (`20260908T113359Z`, `130708Z`, `132526Z`), none of which appears in any staged

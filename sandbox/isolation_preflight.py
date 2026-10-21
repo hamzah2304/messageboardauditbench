@@ -96,7 +96,7 @@ def preflight(
 ) -> dict:
     """Check visibility, data integrity, and the native no-network boundary."""
     work = work.resolve()
-    if benchmark_id not in {"messageboard", "urlquery"}:
+    if benchmark_id not in {"messageboard", "urlquery", "aivillage"}:
         raise ValueError("unknown benchmark")
     data = work / "data"
     visible = sorted(str(path.relative_to(work)) for path in work.rglob("*") if path.is_file() or path.is_symlink())
@@ -118,6 +118,11 @@ def preflight(
             allowed_visible = {f"data/{name}" for name in manifest["files"]} | {"data/manifest.json"}
         except (OSError, ValueError, KeyError) as exc:
             problems.append(f"dataset manifest: {exc}")
+    elif benchmark_id == "aivillage":
+        # The AI Village build (SQLite, JSONL, gzip, README): anything under data/, nothing else.
+        allowed_visible = {path for path in visible if path.startswith("data/")}
+        if not allowed_visible:
+            problems.append("/work/data holds no files")
     else:
         # Message-board incidents: the data must match one declared JSONL shape.
         supported_files = frozenset(
@@ -153,6 +158,9 @@ def preflight(
             problems.append(f"{name}: {exc}")
             continue
         files[name] = {"sha256": digest, "bytes": path.stat().st_size, "records": rows}
+    if benchmark_id == "aivillage":
+        # Several GB: record sizes, not hashes, so the preflight stays quick.
+        files = {name: {"bytes": (data / name).stat().st_size} for name in sorted(data_files) if (data / name).is_file()}
 
     interfaces = _network_interfaces()
     if interfaces != ["lo"]:
@@ -187,7 +195,7 @@ def main() -> int:
     parser.add_argument("--work", type=Path, default=Path("/work"))
     # The Inspect-native sandbox declares its benchmark and pinned dataset in the
     # container environment; the subscription runner passes them as flags.
-    parser.add_argument("--benchmark", choices=("messageboard", "urlquery"),
+    parser.add_argument("--benchmark", choices=("messageboard", "urlquery", "aivillage"),
                         default=os.environ.get("MBAB_BENCHMARK_ID", "messageboard"))
     parser.add_argument("--expected-sha256", default=os.environ.get("MBAB_DATASET_SHA256"))
     args = parser.parse_args()

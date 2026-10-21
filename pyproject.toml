@@ -24,8 +24,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Source Code" = "https://github.com/hamzah2304/messageboardauditbench"
-"Issue Tracker" = "https://github.com/hamzah2304/messageboardauditbench/issues"
+"Source Code" = "https://github.com/hamzah2304/slopvestigator-bench"
+"Issue Tracker" = "https://github.com/hamzah2304/slopvestigator-bench/issues"
 
 # Register the package with Inspect so users can run
 # `inspect eval messageboard_audit_bench/german_wiki_report` after installation.
@@ -49,7 +49,7 @@ packages = ["messageboard_audit_bench"]
 [tool.hatch.build.targets.sdist]
 # Worktrees link generated data back to the primary checkout. Never ship those
 # absolute symlinks (or local runs/credentials) in the source archive.
-exclude = ["/data/**/*.jsonl", "/data/raw", "/data/augmented", "/data/transluce", "/data/urlquery", "/runs", "/logs", "/.env", "/.worktrees"]
+exclude = ["/data/**/*.jsonl", "/data/raw", "/data/aivillage", "/data/augmented", "/data/transluce", "/data/urlquery", "/runs", "/logs", "/.env", "/.worktrees"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,8 +59,8 @@ asyncio_mode = "auto"
 target-version = "py311"
 include = [
     "messageboard_audit_bench/**/*.py",
-    "benchmark/rubrics/build_rubrics_m5.py",
-    "benchmark/rubrics/build_rubrics_rh.py",
+    "benchmarks/german-wiki/rubrics/build_rubrics_m5.py",
+    "benchmarks/german-wiki/rubrics/build_rubrics_rh.py",
     "scripts/build_mythos5_data.py",
     "scripts/build_rubyhack_data.py",
     "scripts/build_incident_data.py",

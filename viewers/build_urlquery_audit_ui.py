@@ -7,10 +7,10 @@ is graded against 12 headline findings, each finding by one judge call that scor
 finding (0-1, one decimal) and each of its sub-findings (quarters).
 
 Inputs
-- grades   reports/urlquery/graded/judge_<JUDGE>/<run>.json   (read only; may be mid-write)
+- grades   benchmarks/transluce/reports/graded/judge_<JUDGE>/<run>.json   (read only; may be mid-write)
 - reports  runs/urlquery/<run>/report.md
-- findings benchmarks/urlquery/claims/findings_v1.json         (not-scored items skipped)
-- scales   benchmarks/urlquery/judge/finding_sheet_v1.md        (both tables parsed here)
+- findings benchmarks/transluce/claims/findings_v1.json         (not-scored items skipped)
+- scales   benchmarks/transluce/judge/finding_sheet_v1.md        (both tables parsed here)
 - article  data/transluce/agent-activity.html, made inert by build_urlquery_findings.InertPage
 
 Outputs (all gitignored: the reports can quote recorded secrets)
@@ -18,7 +18,7 @@ Outputs (all gitignored: the reports can quote recorded secrets)
 - viewers/data/urlquery_audit/<run>.json       report text, judge quotes/reasons, highlight ranges
 - viewers/data/urlquery_audit/_article.html    the article, inert, for the right-hand pane
 
-The page saves to benchmarks/urlquery/audit/judge_audit_<judge>.json through
+The page saves to benchmarks/transluce/audit/judge_audit_<judge>.json through
 scripts/html_viewer.py (POST /save), with a localStorage mirror when the server is away.
 
 Quotes are matched exactly, then with whitespace/quote/dash/Markdown normalisation (link
@@ -44,19 +44,19 @@ from urllib.parse import quote
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(ROOT / "benchmarks" / "urlquery" / "judge"))
+sys.path.insert(0, str(ROOT / "benchmarks" / "transluce" / "judge"))
 import build_urlquery_findings as BF  # noqa: E402  (InertPage, fetch_assets)
 import render_sheet  # noqa: E402  (load_findings, linked_scans)
 
-SHEET = ROOT / "benchmarks" / "urlquery" / "judge" / "finding_sheet_v1.md"
+SHEET = ROOT / "benchmarks" / "transluce" / "judge" / "finding_sheet_v1.md"
 ARTICLE_SRC = ROOT / "data" / "transluce" / "agent-activity.html"
 RUNS = ROOT / "runs" / "urlquery"
-GRADED = ROOT / "reports" / "urlquery" / "graded"
+GRADED = ROOT / "benchmarks" / "transluce" / "reports" / "graded"
 OUT = HERE / "urlquery_audit.html"
 DATA_DIR = HERE / "data" / "urlquery_audit"
 ARTICLE_HTML = DATA_DIR / "_article.html"
-AUDIT_DIR = ROOT / "benchmarks" / "urlquery" / "audit"
-CORPUS = ROOT / "corpus"
+AUDIT_DIR = ROOT / "benchmarks" / "transluce" / "audit"
+CORPUS = ROOT / "benchmarks" / "german-wiki" / "corpus"
 FONTS = CORPUS / "fonts"
 # The article's per-link "full URL" margin notes sit inside sentences in textContent; the
 # finding quotes were taken without them, so the anchoring walk skips these classes.

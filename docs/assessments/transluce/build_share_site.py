@@ -112,14 +112,16 @@ def collect(root, config):
                     if sorted(redaction["lines"]) != flagged or not flagged:
                         raise ValueError("Redaction approval disagrees with excluded source")
                 used_redactions.add(row["run_id"])
-            # Indexes retain original absolute paths. Resolve their report-root
+            # Indexes retain original absolute paths, from before (reports/urlquery/) or
+            # after (benchmarks/transluce/reports/) the move. Resolve their report-root
             # suffix here, or the immutable run archive after worktree removal.
             if row.get("report_path"):
                 parts = Path(row["report_path"]).parts
-                markers = [i for i in range(len(parts)-1) if parts[i:i+2] == ("reports", "urlquery")]
+                markers = [i for i in range(len(parts)-1)
+                           if parts[i:i+2] in {("reports", "urlquery"), ("transluce", "reports")}]
                 if len(markers) != 1 or ".." in parts:
-                    raise ValueError("AI report must be in reports/urlquery")
-                report_root = (root / "reports/urlquery").resolve()
+                    raise ValueError("AI report must be in benchmarks/transluce/reports")
+                report_root = (root / "benchmarks/transluce/reports").resolve()
                 relative = Path(*parts[markers[0]+2:])
                 path = report_root / relative
                 if path.is_file():
@@ -429,7 +431,7 @@ def main():
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.output is None:
-        args.output = primary_root() / "reports/share-site/dist"
+        args.output = primary_root() / "benchmarks/transluce/reports/share-site/dist"
     if not (args.output.parent / ".openai/hosting.json").is_file():
         parser.error("Missing existing Sites binding; restore .openai/hosting.json before rebuilding")
     config = tomllib.loads(args.config.read_text())

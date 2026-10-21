@@ -29,7 +29,7 @@ def report_fixture(tmp_path, monkeypatch):
                 {"agent": "claude", "requested_model": "claude-opus-5-5", "replicate": 1,
                  "run_dir": None, "termination": "error", "report_exists": False}]
     (experiment / "results.json").write_text(json.dumps(attempts))
-    reports = tmp_path / "reports/urlquery"
+    reports = tmp_path / "benchmarks/transluce/reports"
     (reports / "group").mkdir(parents=True)
     (reports / "group/report.md").write_text("# Report\n")
     (reports / "index.jsonl").write_text(json.dumps({"run_dir": run.name, "report": "group/report.md",
@@ -145,8 +145,8 @@ def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatc
     (experiment / "results.json").write_text(json.dumps(results))
     module = runpy.run_path(str(scripts / "summarize_pilot.py"))
     main = module["main"]
-    monkeypatch.setitem(main.__globals__, "repo_root", lambda: reports.parent.parent)
-    monkeypatch.setitem(module["summarize"].__globals__, "primary_root", lambda: reports.parent.parent)
+    monkeypatch.setitem(main.__globals__, "repo_root", lambda: tmp_path)
+    monkeypatch.setitem(module["summarize"].__globals__, "primary_root", lambda: tmp_path)
     commands = []
     monkeypatch.setattr(module["subprocess"], "run", lambda args, **kwargs: commands.append(args))
     monkeypatch.setattr(sys, "argv", ["summary", "--experiment", str(experiment),

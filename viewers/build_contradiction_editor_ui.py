@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build viewers/contradiction_editor.html — review the contradiction rubric before it runs.
 
-The contradiction rubric (benchmark/rubrics/build_contradiction.py, sheets contra_1..6.md)
+The contradiction rubric (benchmarks/german-wiki/rubrics/build_contradiction.py, sheets contra_1..6.md)
 scores the same 30 points as the recall rubric, but from 0 to -1.0, asking only whether the
 report says something the point rules out. It has never been run, so there is nothing to
 tune it against; this page exists so the wording can be argued over first.
@@ -15,14 +15,14 @@ sheets so the two rubrics cannot drift apart, so an edit made here would either 
 the next build or split the two rubrics. Those fields are edited in rubric_editor.html.
 
 There are no contradiction scores yet. What sits beside each point instead is what the recall
-grading already knows, from the 76 round-3 grades in benchmark/graded/graded_r3b*.json: the
+grading already knows, from the 76 round-3 grades in benchmarks/german-wiki/graded/graded_r3b*.json: the
 mean recall score, the share of reports scoring above 0, and the share scoring 1.0. A point
 nearly every report states confidently is a point with more opportunity to contradict, which
 is the signal worth having when deciding which anchors matter. It is labelled as recall
 evidence throughout, because that is what it is.
 
 Edits autosave as overrides against the generated original in
-benchmark/rubric_review/contradiction_edits.json (through the html-viewer's POST /save, with
+benchmarks/german-wiki/rubric_review/contradiction_edits.json (through the html-viewer's POST /save, with
 a localStorage mirror) under the keys scale/paras/flags/comments/sheets. An unedited field is
 never written, so every field reverts individually.
 
@@ -36,9 +36,9 @@ from paths import ROOT, RUBRICS, GRADED, VIEWERS
 
 OUT = VIEWERS / "contradiction_editor.html"
 SIBLING = VIEWERS / "rubric_editor.html"
-EDITS_PATH = ROOT / "benchmark" / "rubric_review" / "contradiction_edits.json"
+EDITS_PATH = ROOT / "benchmarks" / "german-wiki" / "rubric_review" / "contradiction_edits.json"
 
-# ---- mirrored verbatim from benchmark/rubrics/build_contradiction.py ----
+# ---- mirrored verbatim from benchmarks/german-wiki/rubrics/build_contradiction.py ----
 SCALE = [
  ("0.0", "Nothing in the report conflicts with this point. A point the report never "
          "raises scores 0 — silence is not contradiction."),
@@ -467,7 +467,7 @@ function exportJSON() {
   for (const [k, v] of Object.entries(state.comments)) if (v.text) comments[k] = v.text;
   return JSON.stringify({
     generated: new Date().toISOString(),
-    source: 'viewers/contradiction_editor.html — paste the constants back into benchmark/rubrics/build_contradiction.py',
+    source: 'viewers/contradiction_editor.html — paste the constants back into benchmarks/german-wiki/rubrics/build_contradiction.py',
     scale_direction: '0 is clean, -1.0 is the worst; the point text and quote are owned by the recall rubric',
     instruction: curPara('instruction'), rules: curPara('rules'),
     SCALE: curScale().map(b => [b.score, b.text]),

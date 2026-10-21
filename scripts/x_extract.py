@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMPT_PATH = ROOT / "benchmark/incidents/aivillage/x-findings-prompt.md"
+PROMPT_PATH = ROOT / "benchmarks/aivillage/x-findings-prompt.md"
 MODEL = "gpt-6.1-sol"
 EFFORT = "high"
 MAX_OUTPUT = 24000  # 12,000 truncated two long threads in the full run

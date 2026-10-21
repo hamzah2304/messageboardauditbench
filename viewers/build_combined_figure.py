@@ -11,7 +11,7 @@ can be strong on one and weak on the other, so the composite is
 Both parts are Fable 5.1's grades over the same 113 round-4 reports, so nothing here is
 averaging two different samples. Conventions follow build_headline_figures.py exactly, so
 this page can be read beside Figure 1: the strict transform from report_performance,
-Epoch index values from benchmark/figures/headline_eci.json, a model run under more than
+Epoch index values from benchmarks/german-wiki/figures/headline_eci.json, a model run under more than
 one harness shown under codex, and a run finished by a fallback model still counted as the
 model that started it.
 
@@ -136,7 +136,7 @@ def main():
 
 
 COPY = ('<button class="csv" data-csv="combined">copy CSV</button>'
-        '<span>or benchmark/figures/combined_score.csv</span>')
+        '<span>or benchmarks/german-wiki/figures/combined_score.csv</span>')
 
 BODY = """<main>
   <h1>Combined score</h1>
