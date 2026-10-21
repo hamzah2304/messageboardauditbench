@@ -11,7 +11,10 @@ whatever its outcome: a failed run is a result, never retried (slopvestigator_be
 says why it does not count). Trials are ordered replicate first, so each replicate is spread over
 the whole batch instead of one replicate landing on one machine state.
 
-Concurrency: --max-parallel trials at once overall; Claude trials alternate over --claude-tokens
+Machine and concurrency: the rerun runs on one machine (the VM) at a low fixed concurrency, so
+host load stays the same through the batch; wall time is not a constraint. --max-parallel trials at
+once overall (default 3); each run records the concurrency at its launch and the host's load
+averages at start and end (meta.json host_load). Claude trials alternate over --claude-tokens
 (one OAuth token file per account) with at most --per-account in flight on each; Codex trials share
 the one Codex login with at most --per-account in flight; ReAct trials (OpenRouter) are uncapped
 beyond --max-parallel. Logs go to logs/matrix/<stamp>/.
@@ -67,7 +70,7 @@ def main() -> int:
     ap.add_argument("--budgets", default=",".join(str(b) for b in standard.standard()["shared"]["budgets"]))
     ap.add_argument("--models", default="", help="comma-separated lineup ids (default: the whole lineup)")
     ap.add_argument("--runs", type=int, default=5, help="replicates per cell")
-    ap.add_argument("--max-parallel", type=int, default=6)
+    ap.add_argument("--max-parallel", type=int, default=3)
     ap.add_argument("--per-account", type=int, default=3)
     ap.add_argument("--claude-tokens", default="runs/.claude-oauth-token,runs/.claude-oauth-token.acct2")
     ap.add_argument("--plan", action="store_true", help="print the trials and stop")
@@ -114,7 +117,8 @@ def main() -> int:
                 if len(running) >= args.max_parallel:
                     break
                 rep, ev, budget, model, config = item
-                env = {**os.environ, "CONFIG": f"configs/{config}.toml"}
+                env = {**os.environ, "CONFIG": f"configs/{config}.toml",
+                       "MBAB_BATCH_CONCURRENCY": str(len(running) + 1), "MBAB_BATCH_MAX_PARALLEL": str(args.max_parallel)}
                 lane = model.harness
                 if model.harness == "claude":
                     token = next(account)

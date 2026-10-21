@@ -51,3 +51,11 @@ def test_same_model_checks_the_owner_and_unfinished_runs_do_not_count():
     assert not same_model("openrouter/openai/gpt-6.1-sol", "other/gpt-6.1-sol")
     v = eligibility.check_meta({k: v for k, v in GOOD.items() if k != "exit_code"})
     assert not v.eligible and "unfinished" in v.reasons
+
+
+def test_a_run_stopped_at_the_flag_cap_is_scored_as_it_stands():
+    capped = {**GOOD, "termination": "refusal_cap", "minimum_runtime_reached": False, "report_length_compliant": False,
+              "safety_flags": 3}
+    v = eligibility.check_meta(capped)
+    assert v.eligible and v.safety_flags == 3
+    assert "no_report" in eligibility.check_meta({**capped, "report_exists": False}).reasons

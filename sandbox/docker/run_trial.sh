@@ -209,6 +209,12 @@ if [ "$AGENT" = claude ]; then
 fi
 # Optional per-config tool-output limit for Claude Code's Bash tool (characters; CLI default 30000).
 [ "$AGENT" != claude ] || [ -z "${CFG_BASH_MAX_OUTPUT_LENGTH:-}" ] || CLAUDE_ENV+=(-e "BASH_MAX_OUTPUT_LENGTH=$CFG_BASH_MAX_OUTPUT_LENGTH")
+# A config with claude_refusal_flag_cap keeps Claude Code on the requested model after a safety
+# flag: the CLI neither switches model nor retries the turn itself; the run loop below resumes
+# the session on the same model instead, up to the cap (see "Refusal resampling" there).
+REFUSAL_FLAG_CAP="${CFG_CLAUDE_REFUSAL_FLAG_CAP:-0}"
+[[ "$REFUSAL_FLAG_CAP" =~ ^[0-9]+$ ]] || { echo "claude_refusal_flag_cap must be a whole number" >&2; exit 2; }
+[ "$AGENT" != claude ] || [ "$REFUSAL_FLAG_CAP" -eq 0 ] || CLAUDE_ENV+=(-e CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK=1 -e CLAUDE_CODE_DISABLE_REFUSAL_RETRY=1)
 # ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
 if [ "$AGENT" = react ]; then
@@ -264,8 +270,8 @@ if [ "$AGENT" != react ]; then HOOKS="$(python3 "$ROOT/sandbox/cli_hooks.py" "$A
 mkdir -p "$RUN/tool-telemetry"
 chmod a+rwx "$RUN/tool-telemetry"
 
-# Claude Code may switch model after a safeguard refusal (fable-5.1 -> opus-5 -> opus-4.8). We let it: the
-# trial keeps running and the switch is recorded in meta.json (model_fallback) and in the report's filename.
+# Without claude_refusal_flag_cap, Claude Code may switch model after a safeguard refusal (fable-5.1 ->
+# opus-5 -> opus-4.8): the trial keeps running and the switch is recorded in meta.json (model_fallback).
 if [ "$AGENT" = claude ]; then printf '%s\n' "$HOOKS" > "$SECRETS/claude/settings.json"; fi
 if [ "$AGENT" = codex ]; then printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"; fi
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
@@ -373,6 +379,8 @@ with open(sys.argv[1], "a") as stream:
         "monotonic_ns": time.monotonic_ns()}) + "\n")
 PY_EVENT
 }
+load_avg() { python3 -c 'import json, os; print(json.dumps([round(x, 2) for x in os.getloadavg()]))'; }
+LOAD_START="$(load_avg)"
 START=$(date +%s); set +e
 HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
@@ -380,19 +388,35 @@ EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
 TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}")
 case "$AGENT" in
   claude)
-    CLAUDE_EARLY_RESUMES=0
-    for attempt in 1 2; do
+    # One CLI launch per attempt. A later attempt resumes the same session (claude -p --resume), with
+    # all prior work, against the same fixed deadline, so a resume never adds time. Two reasons to resume:
+    #   * Refusal resampling (claude_refusal_flag_cap > 0): a safety flag ends the CLI's turn on the same
+    #     model; the runner counts it and resumes, until the cap, when the run stops and is scored as it stands.
+    #   * Early stop: the CLI ended before the minimum runtime; resumed once with a nudge to keep working.
+    CLAUDE_EARLY_RESUMES=0; REFUSAL_FLAGS=0; REFUSAL_RESUMES=0; REFUSAL_OUTCOME=""
+    REFUSAL_RESUME_PROMPT="Your previous response was stopped by an automated safety classifier. This is not a tool or API error; the unfinished response was discarded, and tool calls in it may not have run. Continue the same investigation from where you were: check /work/report.md and your notes before redoing work. Describe sensitive material (attack code, payloads, evasion commands) in plain words with record ids instead of reproducing it."
+    attempt=0; next_resume=""
+    while :; do
+      attempt=$((attempt + 1))
       remaining="$((HARD_DEADLINE - $(date +%s)))"
-      [ "$remaining" -gt 0 ] || { RC=124; break; }
+      if [ "$remaining" -le 0 ]; then
+        RC=124; [ "$next_resume" != refusal ] || REFUSAL_OUTCOME=deadline; break
+      fi
       claude_prompt="$PROMPT"
       resume_args=()
-      if [ "$attempt" -gt 1 ]; then
+      if [ -n "$next_resume" ]; then
         session_id="$(jq -sr 'map(select(.type=="system" and .subtype=="init"))[0].session_id // empty' "$RUN/transcript.jsonl")"
-        [ -n "$session_id" ] || { echo "Claude ended early without a resumable session" >&2; RC=6; break; }
+        [ -n "$session_id" ] || { echo "Claude ended without a resumable session" >&2; RC=6; break; }
         resume_args=(--resume "$session_id")
-        claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
-        CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
-        record_runner_event early_stop_resume_started "$attempt"
+        if [ "$next_resume" = refusal ]; then
+          claude_prompt="$REFUSAL_RESUME_PROMPT"
+          REFUSAL_RESUMES=$((REFUSAL_RESUMES + 1))
+          record_runner_event refusal_resume_started "$attempt"
+        else
+          claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
+          CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
+          record_runner_event early_stop_resume_started "$attempt"
+        fi
       fi
       record_runner_event cli_started "$attempt"
       part="$RUN/transcript.part$attempt.jsonl"
@@ -402,13 +426,27 @@ case "$AGENT" in
         ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
         --output-format stream-json --verbose --include-partial-messages \
         < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+      flagged=0; switched=0
+      grep -q '"subtype":"model_refusal_no_fallback"' "$part" && flagged=1
+      grep -q '"subtype":"model_refusal_fallback"' "$part" && switched=1
       cat "$part" >> "$RUN/transcript.jsonl"
       rm "$part"
       record_runner_event cli_finished "$attempt" "$RC"
+      next_resume=""
+      # Refusal resampling: the flag ended this launch; resume the same session unless the cap is reached.
+      if [ "$flagged" -eq 1 ] && [ "$REFUSAL_FLAG_CAP" -gt 0 ]; then
+        REFUSAL_FLAGS=$((REFUSAL_FLAGS + 1))
+        record_runner_event refusal_flagged "$attempt" "$RC"
+        if [ "$REFUSAL_FLAGS" -ge "$REFUSAL_FLAG_CAP" ]; then
+          REFUSAL_OUTCOME=cap_reached; record_runner_event refusal_cap_reached "$attempt"; break
+        fi
+        next_resume=refusal; continue
+      fi
       [ "$RC" -eq 0 ] || break
       [ "$(date +%s)" -lt "$EARLIEST_FINISH_EPOCH" ] || break
-      grep -q '"subtype":"model_refusal_fallback"' "$RUN/transcript.jsonl" && break
-      grep -q '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" && break
+      [ "$flagged" -eq 0 ] && [ "$switched" -eq 0 ] || break
+      [ "$CLAUDE_EARLY_RESUMES" -lt 1 ] || break
+      next_resume=early_stop
     done
     cp "$RUN/stderr.attempt$attempt.log" "$RUN/stderr.log" 2>/dev/null || true ;;
   codex)
@@ -452,6 +490,7 @@ case "$AGENT" in
   *) echo "unknown agent $AGENT" >&2; exit 2 ;;
 esac
 set -e; END=$(date +%s)
+LOAD_END="$(load_avg)"
 record_runner_event runner_finished 1 "$RC"
 reclaim_run_files
 for f in report.md final_message.md; do
@@ -474,6 +513,23 @@ jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
    --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
    '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
    "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+# Host load at launch and end (1/5/15-minute load averages) and the batch concurrency, if a launcher set it.
+META_TMP="$RUN/meta.host-load.json"
+jq --argjson start "$LOAD_START" --argjson end "$LOAD_END" \
+   --arg concurrency "${MBAB_BATCH_CONCURRENCY:-}" --arg max_parallel "${MBAB_BATCH_MAX_PARALLEL:-}" \
+   '. + {host_load: {start: $start, end: $end,
+                     batch_concurrency: ($concurrency | if . == "" then null else tonumber end),
+                     batch_max_parallel: ($max_parallel | if . == "" then null else tonumber end)}}' \
+   "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+if [ "$AGENT" = claude ] && [ "$REFUSAL_FLAG_CAP" -gt 0 ]; then
+  META_TMP="$RUN/meta.refusal.json"
+  jq --argjson cap "$REFUSAL_FLAG_CAP" --argjson flags "$REFUSAL_FLAGS" --argjson resumes "$REFUSAL_RESUMES" --arg outcome "$REFUSAL_OUTCOME" \
+     --slurpfile events "$RUN/runner-events.jsonl" \
+     '. + {refusal_resampling: {flag_cap: $cap, flags: $flags, resumes: $resumes,
+                                outcome: (if $outcome == "" then null else $outcome end),
+                                flagged_at: [$events[] | select(.event == "refusal_flagged") | .timestamp_utc]}}' \
+     "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+fi
 # Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
 save_sessions
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
