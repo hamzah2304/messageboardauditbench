@@ -20,6 +20,8 @@ def test_any_existing_run_counts_as_done(tmp_path):
     run = tmp_path / "20261021T000000Z_react_moonshotai_kimi-k3_r2_wiki-std-30_abc"
     run.mkdir()
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == []  # no meta.json yet: still running or died
+    (run / "meta.json").write_text('{"launch_status": "preparing"}')      # died before reaching the model
+    assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == []
     (run / "meta.json").write_text('{"exit_code": 1}')                    # a failed run is a result
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == [run]
     assert run_matrix.existing(tmp_path, model, "wiki-std-10", 2) == []

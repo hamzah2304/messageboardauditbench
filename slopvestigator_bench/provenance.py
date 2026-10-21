@@ -49,7 +49,9 @@ def _declared_versions(dockerfile: Path) -> dict[str, str | None]:
 
 
 
-DATA_MANIFEST = "data/SHA256SUMS.variants"
+DATA_MANIFEST = "data/SHA256SUMS.variants"  # German wiki variants; scripts/build_data.sh rewrites it
+# Every committed checksum file; AI Village keeps its own so a German wiki rebuild cannot drop it.
+DATA_MANIFESTS = (DATA_MANIFEST, "data/SHA256SUMS.aivillage")
 
 
 def _resolve_data_dir(root: Path, data_variant: str) -> Path:
@@ -68,10 +70,12 @@ def _resolve_data_dir(root: Path, data_variant: str) -> Path:
 def _manifest_digests(root: Path, data_variant: str) -> dict[str, str]:
     """The committed digests for one variant, keyed by file name."""
     prefix = f"data/{data_variant}/"
-    try:
-        lines = (root / DATA_MANIFEST).read_text().splitlines()
-    except OSError:
-        return {}
+    lines = []
+    for manifest in DATA_MANIFESTS:
+        try:
+            lines += (root / manifest).read_text().splitlines()
+        except OSError:
+            continue
     out: dict[str, str] = {}
     for line in lines:
         digest, _, path = line.partition("  ")

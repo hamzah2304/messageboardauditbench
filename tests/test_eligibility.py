@@ -32,3 +32,13 @@ def test_missing_fields_count_against_the_run(tmp_path):
     (tmp_path / "meta.json").write_text(json.dumps({"model": "gpt-6-luna"}))
     v = eligibility.check(tmp_path)
     assert not v.eligible and {"no_report", "below_minimum_runtime", "data_unverified"} <= set(v.reasons)
+
+
+def test_same_model_accepts_snapshots_not_other_versions():
+    from slopvestigator_bench.model_ids import same_model
+    assert same_model("openai/gpt-6.1-sol", "gpt-6.1-sol-2026-09-29")
+    assert same_model("claude-opus-5", "claude-opus-5-20260724")
+    assert same_model("deepseek/deepseek-v4.1-flash-1017", "deepseek/deepseek-v4.1-flash")
+    assert not same_model("claude-opus-5", "claude-opus-5-5")
+    assert not same_model("claude-opus-5", "claude-opus-4-8")
+    assert not same_model("gpt-6-luna", "gpt-6-luna-pro")

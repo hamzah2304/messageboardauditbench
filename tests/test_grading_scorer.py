@@ -175,3 +175,24 @@ async def test_exported_grade_matches_what_the_standalone_grader_would_write(
 def test_unknown_rubric_fails_at_construction() -> None:
     with pytest.raises(ValueError, match="unknown rubric"):
         sheet_scorer(rubric="not-a-rubric")
+
+
+async def test_a_sheet_missing_a_claim_fails_and_nothing_is_exported() -> None:
+    sets, _ = core.load_sheets("v2")
+    replies = [sheet_reply("v2", i, 0.9) for i in range(len(sets))]
+    short = json.loads(replies[0])
+    short["items"] = short["items"][1:]  # parseable, but one claim never graded
+    replies[0] = json.dumps(short)
+    score = await sheet_scorer(rubric="v2", judge=judge(replies))(state(), Target(""))
+
+    assert math.isnan(score.value) and "of" in score.metadata["failures"][sets[0]["rubric_id"]]
+
+    class _Sample:
+        scores = {"sheet_scorer": score}
+        metadata: dict = {}
+        epoch = 1
+
+    class _Log:
+        samples = [_Sample()]
+
+    assert export.grades_in(_Log()) == []

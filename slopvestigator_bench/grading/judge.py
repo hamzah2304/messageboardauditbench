@@ -13,6 +13,8 @@ from typing import Any
 
 from inspect_ai.model import GenerateConfig, Model, ModelOutput
 
+from slopvestigator_bench.model_ids import same_model
+
 # No fallback provider, and fail rather than silently drop the effort or the response format.
 OPENROUTER_ROUTE = {"provider": {"allow_fallbacks": False, "require_parameters": True}}
 
@@ -44,8 +46,7 @@ def pin_route(config: GenerateConfig, model: Model | str) -> GenerateConfig:
 
 def served_mismatch(model: Model | str, out: ModelOutput) -> str | None:
     """A reason when the answer came from another model (a dated snapshot of it is fine)."""
-    asked, returned = base_name(model), base_name(out.model or "")
-    if returned and returned != asked and not returned.startswith(asked + "-"):
+    if not same_model(str(model), out.model or ""):
         return f"returned model {out.model} differs from {model}"
     return None
 

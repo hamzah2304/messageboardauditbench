@@ -119,6 +119,8 @@ def rows(primary: Path, log_dir: Path | None) -> list[Row]:
                 if not meta_path.is_file():
                     continue
                 meta = json.loads(meta_path.read_text())
+                if "exit_code" not in meta:  # a launch that never reached the model (see run_matrix)
+                    continue
                 verdict = eligibility.check_meta(meta)
                 score = combine(bench, grades.get((bench, run_dir.name), {}))
                 out.append(Row(bench, meta.get("model", ""), int(meta.get("budget_min") or 0),

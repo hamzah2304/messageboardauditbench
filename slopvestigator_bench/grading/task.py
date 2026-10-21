@@ -262,7 +262,9 @@ def aivillage_report_grade(
     if runs:
         samples = run_samples("aivillage", runs)
         for sample in samples:
-            sample.metadata["data_variant"] = sample.metadata["data_variant"] or data_variant
+            # Runs before the fix recorded only the last path part ("full-v2-reasoning").
+            variant = sample.metadata["data_variant"] or data_variant
+            sample.metadata["data_variant"] = variant if variant.startswith("aivillage/") else f"aivillage/{variant}"
     else:
         folder = Path(dir) if Path(dir).is_absolute() else repo_root() / dir
         for path in sorted(folder.glob("*.md")):

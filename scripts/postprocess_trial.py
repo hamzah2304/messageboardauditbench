@@ -12,6 +12,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "slopvestigator_bench"))
+from model_ids import same_model  # noqa: E402
 from report_length import acceptance_limits, limits, measure  # noqa: E402
 
 
@@ -100,6 +101,16 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
             + [event.get("fallback_model") for event in fallbacks],
         }
         meta["model_served"] = fallbacks[-1].get("fallback_model")
+    elif meta.get("agent") == "react":
+        # The ReAct loop records the model each OpenRouter response names; a different one
+        # answering (a provider-side switch) is a fallback too.
+        served = [e["message"].get("model") for e in events
+                  if e.get("type") == "assistant" and isinstance(e.get("message"), dict) and e["message"].get("model")]
+        other = [m for m in served if not same_model(meta["model"], m)]
+        if other:
+            meta["model_fallback"] = {"fallback_model": other[-1], "trigger": "response_model",
+                                      "events": len(other), "chain": [meta["model"], *dict.fromkeys(other)]}
+            meta["model_served"] = other[-1]
 
     # The id needed to resume this conversation later: Claude Code's session_id
     # (init event) or Codex's thread_id. ReAct has none; its history is transcript.jsonl.

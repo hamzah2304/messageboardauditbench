@@ -42,7 +42,14 @@ def trials(evals, budgets, models, runs):
 
 def existing(run_root: Path, model: lineup.Model, config: str, rep: int) -> list[Path]:
     slug = model.id.replace("/", "_")
-    return sorted(p for p in run_root.glob(f"*_{model.harness}_{slug}_r{rep}_{config}_*") if (p / "meta.json").exists())
+    return sorted(p for p in run_root.glob(f"*_{model.harness}_{slug}_r{rep}_{config}_*") if finished(p))
+
+
+def finished(run_dir: Path) -> bool:
+    """The runner finalised the record: the trial ran and ended somehow. A launch that died
+    before that (credentials, preflight) never reached the model and may be launched again."""
+    meta = run_dir / "meta.json"
+    return meta.exists() and '"exit_code"' in meta.read_text()
 
 
 def main() -> int:

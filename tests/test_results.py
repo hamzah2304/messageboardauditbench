@@ -3,7 +3,7 @@ import json
 
 from slopvestigator_bench import results
 
-GOOD = {"benchmark_id": "aivillage", "report_exists": True, "report_words": 9000, "minimum_runtime_reached": True,
+GOOD = {"benchmark_id": "aivillage", "exit_code": 0, "report_exists": True, "report_words": 9000, "minimum_runtime_reached": True,
         "report_length_compliant": True, "data_manifest_status": "matches_manifest", "termination": "normal",
         "budget_min": 30}
 

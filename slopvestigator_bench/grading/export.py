@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,11 @@ def grades_in(log: Any) -> list[dict]:
     for sample in log.samples or []:
         for score in (sample.scores or {}).values():
             grade = (score.metadata or {}).get("grade")
-            if grade and grade.get("max"):
+            # An unscored report (a failed sheet) keeps its surviving sheets for inspection
+            # only; exporting them would publish a grade of part of the rubric.
+            value = getattr(score, "value", None)
+            unscored = isinstance(value, float) and math.isnan(value)
+            if grade and grade.get("max") and not unscored:
                 # Staged files already have stable corpus keys. Fresh evals reuse
                 # sample IDs across models, epochs and reruns, so include the log.
                 if getattr(log, "eval", None) and not (sample.metadata or {}).get("staged_input"):

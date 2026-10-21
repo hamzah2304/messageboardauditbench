@@ -142,6 +142,10 @@ def sheet_scorer(
             except Exception as exc:  # noqa: BLE001 — recorded, not raised: other sheets stand
                 failures[rubric_id] = f"{type(exc).__name__}: {exc}"[:300]
                 continue
+            if set(items) != set(spec["claim_ids"]):
+                # A parseable sheet that skips or invents claims would score part of the rubric.
+                failures[rubric_id] = f"returned {len(set(items) & set(spec['claim_ids']))} of {spec['n_claims']} claims"
+                continue
             per_claim.update(items)
             per_rubric[rubric_id] = {
                 "score": round(sum(i["score"] for i in items.values()), 2),
