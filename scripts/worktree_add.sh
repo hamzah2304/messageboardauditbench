@@ -35,6 +35,6 @@ while IFS= read -r v; do
     done
   fi
 done < <(cd "$WT" && python3 -c \
-  'from messageboard_audit_bench.incidents import data_variants; print(*sorted(data_variants()), sep="\n")')
+  'from slopvestigator_bench.incidents import data_variants; print(*sorted(data_variants()), sep="\n")')
 (cd "$WT" && uv sync --quiet 2>/dev/null) || echo "uv sync failed in $WT; run it by hand" >&2
 echo "$WT"

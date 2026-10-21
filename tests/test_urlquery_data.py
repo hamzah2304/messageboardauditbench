@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from messageboard_audit_bench import urlquery_data as acquire
-from messageboard_audit_bench import urlquery_prepare as prepare
-from messageboard_audit_bench.dataset_manifest import validate_dataset
+from slopvestigator_bench import urlquery_data as acquire
+from slopvestigator_bench import urlquery_prepare as prepare
+from slopvestigator_bench.dataset_manifest import validate_dataset
 
 IDS = ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"]
 
@@ -210,7 +210,7 @@ def test_manifest_preflight_preserves_no_network_and_visibility(tmp_path, cfg, c
 
 
 def test_trial_validation_refuses_unsettled_or_wrong_path(tmp_path, cfg, catalog):
-    from messageboard_audit_bench.benchmarks import validate_trial_data
+    from slopvestigator_bench.benchmarks import validate_trial_data
     cache = tmp_path / "raw"
     (cache / "reports").mkdir(parents=True)
     (cache / "reports" / f"{IDS[0]}.json").write_text(json.dumps(raw(IDS[0])))

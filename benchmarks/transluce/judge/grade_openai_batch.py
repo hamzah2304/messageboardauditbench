@@ -22,8 +22,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-from messageboard_audit_bench.benchmarks import primary_root  # noqa: E402
-from messageboard_audit_bench.grading import findings as fj  # noqa: E402
+from slopvestigator_bench.benchmarks import primary_root  # noqa: E402
+from slopvestigator_bench.grading import findings as fj  # noqa: E402
 
 MODEL = "gpt-6-astra"
 EFFORT = "high"

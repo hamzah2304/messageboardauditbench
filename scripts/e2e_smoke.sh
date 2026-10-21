@@ -32,7 +32,7 @@ for eval_name in "$@"; do
         --model "$MODEL" --log-dir "logs/e2e/$eval_name")
   [ -z "${JUDGE:-}" ] || args+=(--model-role grader="$JUDGE")
   # inspect eval exits 0 even when the sample errors or the judge fails, so read the log.
-  if uv run inspect eval "messageboard_audit_bench/$eval_name" "${args[@]}" \
+  if uv run inspect eval "slopvestigator_bench/$eval_name" "${args[@]}" \
       && uv run python - "logs/e2e/$eval_name" <<'PY'
 import math, sys
 from pathlib import Path

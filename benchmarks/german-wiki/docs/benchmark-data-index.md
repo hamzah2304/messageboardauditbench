@@ -14,9 +14,9 @@ to the current headline figures.
   38-finding grades; the parallel `tldrh/` directory contains holistic TLDR grades.
 - `benchmarks/german-wiki/figures/combined_score.json` records the 70/30 combination of
   transformed finding coverage and holistic TLDR assessment.
-- `viewers/build_headline_figures.py` builds the headline page and cross-checks
-  the combined scores. `viewers/render_headline_pngs.py` renders its figures;
-  `viewers/figures/results_figures.md` links the current exported plots.
+- `scripts/viewers/build_headline_figures.py` builds the headline page and cross-checks
+  the combined scores. `scripts/viewers/render_headline_pngs.py` renders its figures;
+  `scripts/viewers/figures/results_figures.md` links the current exported plots.
 
 The underlying finding score is `mean(max(2s - 1, 0))`, not a binary fraction
 of findings above 0.5. Raw Inspect sheet scores and the publication transform
@@ -33,7 +33,7 @@ must not be mixed. Fallback runs and incomplete cells need their recorded labels
 - `benchmarks/german-wiki/experiments/round4.toml` and `benchmarks/german-wiki/experiments/provider_swap.toml` are the launch
   manifests. `benchmarks/german-wiki/experiments/ablations.md` documents the staging and grading commands.
 - `benchmarks/german-wiki/figures/followup_5k.{json,csv}` records matched followup comparisons.
-  `viewers/build_followup5k_figure.py` builds the companion page.
+  `scripts/viewers/build_followup5k_figure.py` builds the companion page.
 
 The followup treatment adds time and requests a longer report. It does not
 isolate the causal effect of report length.

@@ -161,12 +161,12 @@ def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatc
         assert "opus" not in notice.lower()
     preview = runpy.run_path(str(scripts / "build_preview.py"))["main"]
     monkeypatch.setitem(preview.__globals__, "ROOT", tmp_path)
-    (tmp_path / "viewers").mkdir()
+    (tmp_path / "scripts" / "viewers").mkdir(parents=True)
     monkeypatch.setattr(sys, "argv", ["preview", "--source", str(run / "report.md"),
                                      "--output-name", "test", "--report-id", "test",
                                      "--notice", notice + "<img src=x onerror=bad()>"])
     preview()
-    html = (tmp_path / "viewers/test.html").read_text()
+    html = (tmp_path / "scripts/viewers/test.html").read_text()
     assert "&lt;img src=x onerror=bad()&gt;" in html
     assert "<img src=x" not in html
 

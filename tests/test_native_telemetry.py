@@ -15,7 +15,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import generate
 
-from messageboard_audit_bench.native_telemetry import event_coverage, hook_coverage
+from slopvestigator_bench.native_telemetry import event_coverage, hook_coverage
 
 
 def test_event_coverage_requires_raw_calls_and_complete_tool_evidence() -> None:

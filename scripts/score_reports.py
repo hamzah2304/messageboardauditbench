@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from report_performance import W_COV, W_TLDR, strict  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from messageboard_audit_bench.incidents import incident, incidents  # noqa: E402
+from slopvestigator_bench.incidents import incident, incidents  # noqa: E402
 
 
 def _grades(folder: Path) -> dict[str, dict]:
@@ -184,7 +184,7 @@ def main() -> int:
             print(f"no {label} grades at {folder}", file=sys.stderr)
             print(
                 "Grade a report set first:\n"
-                "  uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \\\n"
+                "  uv run inspect eval slopvestigator_bench/german_wiki_report_grade \\\n"
                 f"    -T dir=<your reports> -T rubric={label} "
                 "--model-role grader=anthropic/claude-fable-5-1\n"
                 "  uv run python scripts/export_grades.py logs/<the run>.eval",

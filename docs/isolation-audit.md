@@ -62,7 +62,7 @@ counts/types and failures, suspicious network or file-access attempts, observed
 provider model changes, and logging gaps. To regenerate a single audit:
 
 ```sh
-uv run python -m messageboard_audit_bench.run_audit runs/<run> --out runs/<run>
+uv run python -m slopvestigator_bench.run_audit runs/<run> --out runs/<run>
 ```
 
 Command text establishes an attempt. A tool returning without a recorded error

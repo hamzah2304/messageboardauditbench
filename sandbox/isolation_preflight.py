@@ -111,7 +111,7 @@ def preflight(
             try:
                 from dataset_manifest import validate_dataset
             except ModuleNotFoundError:
-                from messageboard_audit_bench.dataset_manifest import validate_dataset
+                from slopvestigator_bench.dataset_manifest import validate_dataset
             if not expected_sha256:
                 raise ValueError("URLQuery preflight requires a pinned dataset hash")
             manifest = validate_dataset(data, expected_sha256=expected_sha256)

@@ -46,13 +46,13 @@ You need access to AI Digest's dataset on Hugging Face, [`aidigestorg/ai-village
 python3 scripts/aivillage/build_aivillage_data.py --variant reasoning
 
 # one trial, graded inline by GPT-6.1 Sol; -T subagents=true for the subagent condition
-uv run inspect eval messageboard_audit_bench/aivillage_report -T agent=codex \
+uv run inspect eval slopvestigator_bench/aivillage_report -T agent=codex \
   --model openai/gpt-6-luna --model-role grader=openai/gpt-6.1-sol
-uv run inspect eval messageboard_audit_bench/aivillage_report -T agent=react \
+uv run inspect eval slopvestigator_bench/aivillage_report -T agent=react \
   --model openrouter/moonshotai/kimi-k3 --model-role grader=openrouter/openai/gpt-6.1-sol
 
 # grade reports that already exist: run directories under runs/, or a folder of .md files
-uv run inspect eval messageboard_audit_bench/aivillage_report_grade -T runs='*_aivillage-v12-30*' \
+uv run inspect eval slopvestigator_bench/aivillage_report_grade -T runs='*_aivillage-v12-30*' \
   --model-role grader=openai/gpt-6.1-sol
 ```
 
@@ -67,10 +67,10 @@ uv run python scripts/aivillage/grade_aivillage.py prepare --findings benchmarks
 uv run python scripts/aivillage/grade_aivillage.py run --output runs/aivillage-grading-medium --concurrency 32
 python3 scripts/aivillage/summarize_aivillage_grades.py runs/aivillage-grading-medium/plans/<plan>/grades.json benchmarks/aivillage/results/
 uv run python scripts/aivillage/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md --out runs/aivillage-costs-20261004
-uv run python viewers/build_aivillage_figures.py
+uv run python scripts/viewers/build_aivillage_figures.py
 ```
 
-The batch grader and the Inspect scorer build the same judge requests (`messageboard_audit_bench/grading/aivillage.py`).
+The batch grader and the Inspect scorer build the same judge requests (`slopvestigator_bench/grading/aivillage.py`).
 
 ## Credit
 

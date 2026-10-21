@@ -3,15 +3,15 @@ from importlib.metadata import entry_points
 import pytest
 from inspect_ai._util.registry import registry_info
 
-import messageboard_audit_bench.task as task_module
-from messageboard_audit_bench.runtime import repo_root
-from messageboard_audit_bench.task import (
+import slopvestigator_bench.task as task_module
+from slopvestigator_bench.runtime import repo_root
+from slopvestigator_bench.task import (
     _CONFIGS,
     EVAL_VERSION,
     _load_config,
     _prompt_for,
 )
-from messageboard_audit_bench.task import german_wiki_report as build_task
+from slopvestigator_bench.task import german_wiki_report as build_task
 
 
 def test_task_has_stable_sample_and_version() -> None:
@@ -103,7 +103,7 @@ def test_command_time_limit_reaches_solver(monkeypatch) -> None:
         return task_module.replay()
 
     monkeypatch.setattr(task_module, "subscription_agent", capture_subscription_agent)
-    task_module.messageboard_audit_bench(
+    task_module.german_wiki_report(
         agent="codex",
         backend="subscription",
         allow_networked_subscription=True,
@@ -128,7 +128,7 @@ def test_subscription_time_limit_has_shutdown_and_host_grace(monkeypatch) -> Non
         return task_module.replay()
 
     monkeypatch.setattr(task_module, "subscription_agent", capture_subscription_agent)
-    task = task_module.messageboard_audit_bench(
+    task = task_module.german_wiki_report(
         backend="subscription",
         allow_networked_subscription=True,
         subscription_model="claude-test",
@@ -206,7 +206,7 @@ def test_native_threads_config_tools_to_agent_solver(monkeypatch) -> None:
         return task_module.replay()
 
     monkeypatch.setattr(task_module, "inspect_native_agent", capture_native_agent)
-    task_module.messageboard_audit_bench(agent="claude", config="blind")
+    task_module.german_wiki_report(agent="claude", config="blind")
 
     assert captured["agent"] == "claude"
     assert captured["time_limit_seconds"] == 20 * 60
@@ -246,29 +246,24 @@ def test_inspect_entry_point_exposes_namespaced_task() -> None:
     entry_point = next(
         ep
         for ep in entry_points(group="inspect_ai")
-        if ep.name == "messageboard_audit_bench"
+        if ep.name == "slopvestigator_bench"
     )
 
-    assert entry_point.value == "messageboard_audit_bench"
-    assert entry_point.load().__name__ == "messageboard_audit_bench"
+    assert entry_point.value == "slopvestigator_bench"
+    assert entry_point.load().__name__ == "slopvestigator_bench"
     assert (
         registry_info(build_task).name
-        == "messageboard_audit_bench/german_wiki_report"
+        == "slopvestigator_bench/german_wiki_report"
     )
 
 
-def test_old_task_names_remain_aliases_of_the_renamed_tasks() -> None:
-    import messageboard_audit_bench as package
+def test_every_task_is_registered_under_the_package() -> None:
+    import slopvestigator_bench as package
 
-    for old, new in [("messageboard_audit_bench", "german_wiki_report"),
-                     ("messageboard_audit_bench_replay", "german_wiki_report_replay"),
-                     ("messageboard_audit_bench_continue", "german_wiki_report_continue"),
-                     ("grade_reports", "german_wiki_report_grade"),
-                     ("urlquery_audit_bench", "transluce_report"),
-                     ("urlquery_grade_reports", "transluce_report_grade")]:
-        assert registry_info(getattr(package, old)).name == f"messageboard_audit_bench/{old}"
-        assert registry_info(getattr(package, new)).name == f"messageboard_audit_bench/{new}"
-    assert package.messageboard_audit_bench(agent="codex").dataset[0].id == build_task(agent="codex").dataset[0].id
+    for name in package.__all__:
+        assert registry_info(getattr(package, name)).name == f"slopvestigator_bench/{name}"
+    for old in ("messageboard_audit_bench", "grade_reports", "urlquery_audit_bench", "urlquery_grade_reports"):
+        assert not hasattr(package, old)
 
 
 def test_draft_incidents_are_not_german_wiki_conditions() -> None:

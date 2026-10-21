@@ -12,11 +12,11 @@ from inspect_ai.model import ChatMessageUser, ModelName, ModelOutput
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
-import messageboard_audit_bench.task as task_module
-from messageboard_audit_bench import benchmarks
-from messageboard_audit_bench.configs import load_config
-from messageboard_audit_bench.grading import aivillage as av
-from messageboard_audit_bench.grading import task as grading_task
+import slopvestigator_bench.task as task_module
+from slopvestigator_bench import benchmarks
+from slopvestigator_bench.configs import load_config
+from slopvestigator_bench.grading import aivillage as av
+from slopvestigator_bench.grading import task as grading_task
 
 ROOT = Path(__file__).parents[1]
 VARIANT = "aivillage/full-v2-reasoning"
@@ -55,12 +55,12 @@ def test_native_prompt_matches_the_subscription_runner(primary, subagents):
     py, data = sys.executable, primary / "data" / VARIANT
     run = lambda *args: subprocess.run([py, *map(str, args)], check=True, capture_output=True, text=True).stdout  # noqa: E731
     expected = (
-        run(ROOT / "messageboard_audit_bench/report_length.py", "--template", ROOT / "sandbox/prompts/aivillage-v12.txt",
+        run(ROOT / "slopvestigator_bench/report_length.py", "--template", ROOT / "sandbox/prompts/aivillage-v12.txt",
             "--budget-min", 30, "--min-words", cfg["report_min_words"], "--max-words", cfg["report_max_words"],
             "--findings-count", 20, *(["--subagents"] if subagents else []), "--memory-limit", "3g")
-        + run(ROOT / "messageboard_audit_bench/runtime_policy.py", "--instruction", "--fraction", 0.9,
+        + run(ROOT / "slopvestigator_bench/runtime_policy.py", "--instruction", "--fraction", 0.9,
               "--budget-minutes", 30, "--notice", cfg["runtime_notice"])
-        + run(ROOT / "messageboard_audit_bench/report_length.py", "--memory-limit", "3g", "--memory-note", data)
+        + run(ROOT / "slopvestigator_bench/report_length.py", "--memory-limit", "3g", "--memory-note", data)
     )
     task = task_module.aivillage_report(agent="codex", subagents=subagents)
     assert task.dataset[0].input == expected

@@ -14,7 +14,7 @@ helps. We will acknowledge and tell you what we intend to do about it.
 
 - The trial sandbox and its isolation properties (`sandbox/`), including the
   proxy and the preflight.
-- The Inspect task package (`messageboard_audit_bench/`) and the grading path.
+- The Inspect task package (`slopvestigator_bench/`) and the grading path.
 - The build and verification scripts (`scripts/`), especially anything that
   could cause an unverified dataset to be accepted.
 - Any credential, token, or personal data that reaches a tracked file.

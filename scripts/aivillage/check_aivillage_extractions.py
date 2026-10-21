@@ -7,7 +7,7 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "viewers"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "viewers"))
 from build_aivillage_findings_review import Article
 
 

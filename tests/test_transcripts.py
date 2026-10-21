@@ -4,7 +4,7 @@ from pathlib import Path
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ChatMessageUser
 
-from messageboard_audit_bench.transcripts import parse, parse_claude, parse_codex
+from slopvestigator_bench.transcripts import parse, parse_claude, parse_codex
 
 
 def _write_jsonl(path: Path, events: list[dict]) -> Path:

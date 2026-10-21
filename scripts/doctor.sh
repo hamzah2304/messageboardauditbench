@@ -23,8 +23,8 @@ if command -v "$project_python" >/dev/null && "$project_python" -c 'import sys; 
   ok "Python $("$project_python" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))') ($project_python)"
 else bad "Python >= 3.11: run uv sync to create the project environment"; fi
 if command -v uv >/dev/null; then ok "uv $(uv --version | awk '{print $2}')"; else bad "uv: https://docs.astral.sh/uv/getting-started/installation/"; fi
-if [ -d .venv ] && uv run --no-sync python -c 'import inspect_ai, messageboard_audit_bench' 2>/dev/null; then
-  ok "package installed (inspect_ai + messageboard_audit_bench importable)"
+if [ -d .venv ] && uv run --no-sync python -c 'import inspect_ai, slopvestigator_bench' 2>/dev/null; then
+  ok "package installed (inspect_ai + slopvestigator_bench importable)"
 else bad "package not installed: run  uv sync"; fi
 for t in curl unzip; do command -v "$t" >/dev/null && ok "$t" || bad "$t (needed by scripts/fetch_data.sh)"; done
 
@@ -40,7 +40,7 @@ fi
 echo "data"
 data_missing="$($project_python - <<'PY' 2>/dev/null
 from pathlib import Path
-from messageboard_audit_bench.incidents import incidents
+from slopvestigator_bench.incidents import incidents
 for item in incidents().values():
     for variant in item.variants:
         for name in item.corpus["files"]:

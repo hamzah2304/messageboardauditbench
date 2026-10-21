@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from inspect_ai.log import read_eval_log  # noqa: E402
 
-from messageboard_audit_bench.grading import core, export  # noqa: E402
+from slopvestigator_bench.grading import core, export  # noqa: E402
 
 
 def main() -> None:

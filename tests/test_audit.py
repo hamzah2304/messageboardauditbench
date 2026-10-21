@@ -1,7 +1,7 @@
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolCall, ToolCallError
 
-from messageboard_audit_bench.audit import trajectory_metrics
+from slopvestigator_bench.audit import trajectory_metrics
 
 
 def _messages(command: str, *, error: ToolCallError | None = None, output: str = ""):

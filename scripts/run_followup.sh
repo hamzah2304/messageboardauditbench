@@ -118,7 +118,7 @@ for entry in "${REACT_SYSTEMS[@]}"; do
   fi
   key="${OPENROUTER_API_KEY:-$(openrouter_key_for "${model#openrouter/}")}"
   [ -n "$key" ] || { echo "no OpenRouter key for $model" >&2; exit 1; }
-  cmd=(uv run inspect eval messageboard_audit_bench/german_wiki_report_continue
+  cmd=(uv run inspect eval slopvestigator_bench/german_wiki_report_continue
        -T "parent_log=$log" -T "parent_epochs=$epochs" -T "config=$CONFIG"
        --max-samples 1 --max-sandboxes 1 --max-connections "$conns" --max-retries 5
        --timeout 900 --attempt-timeout 600 --retry-on-error=2 --log-model-api --log-refusals --no-score

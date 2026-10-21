@@ -12,9 +12,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from messageboard_audit_bench.dataset_manifest import file_sha256
-from messageboard_audit_bench.runtime import repo_root
-from messageboard_audit_bench.urlquery_data import primary_root
+from slopvestigator_bench.dataset_manifest import file_sha256
+from slopvestigator_bench.runtime import repo_root
+from slopvestigator_bench.urlquery_data import primary_root
 
 
 def fallback_chain(requested: str, fallback: dict | None) -> list[str]:

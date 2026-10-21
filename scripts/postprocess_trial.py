@@ -8,7 +8,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "messageboard_audit_bench"))
+sys.path.insert(0, str(ROOT / "slopvestigator_bench"))
 from report_length import acceptance_limits, limits, measure  # noqa: E402
 
 

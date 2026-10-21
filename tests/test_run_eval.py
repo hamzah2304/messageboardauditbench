@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from messageboard_audit_bench.benchmarks import SPECS, normalize_version, version_tag
+from slopvestigator_bench.benchmarks import SPECS, normalize_version, version_tag
 
 ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location("run_eval", ROOT / "scripts/run_eval.py")
@@ -29,13 +29,13 @@ def test_current_version_runs_in_place_with_the_version_guard(capsys):
     assert run_eval.main(["german-wiki-report", "--dry-run", "--", "-T", "agent=codex"]) == 0
     out = capsys.readouterr().out
     assert "(this checkout)" in out
-    assert f"messageboard_audit_bench/german_wiki_report -T version={SPECS['messageboard'].eval_version} -T agent=codex" in out
+    assert f"slopvestigator_bench/german_wiki_report -T version={SPECS['messageboard'].eval_version} -T agent=codex" in out
 
 
 def test_grading_role_has_no_version_option(capsys):
     run_eval.main(["transluce-report", "--task", "grade", "--dry-run"])
     out = capsys.readouterr().out
-    assert "messageboard_audit_bench/transluce_report_grade" in out and "version=" not in out
+    assert "slopvestigator_bench/transluce_report_grade" in out and "version=" not in out
 
 
 def test_unknown_version_lists_what_is_tagged(monkeypatch):
@@ -44,9 +44,11 @@ def test_unknown_version_lists_what_is_tagged(monkeypatch):
         run_eval.plan("german-wiki-report", "3.0", "run")
 
 
-def test_older_versions_use_the_task_name_they_had(monkeypatch):
-    sources = {"old": "def messageboard_audit_bench(", "new": 'x = task(name="german_wiki_report")'}
-    monkeypatch.setattr(run_eval, "source_at", lambda ref, path: sources[ref] if "task.py" in path else "")
+def test_older_versions_use_the_package_and_task_names_they_had(monkeypatch):
+    sources = {("old", "messageboard_audit_bench/task.py"): "def messageboard_audit_bench(",
+               ("new", "slopvestigator_bench/task.py"): 'x = task(name="german_wiki_report")'}
+    monkeypatch.setattr(run_eval, "source_at", lambda ref, path: sources.get((ref, path), ""))
+    assert run_eval.package("old") == "messageboard_audit_bench" and run_eval.package("new") == "slopvestigator_bench"
     assert run_eval.task_name("old", "german_wiki_report") == "messageboard_audit_bench"
     assert run_eval.task_name("old", "transluce_report_grade") == "urlquery_grade_reports"
     assert run_eval.task_name("new", "german_wiki_report") == "german_wiki_report"

@@ -7,7 +7,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from messageboard_audit_bench.transcripts import parse_claude, parse_codex
+from slopvestigator_bench.transcripts import parse_claude, parse_codex
 
 
 def main() -> int:

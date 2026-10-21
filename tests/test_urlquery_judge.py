@@ -74,7 +74,7 @@ def test_combining_f13_preserves_existing_judgments():
 
 
 # sha256 of each headline's rendered prompt for a fixed article and report, taken from
-# the judge before it moved into messageboard_audit_bench.grading.findings. A change here
+# the judge before it moved into slopvestigator_bench.grading.findings. A change here
 # changes what the judge reads: bump the rubric, and regrade, rather than update the pins.
 PROMPT_PINS = {
     "F1": "7b01f15ddfa3046991e03cc454b145611c1b86a563b017c56f1c7d612eaf77e8",
@@ -106,14 +106,14 @@ def test_judge_names_select_transport_and_keep_existing_grade_directories():
     assert grade.provider_of("anthropic/claude-opus-5-5") == ("anthropic", "claude-opus-5-5")
     assert grade.provider_of("claude-opus-5-5") == ("anthropic", "claude-opus-5-5")
     assert grade.provider_of("openrouter/openai/gpt-6-astra") == ("openrouter", "openai/gpt-6-astra")
-    from messageboard_audit_bench.grading.findings import judge_dir
+    from slopvestigator_bench.grading.findings import judge_dir
     assert judge_dir("claude-opus-5-5") == "judge_claude_opus_5_5"
     assert judge_dir("openai/gpt-6-astra", "high") == "judge_gpt_6_astra_high"
     assert grade_openrouter.OUT.name == "judge_gpt_6_astra_high"
 
 
 def test_both_judge_paths_read_one_transport_table():
-    from messageboard_audit_bench.grading import finding_scorer, findings
+    from slopvestigator_bench.grading import finding_scorer, findings
 
     assert grade.TRANSPORTS is findings.TRANSPORTS
     for judge in ("anthropic/claude-opus-5-5", "claude-opus-5-5", "openrouter/openai/gpt-6-astra"):

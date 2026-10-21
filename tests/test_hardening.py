@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUN_TRIAL = (ROOT / "sandbox" / "docker" / "run_trial.sh").read_text()
 REACT = (ROOT / "sandbox" / "react_agent.py").read_text()
 POSTPROCESS = (ROOT / "scripts" / "postprocess_trial.py").read_text()
-NATIVE = (ROOT / "messageboard_audit_bench" / "native.py").read_text()
+NATIVE = (ROOT / "slopvestigator_bench" / "native.py").read_text()
 MATRIX = ROOT / "scripts" / "run_inspect_matrix.sh"
 
 
@@ -111,7 +111,7 @@ def test_matrix_cli_uses_config_and_inspect_epochs() -> None:
 def test_subscription_solver_does_not_block_the_event_loop() -> None:
     # A blocking subprocess.run inside the async solver serialized every sample of an eval regardless of
     # --max-samples (audit 2026-09-07). The runner must be awaited.
-    src = (ROOT / "messageboard_audit_bench" / "solver.py").read_text()
+    src = (ROOT / "slopvestigator_bench" / "solver.py").read_text()
     solve_body = src[src.index("def subscription_agent"):src.index("def replay")]
     assert "subprocess.run(" not in solve_body
     assert "await _run_async(" in solve_body

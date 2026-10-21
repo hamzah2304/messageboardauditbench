@@ -8,13 +8,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from messageboard_audit_bench.incidents import (
+from slopvestigator_bench.incidents import (
     config_names,
     data_variants,
     incident_for_variant,
     incidents,
 )
-from messageboard_audit_bench.task import incident_task
+from slopvestigator_bench.task import incident_task
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import incident_pipeline as pipeline  # noqa: E402

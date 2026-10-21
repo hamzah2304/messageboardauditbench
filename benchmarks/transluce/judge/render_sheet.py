@@ -3,7 +3,7 @@
     python benchmarks/transluce/judge/render_sheet.py F4 [--article A.txt] [--report R.md]
     python benchmarks/transluce/judge/render_sheet.py --coverage R.md
 
-The sheet itself lives in `messageboard_audit_bench.grading.findings`; this script and
+The sheet itself lives in `slopvestigator_bench.grading.findings`; this script and
 its names are kept for the viewers and commands that used them.
 """
 
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from messageboard_audit_bench.grading.findings import (  # noqa: E402
+from slopvestigator_bench.grading.findings import (  # noqa: E402
     coverage,
     findings_path,
     linked_scans,

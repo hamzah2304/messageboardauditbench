@@ -13,11 +13,11 @@ from inspect_ai.model import ChatMessageUser, ModelName, ModelOutput, get_model
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
-import messageboard_audit_bench.task as task_module
-from messageboard_audit_bench import benchmarks
-from messageboard_audit_bench.configs import load_config
-from messageboard_audit_bench.grading import findings as fj
-from messageboard_audit_bench.grading.finding_scorer import finding_scorer
+import slopvestigator_bench.task as task_module
+from slopvestigator_bench import benchmarks
+from slopvestigator_bench.configs import load_config
+from slopvestigator_bench.grading import findings as fj
+from slopvestigator_bench.grading.finding_scorer import finding_scorer
 
 ROOT = Path(__file__).parents[1]
 MANIFEST = benchmarks.urlquery_manifest()
@@ -35,11 +35,11 @@ def test_manifest_owns_the_active_configs_and_every_one_matches_its_pins():
 
 def test_each_task_accepts_only_its_own_configs():
     with pytest.raises(ValueError, match="unknown messageboard config"):
-        task_module.messageboard_audit_bench(config="urlquery-agents-v6-30")
+        task_module.german_wiki_report(config="urlquery-agents-v6-30")
     with pytest.raises(ValueError, match="unknown urlquery config"):
         task_module.transluce_report(config="blind")
     with pytest.raises(ValueError, match="belongs to 'messageboard'"):
-        from messageboard_audit_bench.configs import validate_config
+        from slopvestigator_bench.configs import validate_config
         validate_config({"name": "blind"}, "urlquery")
 
 
@@ -82,16 +82,16 @@ def test_subscription_task_uses_the_shared_runner_with_the_config_pins(monkeypat
 
 
 def test_both_tasks_are_registered_under_the_package_entry_point():
-    import messageboard_audit_bench as package
+    import slopvestigator_bench as package
 
-    entry_point = next(ep for ep in entry_points(group="inspect_ai") if ep.name == "messageboard_audit_bench")
-    assert entry_point.value == "messageboard_audit_bench"
-    for name in ("transluce_report", "transluce_report_grade", "urlquery_audit_bench", "urlquery_grade_reports"):
-        assert registry_info(getattr(package, name)).name == f"messageboard_audit_bench/{name}"
+    entry_point = next(ep for ep in entry_points(group="inspect_ai") if ep.name == "slopvestigator_bench")
+    assert entry_point.value == "slopvestigator_bench"
+    for name in ("transluce_report", "transluce_report_grade"):
+        assert registry_info(getattr(package, name)).name == f"slopvestigator_bench/{name}"
 
 
 def test_grade_task_reads_finished_run_dirs(tmp_path, monkeypatch):
-    from messageboard_audit_bench.grading import task as grading_task
+    from slopvestigator_bench.grading import task as grading_task
 
     runs = tmp_path / "runs/urlquery"
     good = runs / "20260927T211426Z_codex_gpt-6-astra_r1_urlquery-agents-v6-30_10188a321353"
@@ -190,7 +190,7 @@ def test_native_urlquery_builds_the_pinned_clis_and_codex_lockdown(monkeypatch):
     monkeypatch.setattr(task_module, "inspect_native_agent", lambda **kw: captured.update(kw) or task_module.replay())
     task_module.transluce_report(agent="codex")
     assert captured["codex_features_off"] == benchmarks.URLQUERY_CODEX_FEATURES_OFF
-    task_module.messageboard_audit_bench(agent="codex")
+    task_module.german_wiki_report(agent="codex")
     assert captured["codex_features_off"] == ()
 
 

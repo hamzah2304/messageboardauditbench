@@ -32,7 +32,7 @@ REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
 # Default accepted maximum: 10% over the prompted one (report_length.tolerated_max).
 REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$(( REPORT_MAX_WORDS + REPORT_MAX_WORDS / 10 ))}"
 MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
-MIN_RUNTIME_FRACTION="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
+MIN_RUNTIME_FRACTION="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
 # PROMPT_FILE_OVERRIDE is a prompt already filled in per item by a driver script; the config still names its template.
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="${PROMPT_FILE_OVERRIDE:-$HERE/../prompts/$PROMPT_NAME.txt}"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
@@ -53,7 +53,7 @@ case "$BENCHMARK_ID" in
     [ -n "${CFG_DATASET_SHA256:-}" ] || { echo "URLQuery requires dataset_sha256 in the resolved trial config" >&2; exit 2; }
     BENCH_ARGS=(urlquery "$DATA_DIR" --expected-sha256 "$CFG_DATASET_SHA256")
     [ -z "${RESUME_FROM:-}" ] || BENCH_ARGS+=(--resume "$RESUME_FROM")
-    BENCHMARK_PROVENANCE="$(cd "$ROOT" && "$ROOT/.venv/bin/python" -m messageboard_audit_bench.benchmarks "${BENCH_ARGS[@]}")"
+    BENCHMARK_PROVENANCE="$(cd "$ROOT" && "$ROOT/.venv/bin/python" -m slopvestigator_bench.benchmarks "${BENCH_ARGS[@]}")"
     RUNS_ROOT="$PRIMARY_ROOT/$(printf '%s' "$BENCHMARK_PROVENANCE" | jq -r .run_root)"
     ;;
   *) echo "unknown benchmark: $BENCHMARK_ID" >&2; exit 2 ;;
@@ -120,7 +120,7 @@ CONFIG_SOURCE_SHA256="$(shasum -a 256 "$RUN/config.source.toml" | cut -c1-64)"
 CONFIG_RENDERED_SHA256="$(shasum -a 256 "$RUN/config.rendered.json" | cut -c1-64)"
 # Excludes corpus data, credentials and prior run outputs. The dirty patch
 # captures tracked edits; the archive also retains untracked source helpers.
-(cd "$ROOT" && tar -czf "$RUN/code_snapshot.tar.gz" --exclude='.git' --exclude='.venv' --exclude='data' --exclude='runs' --exclude='reports' --exclude='logs' messageboard_audit_bench sandbox scripts configs pyproject.toml uv.lock) 2>/dev/null || true
+(cd "$ROOT" && tar -czf "$RUN/code_snapshot.tar.gz" --exclude='.git' --exclude='.venv' --exclude='data' --exclude='runs' --exclude='reports' --exclude='logs' slopvestigator_bench sandbox scripts configs pyproject.toml uv.lock) 2>/dev/null || true
 CODE_SNAPSHOT_SHA256="$(shasum -a 256 "$RUN/code_snapshot.tar.gz" | cut -c1-64)"
 # This survives credential, canary, or image-launch failures that occur before
 # the complete metadata document can be rendered below.
@@ -149,7 +149,7 @@ cleanup() {
   rm -rf "$SECRETS"
   AUDIT_PYTHON="${AUDIT_PYTHON:-$ROOT/.venv/bin/python}"
   [ -x "$AUDIT_PYTHON" ] || AUDIT_PYTHON="$(command -v python3)"
-  PYTHONPATH="$ROOT" "$AUDIT_PYTHON" -m messageboard_audit_bench.run_audit "$RUN" --out "$RUN" > "$RUN/audit-build.log" 2>&1 || {
+  PYTHONPATH="$ROOT" "$AUDIT_PYTHON" -m slopvestigator_bench.run_audit "$RUN" --out "$RUN" > "$RUN/audit-build.log" 2>&1 || {
     echo "per-run audit failed; see $RUN/audit-build.log" >&2
   }
 }
@@ -168,11 +168,11 @@ timeout_seconds() {
 # On a resume the follow-up message lives only in the run dir: /work/prompt.txt stays the
 # parent's original prompt, exactly as the model has seen it all along.
 PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/prompt.txt"
-python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-limit "${CFG_MEMORY_LIMIT:-}" > "$PROMPT_OUT"
-python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" --notice "${CFG_RUNTIME_NOTICE:-}" >> "$PROMPT_OUT"
+python3 "$ROOT/slopvestigator_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-limit "${CFG_MEMORY_LIMIT:-}" > "$PROMPT_OUT"
+python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" --notice "${CFG_RUNTIME_NOTICE:-}" >> "$PROMPT_OUT"
 # memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
-[ -z "${CFG_MEMORY_LIMIT:-}" ] || python3 "$ROOT/messageboard_audit_bench/report_length.py" --memory-limit "$CFG_MEMORY_LIMIT" --memory-note "$DATA_DIR" >> "$PROMPT_OUT"
-MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
+[ -z "${CFG_MEMORY_LIMIT:-}" ] || python3 "$ROOT/slopvestigator_bench/report_length.py" --memory-limit "$CFG_MEMORY_LIMIT" --memory-note "$DATA_DIR" >> "$PROMPT_OUT"
+MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 [ -z "$RESUME_FROM" ] && cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
 PROMPT="$(cat "$RUN/prompt.txt")"
 
@@ -326,7 +326,7 @@ DP_PY="$ROOT/.venv/bin/python"
 [ -x "$DP_PY" ] || DP_PY=python3
 DP_OUT="$(cd "$ROOT" && "$DP_PY" - "$VARIANT" "$DATA_DIR" 2>/dev/null <<'PYPROV'
 import json, sys
-from messageboard_audit_bench.provenance import data_provenance
+from slopvestigator_bench.provenance import data_provenance
 print(json.dumps(data_provenance(sys.argv[1], data_dir=sys.argv[2])))
 PYPROV
 )" && [ -n "$DP_OUT" ] && DATA_PROVENANCE="$DP_OUT"
@@ -475,7 +475,7 @@ jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
 # Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
 save_sessions
 # Tokens (incl. reasoning), cache, cost, API calls/retries, how the run ended -> <run>/usage.json, key figures into meta.json.
-PYTHONPATH="$ROOT" python3 "$ROOT/messageboard_audit_bench/usage.py" "$RUN" --quiet || { echo "usage summary failed" >&2; if [ "$RC" -eq 0 ]; then RC=6; fi; }
+PYTHONPATH="$ROOT" python3 "$ROOT/slopvestigator_bench/usage.py" "$RUN" --quiet || { echo "usage summary failed" >&2; if [ "$RC" -eq 0 ]; then RC=6; fi; }
 set +e
 python3 "$ROOT/scripts/postprocess_trial.py" "$RUN" "$RC" "$((END-START))"
 RC=$?

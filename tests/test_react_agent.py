@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from messageboard_audit_bench.usage import summarize_claude_stream
+from slopvestigator_bench.usage import summarize_claude_stream
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
 def react(tmp_path, monkeypatch):
-    monkeypatch.syspath_prepend(str(ROOT / "messageboard_audit_bench"))
+    monkeypatch.syspath_prepend(str(ROOT / "slopvestigator_bench"))
     spec = importlib.util.spec_from_file_location("react_agent", ROOT / "sandbox/react_agent.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

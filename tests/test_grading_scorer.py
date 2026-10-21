@@ -27,8 +27,8 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
-from messageboard_audit_bench.grading import core, export
-from messageboard_audit_bench.grading.scorer import sheet_scorer
+from slopvestigator_bench.grading import core, export
+from slopvestigator_bench.grading.scorer import sheet_scorer
 
 REPORT = "## TL;DR\nAgents from OpenAI colluded on a wiki.\n\n## Findings\nDetail.\n"
 

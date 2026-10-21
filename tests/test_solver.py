@@ -16,8 +16,8 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
-from messageboard_audit_bench.scorer import process_metrics, rubric_scorer
-from messageboard_audit_bench.solver import _fold, replay, subscription_agent
+from slopvestigator_bench.scorer import process_metrics, rubric_scorer
+from slopvestigator_bench.solver import _fold, replay, subscription_agent
 
 
 def _run_dir(path: Path) -> Path:
@@ -190,7 +190,7 @@ async def test_subscription_agent_folds_successful_trial(
             stderr="",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
+    monkeypatch.setattr("slopvestigator_bench.solver._run_async", fake_run)
 
     state = await subscription_agent(
         allow_networked_subscription=True,
@@ -228,7 +228,7 @@ async def test_subscription_agent_surfaces_trial_failure(monkeypatch) -> None:
             stderr="docker unavailable",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
+    monkeypatch.setattr("slopvestigator_bench.solver._run_async", fake_run)
 
     with pytest.raises(
         RuntimeError,
@@ -264,7 +264,7 @@ async def test_subscription_agent_folds_timed_out_trial(
             stderr="time limit reached",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
+    monkeypatch.setattr("slopvestigator_bench.solver._run_async", fake_run)
 
     state = await subscription_agent(
         allow_networked_subscription=True,
@@ -295,9 +295,9 @@ async def test_subscription_agent_recovers_host_guard_timeout(
             stderr=b"stuck cleanup",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
+    monkeypatch.setattr("slopvestigator_bench.solver._run_async", fake_run)
     monkeypatch.setattr(
-        "messageboard_audit_bench.solver._cleanup_interrupted_run",
+        "slopvestigator_bench.solver._cleanup_interrupted_run",
         lambda path: cleaned.append(path),
     )
 
@@ -348,7 +348,7 @@ async def test_subscription_refusal_reruns_twice_with_same_model(
             stderr="model refusal",
         )
 
-    monkeypatch.setattr("messageboard_audit_bench.solver._run_async", fake_run)
+    monkeypatch.setattr("slopvestigator_bench.solver._run_async", fake_run)
 
     state = await subscription_agent(
         allow_networked_subscription=True,
@@ -382,12 +382,12 @@ async def test_cancellation_terminates_runner_and_cleans_recorded_resources(
     import asyncio
     import sys
 
-    from messageboard_audit_bench.solver import _run_async
+    from slopvestigator_bench.solver import _run_async
 
     ready = tmp_path / "ready"
     cleaned = []
     monkeypatch.setattr(
-        "messageboard_audit_bench.solver._cleanup_interrupted_run",
+        "slopvestigator_bench.solver._cleanup_interrupted_run",
         lambda path: cleaned.append(path),
     )
     script = (

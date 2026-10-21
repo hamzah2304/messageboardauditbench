@@ -19,7 +19,7 @@ data in a network-disabled Inspect Docker sandbox; Claude Code and Codex obtain
 their model connection from Inspect SWE, so Inspect owns the calls and logs
 events live. The scripts documented below are the opt-in subscription backend:
 they use the repository proxy and logged-in CLI credentials, then import the
-recorded event stream into Inspect. See `messageboard_audit_bench/README.md` for
+recorded event stream into Inspect. See `slopvestigator_bench/README.md` for
 the native commands.
 
 ## How isolation works (Docker)
@@ -131,7 +131,7 @@ Each run writes `runs/<timestamp>_<agent>_<model>_r<replicate>_<config>_<run-id>
 agent saw. Exit code 124 means the timeout fired.
 
 What each run logs about the model calls (`<run>/usage.json`, written by
-`messageboard_audit_bench/usage.py`; the key figures are copied into `meta.json` under
+`slopvestigator_bench/usage.py`; the key figures are copied into `meta.json` under
 `usage`, and Inspect reads the same numbers through `transcripts.py`):
 
 - tokens: total input, uncached input, output, cache read, cache write, cache-read

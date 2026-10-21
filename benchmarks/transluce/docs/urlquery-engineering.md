@@ -109,10 +109,10 @@ implemented for this first pilot.
 From the task checkout (Python 3.11+; Docker for trials):
 
 ```sh
-.venv/bin/python -m messageboard_audit_bench.urlquery_data
-.venv/bin/python -m messageboard_audit_bench.urlquery_prepare
+.venv/bin/python -m slopvestigator_bench.urlquery_data
+.venv/bin/python -m slopvestigator_bench.urlquery_prepare
 # Creates a resolved config and explicit matrix; --launch is required for calls:
-.venv/bin/python -m messageboard_audit_bench.urlquery_pilot \
+.venv/bin/python -m slopvestigator_bench.urlquery_pilot \
   --dataset /absolute/primary/checkout/data/urlquery/2026-09-26-v1 --launch
 .venv/bin/python scripts/collect_reports.py --benchmark urlquery --include-partial --include-rejected
 ```
@@ -177,7 +177,7 @@ recorded credentials, and this repository is public.
 
 ## Manual findings remain a separate step
 
-`viewers/build_urlquery_findings.py` (defaults to the cached
+`scripts/viewers/build_urlquery_findings.py` (defaults to the cached
 `data/transluce/agent-activity.html`) renders the article as published, using
 Transluce's own stylesheet and figures (cached once in
 `data/transluce/site_assets/`, images inlined), with every script, event handler,

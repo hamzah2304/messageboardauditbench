@@ -20,8 +20,8 @@ from pathlib import Path
 # prior editable installation.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from messageboard_audit_bench.log_export import export_logs
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.log_export import export_logs
+from slopvestigator_bench.runtime import repo_root
 
 
 def main() -> int:
@@ -67,7 +67,7 @@ def main() -> int:
     )
     print(f"{len(rows)} reports -> {args.out}")
     if args.graded_inputs:
-        from messageboard_audit_bench.log_export import export_graded_inputs
+        from slopvestigator_bench.log_export import export_graded_inputs
 
         written = export_graded_inputs(
             rows, Path(args.out), repo_root() / "benchmarks" / "german-wiki" / "graded_inputs", args.graded_inputs

@@ -1,7 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from messageboard_audit_bench.log_export import export_records, records_from_log
+from slopvestigator_bench.log_export import export_records, records_from_log
 
 
 def _log(*, backend: str = "inspect", report: str = "# Report", exit_code: int = 0,
@@ -131,7 +131,7 @@ def test_disabled_native_length_bounds_are_not_rejected(tmp_path: Path) -> None:
 
 
 def test_index_carries_outcome_fields_and_served_model_tag(tmp_path: Path) -> None:
-    from messageboard_audit_bench.log_export import export_graded_inputs
+    from slopvestigator_bench.log_export import export_graded_inputs
 
     log = _log(report="# Report\n\nfour words here now")
     log.samples[0].metadata.update(

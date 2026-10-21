@@ -28,12 +28,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from messageboard_audit_bench.report_length import (  # noqa: E402
+from slopvestigator_bench.report_length import (  # noqa: E402
     acceptance_limits,
     limits,
     measure,
 )
-from messageboard_audit_bench.benchmarks import benchmark_spec  # noqa: E402
+from slopvestigator_bench.benchmarks import benchmark_spec  # noqa: E402
 
 
 def main() -> int:
@@ -133,7 +133,7 @@ def main() -> int:
                      **{k: meta.get(k) for k in ("mode", "parent_run_dir", "parent_run_id", "parent_thread_id", "parent_budget_min") if k in meta},
                      "report_rejected": rejected,
                      **length,
-                     "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see messageboard_audit_bench/usage.py)
+                     "usage": usage})  # tokens incl. reasoning, cache, cost, api calls (see slopvestigator_bench/usage.py)
         if a.benchmark == "urlquery":
             rows[-1].update({key: meta.get(key) for key in ("benchmark_id", "dataset_sha256", "dataset_version", "rubric_version", "scoring_status", "stopped_at_active_limit", "termination", "report_finalization")})
     out.mkdir(parents=True, exist_ok=True)

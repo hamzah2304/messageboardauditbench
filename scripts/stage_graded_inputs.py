@@ -18,7 +18,7 @@ import json, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from paths import GRADED_INPUTS, ROOT
+from slopvestigator_bench.paths import GRADED_INPUTS, ROOT
 
 
 def main():

@@ -4,8 +4,8 @@ import pytest
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
-from messageboard_audit_bench.sandbox import IsolatedDockerSandbox
-from messageboard_audit_bench.task import _inspect_sandbox
+from slopvestigator_bench.sandbox import IsolatedDockerSandbox
+from slopvestigator_bench.task import _inspect_sandbox
 
 
 def test_custom_sandbox_is_registered_and_keeps_network_disabled():

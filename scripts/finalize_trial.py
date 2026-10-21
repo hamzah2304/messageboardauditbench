@@ -4,7 +4,7 @@
     scripts/finalize_trial.py <run_dir> [<run_dir> ...]
 
 Reproduces the tail of sandbox/docker/run_trial.sh from what is on disk: copies work/report.md
-(and final_message.md) to the run root, summarizes usage (messageboard_audit_bench.usage), and writes
+(and final_message.md) to the run root, summarizes usage (slopvestigator_bench.usage), and writes
 exit_code / wall_seconds / model_fallback / model_served / model_refusal / usage into meta.json.
 The container's exit code is gone, so it is inferred: 1 if the transcript's result says
 is_error, 5 on a refusal that ended the run, else 0. wall_seconds is transcript mtime - start.
@@ -22,7 +22,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "messageboard_audit_bench"))
+sys.path.insert(0, str(ROOT / "slopvestigator_bench"))
 from report_length import acceptance_limits, limits, measure  # noqa: E402
 
 
@@ -42,7 +42,7 @@ def finalize(run: pathlib.Path, force: bool = False) -> None:
     subprocess.run(
         [
             sys.executable,
-            str(ROOT / "messageboard_audit_bench" / "usage.py"),
+            str(ROOT / "slopvestigator_bench" / "usage.py"),
             str(run),
             "--quiet",
         ],

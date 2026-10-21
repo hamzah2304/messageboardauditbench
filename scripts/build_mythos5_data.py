@@ -19,7 +19,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from paths import DATA  # noqa: E402
+from slopvestigator_bench.paths import DATA  # noqa: E402
 
 SOURCE_URL = (
     "https://raw.githubusercontent.com/anthropics/"

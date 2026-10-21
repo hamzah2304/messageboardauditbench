@@ -22,7 +22,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
-from paths import RUBRICS
+from slopvestigator_bench.paths import RUBRICS
 
 HERE = RUBRICS / "rubyhack"
 SRC = HERE / "claims_rh.json"

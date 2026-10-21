@@ -1,6 +1,6 @@
 import pytest
 
-from viewers import browser_executable
+from scripts.viewers import browser_executable
 
 
 def test_explicit_browser_override(monkeypatch):

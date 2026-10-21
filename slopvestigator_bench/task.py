@@ -1,0 +1,957 @@
+"""Inspect tasks for the benchmarks in this repository.
+
+Every benchmark shares one harness: named configs, prompt rendering, the Inspect-native
+sandbox and agents, the subscription runner (sandbox/docker/run_trial.sh) and the grading
+plumbing. Each benchmark is its own task, with its own version, configs, prompts, data and
+rubric (see `slopvestigator_bench.benchmarks`).
+
+  * `german_wiki_report` runs fresh collusion.wiki trials. The default ``inspect``
+    backend uses Inspect SWE and Inspect's own model, sandbox, limits, prompt caching,
+    and live logs. The ``subscription`` backend preserves the original
+    subscription-authenticated CLI runner.
+      inspect eval slopvestigator_bench/german_wiki_report \
+        -T agent=claude -T backend=inspect -T time_limit_minutes=30 \
+        --model anthropic/claude-opus-4-1
+
+  * `transluce_report` runs fresh Transluce/urlquery.net trials on the pinned frozen
+    snapshot and grades them with the per-finding judge.
+      inspect eval slopvestigator_bench/transluce_report \
+        -T agent=codex -T backend=subscription -T subscription_model=gpt-6-astra
+
+  * `aivillage_report` runs fresh AI Village trials on the logs built from AI Digest's
+    dataset and grades them against the 96 rubric findings.
+      inspect eval slopvestigator_bench/aivillage_report \
+        -T agent=codex --model openai/gpt-6.1-sol --model-role grader=openai/gpt-6.1-sol
+
+  * `german_wiki_report_replay` imports runs already on disk under runs/,
+    so `inspect view` can render past or interrupted runs with scoring.
+      inspect eval slopvestigator_bench/german_wiki_report_replay
+
+  * `german_wiki_report_continue` resumes one finished ReAct sample from
+    its eval log: the stored conversation is the prefill, the report it wrote
+    is put back in the sandbox, and a follow-up message asks for more.
+      inspect eval slopvestigator_bench/german_wiki_report_continue \
+        -T parent_log=logs/round4/react-kimi-k3/120m/<log>.eval -T parent_epochs=1
+
+The fresh-trial tasks take ``-T version=<MAJOR.MINOR>`` and refuse to run if this
+checkout is a different version; ``scripts/run_eval.py --version`` runs any tagged
+version (docs/benchmark-versions.md), under the package and task names that version had.
+
+View any result with:  inspect view
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from pathlib import Path
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.log import read_eval_log
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+    GenerateConfig,
+)
+from inspect_ai.util import (
+    ComposeBuild,
+    ComposeConfig,
+    ComposeService,
+    SandboxEnvironmentSpec,
+)
+
+from slopvestigator_bench import runtime_policy
+from slopvestigator_bench import sandbox as _sandbox_policy  # noqa: F401
+from slopvestigator_bench.benchmarks import (
+    SPECS,
+    URLQUERY_CODEX_FEATURES_OFF,
+    WIKI_INCIDENT,
+    check_version,
+    config_names,
+    default_config,
+    primary_root,
+    reject_foreign_grading,
+    urlquery_dataset_dir,
+    urlquery_manifest,
+)
+from slopvestigator_bench.configs import CONFIG_NAME, load_config
+from slopvestigator_bench.grading.aivillage import aivillage_scorer
+from slopvestigator_bench.grading.core import variant_for_data
+from slopvestigator_bench.grading.finding_scorer import finding_scorer
+from slopvestigator_bench.grading.scorer import sheet_scorer
+from slopvestigator_bench.incidents import (
+    data_variants,
+    default_rubrics,
+    incident,
+    incident_for_variant,
+)
+from slopvestigator_bench.native import inspect_native_agent
+from slopvestigator_bench.report_length import (
+    acceptance_limits,
+    limits,
+    memory_note,
+    render_prompt,
+)
+from slopvestigator_bench.runtime import repo_root
+from slopvestigator_bench.sandbox import IsolatedDockerSandbox  # noqa: F401
+from slopvestigator_bench.scorer import (
+    process_metrics,
+    report_length,
+    rubric_scorer,
+)
+from slopvestigator_bench.solver import replay, subscription_agent
+
+# Versions live in the benchmark registry; bump there when the agent-visible task,
+# eligibility rule, or default grading changes. See docs/benchmark-versions.md.
+EVAL_VERSION = SPECS["messageboard"].eval_version
+URLQUERY_EVAL_VERSION = SPECS["urlquery"].eval_version
+_CONFIG_NAME = CONFIG_NAME
+_CONFIGS = config_names("messageboard")
+_DATA_VARIANTS = data_variants()
+_WIKI_VARIANTS = frozenset(incident(WIKI_INCIDENT).variants)
+_SUPPORTED_AGENTS = {"claude", "codex", "react"}
+_BACKENDS = {"inspect", "subscription"}
+DEFAULT_TIME_LIMIT_MINUTES = 20
+TIMEOUT_GRACE_MINUTES = 5
+
+
+def _load_config(config_name: str, benchmark_id: str = "messageboard", allow_drafts: bool = False) -> dict:
+    """Load one of a benchmark's named configurations."""
+    return load_config(config_name, benchmark_id, allow_drafts=allow_drafts)
+
+
+def _time_limit(
+    time_limit_minutes: int | None, default: int = DEFAULT_TIME_LIMIT_MINUTES
+) -> int:
+    value = default if time_limit_minutes is None else time_limit_minutes
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError("time_limit_minutes must be a positive integer")
+    return value
+
+
+def _min_runtime_fraction(min_runtime_fraction: float | None) -> float:
+    """Validate the proportion of an agent budget that must be used.
+
+    Zero is intentionally allowed as an explicit opt-out for ablations and
+    backwards-compatible comparisons. A value of one would leave no time for a
+    normal completion, so it is rejected.
+    """
+    value = (
+        runtime_policy.DEFAULT_MIN_RUNTIME_FRACTION
+        if min_runtime_fraction is None
+        else min_runtime_fraction
+    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("min_runtime_fraction must be a finite number in [0, 1)")
+    try:
+        result = runtime_policy.fraction(value)
+    except ValueError as exc:
+        raise ValueError(
+            "min_runtime_fraction must be a finite number in [0, 1)"
+        ) from exc
+    if result >= 1:
+        raise ValueError("min_runtime_fraction must be a finite number in [0, 1)")
+    return result
+
+
+def _minimum_runtime_instruction(budget_seconds: int, fraction: float, notice: str = "") -> str:
+    """The shared, parameterized prompt contract for early completion."""
+    return runtime_policy.instruction(fraction, budget_seconds / 60, notice)
+
+
+def _prompt_for(
+    config_name: str,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float | None = None,
+    benchmark_id: str = "messageboard",
+    allow_drafts: bool = False,
+) -> str:
+    cfg = _load_config(config_name, benchmark_id, allow_drafts)
+    budget_minutes = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
+    fraction = _min_runtime_fraction(min_runtime_fraction)
+    text = (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text()
+    memory = cfg.get("memory_limit", "")
+    # The same prompt the subscription runner writes: template, runtime notice, memory note.
+    return (
+        render_prompt(text, budget_minutes, *limits(cfg), int(cfg.get("findings_count") or 0),
+                      bool(cfg.get("subagents")), memory)
+        + _minimum_runtime_instruction(budget_minutes * 60, fraction, cfg.get("runtime_notice", ""))
+        + (memory_note(memory, _data_mount(cfg["data_variant"], benchmark_id)[0]) if memory else "")
+    )
+
+
+def _claude_disallowed_tools(cfg: dict) -> list[str]:
+    """The config's denylist; ``subagents`` adds or removes Task/Agent, as the runner does."""
+    tools = list(cfg.get("claude_disallowed_tools", []))
+    if "subagents" not in cfg:
+        return tools
+    if cfg["subagents"]:
+        return [t for t in tools if t not in {"Task", "Agent"}]
+    return tools + [t for t in ("Task", "Agent") if t not in tools]
+
+
+def _codex_settings(cfg: dict, benchmark_id: str) -> tuple[tuple[str, ...], dict[str, str]]:
+    """Codex features to switch off, and other config overrides, as the runner sets them."""
+    if benchmark_id == "urlquery":
+        return URLQUERY_CODEX_FEATURES_OFF, {}
+    overrides = {}
+    if "codex_tool_output_token_limit" in cfg:
+        overrides["tool_output_token_limit"] = str(cfg["codex_tool_output_token_limit"])
+    if "subagents" not in cfg:
+        return (), overrides
+    if cfg["subagents"]:
+        return (), {**overrides, "features.multi_agent": "true", "features.multi_agent_v2": "true"}
+    return ("multi_agent", "multi_agent_v2"), overrides
+
+
+def _agent_env(cfg: dict, agent: str) -> dict[str, str]:
+    env = {}
+    if agent == "claude" and cfg.get("bash_max_output_length"):
+        env["BASH_MAX_OUTPUT_LENGTH"] = str(cfg["bash_max_output_length"])
+    if cfg.get("early_stop_note"):
+        env["MBAB_EARLY_STOP_NOTE"] = cfg["early_stop_note"]
+    return env
+
+
+def _scaffold(agent: str, backend: str) -> str:
+    """Name the actual agent loop independently of its model transport."""
+    if agent == "claude":
+        return "claude-code"
+    if agent == "codex":
+        return "codex-cli"
+    return "inspect-react" if backend == "inspect" else "legacy-react"
+
+
+def _data_mount(data_variant: str, benchmark_id: str) -> tuple[Path, dict[str, str]]:
+    """The host directory mounted read-only at /work/data, and the preflight's env."""
+    if benchmark_id == "urlquery":
+        # One frozen snapshot, in the primary checkout; the in-container preflight
+        # checks its manifest against the pinned hash before the agent starts.
+        return urlquery_dataset_dir(), {
+            "MBAB_BENCHMARK_ID": "urlquery",
+            "MBAB_DATASET_SHA256": urlquery_manifest()["dataset"]["sha256"],
+        }
+    if benchmark_id == "aivillage":
+        # Built once, in the primary checkout (scripts/aivillage/build_aivillage_data.py).
+        data_dir = primary_root() / "data" / data_variant
+        if not data_dir.is_dir():
+            raise FileNotFoundError(f"no AI Village data at {data_dir}; run scripts/aivillage/build_aivillage_data.py")
+        return data_dir.resolve(), {"MBAB_BENCHMARK_ID": "aivillage"}
+    data_dir = (repo_root().resolve() / "data" / data_variant).resolve()
+    # A task worktree holds per-file symlinks to the primary checkout's data.
+    # A bind mount cannot follow those, so mount the directory they resolve to.
+    targets = {p.resolve().parent for p in data_dir.glob("*.jsonl") if p.is_symlink()}
+    if len(targets) == 1:
+        data_dir = targets.pop()
+    elif targets:
+        raise RuntimeError(f"data/{data_variant} symlinks point at several directories")
+    return data_dir, {"MBAB_DATA_FILES": ",".join(incident_for_variant(data_variant).corpus["files"])}
+
+
+def _dockerfile(cfg: dict | None) -> str:
+    """The sandbox Dockerfile, with the config's pinned CLI versions if it pins them.
+
+    Inspect's compose build takes no build args, so a pinned config gets a generated
+    copy (gitignored, one per pin pair) whose ARG defaults are the pins: the same
+    versions resolve_image.sh passes the subscription runner as --build-arg.
+    """
+    if not cfg or "claude_cli_version" not in cfg:
+        return "sandbox/docker/Dockerfile"
+    repo = repo_root()
+    claude, codex = cfg["claude_cli_version"], cfg["codex_cli_version"]
+    text = (repo / "sandbox/docker/Dockerfile").read_text()
+    pinned = re.sub(r"^ARG CLAUDE_VERSION=.*$", f"ARG CLAUDE_VERSION={claude}", text, count=1, flags=re.M)
+    pinned = re.sub(r"^ARG CODEX_VERSION=.*$", f"ARG CODEX_VERSION=rust-v{codex}", pinned, count=1, flags=re.M)
+    if f"ARG CLAUDE_VERSION={claude}" not in pinned or f"ARG CODEX_VERSION=rust-v{codex}" not in pinned:
+        raise RuntimeError("sandbox Dockerfile no longer declares the CLI version ARGs")
+    relative = f"sandbox/docker/.generated/Dockerfile.codex-{codex}-claude-{claude}"
+    path = repo / relative
+    if not path.is_file() or path.read_text() != pinned:
+        # Concurrent evals may share a pin pair; replace atomically so a build never
+        # reads a half-written file.
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(pinned)
+        os.replace(tmp, path)
+    return relative
+
+
+def _inspect_sandbox(
+    data_variant: str, benchmark_id: str = "messageboard", cfg: dict | None = None
+) -> SandboxEnvironmentSpec:
+    """Build the standard Inspect Docker sandbox with read-only benchmark data.
+
+    A config that pins CLI versions (every URLQuery config) builds the image with them.
+    """
+    repo = repo_root().resolve()
+    data_dir, environment = _data_mount(data_variant, benchmark_id)
+    return SandboxEnvironmentSpec(
+        type="isolated-docker",
+        config=ComposeConfig(
+            services={
+                "default": ComposeService(
+                    build=ComposeBuild(
+                        context=str(repo),
+                        dockerfile=_dockerfile(cfg),
+                    ),
+                    command="tail -f /dev/null",
+                    init=True,
+                    network_mode="none",
+                    user="1000:1000",
+                    cap_drop=["ALL"],
+                    security_opt=["no-new-privileges:true"],
+                    environment=environment,
+                    working_dir="/work",
+                    volumes=[f"{data_dir}:/work/data:ro"],
+                    **({"mem_limit": cfg["memory_limit"], "memswap_limit": cfg["memory_limit"]}
+                       if cfg and cfg.get("memory_limit") else {}),
+                )
+            }
+        ),
+    )
+
+
+def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) -> list:
+    """Benchmark sheets plus diagnostic scores; legacy grading is explicit."""
+    scorers = [process_metrics(), report_length()]
+    if rubric == "legacy":
+        return [rubric_scorer(judge=judge), *scorers]
+    default_rubric = default_rubrics(data_variant or "verbatim")
+    modes = [mode.strip() for mode in (rubric or default_rubric).split(",") if mode.strip()]
+    if len(modes) != len(set(modes)):
+        raise ValueError("rubric must not contain duplicate modes")
+    return [
+        sheet_scorer(rubric=mode, judge=judge, variant=variant_for_data(data_variant))
+        for mode in modes
+    ] + scorers
+
+
+def _audit_task(
+    benchmark_id: str,
+    *,
+    agent: str,
+    backend: str,
+    subscription_model: str | None,
+    config: str,
+    allow_networked_subscription: bool,
+    time_limit_minutes: int | None,
+    min_runtime_fraction: float,
+    data_variant: str | None,
+    scorers: list,
+    extra_sample_metadata: dict | None = None,
+    extra_task_metadata: dict | None = None,
+    allow_drafts: bool = False,
+) -> Task:
+    """One fresh sandboxed audit trial of any registered benchmark.
+
+    ``allow_drafts`` admits the draft incidents; only `incident_task` sets it.
+    """
+    spec = SPECS[benchmark_id]
+    cfg = _load_config(config, benchmark_id, allow_drafts)
+    if data_variant is not None:
+        allowed = _DATA_VARIANTS if allow_drafts else _WIKI_VARIANTS
+        if benchmark_id != "messageboard" or data_variant not in allowed:
+            raise ValueError(f"unsupported data_variant {data_variant!r}")
+        cfg = {**cfg, "data_variant": data_variant}
+    if agent not in _SUPPORTED_AGENTS:
+        raise ValueError(
+            f"unsupported agent {agent!r}; choose from: {', '.join(sorted(_SUPPORTED_AGENTS))}"
+        )
+    if backend not in _BACKENDS:
+        raise ValueError(
+            f"unsupported backend {backend!r}; choose from: "
+            f"{', '.join(sorted(_BACKENDS))}"
+        )
+    if backend == "inspect" and subscription_model is not None:
+        raise ValueError(
+            "subscription_model only applies to backend='subscription'; "
+            "use Inspect's --model option for backend='inspect'"
+        )
+    if backend == "subscription" and not subscription_model:
+        raise ValueError(
+            "backend='subscription' requires -T subscription_model=<cli-model>"
+        )
+    if backend == "subscription" and not allow_networked_subscription:
+        raise ValueError(
+            "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
+        )
+    budget_min = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
+    runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
+    minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
+        budget_min * 60, runtime_fraction
+    )
+    cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
+    identity = (
+        {"incident": incident_for_variant(cfg["data_variant"]).id}
+        if benchmark_id == "messageboard"
+        else {"benchmark_id": benchmark_id}
+    )
+    sample_metadata = {
+        **identity,
+        "agent": agent,
+        "scaffold": _scaffold(agent, backend),
+        "backend": backend,
+        "isolation": (
+            "network_none" if backend == "inspect" else "provider_network_shared"
+        ),
+        "config": config,
+        "budget_min": budget_min,
+        "min_runtime_fraction": runtime_fraction,
+        "minimum_runtime_seconds": minimum_runtime_seconds,
+        "data_variant": cfg["data_variant"],
+        "effort": cfg["effort"],
+        "report_min_words": limits(cfg)[0],
+        "report_max_words": limits(cfg)[1],
+        "report_accept_min_words": acceptance_limits(cfg)[0],
+        "report_accept_max_words": acceptance_limits(cfg)[1],
+        **(extra_sample_metadata or {}),
+    }
+    if subscription_model is not None:
+        sample_metadata["subscription_model"] = subscription_model
+    sample = Sample(
+        input=_prompt_for(config, budget_min, runtime_fraction, benchmark_id, allow_drafts),
+        id=f"{agent}:{backend}:{config}:{budget_min}m",
+        metadata=sample_metadata,
+    )
+    if backend == "inspect":
+        codex_features_off, codex_config = _codex_settings(cfg, benchmark_id)
+        selected_solver = inspect_native_agent(
+            agent=agent,
+            time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=_claude_disallowed_tools(cfg),
+            report_min_words=limits(cfg)[0],
+            report_max_words=limits(cfg)[1],
+            min_runtime_fraction=runtime_fraction,
+            codex_features_off=codex_features_off,
+            codex_config=codex_config,
+            agent_env=_agent_env(cfg, agent),
+        )
+        selected_sandbox = _inspect_sandbox(cfg["data_variant"], benchmark_id, cfg)
+        generate_config = GenerateConfig(
+            cache_prompt=True,
+            reasoning_effort=cfg["effort"],
+        )
+    else:
+        assert subscription_model is not None
+        selected_solver = subscription_agent(
+            agent=agent,
+            model=subscription_model,
+            allow_networked_subscription=allow_networked_subscription,
+            config=config,
+            time_limit_minutes=budget_min,
+            timeout_minutes=cleanup_timeout_minutes,
+            prompt=cfg["prompt"],
+            # The runner resolves URLQuery's pinned snapshot from the config itself.
+            data_variant=cfg["data_variant"] if benchmark_id == "messageboard" else None,
+            effort=cfg["effort"],
+            min_runtime_fraction=runtime_fraction,
+        )
+        selected_sandbox = None
+        generate_config = GenerateConfig()
+    return Task(
+        dataset=[sample],
+        solver=selected_solver,
+        scorer=scorers,
+        config=generate_config,
+        # Subscription calls occur outside Inspect's model provider. Supplying
+        # the no-cost mock model keeps Inspect from requiring an unrelated
+        # default; metadata records the actual CLI model.
+        model="mockllm/model" if backend == "subscription" else None,
+        sandbox=selected_sandbox,
+        # Native execution gets a scoped budget plus this outer cleanup guard.
+        # The subscription runner already owns its hard timeout; another equal
+        # Inspect timeout can interrupt transcript folding and report recovery.
+        time_limit=(cleanup_timeout_minutes * 60 if backend == "inspect" else None),
+        version=spec.eval_version,
+        metadata={
+            "benchmark": spec.title,
+            "benchmark_id": benchmark_id,
+            **identity,
+            "backend": backend,
+            "scaffold": _scaffold(agent, backend),
+            "config": config,
+            "time_limit_minutes": budget_min,
+            "min_runtime_fraction": runtime_fraction,
+            "minimum_runtime_seconds": minimum_runtime_seconds,
+            "hard_time_limit_minutes": cleanup_timeout_minutes,
+            "host_cleanup_guard_minutes": (
+                cleanup_timeout_minutes + TIMEOUT_GRACE_MINUTES
+                if backend == "subscription"
+                else None
+            ),
+            "data_variant": cfg["data_variant"],
+            "report_min_words": limits(cfg)[0],
+            "report_max_words": limits(cfg)[1],
+            "report_accept_min_words": acceptance_limits(cfg)[0],
+            "report_accept_max_words": acceptance_limits(cfg)[1],
+            **(extra_task_metadata or {}),
+        },
+    )
+
+
+def _german_wiki_report(
+    agent: str = "claude",
+    backend: str = "inspect",
+    subscription_model: str | None = None,
+    config: str = "blind",
+    allow_networked_subscription: bool = True,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float = 0.75,
+    judge: str = "openai/gpt-5.6-sol",
+    rubric: str | None = None,
+    data_variant: str | None = None,
+    version: str | None = None,
+) -> Task:
+    """Run one sandboxed German wiki report trial (the collusion.wiki incident).
+
+    Args:
+        agent: Agent harness to launch: ``claude``, ``codex``, or ``react``.
+        backend: ``inspect`` for first-class Inspect execution (Inspect SWE for
+            Claude Code/Codex), or ``subscription`` for the original CLI login.
+        subscription_model: CLI model identifier for the subscription backend.
+            Native runs select their model with Inspect's ``--model`` option.
+        config: Named prompt/data/effort configuration from ``configs/``:
+            ``blind`` (default), ``context`` or ``blind-anthropic``.
+        time_limit_minutes: Trial budget in minutes. Overrides the named
+            config's declared default. Native runs have a separate
+            five-minute outer guard for cleanup and log recovery.
+        min_runtime_fraction: Fraction of the agent budget that must elapse
+            before normal completion is accepted. Defaults to ``0.75``; set
+            ``0`` to disable this continuation policy for an ablation.
+        judge: Inspect model used to grade the report. A ``grader`` model role,
+            when supplied to Inspect, takes precedence over this value.
+        rubric: Comma-separated sheet modes; defaults to ``v2,tldrh`` (findings
+            and the TL;DR summary). Use Inspect's ``--no-score`` to defer grading,
+            or ``legacy`` for the old starter rubric.
+        data_variant: Override the config's dataset, including
+            ``verbatim_anthropic`` for the provider attribution ablation.
+        version: Expected benchmark version (``MAJOR.MINOR``, e.g. ``10.0``). The task
+            refuses to run if this checkout is a different version; use
+            ``scripts/run_eval.py --version`` to run another one.
+    """
+    check_version("messageboard", version)
+    # Resolve the data variant first: it selects the default rubric.
+    variant = data_variant or _load_config(config)["data_variant"]
+    return _audit_task(
+        "messageboard",
+        agent=agent,
+        backend=backend,
+        subscription_model=subscription_model,
+        config=config,
+        allow_networked_subscription=allow_networked_subscription,
+        time_limit_minutes=time_limit_minutes,
+        min_runtime_fraction=min_runtime_fraction,
+        data_variant=data_variant,
+        scorers=_scorers(judge, rubric, variant),
+    )
+
+
+german_wiki_report = task(name="german_wiki_report")(_german_wiki_report)
+
+
+def incident_task(config: str, **kwargs) -> Task:
+    """Build a trial for any registered incident, drafts included.
+
+    For the incident pipeline's offline validation of the draft incidents (Mythos 5,
+    RubyHack). It is not an Inspect task: drafts become their own eval once reviewed.
+    """
+    variant = _load_config(config, allow_drafts=True)["data_variant"]
+    scorer_args = {"judge": kwargs.pop("judge", "openai/gpt-5.6-sol"), "rubric": kwargs.pop("rubric", None)}
+    defaults = {"agent": "claude", "backend": "inspect", "subscription_model": None,
+                "allow_networked_subscription": True, "time_limit_minutes": None,
+                "min_runtime_fraction": 0.75, "data_variant": None}
+    return _audit_task(
+        "messageboard", config=config, allow_drafts=True,
+        scorers=_scorers(scorer_args["judge"], scorer_args["rubric"], kwargs.get("data_variant") or variant),
+        **{**defaults, **kwargs},
+    )
+
+
+def _transluce_report(
+    agent: str = "claude",
+    backend: str = "inspect",
+    subscription_model: str | None = None,
+    config: str | None = None,
+    allow_networked_subscription: bool = True,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float = 0.75,
+    judge: str | None = None,
+    judge_effort: str | None = None,
+    article_context: str | None = None,
+    version: str | None = None,
+) -> Task:
+    """Run one sandboxed Transluce report trial on the pinned urlquery.net snapshot.
+
+    Arguments shared with ``german_wiki_report`` mean the same thing there,
+    including ``version``.
+
+    Args:
+        config: A URLQuery config from benchmarks/transluce/benchmark.json
+            (default ``urlquery-agents-v6-30``).
+        judge: Inspect model for the per-finding judge; defaults to
+            ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` with the full
+            article is the final-run judge. A ``grader`` model role takes precedence.
+        judge_effort: Judge reasoning effort (``xhigh`` for Anthropic, else ``high``).
+        article_context: ``full`` or ``omitted``: whether the judge reads Transluce's
+            article or only the reviewed findings and their quotes. Defaults to
+            ``omitted`` for Anthropic judges (the article made Opus refuse) and ``full``
+            otherwise.
+    """
+    check_version("urlquery", version)
+    manifest = urlquery_manifest()
+    return _audit_task(
+        "urlquery",
+        agent=agent,
+        backend=backend,
+        subscription_model=subscription_model,
+        config=config or default_config("urlquery"),
+        allow_networked_subscription=allow_networked_subscription,
+        time_limit_minutes=time_limit_minutes,
+        min_runtime_fraction=min_runtime_fraction,
+        data_variant=None,
+        scorers=[
+            finding_scorer(judge=judge, effort=judge_effort, article_context=article_context),
+            process_metrics(),
+            report_length(),
+        ],
+        extra_sample_metadata={
+            "dataset_version": manifest["dataset"]["snapshot"],
+            "dataset_sha256": manifest["dataset"]["sha256"],
+        },
+        extra_task_metadata={
+            "dataset_sha256": manifest["dataset"]["sha256"],
+            "rubric": manifest["grading"]["rubric"],
+        },
+    )
+
+
+transluce_report = task(name="transluce_report")(_transluce_report)
+
+
+@task
+def aivillage_report(
+    agent: str = "claude",
+    backend: str = "inspect",
+    subscription_model: str | None = None,
+    config: str | None = None,
+    subagents: bool | None = None,
+    allow_networked_subscription: bool = True,
+    time_limit_minutes: int | None = None,
+    min_runtime_fraction: float | None = None,
+    judge: str | None = None,
+    version: str | None = None,
+) -> Task:
+    """Run one sandboxed AI Village report trial and grade it against the 96 rubric findings.
+
+    Arguments shared with ``german_wiki_report`` mean the same thing there,
+    including ``version``.
+
+    Args:
+        config: ``aivillage-v12-30`` (default) or ``aivillage-v12-30-subagents``.
+        subagents: shorthand for the config: ``true`` picks ``aivillage-v12-30-subagents``.
+        min_runtime_fraction: defaults to the config's (0.9).
+        judge: Inspect model for the judge; defaults to ``openai/gpt-6.1-sol``, the
+            published judge. A ``grader`` model role takes precedence.
+    """
+    check_version("aivillage", version)
+    if config is not None and subagents is not None:
+        raise ValueError("pass config or subagents, not both")
+    config = config or ("aivillage-v12-30-subagents" if subagents else default_config("aivillage"))
+    cfg = _load_config(config, "aivillage")
+    return _audit_task(
+        "aivillage",
+        agent=agent,
+        backend=backend,
+        subscription_model=subscription_model,
+        config=config,
+        allow_networked_subscription=allow_networked_subscription,
+        time_limit_minutes=time_limit_minutes,
+        min_runtime_fraction=(cfg.get("min_runtime_fraction", 0.75) if min_runtime_fraction is None
+                              else min_runtime_fraction),
+        data_variant=None,
+        scorers=[aivillage_scorer(judge=judge), process_metrics(), report_length()],
+        extra_sample_metadata={"subagents": bool(cfg.get("subagents"))},
+    )
+
+
+def _german_wiki_report_replay(
+    runs_glob: str = "*",
+    include_failed: bool = True,
+    judge: str = "openai/gpt-5.6-sol",
+    rubric: str | None = None,
+) -> Task:
+    """Import local run artifacts into Inspect without rerunning agents."""
+    samples = []
+    incidents: set[str] = set()
+    for d in sorted((repo_root() / "runs").glob(runs_glob)):
+        if not (d / "transcript.jsonl").exists():
+            continue
+        meta_path = d / "meta.json"
+        # Nonzero exits can still contain a valuable partial trajectory. The
+        # replay solver records the exit status and missing-report state.
+        if not meta_path.exists():
+            continue
+        meta = json.loads(meta_path.read_text())
+        reject_foreign_grading(meta.get("benchmark_id", "messageboard"))
+        if not include_failed and meta.get("exit_code") != 0:
+            continue
+        data_variant = str(meta.get("data_variant", "verbatim"))
+        incidents.add(incident_for_variant(data_variant).id)
+        agent = next((a for a in ("codex", "react") if f"_{a}_" in d.name), "claude")
+        samples.append(
+            Sample(
+                input=(d / "work" / "prompt.txt").read_text()
+                if (d / "work" / "prompt.txt").exists()
+                else "",
+                id=d.name,
+                metadata={
+                    "run_dir": str(d),
+                    "agent": agent,
+                    "data_variant": data_variant,
+                },
+            )
+        )
+    if not samples:
+        raise RuntimeError(f"no runs matched runs/{runs_glob}")
+    if len(incidents) != 1:
+        raise ValueError(
+            "a replay task cannot mix incidents; narrow runs_glob to one incident"
+        )
+    selected_incident = next(iter(incidents))
+    data_variant = (
+        str(incident(selected_incident).corpus["primary_variant"])
+        if selected_incident != "wiki"
+        else None
+    )
+    return Task(
+        dataset=samples,
+        solver=replay(),
+        scorer=_scorers(judge, rubric, data_variant),
+        version=EVAL_VERSION,
+        metadata={"benchmark": SPECS["messageboard"].title, "benchmark_id": "messageboard", "mode": "replay"},
+    )
+
+
+german_wiki_report_replay = task(name="german_wiki_report_replay")(_german_wiki_report_replay)
+
+
+def _load_followup_config(config_name: str) -> dict:
+    """Load a continuation config; these are not fresh-trial conditions."""
+    repo = repo_root()
+    if not _CONFIG_NAME.fullmatch(config_name):
+        raise ValueError(f"invalid config name {config_name!r}")
+    if config_name not in {"followup-5k", "followup-5k-min5"}:
+        raise ValueError(f"not a continuation config: {config_name!r}")
+    path = repo / "configs" / f"{config_name}.toml"
+    import tomllib
+
+    cfg = tomllib.loads(path.read_text())
+    acceptance_limits(cfg)
+    return cfg
+
+
+def _german_wiki_report_continue(
+    parent_log: str,
+    parent_epochs: str = "all",
+    config: str = "followup-5k",
+    judge: str = "openai/gpt-5.6-sol",
+    rubric: str | None = None,
+) -> Task:
+    """Continue finished ReAct samples with a follow-up request.
+
+    The parent sample's messages become the new sample's input, so the model
+    sees exactly the conversation it had (Inspect's ReAct agent re-inserts the
+    identical system message it prepended the first time, which is why the
+    stored one is dropped). The parent's report is written back to
+    ``/work/report.md`` before the agent starts. Other scratch files the agent
+    made are not recoverable from the log; the follow-up prompt says so.
+
+    Args:
+        parent_log: Path to the round's ``.eval`` log holding the parent samples.
+        parent_epochs: ``all`` or a comma-separated list of epochs to continue.
+        config: Continuation config from ``configs/``; its ``budget_min`` is
+            the extra time and its prompt is the follow-up message.
+        judge: Inspect model used to grade the report.
+        rubric: Comma-separated sheet modes, as on the fresh task.
+    """
+    cfg = _load_followup_config(config)
+    log = read_eval_log(parent_log)
+    if (getattr(log.eval, "metadata", None) or {}).get("benchmark_id", "messageboard") != "messageboard":
+        raise ValueError("cross-benchmark continuation rejected")
+    if log.eval.task_args.get("agent") != "react" or (
+        log.eval.task_args.get("backend", "inspect") != "inspect"
+    ):
+        raise ValueError(
+            "continuation supports react samples run on the inspect backend"
+        )
+    wanted = (
+        None
+        if parent_epochs == "all"
+        else {int(value) for value in str(parent_epochs).split(",") if value.strip()}
+    )
+    parents = [s for s in log.samples or [] if wanted is None or s.epoch in wanted]
+    if not parents:
+        raise ValueError(f"no epochs {parent_epochs} in {parent_log}")
+    variants = {parent.metadata.get("data_variant", cfg["data_variant"]) for parent in parents}
+    if len(variants) != 1:
+        raise ValueError("continuation parents must use the same data variant")
+    cfg = {**cfg, "data_variant": variants.pop()}
+    if len({parent.epoch for parent in parents}) != len(parents):
+        raise ValueError("continuation requires one parent sample per epoch")
+    if wanted is not None and wanted != {parent.epoch for parent in parents}:
+        raise ValueError(f"some requested epochs are missing from {parent_log}")
+    budget_min = _time_limit(int(cfg["budget_min"]))
+    runtime_fraction = _min_runtime_fraction(cfg.get("min_runtime_fraction", 0))
+    minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
+        budget_min * 60, runtime_fraction
+    )
+    cleanup_timeout_minutes = budget_min + TIMEOUT_GRACE_MINUTES
+    followup = render_prompt(
+        (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").read_text(),
+        budget_min,
+        *limits(cfg),
+    ) + _minimum_runtime_instruction(budget_min * 60, runtime_fraction)
+    samples = []
+    reports: dict[int, str] = {}
+    for parent in parents:
+        report = parent.output.completion if parent.output else ""
+        if not parent.metadata.get("report_written") or not report.strip():
+            raise ValueError(
+                f"parent epoch {parent.epoch} has no report to continue from"
+            )
+        reports[parent.epoch] = report
+        history = _close_dangling_tool_calls(list(parent.messages))
+        if history and isinstance(history[0], ChatMessageSystem):
+            history = history[1:]
+        messages = [*history, ChatMessageUser(content=followup)]
+        samples.append(
+            Sample(
+                input=messages,
+                id=(
+                    f"react:inspect:{config}:{budget_min}m:"
+                    f"from{parent.metadata.get('budget_min')}m:e{parent.epoch}"
+                ),
+                metadata=_continuation_sample_metadata(
+                    cfg,
+                    config,
+                    budget_min,
+                    runtime_fraction,
+                    minimum_runtime_seconds,
+                    parent,
+                    parent_log,
+                    log.eval.model,
+                ),
+            )
+        )
+    return Task(
+        dataset=samples,
+        solver=inspect_native_agent(
+            agent="react",
+            time_limit_seconds=budget_min * 60,
+            claude_disallowed_tools=cfg.get("claude_disallowed_tools", []),
+            report_min_words=limits(cfg)[0],
+            report_max_words=limits(cfg)[1],
+            min_runtime_fraction=runtime_fraction,
+            seed_reports=reports,
+        ),
+        scorer=_scorers(judge, rubric, cfg["data_variant"]),
+        config=GenerateConfig(cache_prompt=True, reasoning_effort=cfg["effort"]),
+        model=log.eval.model,
+        sandbox=_inspect_sandbox(cfg["data_variant"]),
+        time_limit=cleanup_timeout_minutes * 60,
+        version=EVAL_VERSION,
+        metadata={
+            "benchmark": SPECS["messageboard"].title,
+            "benchmark_id": "messageboard",
+            "mode": "continuation",
+            "backend": "inspect",
+            "scaffold": _scaffold("react", "inspect"),
+            "config": config,
+            "parent_log": str(parent_log),
+            "parent_epochs": sorted(reports),
+            "time_limit_minutes": budget_min,
+            "min_runtime_fraction": runtime_fraction,
+            "minimum_runtime_seconds": minimum_runtime_seconds,
+            "hard_time_limit_minutes": cleanup_timeout_minutes,
+            "data_variant": cfg["data_variant"],
+            "report_min_words": limits(cfg)[0],
+            "report_max_words": limits(cfg)[1],
+            "report_accept_min_words": acceptance_limits(cfg)[0],
+            "report_accept_max_words": acceptance_limits(cfg)[1],
+        },
+    )
+
+
+german_wiki_report_continue = task(name="german_wiki_report_continue")(_german_wiki_report_continue)
+
+
+UNANSWERED_TOOL_CALL = (
+    "This tool call was not executed: the session was stopped at its time limit."
+)
+
+
+def _close_dangling_tool_calls(messages: list) -> list:
+    """Answer tool calls the parent never got results for.
+
+    A trial stopped at its time limit can end on an assistant turn whose tool
+    calls were never run. OpenAI-style providers reject a conversation that
+    continues past such a turn, so each unanswered call gets a tool result
+    saying what happened, in the position its result would have taken.
+    """
+    answered = {m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)}
+    closed: list = []
+    for message in messages:
+        closed.append(message)
+        if isinstance(message, ChatMessageAssistant):
+            for call in message.tool_calls or []:
+                if call.id not in answered:
+                    closed.append(
+                        ChatMessageTool(
+                            content=UNANSWERED_TOOL_CALL,
+                            tool_call_id=call.id,
+                            function=call.function,
+                        )
+                    )
+    return closed
+
+
+def _continuation_sample_metadata(
+    cfg,
+    config,
+    budget_min,
+    runtime_fraction,
+    minimum_runtime_seconds,
+    parent,
+    parent_log,
+    parent_model,
+) -> dict:
+    parent_meta = parent.metadata
+    return {
+        "agent": "react",
+        "scaffold": _scaffold("react", "inspect"),
+        "backend": "inspect",
+        "isolation": "network_none",
+        "mode": "continuation",
+        "config": config,
+        "budget_min": budget_min,
+        "min_runtime_fraction": runtime_fraction,
+        "minimum_runtime_seconds": minimum_runtime_seconds,
+        "data_variant": cfg["data_variant"],
+        "effort": cfg["effort"],
+        "report_min_words": limits(cfg)[0],
+        "report_max_words": limits(cfg)[1],
+        "report_accept_min_words": acceptance_limits(cfg)[0],
+        "report_accept_max_words": acceptance_limits(cfg)[1],
+        "parent_log": str(parent_log),
+        "parent_sample_id": parent.id,
+        "parent_epoch": parent.epoch,
+        "parent_config": parent_meta.get("config"),
+        "parent_budget_min": parent_meta.get("budget_min"),
+        "parent_report_words": parent_meta.get("report_words"),
+        "parent_messages": len(parent.messages),
+        "parent_model": parent_model,
+    }

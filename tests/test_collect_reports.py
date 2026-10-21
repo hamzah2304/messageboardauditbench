@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from messageboard_audit_bench.runtime import repo_root
+from slopvestigator_bench.runtime import repo_root
 
 
 def _trial(

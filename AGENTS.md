@@ -1,7 +1,7 @@
 # Shared agent working agreement
 
 Codex and Claude Code share this repository with the user, and more than one
-agent may be working at the same time. `CLAUDE.md` imports this file so both
+agent may be working at the same time. `.claude/CLAUDE.md` imports this file so both
 tools follow the same agreement.
 
 ## Worktrees

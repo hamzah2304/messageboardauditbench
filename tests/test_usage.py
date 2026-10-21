@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from messageboard_audit_bench.usage import summarize
+from slopvestigator_bench.usage import summarize
 
 
 def _run_with_result(path: Path) -> Path:

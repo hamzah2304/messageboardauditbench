@@ -26,7 +26,7 @@ builders, sandbox, subscription runner, sheet grader), and the pipeline below va
 it offline, but it is not an Inspect condition of any eval. You pilot it through the
 subscription runner. Once it reaches `reviewed`, give it its own Inspect task with its
 own name and version: a thin wrapper around the shared builder `_audit_task` in
-`messageboard_audit_bench/task.py`, registered in `benchmarks.py` the way
+`slopvestigator_bench/task.py`, registered in `benchmarks.py` the way
 `transluce_report` is. Then list it in
 [`benchmark-versions.md`](benchmark-versions.md).
 
@@ -206,10 +206,10 @@ folder. The sheet grader is shared, so this uses the German wiki report's gradin
 with the draft's own modes:
 
 ```bash
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
+uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=<staged-folder> -T rubric=<finding-mode> \
   --model-role grader=<provider/judge-model>
-uv run inspect eval messageboard_audit_bench/german_wiki_report_grade \
+uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=<staged-folder> -T rubric=<summary-mode> \
   --model-role grader=<provider/judge-model>
 

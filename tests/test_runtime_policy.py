@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from messageboard_audit_bench.runtime_policy import (
+from slopvestigator_bench.runtime_policy import (
     early_stop_reason,
     fraction,
     instruction,
@@ -14,7 +14,7 @@ from messageboard_audit_bench.runtime_policy import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "messageboard_audit_bench" / "runtime_policy.py"
+SCRIPT = ROOT / "slopvestigator_bench" / "runtime_policy.py"
 
 
 def test_ordinary_early_finish_is_blocked_and_recorded(tmp_path: Path) -> None:

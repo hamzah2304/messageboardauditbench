@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from messageboard_audit_bench.benchmarks import BY_NAME, normalize_version  # noqa: E402
+from slopvestigator_bench.benchmarks import BY_NAME, normalize_version  # noqa: E402
 
 # The task each role had before the rename (versions before german-wiki-report-v10.0 /
 # transluce-report-v1.0 only know these names).
@@ -83,14 +83,21 @@ def source_at(ref: str | None, path: str) -> str:
     return result.stdout if result.returncode == 0 else ""
 
 
+def package(ref: str | None) -> str:
+    """The Python package at that version: versions before the SlopvestigatorBench rename
+    ship it as messageboard_audit_bench."""
+    return "slopvestigator_bench" if source_at(ref, "slopvestigator_bench/task.py") else "messageboard_audit_bench"
+
+
 def task_name(ref: str | None, task: str) -> str:
     """The name `task` has at that version: renamed, or the pre-rename name."""
-    source = source_at(ref, "messageboard_audit_bench/task.py") + source_at(ref, "messageboard_audit_bench/grading/task.py")
+    pkg = package(ref)
+    source = source_at(ref, f"{pkg}/task.py") + source_at(ref, f"{pkg}/grading/task.py")
     return task if f'name="{task}"' in source else LEGACY[task]
 
 
 def has_version_guard(ref: str | None) -> bool:
-    return "def check_version" in source_at(ref, "messageboard_audit_bench/benchmarks.py")
+    return "def check_version" in source_at(ref, f"{package(ref)}/benchmarks.py")
 
 
 def plan(name: str, version: str | None, role: str) -> dict:
@@ -133,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         link_shared(primary_root(), checkout)
         subprocess.run(["uv", "sync", "--quiet"], cwd=checkout, check=True)
     name = task_name(p["tag"], p["task"])
-    command = ["uv", "run", "inspect", "eval", f"messageboard_audit_bench/{name}"]
+    command = ["uv", "run", "inspect", "eval", f"{package(p['tag'])}/{name}"]
     # Fresh-trial tasks guard their version; grading/replay tasks have no such option.
     if args.task == "run" and has_version_guard(p["tag"]):
         command += ["-T", f"version={p['version']}"]

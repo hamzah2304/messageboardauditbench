@@ -17,8 +17,8 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall
 from inspect_ai.util import LimitExceededError
 
-import messageboard_audit_bench.native as native
-from messageboard_audit_bench.scorer import process_metrics
+import slopvestigator_bench.native as native
+from slopvestigator_bench.scorer import process_metrics
 from tests.test_solver import _state
 
 

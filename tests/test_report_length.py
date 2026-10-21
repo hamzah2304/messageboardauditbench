@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from inspect_ai.scorer import Target
 
-from messageboard_audit_bench.report_length import (
+from slopvestigator_bench.report_length import (
     acceptance_limits,
     count_feedback_if_changed,
     count_words,
@@ -20,13 +20,13 @@ from messageboard_audit_bench.report_length import (
     stop_reason,
     tldr_words,
 )
-from messageboard_audit_bench.scorer import report_length
-from messageboard_audit_bench.solver import _fold
-from messageboard_audit_bench.task import _prompt_for
+from slopvestigator_bench.scorer import report_length
+from slopvestigator_bench.solver import _fold
+from slopvestigator_bench.task import _prompt_for
 from tests.test_solver import _run_dir, _state
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "messageboard_audit_bench" / "report_length.py"
+SCRIPT = ROOT / "slopvestigator_bench" / "report_length.py"
 
 
 @pytest.mark.parametrize(
@@ -161,7 +161,7 @@ def test_stop_ping_does_not_start_a_rewrite_near_deadline(
     report.write_text("one two three four")
     monkeypatch.setenv("MBAB_DEADLINE_EPOCH", "1059")
     monkeypatch.setattr(
-        "messageboard_audit_bench.report_length.time.time", lambda: 1000
+        "slopvestigator_bench.report_length.time.time", lambda: 1000
     )
 
     assert stop_reason(report, 2, 3, cache=tmp_path / "stop-state") == ""
@@ -284,14 +284,14 @@ def test_render_prompt_keeps_subagent_section_only_when_allowed():
 
 
 def test_render_prompt_states_the_memory_limit():
-    from messageboard_audit_bench.report_length import memory_words
+    from slopvestigator_bench.report_length import memory_words
 
     assert memory_words("3g") == "3 GB" and memory_words("512m") == "512 MB" and memory_words("") == "limited"
     assert render_prompt("{{MEMORY_LIMIT}} shared.", 10, 0, 0, memory_limit="3g").startswith("3 GB shared.")
 
 
 def test_reports_up_to_ten_percent_over_are_accepted(tmp_path):
-    from messageboard_audit_bench.report_length import (
+    from slopvestigator_bench.report_length import (
         acceptance_limits,
         feedback,
         tolerated_max,

@@ -59,7 +59,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import CLAIMS, GRADED, GRADED_INPUTS, RUBRICS, ENV_FILE
+from slopvestigator_bench.paths import CLAIMS, GRADED, GRADED_INPUTS, RUBRICS, ENV_FILE
 from wiki_report import article_text
 
 from dotenv import load_dotenv

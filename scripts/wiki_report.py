@@ -14,7 +14,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from paths import CORPUS
+from slopvestigator_bench.paths import CORPUS
 
 INDEX = CORPUS / "wiki_index.html"
 CSS = ["wiki_tokens.css", "wiki_styles.css", "wiki_chrome.css", "wiki_figures.css"]

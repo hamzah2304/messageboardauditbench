@@ -15,7 +15,7 @@ the group a later expansion step would widen.
 
 Usage:
   uv run python benchmarks/transluce/claims/build_findings_v1.py \
-      --page viewers/urlquery_findings.html [--db-out DIR]
+      --page scripts/viewers/urlquery_findings.html [--db-out DIR]
 """
 from __future__ import annotations
 
@@ -465,7 +465,7 @@ def anchor_all(page: Path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--page", type=Path, default=ROOT / "viewers/urlquery_findings.html")
+    ap.add_argument("--page", type=Path, default=ROOT / "scripts/viewers/urlquery_findings.html")
     ap.add_argument("--db-out", type=Path, help="write review-UI documents (one JSON per finding/quote) here")
     args = ap.parse_args()
 

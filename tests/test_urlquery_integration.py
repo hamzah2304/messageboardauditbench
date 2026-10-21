@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from messageboard_audit_bench.benchmarks import (
+from slopvestigator_bench.benchmarks import (
     benchmark_spec,
     check_resume,
     reject_foreign_grading,
 )
-from messageboard_audit_bench.grading.core import variant_for_data
+from slopvestigator_bench.grading.core import variant_for_data
 
 ROOT = Path(__file__).parents[1]
 
@@ -46,7 +46,7 @@ def test_resume_never_crosses_benchmarks():
 
 
 def ui_module():
-    spec = importlib.util.spec_from_file_location("urlquery_ui", ROOT / "viewers/build_urlquery_findings.py")
+    spec = importlib.util.spec_from_file_location("urlquery_ui", ROOT / "scripts/viewers/build_urlquery_findings.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -101,7 +101,7 @@ def test_findings_ui_is_inert_and_scopes_imports(tmp_path):
 def test_trial_prompt_is_neutral_and_length_config_is_approved(name):
     import tomllib
 
-    from messageboard_audit_bench.report_length import render_prompt
+    from slopvestigator_bench.report_length import render_prompt
     cfg = tomllib.loads((ROOT / f"configs/{name}.toml").read_text())
     prompt = render_prompt((ROOT / f"sandbox/prompts/{cfg['prompt']}.txt").read_text(), 10, cfg["report_min_words"], cfg["report_max_words"])
     assert "{{" not in prompt and "2,900" in prompt
@@ -133,9 +133,9 @@ def test_collector_separates_nested_urlquery_reports(tmp_path):
     assert row["benchmark_id"] == "urlquery" and row["dataset_sha256"] == "a" * 64
     assert not row["partial"] and row["report_finalization"] == "not_confirmed"
     assert (out / row["report"]).read_text() == (run / "report.md").read_text()
-    from messageboard_audit_bench.grading.task import grade_reports
+    from slopvestigator_bench.grading.task import german_wiki_report_grade
     with pytest.raises(ValueError, match="cross-benchmark grading"):
-        grade_reports(dir=str((out / row["report"]).parent))
+        german_wiki_report_grade(dir=str((out / row["report"]).parent))
     meta.pop("dataset_sha256")
     (run / "meta.json").write_text(json.dumps(meta))
     result = subprocess.run(command + ["--benchmark", "urlquery"], capture_output=True, text=True)
@@ -150,7 +150,7 @@ def test_original_stager_rejects_urlquery_metadata(tmp_path):
 
 
 def test_scoped_review_artifacts_require_source_and_dataset_hashes():
-    from messageboard_audit_bench.review_scope import validate_review_scope
+    from slopvestigator_bench.review_scope import validate_review_scope
     with pytest.raises(ValueError, match="wrong benchmark"):
         validate_review_scope({"meta": {"benchmark_id": "messageboard"}}, "urlquery")
     with pytest.raises(ValueError, match="report_sha256"):
@@ -194,21 +194,21 @@ def test_replay_rejects_cross_benchmark_metadata(tmp_path, monkeypatch):
     # Import explicitly; the package also exposes registered task callables.
     import importlib
 
-    module = importlib.import_module("messageboard_audit_bench.task")
+    module = importlib.import_module("slopvestigator_bench.task")
     run = tmp_path / "runs" / "foreign"
     run.mkdir(parents=True)
     (run / "transcript.jsonl").write_text("")
     (run / "meta.json").write_text('{"benchmark_id":"urlquery","exit_code":0}')
     monkeypatch.setattr(module, "repo_root", lambda: tmp_path)
     with pytest.raises(ValueError, match="cross-benchmark grading rejected"):
-        module.messageboard_audit_bench_replay()
+        module.german_wiki_report_replay()
 
 
 def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatch):
     import os
     import tomllib
 
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
     dataset = tmp_path / "data/urlquery/test-v1"
     dataset.mkdir(parents=True)
     monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
@@ -260,7 +260,7 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     '[[trials]]\nagent="codex"\nmodel="okay"\nreplicate=1\n' * 2,
 ])
 def test_explicit_pilot_matrix_rejects_invalid_trials(tmp_path, body):
-    from messageboard_audit_bench.urlquery_pilot import load_matrix
+    from slopvestigator_bench.urlquery_pilot import load_matrix
     path = tmp_path / "matrix.toml"
     path.write_text(body)
     with pytest.raises(ValueError):
@@ -272,7 +272,7 @@ def test_explicit_pilot_matrix_rejects_invalid_trials(tmp_path, body):
 def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, scenario, rc, expected_runs, agents):
     import uuid
 
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
     directory = tmp_path / "runs/urlquery/pilot-test"
     directory.mkdir(parents=True)
     payload = {"config": str(directory / "pilot-config.toml"), "dataset_path": str(tmp_path / "data"),
@@ -333,7 +333,7 @@ def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, sc
 
 @pytest.mark.parametrize("line", ['claude_cli_version = "2.1"', "claude_cli_version = 283", ""])
 def test_bad_cli_version_does_not_create_plan(tmp_path, monkeypatch, line):
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
 
     dataset = tmp_path / "data/urlquery/test-v1"
     dataset.mkdir(parents=True)
@@ -404,7 +404,7 @@ def test_versioned_image_requires_all_matching_config_pins(codex, claude, image)
 
 @pytest.mark.parametrize("line", ['codex_cli_version = "0.156"', "codex_cli_version = 156", ""])
 def test_bad_codex_cli_version_does_not_create_plan(tmp_path, monkeypatch, line):
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
 
     dataset = tmp_path / "data/urlquery/test-v1"
     dataset.mkdir(parents=True)
@@ -454,7 +454,7 @@ def test_nodetails_ablation_removes_only_the_details_sentence():
 
 
 def _fake_pilot_inputs(tmp_path, monkeypatch):
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
     dataset = tmp_path / "data/urlquery/test-v1"
     dataset.mkdir(parents=True)
     monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
@@ -544,7 +544,7 @@ def test_extra_round_adds_sol_react_at_both_limits(tmp_path, monkeypatch):
     "max_parallel = 2\n[[arms]]\nconfig='configs/superseded/urlquery-10.toml'\nreplicates=1\nmodels=['react:../x']",
 ])
 def test_batch_rejects_invalid_arms(tmp_path, body):
-    from messageboard_audit_bench.urlquery_pilot import load_batch
+    from slopvestigator_bench.urlquery_pilot import load_batch
     path = tmp_path / "batch.toml"
     path.write_text(body)
     with pytest.raises(ValueError):
@@ -591,7 +591,7 @@ def test_launch_batch_caps_parallelism_orders_long_first_and_blocks_failures(tmp
     (True, {}, None),
 ])
 def test_coordinator_validates_completion_and_blocks_next_trial(tmp_path, monkeypatch, runtime_marker, usage, expected_error):
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
 
     directory = tmp_path / "plan"
     directory.mkdir()
@@ -636,7 +636,7 @@ def test_coordinator_validates_completion_and_blocks_next_trial(tmp_path, monkey
 def test_pilot_command_returns_nonzero_for_incomplete_or_invalid_batch(tmp_path, monkeypatch, batch, status):
     import sys
 
-    from messageboard_audit_bench import urlquery_pilot as pilot
+    from slopvestigator_bench import urlquery_pilot as pilot
 
     payload = {"matrix": [{}], "status": "planned"}
     monkeypatch.setattr(pilot, "plan", lambda *a, **kw: (tmp_path, payload))

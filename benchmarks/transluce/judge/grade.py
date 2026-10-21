@@ -7,7 +7,7 @@
     uv run python benchmarks/transluce/judge/grade.py --batch ... --plan   # resume-aware call count, no API use
 
 The resumable batch counterpart of the `transluce_report_grade` Inspect task: the prompt,
-parsing and arithmetic are `messageboard_audit_bench.grading.findings`, shared with the
+parsing and arithmetic are `slopvestigator_bench.grading.findings`, shared with the
 Inspect scorer. Two judge transports:
 
 * ``anthropic/<model>`` (default ``anthropic/claude-opus-5-5``, effort xhigh, adaptive
@@ -42,8 +42,8 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-from messageboard_audit_bench.benchmarks import primary_root, urlquery_manifest  # noqa: E402
-from messageboard_audit_bench.grading import findings as fj  # noqa: E402
+from slopvestigator_bench.benchmarks import primary_root, urlquery_manifest  # noqa: E402
+from slopvestigator_bench.grading import findings as fj  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
