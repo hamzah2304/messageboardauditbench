@@ -31,7 +31,27 @@ for eval_name in "$@"; do
   args=(-T agent="$AGENT" -T time_limit_minutes="$MINUTES" -T min_runtime_fraction=0
         --model "$MODEL" --log-dir "logs/e2e/$eval_name")
   [ -z "${JUDGE:-}" ] || args+=(--model-role grader="$JUDGE")
-  if uv run inspect eval "messageboard_audit_bench/$eval_name" "${args[@]}"; then
+  # inspect eval exits 0 even when the sample errors or the judge fails, so read the log.
+  if uv run inspect eval "messageboard_audit_bench/$eval_name" "${args[@]}" \
+      && uv run python - "logs/e2e/$eval_name" <<'PY'
+import math, sys
+from pathlib import Path
+from inspect_ai.log import read_eval_log
+log = read_eval_log(str(max(Path(sys.argv[1]).glob("*.eval"), key=lambda p: p.stat().st_mtime)))
+problems = [f"log status {log.status}"] if log.status != "success" else []
+for sample in log.samples or []:
+    if sample.error:
+        problems.append(f"sample error: {sample.error.message[:300]}")
+    for name, score in (sample.scores or {}).items():
+        values = score.value.values() if isinstance(score.value, dict) else [score.value]
+        if any(isinstance(v, float) and math.isnan(v) for v in values):
+            problems.append(f"{name} unscored: {(score.explanation or '')[:300]}")
+    print("scores:", {name: score.value for name, score in (sample.scores or {}).items()})
+for problem in problems:
+    print("  " + problem, file=sys.stderr)
+sys.exit(1 if problems else 0)
+PY
+  then
     echo "=== $eval_name: ok"
   else
     echo "=== $eval_name: FAILED" >&2
