@@ -154,8 +154,10 @@ def memory_words(limit: str) -> str:
     return f"{match.group(1)} {'GB' if match.group(2).lower() == 'g' else 'MB'}"
 
 
-def memory_note(limit: str, data_dir: Path) -> str:
-    """The prompt's closing note on a config's `memory_limit`, naming the data files too big to load."""
+def memory_note(limit: str, data_dir: Path, subagents: bool = False) -> str:
+    """The prompt's closing note on a config's `memory_limit`, naming the data files too big to load.
+
+    It names village.db only when the data has one, and subagents only when the condition uses them."""
     if not limit:
         return ""
     n, unit = re.fullmatch(r"(\d+(?:\.\d+)?)([gGmM])", limit).groups()
@@ -164,9 +166,11 @@ def memory_note(limit: str, data_dir: Path) -> str:
     big = sorted(((path.stat().st_size, path.name) for path in files if path.stat().st_size > cap / 10), reverse=True)
     sizes = "; ".join(f"{f} is {size / 1e9:.1f} GB" + (" compressed" if f.endswith(".gz") else "") for size, f in big)
     never = f"Several data files are large ({sizes}), so never" if sizes else "Never"
-    return (f"\nMemory limit: your sandbox has {memory_words(limit)} of RAM, shared by everything running in it, "
-            f"including any subagents, and any command that goes over it is killed. {never} load a whole file into "
-            "memory: query village.db with SQLite or stream files line by line.\n")
+    shared = "shared by everything running in it, including any subagents," if subagents else "shared by everything running in it,"
+    how = ("query village.db with SQLite or stream files line by line" if (data_dir / "village.db").is_file()
+           else "stream files line by line")
+    return (f"\nMemory limit: your sandbox has {memory_words(limit)} of RAM, {shared} "
+            f"and any command that goes over it is killed. {never} load a whole file into memory: {how}.\n")
 
 
 def render_prompt(
@@ -397,7 +401,7 @@ def main() -> None:
         )
     )
     if args.memory_note:
-        print(memory_note(args.memory_limit, args.memory_note), end="")
+        print(memory_note(args.memory_limit, args.memory_note, args.subagents), end="")
     elif args.template:
         print(
             render_prompt(args.template.read_text(), args.budget_min, low, high, args.findings_count, args.subagents, args.memory_limit),

@@ -15,6 +15,7 @@ from slopvestigator_bench.report_length import (
     instruction,
     limits,
     measure,
+    memory_note,
     overlong_feedback_if_changed,
     render_prompt,
     stop_reason,
@@ -305,3 +306,16 @@ def test_reports_up_to_ten_percent_over_are_accepted(tmp_path):
     assert ok and "within the accepted 10%" in note
     report.write_text("word " * 11200)
     assert not feedback(report, 8000, 10000)[1]
+
+
+def test_memory_note_names_only_what_the_condition_has(tmp_path):
+    """village.db only when the data has one; subagents only when the condition uses them."""
+    (tmp_path / "revisions.jsonl").write_text("{}\n")
+    note = memory_note("3g", tmp_path)
+    assert note.startswith("\nMemory limit:")
+    assert "village.db" not in note and "subagents" not in note
+    assert "stream files line by line" in note
+    (tmp_path / "village.db").write_bytes(b"")
+    with_db = memory_note("3g", tmp_path, subagents=True)
+    assert "query village.db with SQLite" in with_db and "including any subagents" in with_db
+    assert memory_note("", tmp_path) == ""

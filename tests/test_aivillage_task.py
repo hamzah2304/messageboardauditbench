@@ -62,12 +62,14 @@ def test_native_prompt_matches_the_subscription_runner(primary, subagents):
             "--findings-count", 20, *(["--subagents"] if subagents else []), "--memory-limit", "3g")
         + run(ROOT / "slopvestigator_bench/runtime_policy.py", "--instruction", "--fraction", 0.9,
               "--budget-minutes", 30, "--notice", cfg["runtime_notice"])
-        + run(ROOT / "slopvestigator_bench/report_length.py", "--memory-limit", "3g", "--memory-note", data)
+        + run(ROOT / "slopvestigator_bench/report_length.py", "--memory-limit", "3g",
+              *(["--subagents"] if subagents else []), "--memory-note", data)
     )
     task = task_module.aivillage_report(agent="codex", subagents=subagents)
     assert task.dataset[0].input == expected
     assert ("Subagents" in expected) == subagents
-    assert "village.db is 0.4 GB" in expected
+    assert "village.db is 0.4 GB" in expected and "query village.db with SQLite" in expected
+    assert ("including any subagents" in expected) == subagents
 
 
 def test_native_task_applies_the_config(primary):

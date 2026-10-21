@@ -173,7 +173,7 @@ PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/pro
 python3 "$ROOT/slopvestigator_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-limit "${CFG_MEMORY_LIMIT:-}" > "$PROMPT_OUT"
 python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" --notice "${CFG_RUNTIME_NOTICE:-}" >> "$PROMPT_OUT"
 # memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
-[ -z "${CFG_MEMORY_LIMIT:-}" ] || python3 "$ROOT/slopvestigator_bench/report_length.py" --memory-limit "$CFG_MEMORY_LIMIT" --memory-note "$DATA_DIR" >> "$PROMPT_OUT"
+[ -z "${CFG_MEMORY_LIMIT:-}" ] || python3 "$ROOT/slopvestigator_bench/report_length.py" --memory-limit "$CFG_MEMORY_LIMIT" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-note "$DATA_DIR" >> "$PROMPT_OUT"
 MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 [ -z "$RESUME_FROM" ] && cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
 PROMPT="$(cat "$RUN/prompt.txt")"

@@ -180,7 +180,8 @@ def _prompt_for(
         render_prompt(text, budget_minutes, *limits(cfg), int(cfg.get("findings_count") or 0),
                       bool(cfg.get("subagents")), memory)
         + _minimum_runtime_instruction(budget_minutes * 60, fraction, cfg.get("runtime_notice", ""))
-        + (memory_note(memory, _data_mount(cfg["data_variant"], benchmark_id)[0]) if memory else "")
+        + (memory_note(memory, _data_mount(cfg["data_variant"], benchmark_id)[0], bool(cfg.get("subagents")))
+           if memory else "")
     )
 
 
