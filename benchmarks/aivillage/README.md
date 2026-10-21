@@ -43,7 +43,7 @@ You need access to AI Digest's dataset on Hugging Face, [`aidigestorg/ai-village
 
 ```bash
 # build the data folder the trials mount (data/aivillage/full-v2-reasoning/)
-python3 scripts/build_aivillage_data.py --variant reasoning
+python3 scripts/aivillage/build_aivillage_data.py --variant reasoning
 
 # one trial, graded inline by GPT-6.1 Sol; -T subagents=true for the subagent condition
 uv run inspect eval messageboard_audit_bench/aivillage_report -T agent=codex \
@@ -61,12 +61,12 @@ uv run inspect eval messageboard_audit_bench/aivillage_report_grade -T runs='*_a
 The published results were graded in one batch, then summarised and plotted:
 
 ```bash
-uv run python scripts/grade_aivillage.py prepare --findings benchmarks/aivillage/findings/final-findings.json \
+uv run python scripts/aivillage/grade_aivillage.py prepare --findings benchmarks/aivillage/findings/final-findings.json \
   --reports benchmarks/aivillage/benchmark-2026-10-04-runs.md --runs-root runs \
   --goals data/aivillage/full-v2-reasoning/village_goals.jsonl --output runs/aivillage-grading-medium
-uv run python scripts/grade_aivillage.py run --output runs/aivillage-grading-medium --concurrency 32
-python3 scripts/summarize_aivillage_grades.py runs/aivillage-grading-medium/plans/<plan>/grades.json benchmarks/aivillage/results/
-uv run python scripts/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md --out runs/aivillage-costs-20261004
+uv run python scripts/aivillage/grade_aivillage.py run --output runs/aivillage-grading-medium --concurrency 32
+python3 scripts/aivillage/summarize_aivillage_grades.py runs/aivillage-grading-medium/plans/<plan>/grades.json benchmarks/aivillage/results/
+uv run python scripts/aivillage/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md --out runs/aivillage-costs-20261004
 uv run python viewers/build_aivillage_figures.py
 ```
 

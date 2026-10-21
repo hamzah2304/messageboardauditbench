@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "benchmarks/transluce/claims/findings_reviewed.json"
 GRADES = ROOT / "benchmarks/transluce/reports/graded/judge_gpt_6_astra_high_fairness_v3"
-USER_AUDIT = ROOT / "docs/urlquery-scoring-fairness-audit-user-20260929.json"
+USER_AUDIT = ROOT / "benchmarks/transluce/docs/urlquery-scoring-fairness-audit-user-20260929.json"
 OUTPUT = ROOT / "logs/urlquery-scoring-fairness-audit.html"
 
 # These are proposed scoring decisions for human review, not rubric changes.

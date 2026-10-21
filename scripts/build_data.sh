@@ -6,7 +6,7 @@
 #
 # Outputs: data/raw (download, checksums verified by fetch_data.sh),
 #          data/raw_stripped (analysis fields removed; the primary benchmark input),
-#          data/verbatim (raw_stripped plus what the report prints verbatim; see docs/verbatim-data.md),
+#          data/verbatim (raw_stripped plus what the report prints verbatim; see benchmarks/german-wiki/docs/verbatim-data.md),
 #          data/verbatim_anthropic (verbatim with the maker re-attributed to Anthropic; see scripts/swap_provider.py).
 #          data/mythos5 (the released transcript with its editorial metadata row removed).
 #          data/rubyhack (redacted package diffs cited by the RubyHack investigation).

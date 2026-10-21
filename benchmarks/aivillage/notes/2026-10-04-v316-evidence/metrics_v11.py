@@ -12,7 +12,7 @@ for d in sorted(glob.glob('runs/20261004T19*_aivillage-v11-30*')):
     minutes = round((t(fi[-1]) - t(st[0])).total_seconds() / 60, 1)
     rp = json.load(open(f'{d}/runtime_policy.json')) if os.path.exists(f'{d}/runtime_policy.json') else {}
     txt = open(f'{d}/report.md').read()
-    out = subprocess.run(['python3', 'scripts/check_aivillage_citations.py', 'data/aivillage/full-v2-reasoning', f'{d}/report.md'], capture_output=True, text=True).stdout
+    out = subprocess.run(['python3', 'scripts/aivillage/check_aivillage_citations.py', 'data/aivillage/full-v2-reasoning', f'{d}/report.md'], capture_output=True, text=True).stdout
     c = re.search(r'(\d+) citations; ok (\d+)', out)
     bt = re.search(r'by type: (.*)', out)
     spawn = std = sleeps = reasoning = 0; scratch = set()

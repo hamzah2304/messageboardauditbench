@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-spec = importlib.util.spec_from_file_location('grade_aivillage', Path(__file__).parents[1] / 'scripts/grade_aivillage.py')
+spec = importlib.util.spec_from_file_location('grade_aivillage', Path(__file__).parents[1] / 'scripts/aivillage/grade_aivillage.py')
 g = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(g)
 

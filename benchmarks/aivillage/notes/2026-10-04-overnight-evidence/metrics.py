@@ -20,7 +20,7 @@ for d in sorted(glob.glob('runs/20261004T0[6-9]*_aivillage-v8-40*') + glob.glob(
     if os.path.exists(rep):
         txt = open(rep).read(); words = len(txt.split())
         findings = len(re.findall(r'^#{2,3}\s+\d+[.)]', txt, re.M))
-        out = subprocess.run(['python3', 'scripts/check_aivillage_citations.py', 'data/aivillage/full-v2-noreasoning', rep], capture_output=True, text=True).stdout
+        out = subprocess.run(['python3', 'scripts/aivillage/check_aivillage_citations.py', 'data/aivillage/full-v2-noreasoning', rep], capture_output=True, text=True).stdout
         mm = re.search(r'(\d+) citations; ok (\d+), id missing (\d+), quote not found (\d+), no quote (\d+)', out)
         if mm: cit = dict(zip(['total', 'ok', 'id_missing', 'quote_not_found', 'no_quote'], map(int, mm.groups())))
         bt = re.search(r'by type: (.*)', out); cit['by_type'] = bt.group(1) if bt else ''

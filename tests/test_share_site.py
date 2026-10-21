@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-MODULE = runpy.run_path(str(Path(__file__).parents[1] / "docs/assessments/transluce/build_share_site.py"))
+MODULE = runpy.run_path(str(Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment/build_share_site.py"))
 
 
 class Elements(HTMLParser):

@@ -90,7 +90,7 @@ def test_build_removes_labels_keeps_evidence_and_hashes(tmp_path, cfg, catalog):
 def test_evaluator_summary_counts_string_statuses_without_payloads(tmp_path, cfg, catalog):
     import runpy
 
-    summarize = runpy.run_path(str(Path(__file__).parents[1] / "docs/assessments/transluce/summarize_snapshot.py"))["summarize"]
+    summarize = runpy.run_path(str(Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment/summarize_snapshot.py"))["summarize"]
     cache = tmp_path / "raw"
     (cache / "reports").mkdir(parents=True)
     for scan_id in IDS:
@@ -119,7 +119,7 @@ def test_evaluator_summary_counts_string_statuses_without_payloads(tmp_path, cfg
 def test_article_coverage_includes_urlquery_host_aliases(tmp_path, hostname):
     import runpy
 
-    groups = runpy.run_path(str(Path(__file__).parents[1] / "docs/assessments/transluce/summarize_snapshot.py"))["article_groups"]
+    groups = runpy.run_path(str(Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment/summarize_snapshot.py"))["article_groups"]
     source = tmp_path / "article.html"
     source.write_text(f'<article><h2>Case</h2><a href="https://{hostname}/report/{IDS[0]}">scan</a></article>')
     assert groups(source) == {"Case": {IDS[0]}}

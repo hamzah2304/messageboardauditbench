@@ -238,10 +238,10 @@ def _data_mount(data_variant: str, benchmark_id: str) -> tuple[Path, dict[str, s
             "MBAB_DATASET_SHA256": urlquery_manifest()["dataset"]["sha256"],
         }
     if benchmark_id == "aivillage":
-        # Built once, in the primary checkout (scripts/build_aivillage_data.py).
+        # Built once, in the primary checkout (scripts/aivillage/build_aivillage_data.py).
         data_dir = primary_root() / "data" / data_variant
         if not data_dir.is_dir():
-            raise FileNotFoundError(f"no AI Village data at {data_dir}; run scripts/build_aivillage_data.py")
+            raise FileNotFoundError(f"no AI Village data at {data_dir}; run scripts/aivillage/build_aivillage_data.py")
         return data_dir.resolve(), {"MBAB_BENCHMARK_ID": "aivillage"}
     data_dir = (repo_root().resolve() / "data" / data_variant).resolve()
     # A task worktree holds per-file symlinks to the primary checkout's data.

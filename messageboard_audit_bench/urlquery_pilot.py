@@ -147,7 +147,7 @@ def _prepare(directory: Path, payload: dict) -> dict:
                   for arg in ("--build-arg", f"{key}={value}")]
     # Build once outside the per-trial guard. The runner rebuild is then cached.
     subprocess.run(["docker", "build", "-q", "-t", env["IMAGE"], *build_args, "-f", "sandbox/docker/Dockerfile", "."], cwd=root, check=True)
-    subprocess.run([str(root / ".venv/bin/python"), "scripts/check_urlquery_isolation.py", payload["dataset_path"],
+    subprocess.run([str(root / ".venv/bin/python"), "scripts/transluce/check_urlquery_isolation.py", payload["dataset_path"],
                     "--image", env["IMAGE"], "--output", str(directory / "input-isolation.json")], cwd=root, check=True)
     return env
 

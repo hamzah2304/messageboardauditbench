@@ -655,7 +655,7 @@ def test_pilot_command_returns_nonzero_for_incomplete_or_invalid_batch(tmp_path,
 def test_view_script_groups_runs_by_prompt_and_budget(tmp_path):
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("view_runs", ROOT / "scripts/view_urlquery_runs.py")
+    spec = importlib.util.spec_from_file_location("view_runs", ROOT / "scripts/transluce/view_urlquery_runs.py")
     view = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(view)
     for name, prompt, budget, model in [("20260927T061204Z_a", "urlquery-swarm-v4", 10, "gpt-6-sol"),

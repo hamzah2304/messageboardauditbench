@@ -90,8 +90,8 @@ Their `revision.commit` fields vary across runs, so no single source commit cove
 generation run. The `v6.1` tag is the last `6-B` commit, a way to rerun that behaviour. It
 should not be substituted for the revision in each log.
 
-The [Inspect log archive](artifacts/inspect-logs.md) and the
-[publication evidence index](benchmark-data-index.md) map selected reports to logs and
+The [Inspect log archive](../benchmarks/german-wiki/docs/artifacts/inspect-logs.md) and the
+[publication evidence index](../benchmarks/german-wiki/docs/benchmark-data-index.md) map selected reports to logs and
 to the separately retained Fable 5.1 `v2` and `tldrh` grades. The published headline
 combines those grades at 70% finding coverage and 30% holistic TLDR assessment.
 
@@ -156,7 +156,7 @@ the judge prompt `judge-prompt-v8.txt`, judged by GPT-6.1 Sol at medium effort.
 
 **The published runs.** The 34 reports in `benchmarks/aivillage/results/` ran
 through the subscription runner before the task existed and were graded by
-`scripts/grade_aivillage.py`. The task sends the same judge requests; its native
+`scripts/aivillage/grade_aivillage.py`. The task sends the same judge requests; its native
 backend gives the agent the same prompt, but not the subscription CLIs' logins.
 
 ## Releasing a new version

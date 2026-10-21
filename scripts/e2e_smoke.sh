@@ -15,7 +15,7 @@
 #
 # Needs Docker, uv sync, the provider keys in .env or the environment, and each eval's
 # data: scripts/build_data.sh (German wiki), data/urlquery/<snapshot>/ (Transluce, see
-# benchmarks/transluce/README.md), scripts/build_aivillage_data.py --variant reasoning
+# benchmarks/transluce/README.md), scripts/aivillage/build_aivillage_data.py --variant reasoning
 # (AI Village). Logs go to logs/e2e/<eval>/; open them with `uv run inspect view`.
 set -euo pipefail
 cd "$(dirname "$0")/.."

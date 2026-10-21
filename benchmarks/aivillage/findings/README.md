@@ -2,7 +2,7 @@
 
 The candidate answer key for the AI Village eval, after four steps: extraction from Substack, X and
 Discord; merging and filtering; checking against the Village records; adjudication. Regenerate with
-`scripts/finalize_aivillage_findings.py` (its inputs are in the gitignored `runs/` folders named below).
+`scripts/aivillage/finalize_aivillage_findings.py` (its inputs are in the gitignored `runs/` folders named below).
 
 | File | What it holds |
 |---|---|
