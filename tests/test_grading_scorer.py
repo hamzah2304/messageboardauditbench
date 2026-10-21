@@ -196,3 +196,9 @@ async def test_a_sheet_missing_a_claim_fails_and_nothing_is_exported() -> None:
         samples = [_Sample()]
 
     assert export.grades_in(_Log()) == []
+
+
+async def test_a_holistic_sheet_scores_as_one_item() -> None:
+    reply = json.dumps({"rubric_id": "TLDRH", "items": [{"id": "TLDRH", "score": 0.3, "quote": "", "reason": "x"}]})
+    score = await sheet_scorer(rubric="tldrh", judge=judge([reply]))(state(), Target(""))
+    assert score.value == 0.3 and not score.metadata["failures"]

@@ -142,7 +142,10 @@ def sheet_scorer(
             except Exception as exc:  # noqa: BLE001 — recorded, not raised: other sheets stand
                 failures[rubric_id] = f"{type(exc).__name__}: {exc}"[:300]
                 continue
-            if set(items) != set(spec["claim_ids"]):
+            # Claim sheets return one item per claim; a holistic sheet (unnumbered: tldr, tldrh,
+            # origin) returns one item named after the sheet.
+            holistic = not core.MODES[rubric].numbered and set(items) == {rubric_id}
+            if set(items) != set(spec["claim_ids"]) and not holistic:
                 # A parseable sheet that skips or invents claims would score part of the rubric.
                 failures[rubric_id] = f"returned {len(set(items) & set(spec['claim_ids']))} of {spec['n_claims']} claims"
                 continue
