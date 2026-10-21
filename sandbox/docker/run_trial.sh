@@ -46,7 +46,7 @@ BENCHMARK_PROVENANCE='{}'
 resolve_trial_image
 RUNS_ROOT="$ROOT/runs"
 case "$BENCHMARK_ID" in
-  messageboard) ;;
+  messageboard|aivillage) ;;
   urlquery)
     PRIMARY_ROOT="$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")"
     DATA_DIR="${DATA_DIR_OVERRIDE:-$PRIMARY_ROOT/data/$CFG_DATA_VARIANT}"
@@ -171,24 +171,7 @@ PROMPT_OUT="$RUN/work/prompt.txt"; [ -z "$RESUME_FROM" ] || PROMPT_OUT="$RUN/pro
 python3 "$ROOT/messageboard_audit_bench/report_length.py" --template "$PROMPT_FILE" --budget-min "$BUDGET_MIN" --min-words "$REPORT_MIN_WORDS" --max-words "$REPORT_MAX_WORDS" --findings-count "${CFG_FINDINGS_COUNT:-0}" ${SUBAGENTS_ARG[@]+"${SUBAGENTS_ARG[@]}"} --memory-limit "${CFG_MEMORY_LIMIT:-}" > "$PROMPT_OUT"
 python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --instruction --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN" --notice "${CFG_RUNTIME_NOTICE:-}" >> "$PROMPT_OUT"
 # memory_limit (e.g. "3g") caps the agent container's RAM; the agent is told the limit.
-if [ -n "${CFG_MEMORY_LIMIT:-}" ]; then
-  # The data files larger than the limit, with their real sizes in this data variant.
-  BIG_FILES="$(python3 - "$DATA_DIR" "$CFG_MEMORY_LIMIT" <<'PY'
-import os, re, sys
-d, limit = sys.argv[1], sys.argv[2]
-n, unit = re.fullmatch(r"(\d+(?:\.\d+)?)([gGmM])", limit).groups()
-cap = float(n) * (1e9 if unit.lower() == "g" else 1e6)
-big = sorted(((os.path.getsize(os.path.join(d, f)), f) for f in os.listdir(d)
-              if os.path.isfile(os.path.join(d, f)) and os.path.getsize(os.path.join(d, f)) > cap / 10), reverse=True)
-print("; ".join(f"{f} is {s / 1e9:.1f} GB" + (" compressed" if f.endswith(".gz") else "") for s, f in big))
-PY
-)"
-  NO_WHOLE_FILES="Never"; [ -z "$BIG_FILES" ] || NO_WHOLE_FILES="Several data files are large ($BIG_FILES), so never"
-  cat >> "$PROMPT_OUT" <<MEMORY_NOTE
-
-Memory limit: your sandbox has ${CFG_MEMORY_LIMIT/g/ GB} of RAM, shared by everything running in it, including any subagents, and any command that goes over it is killed. ${NO_WHOLE_FILES} load a whole file into memory: query village.db with SQLite or stream files line by line.
-MEMORY_NOTE
-fi
+[ -z "${CFG_MEMORY_LIMIT:-}" ] || python3 "$ROOT/messageboard_audit_bench/report_length.py" --memory-limit "$CFG_MEMORY_LIMIT" --memory-note "$DATA_DIR" >> "$PROMPT_OUT"
 MINIMUM_RUNTIME_SECONDS="$(python3 "$ROOT/messageboard_audit_bench/runtime_policy.py" --minimum-runtime-seconds --fraction "$MIN_RUNTIME_FRACTION" --budget-minutes "$BUDGET_MIN")"
 [ -z "$RESUME_FROM" ] && cp "$RUN/work/prompt.txt" "$RUN/prompt.txt"
 PROMPT="$(cat "$RUN/prompt.txt")"

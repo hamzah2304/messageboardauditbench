@@ -178,11 +178,12 @@ def inspect_agent(
     claude_disallowed_tools: Sequence[str],
     env: dict[str, str] | None = None,
     codex_features_off: Sequence[str] = (),
+    codex_config: dict[str, str] | None = None,
 ) -> Agent:
     """Return the first-class Inspect agent selected by the task.
 
     ``codex_features_off`` names Codex ``[features]`` to disable, as the subscription
-    runner does for URLQuery trials.
+    runner does for URLQuery trials; ``codex_config`` adds other Codex config overrides.
     """
     env = env or {}
     if agent == "claude":
@@ -203,6 +204,7 @@ def inspect_agent(
             config_overrides={
                 "features.hooks": "true",
                 **{f"features.{name}": "false" for name in codex_features_off},
+                **(codex_config or {}),
             },
         )
     if agent == "react":
@@ -460,12 +462,15 @@ def inspect_native_agent(
     min_runtime_fraction: float = 0.75,
     seed_reports: dict[int, str] | None = None,
     codex_features_off: Sequence[str] = (),
+    codex_config: dict[str, str] | None = None,
+    agent_env: dict[str, str] | None = None,
 ) -> Solver:
     """Run an agent through Inspect and collect its on-disk report.
 
     ``seed_reports`` maps a sample's parent epoch (``metadata["parent_epoch"]``)
     to an earlier report placed at ``/work/report.md`` before the agent starts,
-    for continuation tasks whose conversation already refers to it.
+    for continuation tasks whose conversation already refers to it. ``agent_env`` adds
+    environment variables for the agent (a config's Claude output cap, early-stop note).
 
     ``agent.run`` catches only the scoped Inspect limit, which lets this solver
     preserve the live trajectory and then read the report the agent was told to
@@ -520,7 +525,9 @@ def inspect_native_agent(
             agent,
             claude_disallowed_tools=claude_disallowed_tools,
             codex_features_off=codex_features_off,
+            codex_config=codex_config,
             env={
+                **(agent_env or {}),
                 "MBAB_DEADLINE_EPOCH": str(deadline_epoch),
                 "MBAB_EARLIEST_FINISH_EPOCH": str(earliest_finish_epoch),
                 "MBAB_BUDGET_MIN": str(budget_minutes),

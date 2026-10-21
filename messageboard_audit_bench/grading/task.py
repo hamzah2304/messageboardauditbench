@@ -188,3 +188,55 @@ def _transluce_report_grade(
 transluce_report_grade = task(name="transluce_report_grade")(_transluce_report_grade)
 # Deprecated alias: the task's name before the rename.
 urlquery_grade_reports = task(name="urlquery_grade_reports")(_transluce_report_grade)
+
+
+@task
+def aivillage_report_grade(
+    runs: str | None = None,
+    dir: str | None = None,  # noqa: A002 — named like german_wiki_report_grade's
+    judge: str | None = None,
+    data_variant: str = "aivillage/full-v2-reasoning",
+) -> Task:
+    """Grade finished AI Village reports against the 96 rubric findings.
+
+    The Inspect counterpart of scripts/grade_aivillage.py: the same judge requests, with
+    each report's per-finding grades in ``Score.metadata["grade"]``.
+
+    Args:
+      runs: a glob of run directories under the primary checkout's runs/
+        (e.g. ``*_aivillage-v12-30*``); each needs a report.md.
+      dir: or a folder of ``.md`` reports, one per run (absolute, or relative to the repo).
+      judge: Inspect model; defaults to ``openai/gpt-6.1-sol``. A ``grader`` role wins.
+      data_variant: the data the reports were written from, for ``dir`` reports; run
+        directories record their own. It sets the goal periods and whether the judge is
+        told the investigator saw reasoning traces.
+    """
+    from messageboard_audit_bench.benchmarks import SPECS, primary_root
+    from messageboard_audit_bench.grading.aivillage import aivillage_scorer
+
+    if bool(runs) == bool(dir):
+        raise ValueError("pass exactly one of runs or dir")
+    samples = []
+    if runs:
+        for run_dir in sorted((primary_root() / SPECS["aivillage"].run_root).glob(runs)):
+            if not (run_dir / "report.md").is_file():
+                continue
+            meta = json.loads((run_dir / "meta.json").read_text()) if (run_dir / "meta.json").is_file() else {}
+            samples.append(Sample(input=(run_dir / "report.md").read_text(), id=run_dir.name,
+                                  metadata={"run": run_dir.name, "title": run_dir.name, "run_dir": str(run_dir),
+                                            "data_variant": meta.get("data_variant", data_variant),
+                                            "model": meta.get("model"), "agent": meta.get("agent")}))
+    else:
+        folder = Path(dir) if Path(dir).is_absolute() else repo_root() / dir
+        for path in sorted(folder.glob("*.md")):
+            samples.append(Sample(input=path.read_text(), id=core.sanitise(path.stem),
+                                  metadata={"run": path.stem, "title": path.stem, "data_variant": data_variant}))
+    if not samples:
+        raise RuntimeError("no AI Village reports matched")
+    return Task(
+        dataset=samples,
+        solver=report_from_sample(),
+        scorer=aivillage_scorer(judge=judge),
+        model="mockllm/model",
+        metadata={"benchmark": SPECS["aivillage"].title, "benchmark_id": "aivillage", "mode": "grading", "judge": judge},
+    )

@@ -144,6 +144,21 @@ existed, so their run records carry no version. They also say `rubric_version: n
 for the few made before the rename), `rubric_version: "reviewed"` and
 `scoring_status: "ungraded"`. Filter on the version, not on those labels.
 
+## AI Village report
+
+The conditions are `configs/aivillage-v12-30.toml` and its `-subagents` twin, the
+rubric `benchmark/incidents/aivillage/findings/final-findings.json` (96 findings) and
+the judge prompt `judge-prompt-v8.txt`, judged by GPT-6.1 Sol at medium effort.
+
+| version | tag | What it identifies |
+|---|---|---|
+| `1.0` | `aivillage-report-v1.0` | The first Inspect version: prompt `aivillage-v12`, 30 minutes, data `aivillage/full-v2-reasoning`, score = mean of the 20 best finding scores. |
+
+**The published runs.** The 34 reports in `benchmark/incidents/aivillage/results/` ran
+through the subscription runner before the task existed and were graded by
+`scripts/grade_aivillage.py`. The task sends the same judge requests; its native
+backend gives the agent the same prompt, but not the subscription CLIs' logins.
+
 ## Releasing a new version
 
 1. **Bump.** Change the version in `SPECS` before collecting results with the new code.

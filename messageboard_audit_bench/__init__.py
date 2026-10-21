@@ -1,15 +1,17 @@
-"""Inspect AI tasks for the German wiki report and Transluce report benchmarks.
+"""Inspect AI tasks for the German wiki, Transluce and AI Village report benchmarks.
 
 The pre-rename task names are kept as deprecated aliases.
 """
 
 from messageboard_audit_bench.grading.task import (
+    aivillage_report_grade,
     german_wiki_report_grade,
     grade_reports,
     transluce_report_grade,
     urlquery_grade_reports,
 )
 from messageboard_audit_bench.task import (
+    aivillage_report,
     german_wiki_report,
     german_wiki_report_continue,
     german_wiki_report_replay,
@@ -21,6 +23,8 @@ from messageboard_audit_bench.task import (
 )
 
 __all__ = [
+    "aivillage_report",
+    "aivillage_report_grade",
     "german_wiki_report",
     "german_wiki_report_continue",
     "german_wiki_report_grade",
