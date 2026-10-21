@@ -1,6 +1,6 @@
 """Render this assessment for the repository's existing local HTML viewer.
 
-Run from the worktree: .venv/bin/python docs/assessments/transluce/build_preview.py
+Run from the worktree: .venv/bin/python benchmarks/transluce/docs/assessment/build_preview.py
 Then: python scripts/html_viewer.py 8790
 """
 
@@ -15,7 +15,7 @@ from urllib.parse import quote
 from markdown_it import MarkdownIt
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[2]
+ROOT = HERE.parents[3]
 SOURCE = HERE / "assessment.md"
 REPORT_ID = "transluce-benchmark-assessment-2026-09-26"
 

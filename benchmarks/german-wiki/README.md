@@ -72,9 +72,9 @@ headline figures combine them using `viewers/build_headline_figures.py` and
 Start with:
 
 - [Results figures](../../viewers/figures/results_figures.md), with the plot sources and captions.
-- [Evidence index](../../docs/benchmark-data-index.md), linking the current reports, grades,
+- [Evidence index](../../benchmarks/german-wiki/docs/benchmark-data-index.md), linking the current reports, grades,
   rubric-validation evidence, and ablations.
-- [Inspect log downloads](../../docs/artifacts/inspect-logs.md), with checksums and a manifest
+- [Inspect log downloads](../../benchmarks/german-wiki/docs/artifacts/inspect-logs.md), with checksums and a manifest
   linking the archived logs to reported samples.
 
 The figures generally show three runs per model and budget. Missing samples and
@@ -174,7 +174,7 @@ the headline score combines that with the holistic TLDR grade at weights 70/30.
 When a sheet fails to grade, the scorer records the failure and still emits a score
 over the sheets that survived. Any aggregate meant for publication has to read that
 failure metadata rather than the score alone.
-See [the evidence index](../../docs/benchmark-data-index.md) for source grades and
+See [the evidence index](../../benchmarks/german-wiki/docs/benchmark-data-index.md) for source grades and
 human validation records. Alternative grading sheets remain available for
 compatibility and validation, but do not define the headline metric.
 
@@ -239,15 +239,15 @@ unchanged.
   benchmarks, what changed, and how to run a specific one.
 - [`benchmarks/transluce/README.md`](../transluce/README.md) — the Transluce report:
   data, batch launcher, findings rubric and judge.
-- [`docs/release-readiness.md`](../../docs/release-readiness.md) — what the release audit found
+- [`benchmarks/german-wiki/docs/release-readiness.md`](../../benchmarks/german-wiki/docs/release-readiness.md) — what the release audit found
   and what remains before publishing results.
-- [`docs/benchmark-data-index.md`](../../docs/benchmark-data-index.md) — the publication
+- [`benchmarks/german-wiki/docs/benchmark-data-index.md`](../../benchmarks/german-wiki/docs/benchmark-data-index.md) — the publication
   evidence index: the reports, grades, ground truth and logs behind the headline
   figures. Historical rounds sit at the `inspect-logs-2026-09-08` tag, not here.
-- [`docs/data-processing.md`](../../docs/data-processing.md) — every transformation from the
-  public dump to the benchmark inputs; [`docs/verbatim-data.md`](../../docs/verbatim-data.md)
+- [`benchmarks/german-wiki/docs/data-processing.md`](../../benchmarks/german-wiki/docs/data-processing.md) — every transformation from the
+  public dump to the benchmark inputs; [`benchmarks/german-wiki/docs/verbatim-data.md`](../../benchmarks/german-wiki/docs/verbatim-data.md)
   covers the augmented variant.
-- [`docs/ablations-and-baselines.html`](../../docs/ablations-and-baselines.html) — how we check
+- [`benchmarks/german-wiki/docs/ablations-and-baselines.html`](../../benchmarks/german-wiki/docs/ablations-and-baselines.html) — how we check
   the benchmark measures investigation rather than summarisation;
   [`benchmarks/german-wiki/experiments/ablations.md`](experiments/ablations.md) is the archive inventory.
 

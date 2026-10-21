@@ -114,7 +114,7 @@ the post itself:
 ### When all three are done
 
 ```sh
-git rm docs/release-readiness.md
+git rm benchmarks/german-wiki/docs/release-readiness.md
 ```
 
 Then remove the two links to it, in `README.md` and `docs/getting-started.md`.
@@ -123,4 +123,4 @@ the README's grading section, and the wheel's need for a checkout is in the
 setup instructions.
 
 Official Inspect Evals registration is separate from a directly runnable task;
-see [the registration notes](inspect-evals-registration.md).
+see [the registration notes](../../../docs/inspect-evals-registration.md).

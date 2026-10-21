@@ -45,7 +45,7 @@ audience, while adapting the dataset description, citations and inert-evidence
 safety instructions. A direct model ranking across the two batches would
 confound model and prompt changes.
 
-The [explicit matrix](../../../configs/superseded/urlquery-smaller-models.toml) requests one
+The [explicit matrix](../../../../configs/superseded/urlquery-smaller-models.toml) requests one
 run each of `claude-haiku-4-5-20251001`, `claude-sonnet-5`, `gpt-6-luna` and
 `gpt-5.6-terra`. They receive the same frozen URLQuery input, a ten-minute active
 maximum, 75% minimum-runtime rule and 3,000–3,500-word target. The shared CLI
@@ -101,7 +101,7 @@ rubric or scores were created, and the branch has not been merged into `main`.
 To regenerate this index and the report previews without new model calls:
 
 ```sh
-.venv/bin/python docs/assessments/transluce/summarize_pilot.py \
+.venv/bin/python benchmarks/transluce/docs/assessment/summarize_pilot.py \
   --experiment /Users/oscargilg/Dev/messageboardauditbench/runs/urlquery/pilot-20260927T000705Z-884f7300 \
-  --output docs/assessments/transluce/smaller_runs.json --render
+  --output benchmarks/transluce/docs/assessment/smaller_runs.json --render
 ```

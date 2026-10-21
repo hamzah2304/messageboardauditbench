@@ -189,7 +189,7 @@ supported by this interface.
 
 Historical Codex followups use native subscription session resume through
 `scripts/run_followup.sh`; Claude Code continuation is not implemented. See
-[the release audit](release-readiness.md) for the remaining corpus work.
+[the release audit](../benchmarks/german-wiki/docs/release-readiness.md) for the remaining corpus work.
 
 ## Export or grade existing reports
 

@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlsplit
 from markdown_it import MarkdownIt
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[2]
+ROOT = HERE.parents[3]
 SHELL = runpy.run_path(str(HERE / "build_preview.py"))["SHELL"]
 FALLBACK_NOTICE = runpy.run_path(str(HERE / "summarize_pilot.py"))["fallback_notice"]
 NOTICE = (

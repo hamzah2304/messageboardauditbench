@@ -15,7 +15,7 @@ bytes as `.txt`, and records publication hashes. Regenerate the run indexes thro
 then explicitly update the sharing approvals and run:
 
 ```sh
-.venv/bin/python docs/assessments/transluce/build_share_site.py
+.venv/bin/python benchmarks/transluce/docs/assessment/build_share_site.py
 ```
 
 The homepage groups AI reports by their full rendered `prompt_sha256`.

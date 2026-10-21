@@ -125,7 +125,7 @@ evidence source.
 
 Compare the original Hugo finding file at commit `a5c4fdc`, the user's
 exported JSON named in the reviewed export's `revision.source_export`, and
-`docs/urlquery-findings-v2-reviewed.json`. Inspect cited scan IDs in the
+`benchmarks/transluce/docs/urlquery-findings-v2-reviewed.json`. Inspect cited scan IDs in the
 frozen JSONL files. Use `source_field` in `decoded_text.jsonl` to locate
 encoded strings in their original field. Interpret `submission_tags` as scan
 metadata, not actor identity. The dataset README documents missingness.

@@ -132,15 +132,15 @@ Launch the six ten-minute runs only after the scope-matched rubric has at least 
 
 ## Evidence and limits of this assessment
 
-This assessment builds on the [September 24 repository note](../../transluce-urlquery-assessment.md). That note describes a 20-scan check, but its raw scratch files are not in the repository; I have not treated that as a freshly reproduced availability result. This assessment independently verifies the ZIP and two cited scans, and inspects the current code at `b7ecf93ddc8c0bc71747860d0a98dd9c373a8538`. It makes feasibility wording stricter and recommends a standalone initial condition, with a joint-source condition later.
+This assessment builds on the [September 24 repository note](../transluce-urlquery-assessment.md). That note describes a 20-scan check, but its raw scratch files are not in the repository; I have not treated that as a freshly reproduced availability result. This assessment independently verifies the ZIP and two cited scans, and inspects the current code at `b7ecf93ddc8c0bc71747860d0a98dd9c373a8538`. It makes feasibility wording stricter and recommends a standalone initial condition, with a joint-source condition later.
 
 The checks are reproducible with [inspect_dataset.py](inspect_dataset.py):
 
 ```sh
-python docs/assessments/transluce/inspect_dataset.py \
+python benchmarks/transluce/docs/assessment/inspect_dataset.py \
   /private/tmp/urlquery-agent-activity-2026-09-23.zip \
   /private/tmp/urlquery-aihw.json /private/tmp/urlquery-oncb.json \
-  --output docs/assessments/transluce/evidence.json
+  --output benchmarks/transluce/docs/assessment/evidence.json
 ```
 
 Download sources are linked above; snapshot hashes and schemas are in [evidence.json](evidence.json). The ZIP SHA-256 is `969a13fbd7d80d7e1556eef58a347f52ecdd85661c541f6c0d1d6f5e2a86570d`. Raw samples are temporary local inspection files, not redistributed benchmark inputs. No complete corpus, approved findings, calibrated judge, paid model results, or implemented refactor exists from this assessment.

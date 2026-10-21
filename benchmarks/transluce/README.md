@@ -155,4 +155,4 @@ Raw downloads, the annotated catalog and acquisition audits live once in the pri
 checkout's gitignored `data/transluce/`. The frozen agent files are in
 `data/urlquery/<version>/`, with their evaluator-only provenance sidecar next to them,
 outside the mount. See the
-[preprocessing documentation](../../docs/urlquery-engineering.md).
+[preprocessing documentation](../../benchmarks/transluce/docs/urlquery-engineering.md).

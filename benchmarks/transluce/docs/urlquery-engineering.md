@@ -83,7 +83,7 @@ an evidence-checked finding rubric.
 0.75. The target matches the source report's findings prose: 2,633 words across the
 introduction, key findings, executive summary, the three incident sections and the
 six timeline descriptions, excluding the appendix (421) and footnotes (81) that the
-earlier 3,135-word count included (`docs/assessments/transluce/source_word_count.json`). The active process is stopped at ten minutes; the fifteen-minute
+earlier 3,135-word count included (`benchmarks/transluce/docs/assessment/source_word_count.json`). The active process is stopped at ten minutes; the fifteen-minute
 outer setting is not permission for additional investigation.
 The active timeout has a one-second termination grace. Deadline stops are
 recorded as `active_time_limit`, distinct from harness errors; their reports are

@@ -11,7 +11,7 @@ Everything lands in the primary checkout's gitignored data/transluce/:
   subset.json                which ids were chosen and why
 
 urlquery's terms allow personal, non-commercial use and forbid redistribution,
-so none of this is committed. See docs/transluce-urlquery-assessment.md.
+so none of this is committed. See benchmarks/transluce/docs/transluce-urlquery-assessment.md.
 
 The subset: every report the post links to, every supplemental (hand-reviewed)
 row, catalogue reports within 45 minutes of a cited report with the same data

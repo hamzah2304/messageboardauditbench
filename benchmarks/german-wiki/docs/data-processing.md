@@ -134,7 +134,7 @@ summaries, which is evidence.
 
 Built from `raw_stripped`. Adds back only two things: material the human
 report prints verbatim, and consistent fictional names for the redacted
-tokens. Full rationale in `docs/verbatim-data.md`. Earlier reconstruction-based
+tokens. Full rationale in `benchmarks/german-wiki/docs/verbatim-data.md`. Earlier reconstruction-based
 augmentation was abandoned; its implementation remains in Git history.
 
 ### 3a. Verbatim rows from the report

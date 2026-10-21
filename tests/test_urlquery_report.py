@@ -8,7 +8,7 @@ import pytest
 
 @pytest.fixture
 def report_fixture(tmp_path, monkeypatch):
-    script = Path(__file__).parents[1] / "docs/assessments/transluce/summarize_pilot.py"
+    script = Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment/summarize_pilot.py"
     summarize = runpy.run_path(str(script))["summarize"]
     monkeypatch.setitem(summarize.__globals__, "primary_root", lambda: tmp_path)
     root = tmp_path / "runs/urlquery"
@@ -83,7 +83,7 @@ def test_summary_rejects_duplicate_and_cross_benchmark_runs(report_fixture):
 
 
 def test_selected_checks_distinguish_request_and_response_content(tmp_path, monkeypatch):
-    script = Path(__file__).parents[1] / "docs/assessments/transluce/check_pilot_examples.py"
+    script = Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment/check_pilot_examples.py"
     check = runpy.run_path(str(script))["check"]
     monkeypatch.setitem(check.__globals__, "validate_dataset", lambda _: {"dataset_sha256": "d" * 64})
     http = {"scan_id": "not-selected", "transaction_index": 0,
@@ -134,7 +134,7 @@ def test_summary_requires_export_provenance(report_fixture, missing):
 @pytest.mark.parametrize("missing_chain", [False, True])
 def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatch, tmp_path, chain, missing_chain):
     _, experiment, run, reports = report_fixture
-    scripts = Path(__file__).parents[1] / "docs/assessments/transluce"
+    scripts = Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment"
     meta = json.loads((run / "meta.json").read_text())
     meta["model_fallback"] = {"chain": chain, "trigger": "refusal"}
     if missing_chain:
@@ -178,6 +178,6 @@ def test_render_passes_fallback_notice_and_escapes_it(report_fixture, monkeypatc
     ({"trigger": "unknown"}, "model chain is unavailable", "chain: ."),
 ])
 def test_fallback_notice_edge_cases(fallback, contains, absent):
-    script = Path(__file__).parents[1] / "docs/assessments/transluce/summarize_pilot.py"
+    script = Path(__file__).parents[1] / "benchmarks/transluce/docs/assessment/summarize_pilot.py"
     notice = runpy.run_path(str(script))["fallback_notice"]({"requested_model": "first", "model_fallback": fallback})
     assert contains in notice and absent not in notice

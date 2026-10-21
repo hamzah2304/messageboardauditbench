@@ -26,10 +26,10 @@ the originals.
 
 | Report | Active runtime | Words | Main account offered by the model |
 |---|---:|---:|---|
-| [GPT-6 Astra](../../../benchmarks/transluce/reports/published/gpt-6-astra.md) | 7:45 | 3,273 | Scanner as programmable browser: encoded pages, POST forms, data queries and results carried in URLs/titles/canvas. Distinguishes several failed probes from observed actions; also investigates older phishing records. |
-| [GPT-6 Sol](../../../benchmarks/transluce/reports/published/gpt-6-sol.md) | 7:51 | 3,205 | Public-data access patterns, repeated conversion/proxy attempts and a disposable-mail sequence. More inventory-oriented; separates third-party page traffic from submitter intent. |
-| [Opus 5.5 → 4.8, run 1](../../../benchmarks/transluce/reports/published/claude-opus-run-1.md) | 7:50 | 3,115 | Encoded programs, bulk data access and account/API-key automation, framed as a coordinated campaign. Its claim that sampled HTTP statuses were absent is wrong. |
-| [Opus 5.5 → 4.8, run 2](../../../benchmarks/transluce/reports/published/claude-opus-run-2.md) | 7:58 | 3,251 | Echo-service delivery, CRLF-containing user-agent strings, account automation and callbacks. Stronger claims about successful harvesting and one campaign; its stored-response-body interpretation is wrong. |
+| [GPT-6 Astra](../../reports/published/gpt-6-astra.md) | 7:45 | 3,273 | Scanner as programmable browser: encoded pages, POST forms, data queries and results carried in URLs/titles/canvas. Distinguishes several failed probes from observed actions; also investigates older phishing records. |
+| [GPT-6 Sol](../../reports/published/gpt-6-sol.md) | 7:51 | 3,205 | Public-data access patterns, repeated conversion/proxy attempts and a disposable-mail sequence. More inventory-oriented; separates third-party page traffic from submitter intent. |
+| [Opus 5.5 → 4.8, run 1](../../reports/published/claude-opus-run-1.md) | 7:50 | 3,115 | Encoded programs, bulk data access and account/API-key automation, framed as a coordinated campaign. Its claim that sampled HTTP statuses were absent is wrong. |
+| [Opus 5.5 → 4.8, run 2](../../reports/published/claude-opus-run-2.md) | 7:58 | 3,251 | Echo-service delivery, CRLF-containing user-agent strings, account automation and callbacks. Stronger claims about successful harvesting and one campaign; its stored-response-body interpretation is wrong. |
 
 All four terminated normally. Ten minutes was the maximum active budget, not the
 time each model necessarily used: the inherited minimum-runtime rule permits
@@ -144,8 +144,8 @@ feasible. Some claims depend on unavailable body content, cross-corpus context
 or external attribution.
 
 The transformation is documented in
-[the preparation config](../../../configs/urlquery-data.toml) and
-[engineering guide](../../urlquery-engineering.md). An evaluator-only sidecar
+[the preparation config](../../../../configs/urlquery-data.toml) and
+[engineering guide](../urlquery-engineering.md). An evaluator-only sidecar
 outside the mount retains source/raw-file hashes, missing IDs and preparation-code
 hashes. Dataset SHA-256:
 `973d7b7a1e14df236fbf5d99d9795ab3fdc0f40720c67376771fa19f0e299d1f`.
@@ -231,9 +231,9 @@ the selected retry used `03be5de`. The [run index](pilot_runs.json) links both
 launch plans, all six attempts, resolved configs, image IDs, CLI versions, report
 hashes and local paths. Successful reports share rendered prompt SHA-256
 `1060e0550c465e96f5ca951dd91bddde01393ee8b388cebcee4d92fcdd69e7e2`.
-The [current next-run config](../../../configs/superseded/urlquery-10.toml) now selects the
+The [current next-run config](../../../../configs/superseded/urlquery-10.toml) now selects the
 replacement prompt. For this experiment's wording, see
-[the archived prompt template](../../../sandbox/prompts/superseded/urlquery-blind.txt)
+[the archived prompt template](../../../../sandbox/prompts/superseded/urlquery-blind.txt)
 and each run's `prompt.txt`, `config.source.toml` and `config.rendered.json`.
 
 The local dataset is
@@ -242,13 +242,13 @@ its sidecar is adjacent `2026-09-26-v1-provenance.json`. From the task worktree,
 regenerate evaluator checks without new model calls:
 
 ```sh
-.venv/bin/python docs/assessments/transluce/check_pilot_examples.py \
+.venv/bin/python benchmarks/transluce/docs/assessment/check_pilot_examples.py \
   --dataset /Users/oscargilg/Dev/messageboardauditbench/data/urlquery/2026-09-26-v1 \
-  --output docs/assessments/transluce/pilot_checks.json
-.venv/bin/python docs/assessments/transluce/summarize_pilot.py \
+  --output benchmarks/transluce/docs/assessment/pilot_checks.json
+.venv/bin/python benchmarks/transluce/docs/assessment/summarize_pilot.py \
   --experiment /Users/oscargilg/Dev/messageboardauditbench/runs/urlquery/pilot-20260926T230547Z-4b7ce69c \
   --experiment /Users/oscargilg/Dev/messageboardauditbench/runs/urlquery/pilot-20260926T232829Z-a4b3fd2b \
-  --output docs/assessments/transluce/pilot_runs.json --render
+  --output benchmarks/transluce/docs/assessment/pilot_runs.json --render
 ```
 
 Opus 5.5 was requested through Claude Companion at preprocessing, runner and

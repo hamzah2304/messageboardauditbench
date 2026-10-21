@@ -50,7 +50,7 @@ every committed score, so call it out explicitly in the pull request:
 
 Grades from different sheets, judges or data variants are not comparable. If you
 add results, keep them in their own directory rather than merging them into an
-existing set — see [`docs/benchmark-data-index.md`](../docs/benchmark-data-index.md).
+existing set — see [`benchmarks/german-wiki/docs/benchmark-data-index.md`](../benchmarks/german-wiki/docs/benchmark-data-index.md).
 
 New incidents use the registered lifecycle and scaffold in
 [`docs/adding-an-incident.md`](../docs/adding-an-incident.md). The quickest overview is:
