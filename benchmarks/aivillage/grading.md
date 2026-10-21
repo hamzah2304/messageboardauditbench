@@ -6,14 +6,14 @@ Prepare a plan from the current findings file, then execute that frozen plan. Fi
 
 ```sh
 ROOT=/home/oscar_gilg18/Dev/MessageBoardAuditBench
-uv run python scripts/grade_aivillage.py prepare \
+uv run python scripts/aivillage/grade_aivillage.py prepare \
   --findings "$ROOT/runs/aivillage-verify-20261004/final-findings.json" \
   --reports benchmarks/aivillage/benchmark-2026-10-04-runs.md \
   --runs-root "$ROOT/runs" \
   --goals "$ROOT/data/aivillage/full-v2-reasoning/village_goals.jsonl" \
   --output "$ROOT/runs/aivillage-grading-medium"
 
-uv run python scripts/grade_aivillage.py run \
+uv run python scripts/aivillage/grade_aivillage.py run \
   --output "$ROOT/runs/aivillage-grading-medium" \
   --concurrency 32 --deadline-minutes 65
 ```

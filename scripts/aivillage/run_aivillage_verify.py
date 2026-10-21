@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check merged AI Village findings against the Village records, one sandboxed agent per group of findings.
 
-    python3 scripts/run_aivillage_verify.py OUT_DIR MERGED_FULL_JSON [--only M001 M002 ...] [--workers 3]
-    python3 scripts/run_aivillage_verify.py OUT_DIR MERGED_FULL_JSON --status
+    python3 scripts/aivillage/run_aivillage_verify.py OUT_DIR MERGED_FULL_JSON [--only M001 M002 ...] [--workers 3]
+    python3 scripts/aivillage/run_aivillage_verify.py OUT_DIR MERGED_FULL_JSON --status
 
 Findings are grouped by the Village goal period they probably fall in, at most 8 per group, with
 about five minutes of budget per finding. For each group this fills the findings into the config's
@@ -23,7 +23,7 @@ import threading
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "configs/aivillage-verify.toml"
 TEMPLATE = ROOT / "sandbox/prompts/aivillage-verify-v3.txt"
 DATA = Path("/home/oscar_gilg18/Dev/MessageBoardAuditBench/data/aivillage/full-v2-reasoning")

@@ -9,7 +9,7 @@ Writes <run>/media.json; threads and files are cached, so reruns only fetch
 what is missing. Tweets after the last exported part (usually a "watch the
 agents live" plug) are ignored.
 
-    uv run python scripts/x_media.py runs/x-extraction-sample-YYYYMMDD
+    uv run python scripts/aivillage/x_media.py runs/x-extraction-sample-YYYYMMDD
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 UA = {"User-Agent": "Mozilla/5.0"}
 
 

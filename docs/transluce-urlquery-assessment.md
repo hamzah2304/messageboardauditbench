@@ -254,7 +254,7 @@ A local page for browsing the catalogue and the raw evidence, and for
 leaving questions as comments:
 
 ```sh
-uv run scripts/fetch_transluce.py            # catalogue + ~1,300 raw report JSONs, ~30 min at 1 req/s
+uv run scripts/transluce/fetch_transluce.py            # catalogue + ~1,300 raw report JSONs, ~30 min at 1 req/s
 uv run viewers/build_transluce_explorer.py   # -> viewers/transluce_explorer.html (gitignored)
 python3 scripts/html_viewer.py               # open http://localhost:8765/transluce_explorer.html
 ```

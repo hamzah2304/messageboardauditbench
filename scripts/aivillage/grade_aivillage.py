@@ -259,7 +259,7 @@ def aggregate(plan, output):
 def run(args):
     from dotenv import load_dotenv
     from openai import OpenAI
-    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     plan_path = args.plan or Path(read(args.output / "latest-plan.json")["plan"])
     plan = read(plan_path)
     if plan["model"] != MODEL or plan["effort"] != EFFORT:
@@ -317,8 +317,8 @@ def main():
     p.add_argument("--findings", type=Path)
     p.add_argument("--expected-findings", type=int, default=96)
     p.add_argument("--reports", type=Path)
-    p.add_argument("--runs-root", type=Path, default=Path(__file__).resolve().parents[1] / "runs")
-    p.add_argument("--rubric", type=Path, default=Path(__file__).resolve().parents[1] / "benchmarks/aivillage/judge-prompt-v8.txt")
+    p.add_argument("--runs-root", type=Path, default=Path(__file__).resolve().parents[2] / "runs")
+    p.add_argument("--rubric", type=Path, default=Path(__file__).resolve().parents[2] / "benchmarks/aivillage/judge-prompt-v8.txt")
     p.add_argument("--goals", type=Path)
     p.add_argument("--goal-map", type=Path)
     p.add_argument("--output", type=Path, required=True)

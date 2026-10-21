@@ -2,9 +2,9 @@
 """Turn local URLQuery run directories into labelled Inspect logs and open the viewer.
 
 Usage:
-    uv run python scripts/view_urlquery_runs.py            # build logs, then `inspect view`
-    uv run python scripts/view_urlquery_runs.py --no-view  # build only
-    uv run python scripts/view_urlquery_runs.py --since 20260927T06 --port 7577
+    uv run python scripts/transluce/view_urlquery_runs.py            # build logs, then `inspect view`
+    uv run python scripts/transluce/view_urlquery_runs.py --no-view  # build only
+    uv run python scripts/transluce/view_urlquery_runs.py --since 20260927T06 --port 7577
 
 Reads `runs/urlquery/<run>/` in the primary checkout (transcript, report, meta)
 and writes one unscored Inspect log per prompt-and-budget group to
@@ -26,7 +26,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample

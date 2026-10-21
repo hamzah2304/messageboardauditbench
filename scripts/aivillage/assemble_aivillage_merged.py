@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Attach the extracted evidence to a merged AI Village findings file.
 
-    python3 scripts/assemble_aivillage_merged.py MERGE_INPUT_DIR MERGED_JSON OUT_JSON
+    python3 scripts/aivillage/assemble_aivillage_merged.py MERGE_INPUT_DIR MERGED_JSON OUT_JSON
 
 The merge agent refers to extracted findings by ID only. This writes each merged finding in
 full: its wording, and under every subfinding the source quotes, evidence notes and judge

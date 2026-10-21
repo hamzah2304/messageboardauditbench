@@ -165,7 +165,7 @@ The pilot summary links to local report previews, not a public deployment.
 
 ## Browsing trajectories
 
-`uv run python scripts/view_urlquery_runs.py` rebuilds unscored Inspect logs from
+`uv run python scripts/transluce/view_urlquery_runs.py` rebuilds unscored Inspect logs from
 the local `runs/urlquery/` directories and opens `inspect view`. There is one log per
 prompt-and-budget group (for example "urlquery-swarm-v4 · 10 min"); each sample is
 one run, named `<model> r<replicate> · <run-id prefix>`, with agent, config, prompt

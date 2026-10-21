@@ -5,7 +5,7 @@ Drops empty and pre-Village posts in code, then asks Luna for keep/drop on the
 rest using the screening stage of the X findings prompt. Responses are cached
 per batch under the run directory, so a rerun only pays for missing batches.
 
-    uv run python scripts/x_screen.py [--run runs/x-screen-YYYYMMDD] [--dry-run]
+    uv run python scripts/aivillage/x_screen.py [--run runs/x-screen-YYYYMMDD] [--dry-run]
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 # data/ is shared from the primary checkout, which worktrees do not fully link.
 PRIMARY = Path(subprocess.check_output(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
                                        cwd=ROOT, text=True).strip()).parent

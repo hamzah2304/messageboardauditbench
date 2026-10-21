@@ -3,7 +3,7 @@
 agent-activity catalogue, read the raw urlquery evidence for the fetched subset,
 and leave comments (questions) on reports, sections, selected text or the page.
 
-    uv run scripts/fetch_transluce.py          # catalogue + raw JSON subset
+    uv run scripts/transluce/fetch_transluce.py          # catalogue + raw JSON subset
     uv run viewers/build_transluce_explorer.py
     python3 scripts/html_viewer.py             # then open /transluce_explorer.html
 
@@ -296,7 +296,7 @@ def slim(d):
 def build():
     cat = sorted(SRC.glob("urlquery-agent-activity-*/all-reports.csv"))
     if not cat:
-        sys.exit(f"no catalogue in {SRC}; run scripts/fetch_transluce.py first")
+        sys.exit(f"no catalogue in {SRC}; run scripts/transluce/fetch_transluce.py first")
     cat = cat[0].parent
     subset = json.loads((SRC / "subset.json").read_text())
     reasons = subset["reasons"]

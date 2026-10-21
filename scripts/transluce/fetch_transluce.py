@@ -2,7 +2,7 @@
 """Fetch Transluce's urlquery.net agent-activity catalogue plus the raw urlquery
 JSON for an explorable subset of its reports.
 
-    uv run scripts/fetch_transluce.py [--per-source 15] [--suggestive 120] [--dry-run]
+    uv run scripts/transluce/fetch_transluce.py [--per-source 15] [--suggestive 120] [--dry-run]
 
 Everything lands in the primary checkout's gitignored data/transluce/:
   urlquery-agent-activity-2026-09-23.zip + the unzipped catalogue

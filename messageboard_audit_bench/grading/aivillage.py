@@ -1,6 +1,6 @@
 """The AI Village judge: findings, prompt, response schema and score, plus its Inspect scorer.
 
-`scripts/grade_aivillage.py` runs the same requests as resumable batch jobs against the
+`scripts/aivillage/grade_aivillage.py` runs the same requests as resumable batch jobs against the
 OpenAI Responses API; `aivillage_scorer` sends them through Inspect's model layer so the
 judge's calls land in the eval log. Both build each request from the helpers here, so a
 report gets the same judge input either way.

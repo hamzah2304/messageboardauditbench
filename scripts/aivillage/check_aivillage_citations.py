@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check the citations in AI Village reports: does each cited id exist, and does its quote appear in it?
 
-    scripts/check_aivillage_citations.py DATA_DIR REPORT.md [REPORT.md ...] [--json]
+    scripts/aivillage/check_aivillage_citations.py DATA_DIR REPORT.md [REPORT.md ...] [--json]
 
 Citations look like [turn:<id> "quote"]. Quotes are compared after normalising case,
 whitespace and curly quotes. Grader-side only; agents never run this.

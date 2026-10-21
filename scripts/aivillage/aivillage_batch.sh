@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a batch of AI Village trials (prompt v3.17, 30 minutes) on this machine, Linux or macOS.
 #
-#   scripts/aivillage_batch.sh --replicates "3" [--claude 3] [--codex 3] [--react 5] [--only "model ..."] [--cutoff HH:MM] [--sync-to fuzzy]
+#   scripts/aivillage/aivillage_batch.sh --replicates "3" [--claude 3] [--codex 3] [--react 5] [--only "model ..."] [--cutoff HH:MM] [--sync-to fuzzy]
 #
 # Builds one queue per subscription from the model lists below (Claude and Codex models with and
 # without subagents, OpenRouter models without: they have no subagent tool), runs each queue with
@@ -11,7 +11,7 @@
 # Replicate 1 of everything runs before replicate 2, alternating conditions. --sync-to HOST copies
 # the finished runs to HOST:Dev/MessageBoardAuditBench/runs/ (never the Claude token).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 CLAUDE_MODELS=(claude-opus-5 claude-opus-4-8 claude-opus-4-6 claude-sonnet-5-5)
 CODEX_MODELS=(gpt-6-astra gpt-6.1-sol gpt-6-luna)
@@ -56,7 +56,7 @@ if [ -n "$DOCKER_WRAP" ]; then $DOCKER_WRAP "$build"; else $build; fi >/dev/null
 
 lane() {  # lane <agent> <in flight>
   [ "$2" -gt 0 ] && [ -s "$OUT/$1.txt" ] || return 0
-  scripts/aivillage_queue.sh "$OUT/$1.txt" "$1" "$2" "$OUT" $CUTOFF
+  scripts/aivillage/aivillage_queue.sh "$OUT/$1.txt" "$1" "$2" "$OUT" $CUTOFF
 }
 echo "batch $OUT: $(cat "$OUT"/claude.txt "$OUT"/codex.txt "$OUT"/react.txt | wc -l | tr -d ' ') runs; progress in $OUT/done.txt"
 lane claude "$P_CLAUDE" & sleep 40

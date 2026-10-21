@@ -6,14 +6,14 @@ runs without subagents only, for models Epoch has scored (eci_snapshot.json).
 
 Score is the mean of a report's 20 highest finding scores against the answer
 key (0 to 1), matching the 20 findings each report writes; no contradiction
-penalties. Cost comes from scripts/aivillage_run_costs.py.
+penalties. Cost comes from scripts/aivillage/aivillage_run_costs.py.
 Refuses to draw unless every report in the costs file is fully graded.
 
 Writes score_vs_cost.html and score_vs_eci.html (labels can be dragged; "Copy
 label positions" gives JSON to paste into <figure>_labels.json, which sets the
 defaults) and a headless-Chrome PNG screenshot of each for the README.
 
-  uv run python scripts/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md \
+  uv run python scripts/aivillage/aivillage_run_costs.py --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md \
       --out runs/aivillage-costs-20261004
   uv run python viewers/build_aivillage_figures.py
 """

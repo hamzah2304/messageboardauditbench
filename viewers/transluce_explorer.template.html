@@ -381,7 +381,7 @@ function openReport(id, fromHash){
     <dt class="cx" data-cx="l.class">method class</dt><dd>${esc(r.cls)}</dd><dt class="cx" data-cx="l.source">data source</dt><dd>${esc(r.src)} <span class="note">(${esc(r.basis || "")})</span></dd>
     <dt class="cx" data-cx="l.why">why included</dt><dd>${esc(r.why)}</dd><dt class="cx" data-cx="l.caveat">caveat</dt><dd class="note">${esc(r.cav)}</dd></dl></div>`;
   if (!rep) {
-    h += `<div class="sec"><div class="empty">Raw urlquery JSON not fetched for this report. Open it on urlquery.net, or add it to the subset in <code>scripts/fetch_transluce.py</code> and rebuild.</div></div>`;
+    h += `<div class="sec"><div class="empty">Raw urlquery JSON not fetched for this report. Open it on urlquery.net, or add it to the subset in <code>scripts/transluce/fetch_transluce.py</code> and rebuild.</div></div>`;
   } else {
     h += `<div class="sec" data-field="scan">${secHead("Scan", "scan")}<dl class="kv">
       <dt class="cx" data-cx="f.submitted">submitted URL</dt><dd><code>${esc(rep.submitted)}</code>${hostTag(rep.submitted)}</dd>

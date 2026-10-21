@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Collect the extracted AI Village findings from Substack, X and Discord into one folder for the merge step.
 
-    python3 scripts/build_aivillage_merge_input.py OUT_DIR
+    python3 scripts/aivillage/build_aivillage_merge_input.py OUT_DIR
 
 Each finding gets a short ID (S001, X001, D001, ...) and its subfindings <ID>.1, <ID>.2, ...
 OUT_DIR then holds:
@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SUBSTACK = ROOT / "logs/aivillage-substack-failures-20261004"
 SUBSTACK_SOURCES = ROOT / "logs/aivillage-substack-screen"
 X = ROOT / "runs/x-extraction-20261004"
@@ -108,7 +108,7 @@ def main():
     (out / "index.jsonl").write_text("\n".join(rows) + "\n")
     (out / "ids.json").write_text(json.dumps(ids, indent=1) + "\n")
     (out / "README.txt").write_text(README)
-    (out / "check_merge.py").write_text((ROOT / "scripts/check_aivillage_merge.py").read_text())
+    (out / "check_merge.py").write_text((ROOT / "scripts/aivillage/check_aivillage_merge.py").read_text())
     print(json.dumps({"findings": len(ids), "subfindings": sum(len(v) for v in ids.values()),
                       "by_source": {p: sum(k.startswith(p) for k in ids) for p in "SXD"},
                       "index_bytes": (out / "index.jsonl").stat().st_size}))

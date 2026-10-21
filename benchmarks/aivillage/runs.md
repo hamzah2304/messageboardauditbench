@@ -2,7 +2,7 @@
 
 Every trial so far, oldest first. Run folders are under `runs/` in the primary checkout (gitignored) and are named `<UTC start>_<harness>_<model>_r<replicate>_<config>_<id>`; each holds the prompt the agent saw, `report.md`, `transcript.jsonl`, `meta.json` and the config. Configs and prompts named here are in `configs/superseded/` and `sandbox/prompts/superseded/`; the current ones are `aivillage-v12-30` and prompt `aivillage-v12`.
 
-"Usable" means the run finished and its report can be compared with others. Citation counts are from `scripts/check_aivillage_citations.py` (id exists and quote appears in the record); runs before the quoted-citation format have no count.
+"Usable" means the run finished and its report can be compared with others. Citation counts are from `scripts/aivillage/check_aivillage_citations.py` (id exists and quote appears in the record); runs before the quoted-citation format have no count.
 
 ## 3 October: pilot (old interface, data as compressed JSON Lines, no fixed number of findings)
 
@@ -171,4 +171,4 @@ First runs of `gpt-6.1-sol` in this eval (the overnight Sol runs used `gpt-6-sol
 
 ## 4 October, evening: benchmark batch, prompt v3.17, 30 minutes (configs `aivillage-v12-30`, `aivillage-v12-30-subagents`, current)
 
-32 runs from 11 models on Claude Code, Codex and the OpenRouter ReAct loop, launched with `scripts/aivillage_batch.sh`. The runs to grade and the folders to ignore are listed in [benchmark-2026-10-04-runs.md](benchmark-2026-10-04-runs.md).
+32 runs from 11 models on Claude Code, Codex and the OpenRouter ReAct loop, launched with `scripts/aivillage/aivillage_batch.sh`. The runs to grade and the folders to ignore are listed in [benchmark-2026-10-04-runs.md](benchmark-2026-10-04-runs.md).

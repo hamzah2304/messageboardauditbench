@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build the v2 AI Village data folders: computer-use records in SQLite, everything else plain JSONL.
 
-    scripts/build_aivillage_data.py --variant noreasoning                      # -> data/aivillage/full-v2-noreasoning/
-    scripts/build_aivillage_data.py --variant reasoning
-    scripts/build_aivillage_data.py --variant reasoning --start 2025-10-27 --end 2025-11-01   # a small slice
+    scripts/aivillage/build_aivillage_data.py --variant noreasoning                      # -> data/aivillage/full-v2-noreasoning/
+    scripts/aivillage/build_aivillage_data.py --variant reasoning
+    scripts/aivillage/build_aivillage_data.py --variant reasoning --start 2025-10-27 --end 2025-11-01   # a small slice
 
 Reads the downloaded export in data/raw/ai-village/. In both variants every reasoning trace
 is stripped from the raw model responses. The `reasoning` variant puts it back in one place
@@ -24,7 +24,7 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 PRIMARY = Path(subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"], text=True).strip()).parent
 RAW = PRIMARY / "data" / "raw" / "ai-village"
 README = ROOT / "benchmarks" / "aivillage" / "data-readme.txt"

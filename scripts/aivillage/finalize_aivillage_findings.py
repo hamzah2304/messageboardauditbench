@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assemble the final AI Village findings from the merged list, the verification and the adjudication.
 
-    python3 scripts/finalize_aivillage_findings.py MERGED_FULL_JSON VERIFY_DIR TEMPLATE_HTML PAGE_DIR [RECHECK_DIR]
+    python3 scripts/aivillage/finalize_aivillage_findings.py MERGED_FULL_JSON VERIFY_DIR TEMPLATE_HTML PAGE_DIR [RECHECK_DIR]
 
 Reads VERIFY_DIR/adjudication/decisions-*.json (and, when RECHECK_DIR is given, the second check of
 the parts first found inconclusive: RECHECK_DIR/results and RECHECK_DIR/adjudication/decisions-*.json,
@@ -16,7 +16,7 @@ from pathlib import Path
 
 DOC = "https://docs.google.com/document/d/18990mApAhiePaBvboLdEJNPudffXaLdGaIVNUH58xSE/edit?tab=t.o65336c0l3nf"
 SCREENSHOT_BUCKET = "Depends on a screenshot (set aside for a version with screenshots)"
-DECISIONS = json.loads((Path(__file__).resolve().parents[1] / "benchmarks/aivillage/findings/review-decisions.json").read_text())
+DECISIONS = json.loads((Path(__file__).resolve().parents[2] / "benchmarks/aivillage/findings/review-decisions.json").read_text())
 FIRST_ROUND_MODEL = "Claude Fable 5.1"
 LATER_MODEL = "Claude Opus 5.5"
 TITLES = {"keep": "Kept as written", "rewrite": "Rewritten", "inconclusive": "Inconclusive",
@@ -115,7 +115,7 @@ def main():
                       "citation_check": cites.get(m["id"]), "notes": m["notes"], "sources": m["sources"], "subfindings": subs})
     (verify_dir / "final-findings.json").write_text(json.dumps(final, ensure_ascii=False, indent=2) + "\n")
 
-    store = Path(__file__).resolve().parents[1] / "benchmarks/aivillage/findings"
+    store = Path(__file__).resolve().parents[2] / "benchmarks/aivillage/findings"
     (store / "final-findings.json").write_text(json.dumps(final, ensure_ascii=False, indent=1) + "\n")
     with (store / "findings.tsv").open("w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")

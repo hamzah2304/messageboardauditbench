@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write adjudication batches for verified AI Village findings that have no batch yet.
 
-    python3 scripts/prepare_aivillage_adjudication.py MERGED_FULL_JSON VERIFY_DIR DATA_DIR [BATCH_SIZE]
+    python3 scripts/aivillage/prepare_aivillage_adjudication.py MERGED_FULL_JSON VERIFY_DIR DATA_DIR [BATCH_SIZE]
 
 Each batch file (VERIFY_DIR/adjudication/batch-N.json) holds, per finding, its wording, the outside
 quotes it was written from, the verifier's result and the machine check of the verifier's citations.
@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "viewers"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "viewers"))
 from build_aivillage_verified_review import check_citations
 
 SUB_KEYS = ("verdict", "evidence", "wording", "confidence", "wording_problem", "proposed_claim", "searched", "needs_reasoning_traces")

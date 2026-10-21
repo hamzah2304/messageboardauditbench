@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "viewers"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "viewers"))
 from build_aivillage_findings_review import Article, download_image
 
 
@@ -319,7 +319,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "images").mkdir(exist_ok=True)
-    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     prompt = (args.output / "extraction-prompt.md").read_text()
     (args.output / "transport-instruction.txt").write_text(TRANSPORT)
     posts = [

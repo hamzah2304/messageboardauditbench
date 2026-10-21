@@ -13,7 +13,7 @@ to the estimate and flags a disagreement, so neither number is taken on trust:
   it because routing between providers makes the list price only approximate.
 
 Usage:
-  uv run python scripts/aivillage_run_costs.py \
+  uv run python scripts/aivillage/aivillage_run_costs.py \
       --manifest benchmarks/aivillage/benchmark-2026-10-04-runs.md \
       --out runs/aivillage-costs-20261004
 """
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from messageboard_audit_bench.usage import summarize
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 # USD per million tokens: (uncached input, cache read, cache write, output).
 # OpenRouter /api/v1/models, retrieved 2026-10-04, standard short-context tier;

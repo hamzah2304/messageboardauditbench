@@ -53,7 +53,7 @@ def check_citations(results, data):
             path = Path(tmp) / f"{fid}.md"
             path.write_text("\n\n".join(str(sf.get("evidence", "")) for sf in r.get("subfindings", [])))
             paths.append(str(path))
-        out = subprocess.run([sys.executable, str(ROOT / "scripts/check_aivillage_citations.py"), str(data), *paths, "--json"],
+        out = subprocess.run([sys.executable, str(ROOT / "scripts/aivillage/check_aivillage_citations.py"), str(data), *paths, "--json"],
                              capture_output=True, text=True, check=True).stdout
     return {Path(c["report"]).stem: {"citations": c["citations"], "ok": c["counts"].get("ok", 0), "failures": c["failures"]}
             for c in json.loads(out)}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One queue of AI Village trials that can be stopped without touching the runs it started.
 #
-#   scripts/aivillage_queue.sh <queue file> <agent> <max in flight> <out dir> [stop launching at HH:MM UTC]
+#   scripts/aivillage/aivillage_queue.sh <queue file> <agent> <max in flight> <out dir> [stop launching at HH:MM UTC]
 #
 # Queue lines are "config agent model replicate". A line is launched whenever fewer than <max>
 # trials of <agent> are running on this machine (live agent containers, plus launches in the last
@@ -10,7 +10,7 @@
 # To stop a queue: touch <out dir>/STOP (all queues) or <out dir>/STOP-<agent>; no new trials
 # start, running ones finish. Progress: <out dir>/done.txt.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 Q="$1"; AGENT="$2"; MAX="$3"; OUT="$4"; CUTOFF="${5:-}"
 mkdir -p "$OUT/launched"; touch "$OUT/done.txt"
 if docker info >/dev/null 2>&1; then wrap() { "$@"; }; else wrap() { sg docker -c "$*"; }; fi

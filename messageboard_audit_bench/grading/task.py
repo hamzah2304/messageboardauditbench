@@ -199,7 +199,7 @@ def aivillage_report_grade(
 ) -> Task:
     """Grade finished AI Village reports against the 96 rubric findings.
 
-    The Inspect counterpart of scripts/grade_aivillage.py: the same judge requests, with
+    The Inspect counterpart of scripts/aivillage/grade_aivillage.py: the same judge requests, with
     each report's per-finding grades in ``Score.metadata["grade"]``.
 
     Args:

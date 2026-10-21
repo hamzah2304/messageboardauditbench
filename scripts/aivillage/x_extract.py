@@ -6,7 +6,7 @@ same model and effort, and the same JSON transport so the findings-review UI
 can show the result. Each post's result is cached as <post id>.json in the run
 directory; a raw response without a result stops the run for inspection.
 
-    uv run python scripts/x_extract.py runs/x-extraction-sample-YYYYMMDD [--dry-run]
+    uv run python scripts/aivillage/x_extract.py runs/x-extraction-sample-YYYYMMDD [--dry-run]
 
 The run directory must hold sample-posts.json (rows from x_screen.py decisions)
 and, to attach images, media.json from scripts/x_media.py.
@@ -21,7 +21,7 @@ import json
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 PROMPT_PATH = ROOT / "benchmarks/aivillage/x-findings-prompt.md"
 MODEL = "gpt-6.1-sol"
 EFFORT = "high"
