@@ -223,12 +223,15 @@ def grading_groups(goals: list[dict]) -> tuple[list[dict], list[dict]]:
 async def _grade_group(model: Model, rules: str, report_id: str, group: dict, report: str, attempts: int = 3) -> dict:
     """One judge call. Returns validated scores or a failure status; never raises."""
     job = {"findings": group["findings"], "report": report}
-    config = GenerateConfig(
-        reasoning_effort=EFFORT,
-        max_tokens=max_output_tokens(group),
-        response_schema=ResponseSchema(name="finding_scores", json_schema=JSONSchema.model_validate(schema()), strict=True),
-        extra_body=OPENROUTER_ROUTE if str(model).startswith("openrouter/") else None,
-    )
+    config = GenerateConfig(reasoning_effort=EFFORT, max_tokens=max_output_tokens(group))
+    if str(model).startswith("openrouter/"):
+        # Inspect sends response_format.json_schema.description = null, and OpenRouter then
+        # drops the whole schema without error; send the format ourselves, without it.
+        response_format = {"type": "json_schema", "json_schema": {"name": "finding_scores", "strict": True, "schema": schema()}}
+        config = config.merge(GenerateConfig(extra_body={**OPENROUTER_ROUTE, "response_format": response_format}))
+    else:
+        config = config.merge(GenerateConfig(
+            response_schema=ResponseSchema(name="finding_scores", json_schema=JSONSchema.model_validate(schema()), strict=True)))
     messages = [ChatMessageSystem(content=rules), ChatMessageUser(content=request_input(report_id, group, report))]
     error = None
     for _ in range(attempts):

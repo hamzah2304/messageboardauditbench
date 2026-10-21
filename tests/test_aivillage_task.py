@@ -159,7 +159,10 @@ async def test_scorer_pins_the_openrouter_route(primary, monkeypatch):
     judge = FakeJudge(name="openrouter/openai/gpt-6.1-sol")
     monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
     await av.aivillage_scorer()(_state("A report."), Target(""))
-    assert judge.calls[0][1].extra_body == {"provider": {"allow_fallbacks": False, "require_parameters": True}}
+    config = judge.calls[0][1]
+    assert config.extra_body["provider"] == {"allow_fallbacks": False, "require_parameters": True}
+    assert config.response_schema is None
+    assert config.extra_body["response_format"]["json_schema"] == {"name": "finding_scores", "strict": True, "schema": av.schema()}
 
 
 async def test_scorer_refuses_a_grade_from_another_model(primary, monkeypatch):
