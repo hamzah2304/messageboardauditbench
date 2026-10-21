@@ -4,6 +4,10 @@ A run counts when its report exists, the requested model answered throughout (no
 another model after a safety flag), it ran for its minimum time, its report is within the
 accepted length and its data matched the manifest. Anything unrecorded counts against it.
 
+A run the runner stopped at its safety-flag cap (termination "refusal_cap", see
+sandbox/docker/run_trial.sh) is scored as it stands: it needs a report, but not the minimum
+runtime or report length, since the stop was the runner's, not the model's.
+
 Nothing here retries or replaces a run: an ineligible run stays in the results as a failure,
 with its reasons, so a model's failure rate is reported next to its score.
 """
@@ -38,9 +42,10 @@ def check_meta(meta: dict) -> Verdict:
         reasons.append("refused")
     if meta.get("report_exists") is not True or not meta.get("report_words"):
         reasons.append("no_report")
-    if meta.get("minimum_runtime_reached") is not True:
+    capped = meta.get("termination") == "refusal_cap"
+    if meta.get("minimum_runtime_reached") is not True and not capped:
         reasons.append("below_minimum_runtime")
-    if meta.get("report_length_compliant") is not True:
+    if meta.get("report_length_compliant") is not True and not capped:
         reasons.append("report_length")
     if meta.get("data_manifest_status") not in DATA_OK:
         reasons.append("data_unverified")

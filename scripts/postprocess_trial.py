@@ -101,12 +101,12 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
             + [event.get("fallback_model") for event in fallbacks],
         }
         meta["model_served"] = fallbacks[-1].get("fallback_model")
-    elif meta.get("agent") == "react":
-        # The ReAct loop records the model each OpenRouter response names; a different one
-        # answering (a provider-side switch) is a fallback too.
+    elif meta.get("agent") in ("react", "claude"):
+        # Each assistant event names the model that answered (Claude Code's own error notices say
+        # "<synthetic>"); any other model answering is a fallback too, announced or not.
         served = [e["message"].get("model") for e in events
                   if e.get("type") == "assistant" and isinstance(e.get("message"), dict) and e["message"].get("model")]
-        other = [m for m in served if not same_model(meta["model"], m)]
+        other = [m for m in served if m != "<synthetic>" and not same_model(meta["model"], m)]
         if other:
             meta["model_fallback"] = {"fallback_model": other[-1], "trigger": "response_model",
                                       "events": len(other), "chain": [meta["model"], *dict.fromkeys(other)]}
@@ -124,7 +124,10 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
             meta["session_id"] = session_id
             break
 
-    if _terminal_refusal(events):
+    # With refusal resampling the runner resumes after each flag, so a flag never ends the run by
+    # itself; how the run ended is the runner's outcome (cap reached, or the deadline after a flag).
+    resampling = meta.get("refusal_resampling") or {}
+    if not resampling and _terminal_refusal(events):
         meta["model_refusal"] = {"events": 1, "terminal": True}
         returncode = 5
         meta["exit_code"] = returncode
@@ -137,8 +140,10 @@ def postprocess(run: pathlib.Path, returncode: int, wall_seconds: int) -> int:
     capacity = runner_path.exists() and any(e.get("event") == "capacity_exhausted" for e in _events(runner_path))
     refusal = bool(meta.get("model_refusal"))
     limit = meta.get("active_time_limit_seconds") or 60 * int(meta.get("budget_min") or 0)
-    exhausted = not (refusal or capacity) and returncode in (124, 137) and wall_seconds >= limit
-    termination = ("refusal" if refusal else "capacity_exhausted" if capacity else
+    exhausted = not (refusal or capacity) and (
+        resampling.get("outcome") == "deadline" or (returncode in (124, 137) and wall_seconds >= limit))
+    termination = ("refusal" if refusal else "refusal_cap" if resampling.get("outcome") == "cap_reached" else
+                   "capacity_exhausted" if capacity else
                    "active_time_limit" if exhausted else "normal" if returncode == 0 else "error")
     meta.update(stopped_at_active_limit=exhausted, termination=termination,
                 report_finalization="cli_finished" if termination == "normal" else "not_confirmed")

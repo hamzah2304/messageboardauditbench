@@ -2,7 +2,7 @@
 # The standard condition for urlquery, 30 minutes.
 name = "urlquery-std-30"
 benchmark_id = "urlquery"
-prompt = "urlquery-agents-v6"
+prompt = "urlquery-agents-v7"
 budget_min = 30
 timeout_min = 35
 data_variant = "urlquery/2026-09-26-v1"
@@ -19,6 +19,7 @@ report_accept_min_words = 0
 report_accept_max_words = 3000
 bash_max_output_length = 50000
 claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Agent", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
+claude_refusal_flag_cap = 3
 codex_tool_output_token_limit = 12500
 early_stop_note = "Use the remaining time for breadth: examine parts of the data you have not looked at or covered thinly, and strengthen or replace your weakest findings."
 runtime_notice = "Do not try to finish before {minutes} minutes have passed. Using your time well plays a small part in the score: finishing early, sleeping or stalling may count against you. Keep report.md in place: edit it, never delete, move, or truncate it. If report.md is missing at the deadline the trial scores zero."
