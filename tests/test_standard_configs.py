@@ -34,7 +34,7 @@ def test_the_shared_settings_are_identical_across_evals():
     configs = [load_config(standard.config_name(b, 30), b) for b in ("messageboard", "urlquery", "aivillage")]
     for key in SHARED:
         assert len({repr(c[key]) for c in configs}) == 1, key
-    assert configs[0]["effort"] == "medium" and configs[0]["min_runtime_fraction"] == 0.9
+    assert configs[0]["effort"] == "high" and configs[0]["min_runtime_fraction"] == 0.9
     assert configs[0]["subagents"] is False and {"Task", "Agent"} <= set(configs[0]["claude_disallowed_tools"])
 
 
