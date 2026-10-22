@@ -65,8 +65,9 @@ def main():
     ap = argparse.ArgumentParser()
     from slopvestigator_bench import standard
 
-    ap.add_argument("--judge", default=standard.judge()[0].rsplit("/", 1)[-1],
-                    help="whose grades to compare (default: the standard judge)")
+    # The published TL;DR comparison read Fable 5.1's grades: configs/standard.toml [helpers].
+    ap.add_argument("--judge", default=standard.helper("tldr_judge_vs_human")[0].rsplit("/", 1)[-1],
+                    help="whose grades to compare (default: the published comparison's judge)")
     ap.add_argument("--who", default="Hasan")
     ap.add_argument("--rubric", default="tldrh")
     ap.add_argument("--exclude", default="", help="drop reports whose key contains this "

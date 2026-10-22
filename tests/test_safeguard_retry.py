@@ -66,9 +66,26 @@ def test_stop_hook_retries_the_flag_but_keeps_other_terminal_statuses_terminal(t
     assert runtime_policy.stop_reason({"stop_reason": "refusal", "last_assistant_message": "I won't."}, report=report) == ""
 
 
-def test_limit_zero_turns_retries_off(tmp_path, monkeypatch):
+def test_limit_zero_leaves_the_old_stop_logic_exactly_as_it_was(tmp_path, monkeypatch):
     monkeypatch.setenv("MBAB_SAFEGUARD_RETRY_LIMIT", "0")
-    assert runtime_policy.safeguard_retry_reason({"result": FLAG_TEXT}, state_file=tmp_path / "s.json") == ""
+    state = tmp_path / "s.json"
+    assert runtime_policy.safeguard_retry_reason({"result": FLAG_TEXT}, state_file=state) is None
+    assert not state.exists()   # nothing recorded
+    monkeypatch.delenv("MBAB_SAFEGUARD_RETRY_LIMIT")
+    assert runtime_policy.safeguard_retry_reason({"result": FLAG_TEXT}, state_file=state) is None
+    # A flagged Stop event that is not terminal by the old rules is held by the early-stop policy,
+    # as before the retry existed.
+    import time
+    monkeypatch.setenv("MBAB_EARLIEST_FINISH_EPOCH", str(int(time.time()) + 600))
+    monkeypatch.setattr(runtime_policy, "_STATE_FILE", state)
+    report = tmp_path / "report.md"
+    report.write_text("x")
+    monkeypatch.setenv("MBAB_REPORT_MIN_WORDS", "0")
+    monkeypatch.setenv("MBAB_REPORT_MAX_WORDS", "0")
+    import sys
+    sys.path.insert(0, str(ROOT / "slopvestigator_bench"))
+    reason = runtime_policy.stop_reason({"last_assistant_message": FLAG_TEXT}, report=report)
+    assert "early-completion reminder" in reason
 
 
 def test_transcript_summary_counts_flags_and_whether_the_stream_ended_on_one(tmp_path):
