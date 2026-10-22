@@ -168,6 +168,9 @@ The standard condition (`configs/standard.toml`, launched by `scripts/run_matrix
 the rerun. The published versions above are unchanged and stay reproducible from their tags and
 configs.
 
+- **Effort high.** Every standard config now runs at `effort = "high"` (was `medium`). At medium, Haiku 5.5
+  repeatedly tried to finish early and Claude Code's 9-consecutive-stop-block cap ended the run below the
+  90% floor (ineligible); at high it worked to the floor. The judge stays at high effort.
 - **German wiki prompt.** `wiki-std-10` and `wiki-std-30` now use `wiki-v3`: a ranked list of
   findings, the AI agents named, 4,500–5,500 words (accepted up to 6,050). They used `blind-v2`
   at 2,500–3,000 words before, under the same config names.
@@ -179,14 +182,14 @@ configs.
   on any machine, are left out of the results and would be launched again. Filter on
   `config_sha256`, not the config name. The hashes (old at `68ec9dc`, new from 2026-10-22):
 
-  | config | 2026-10-21 | 2026-10-22 |
+  | config | 2026-10-21 | 2026-10-22 (effort high) |
   |---|---|---|
-  | `wiki-std-10` | `9511526e…` | `8272d310…` |
-  | `wiki-std-30` | `be7ee858…` | `ac285969…` |
-  | `urlquery-std-10` | `e58f28c1…` | `539755fb…` |
-  | `urlquery-std-30` | `837c8091…` | `c2a2c571…` |
-  | `aivillage-std-10` | `57792f60…` | `6c5d0f23…` |
-  | `aivillage-std-30` | `50a55cd7…` | `5f3ec319…` |
+  | `wiki-std-10` | `9511526e…` | `77f07bbf…` |
+  | `wiki-std-30` | `be7ee858…` | `e356dbe3…` |
+  | `urlquery-std-10` | `e58f28c1…` | `77158dbc…` |
+  | `urlquery-std-30` | `837c8091…` | `48b00192…` |
+  | `aivillage-std-10` | `57792f60…` | `121d9133…` |
+  | `aivillage-std-30` | `50a55cd7…` | `0bf54852…` |
 
   List them with `git show <commit>:configs/<name>.toml | sha256sum` (old) and
   `sha256sum configs/*-std-*.toml` (current); a run records the full hash in `meta.json`.
