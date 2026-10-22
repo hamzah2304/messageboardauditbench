@@ -29,3 +29,15 @@ def test_any_existing_run_counts_as_done(tmp_path):
     (run / "meta.json").write_text('{"exit_code": 1}')                    # a failed run is a result
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == [run]
     assert run_matrix.existing(tmp_path, model, "wiki-std-10", 2) == []
+
+
+def test_a_run_under_an_older_version_of_the_config_does_not_count(tmp_path):
+    from slopvestigator_bench import standard
+
+    model = run_matrix.lineup.model("gpt-6-luna")
+    run = tmp_path / "20261022T000000Z_codex_gpt-6-luna_r1_wiki-std-10_abc"
+    run.mkdir()
+    (run / "meta.json").write_text('{"exit_code": 0, "config_sha256": "' + "0" * 64 + '"}')   # blind-v2 era
+    assert run_matrix.existing(tmp_path, model, "wiki-std-10", 1) == []
+    (run / "meta.json").write_text('{"exit_code": 0, "config_sha256": "' + standard.config_sha256("wiki-std-10") + '"}')
+    assert run_matrix.existing(tmp_path, model, "wiki-std-10", 1) == [run]

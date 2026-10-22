@@ -72,5 +72,20 @@ def render(benchmark_id: str, budget: int) -> str:
     return head + "".join(f"{k} = {_toml_value(v)}\n" for k, v in cfg.items())
 
 
+def config_sha256(name: str) -> str:
+    """The hash run_trial.sh records as config_sha256 for a run of configs/<name>.toml."""
+    import hashlib
+
+    return hashlib.sha256((repo_root() / "configs" / f"{name}.toml").read_bytes()).hexdigest()
+
+
+def same_condition(meta: dict, name: str) -> bool:
+    """Whether a run used today's configs/<name>.toml. A standard config can change under the same
+    name (wiki-std-* moved from blind-v2 to wiki-v3 on 2026-10-22); a run recorded with another
+    config_sha256 is a different condition. A run with no recorded hash yet is taken as current."""
+    recorded = meta.get("config_sha256")
+    return not recorded or recorded == config_sha256(name)
+
+
 def render_all() -> dict[str, str]:
     return {config_name(b, m): render(b, m) for b in benchmark_ids() for m in standard()["shared"]["budgets"]}
