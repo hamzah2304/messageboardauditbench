@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import json
 import os
 import platform
 import subprocess
@@ -41,8 +42,18 @@ def trials(evals, budgets, models, runs):
 
 
 def existing(run_root: Path, model: lineup.Model, config: str, rep: int) -> list[Path]:
+    """Runs of this trial under today's config; one made under an older version of the same config
+    name (another config_sha256) is a different condition and does not count."""
     slug = model.id.replace("/", "_")
-    return sorted(p for p in run_root.glob(f"*_{model.harness}_{slug}_r{rep}_{config}_*") if finished(p))
+    return sorted(p for p in run_root.glob(f"*_{model.harness}_{slug}_r{rep}_{config}_*")
+                  if finished(p) and standard.same_condition(_meta(p), config))
+
+
+def _meta(run_dir: Path) -> dict:
+    try:
+        return json.loads((run_dir / "meta.json").read_text())
+    except (OSError, ValueError):
+        return {}
 
 
 def finished(run_dir: Path) -> bool:

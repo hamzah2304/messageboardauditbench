@@ -28,6 +28,9 @@ _REFUSAL = re.compile(
     r"(?:this|that|the|your)\s+(?:request|task)\b",
     re.IGNORECASE,
 )
+# Claude's intermittent real-time safeguard: an API error, not the model's own refusal. The CLI
+# reports it as "API Error: <model>'s safeguards flagged this message ... Details: `[cyber]`".
+_SAFEGUARD = re.compile(r"safeguards flagged this message|API Error:.*\[cyber\]", re.DOTALL)
 _TERMINAL_STATUSES = frozenset({
     "error", "api_error", "failed", "failure", "refusal", "refused",
     "rejected", "content_filter", "safety",
@@ -103,25 +106,91 @@ def _terminal(event: dict[str, Any]) -> bool:
     return False
 
 
-def _record(state_file: Path, *, now: float) -> int:
-    """Persist a small, inspectable count in the run's /work mount."""
+def _state(state_file: Path) -> dict:
     try:
         previous = json.loads(state_file.read_text())
     except (OSError, ValueError, TypeError):
-        previous = {}
-    count = int(previous.get("early_finish_blocks", 0)) + 1
+        return {}
+    return previous if isinstance(previous, dict) else {}
+
+
+def _save(state_file: Path, state: dict) -> None:
     try:
-        state_file.write_text(
-            json.dumps(
-                {"early_finish_blocks": count, "last_block_epoch": round(now, 3)}
-            )
-            + "\n"
-        )
+        state_file.write_text(json.dumps(state) + "\n")
     except OSError:
         # The policy must not crash an agent if a nonstandard harness does not
         # expose /work. Enforcement still works; only the audit marker is lost.
         pass
+
+
+def _record(state_file: Path, *, now: float) -> int:
+    """Persist a small, inspectable count in the run's /work mount."""
+    state = _state(state_file)
+    count = int(state.get("early_finish_blocks", 0)) + 1
+    _save(state_file, {**state, "early_finish_blocks": count, "last_block_epoch": round(now, 3)})
     return count
+
+
+def safeguard_flagged(event: dict[str, Any]) -> bool:
+    """Whether a turn ended in Claude's safeguard API error (matched on the error text the CLI
+    reports, never on a model's own refusal in its assistant text)."""
+    for key in ("result", "error", "last_assistant_message", "assistant_message", "message"):
+        value = event.get(key)
+        if isinstance(value, str) and _SAFEGUARD.search(value):
+            return True
+    return False
+
+
+def safeguard_retry_reason(
+    event: dict[str, Any],
+    *,
+    limit: int | None = None,
+    used_elsewhere: int | None = None,
+    state_file: Path = _STATE_FILE,
+) -> str | None:
+    """For a safeguard flag: the message that continues the session while the run has
+    retries left ("" once they are used up, so the stop stands); None for anything else.
+
+    The limit is per run (MBAB_SAFEGUARD_RETRY_LIMIT, from the config's
+    safeguard_retry_limit). Retries the runner made by resuming the session
+    (MBAB_SAFEGUARD_RETRIES_USED) count against it too. Every flag and retry is recorded
+    in the run's runtime-policy state file.
+    """
+    if not safeguard_flagged(event):
+        return None
+    if limit is None:
+        try:
+            limit = int(os.environ.get("MBAB_SAFEGUARD_RETRY_LIMIT", "0") or 0)
+        except ValueError:
+            limit = 0
+    if used_elsewhere is None:
+        try:
+            used_elsewhere = int(os.environ.get("MBAB_SAFEGUARD_RETRIES_USED", "0") or 0)
+        except ValueError:
+            used_elsewhere = 0
+    state = _state(state_file)
+    state["safeguard_flags"] = int(state.get("safeguard_flags", 0)) + 1
+    retries = int(state.get("safeguard_retries", 0))
+    if retries + used_elsewhere >= limit:
+        state["safeguard_retries_exhausted"] = True
+        _save(state_file, state)
+        return ""
+    state["safeguard_retries"] = retries + 1
+    _save(state_file, state)
+    message = os.environ.get("MBAB_SAFEGUARD_RETRY_MESSAGE", "").strip()
+    return message or "The last turn was interrupted by an API error. Continue the investigation."
+
+
+def final_safeguard_flag(events: list[dict[str, Any]]) -> bool:
+    """Whether a Claude Code stream ended on a safeguard flag (its last result event)."""
+    results = [e for e in events if isinstance(e, dict) and e.get("type") == "result"]
+    return bool(results) and results[-1].get("is_error") is True and safeguard_flagged(results[-1])
+
+
+def count_safeguard_flags(events: list[dict[str, Any]]) -> int:
+    """Safeguard flags in a Claude Code stream: its refusal events with category cyber."""
+    return sum(1 for e in events if isinstance(e, dict) and e.get("type") == "system"
+               and str(e.get("subtype", "")).startswith("model_refusal") and e.get("api_refusal_category") == "cyber")
 
 
 def early_stop_reason(
@@ -175,8 +244,12 @@ def stop_reason(event: dict[str, Any], *, report: Path) -> str:
     from report_length import env_limits
     from report_length import stop_reason as report_length_stop_reason
 
-    # A terminal refusal/error is never held for either policy.
-    if _terminal(event):
+    # A safeguard flag continues the session while the run has retries left; once they are
+    # used up it ends the run like any other terminal refusal/error, which is never held.
+    retry = safeguard_retry_reason(event)
+    if retry:
+        return retry
+    if retry == "" or _terminal(event):
         return ""
     length_reason = report_length_stop_reason(report, *env_limits())
     runtime_reason = early_stop_reason(event)
@@ -193,7 +266,18 @@ def main() -> None:
     parser.add_argument("--budget-minutes", type=float)
     parser.add_argument("--validate-fraction")
     parser.add_argument("--notice", default="")
+    parser.add_argument("--safeguard", type=Path, metavar="TRANSCRIPT",
+                        help="print '<flags> <ended on a flag: 0/1>' for a Claude Code stream-json transcript")
     args = parser.parse_args()
+    if args.safeguard is not None:
+        events = []
+        for line in args.safeguard.read_text(errors="replace").splitlines():
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                continue
+        print(count_safeguard_flags(events), int(final_safeguard_flag(events)))
+        return
     if args.validate_fraction is not None:
         try:
             print(f"{fraction(args.validate_fraction):g}")

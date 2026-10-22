@@ -161,6 +161,40 @@ through the subscription runner before the task existed and were graded by
 `scripts/aivillage/grade_aivillage.py`. The task sends the same judge requests; its native
 backend gives the agent the same prompt, but not the subscription CLIs' logins.
 
+## The standard rerun (version number to be set at the rerun)
+
+The standard condition (`configs/standard.toml`, launched by `scripts/run_matrix.py`) changed on
+2026-10-22. These changes belong to the version the rerun will carry; Oscar sets its number at
+the rerun. The published versions above are unchanged and stay reproducible from their tags and
+configs.
+
+- **German wiki prompt.** `wiki-std-10` and `wiki-std-30` now use `wiki-v3`: a ranked list of
+  findings, the AI agents named, 4,500–5,500 words (accepted up to 6,050). They used `blind-v2`
+  at 2,500–3,000 words before, under the same config names. **Filter `wiki-std-*` runs by
+  `config_sha256`**: a run made with the earlier config (for example on another machine) is a
+  different condition. `scripts/run_matrix.py` and `slopvestigator_bench/results.py` already
+  count a run only if its `config_sha256` matches today's generated config.
+- **Judge.** Every grader defaults to the standard judge, `openai/gpt-6.1-sol` at high effort
+  (`standard.toml` `judge`, `judge_effort`): the German wiki sheets (published with Fable 5.1;
+  the code default was GPT-5.6 Sol), the Transluce per-finding judge (v1.0 grades: GPT-6 Astra
+  through OpenRouter; code default Opus 5.5) and AI Village (GPT-6.1 Sol at medium). Grades
+  from the new judge are not comparable with published ones; reproduce a published number at
+  its tag with its judge.
+- **Safeguard retries.** A turn that Claude's real-time safeguards flag (an intermittent API
+  error, `[cyber]`) is retried by continuing the session, up to three times per run
+  (`safeguard_retry_limit`); the next flag ends the run as a refusal. Runs record
+  `safeguard_retries` next to `safety_flags`, and a run that survived its flags is eligible.
+  Before, the first flag that ended a turn ended the run.
+- **Inspect runs** take the config's minimum-runtime fraction (0.9) instead of the task's
+  0.75 default, and native Codex with subagents off gets the stripped model catalog, as the
+  runner does.
+- **Memory note.** The German wiki and Transluce prompts no longer tell the agent to query
+  `village.db`, which only the AI Village data has.
+- **Lineup.** Gemini 3.8 Flash is dropped (13 models).
+
+The AI Village tag `aivillage-report-v1.0` points at `68ec9dc`, the last commit before these
+changes (a local tag until it is pushed).
+
 ## Releasing a new version
 
 1. **Bump.** Change the version in `SPECS` before collecting results with the new code.

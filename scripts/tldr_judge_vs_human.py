@@ -63,7 +63,10 @@ def pearson(xs, ys):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--judge", default="claude-fable-5-1")
+    from slopvestigator_bench import standard
+
+    ap.add_argument("--judge", default=standard.judge()[0].rsplit("/", 1)[-1],
+                    help="whose grades to compare (default: the standard judge)")
     ap.add_argument("--who", default="Hasan")
     ap.add_argument("--rubric", default="tldrh")
     ap.add_argument("--exclude", default="", help="drop reports whose key contains this "

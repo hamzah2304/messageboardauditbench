@@ -1,0 +1,479 @@
+<title>Answer Key Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: a sticky toolbar over one reading column of finding cards; a findings index sits to the left on wide screens. */
+:root {
+  --bg: #f5f6f4; --surface: #ffffff; --ink: #1c2320; --muted: #5d6863; --line: #d9ddd9;
+  --accent: #1f5a73; --accent-soft: #e2edf2;
+  --ok: #2e6b3f; --ok-soft: #e3f0e6; --warn: #8a5a00; --warn-soft: #f6ecd6;
+  --bad: #a3312b; --bad-soft: #f6e1df; --none: #59626c; --none-soft: #e8eaed;
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131816; --surface: #1b211f; --ink: #e3e8e5; --muted: #9aa5a0; --line: #2f3834;
+  --accent: #7fb6cf; --accent-soft: #1d3540;
+  --ok: #8ccf9c; --ok-soft: #1c3324; --warn: #e2b862; --warn-soft: #3a2f17;
+  --bad: #ee9a92; --bad-soft: #3d1f1d; --none: #aeb6bf; --none-soft: #272d33; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131816; --surface: #1b211f; --ink: #e3e8e5; --muted: #9aa5a0; --line: #2f3834;
+  --accent: #7fb6cf; --accent-soft: #1d3540;
+  --ok: #8ccf9c; --ok-soft: #1c3324; --warn: #e2b862; --warn-soft: #3a2f17;
+  --bad: #ee9a92; --bad-soft: #3d1f1d; --none: #aeb6bf; --none-soft: #272d33; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; max-width: 1240px; margin: 0 auto; }
+header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding-block: 12px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+h1 { font: 600 18px/1.2 var(--sans); margin: 0; letter-spacing: .01em; }
+.tabs, .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+button { font: inherit; cursor: pointer; }
+.tab, .filter { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 6px; padding: 4px 10px; font-size: 13px; }
+.tab[aria-pressed="true"], .filter[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.progress { font: 500 13px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.banner { margin: 12px 0 0; padding: 10px 12px; border-radius: 6px; font-size: 14px; }
+.banner.err { background: var(--bad-soft); color: var(--bad); }
+.banner.info { background: var(--accent-soft); color: var(--ink); }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; margin-top: 16px; }
+@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } nav.index { display: none; } }
+nav.index { position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow: auto; font-size: 13px; }
+nav.index a { display: flex; gap: 6px; align-items: baseline; padding: 3px 6px; border-radius: 4px; color: var(--ink); text-decoration: none; }
+nav.index a:hover { background: var(--accent-soft); }
+nav.index .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--line); }
+nav.index .dot.done { background: var(--ok); } nav.index .dot.part { background: var(--warn); }
+main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.intro { font-size: 14px; color: var(--muted); max-width: 70ch; margin: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; min-width: 0; }
+.card:focus-within { border-color: var(--accent); }
+.fhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fid { font: 500 13px var(--mono); color: var(--muted); }
+.fid:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip { font: 500 12px var(--sans); padding: 1px 8px; border-radius: 999px; letter-spacing: .02em; white-space: nowrap; }
+.c-ok { background: var(--ok-soft); color: var(--ok); } .c-warn { background: var(--warn-soft); color: var(--warn); }
+.c-bad { background: var(--bad-soft); color: var(--bad); } .c-none { background: var(--none-soft); color: var(--none); }
+.c-accent { background: var(--accent-soft); color: var(--accent); }
+.claim { font: 400 19px/1.4 var(--serif); margin: 8px 0 4px; text-wrap: pretty; }
+.sclaim { font: 400 16px/1.45 var(--serif); margin: 2px 0; }
+.detail { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 75ch; }
+.label { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 12px 0 4px; }
+.qa { border-left: 3px solid var(--line); padding: 2px 0 2px 12px; margin-top: 10px; font-size: 14px; }
+.qa p { margin: 3px 0; max-width: 80ch; }
+.qa .proposal { font-family: var(--serif); font-size: 15px; background: var(--accent-soft); padding: 6px 8px; border-radius: 4px; }
+.subs { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sub { border-top: 1px solid var(--line); padding-top: 10px; }
+.ev { font-size: 13.5px; margin: 4px 0; max-width: 85ch; overflow-wrap: anywhere; }
+.cite { font: 12px var(--mono); background: var(--none-soft); border-radius: 3px; padding: 0 3px; }
+.cite.fail { background: var(--bad-soft); color: var(--bad); }
+.cite.okc { background: var(--ok-soft); }
+details summary { cursor: pointer; font-size: 13px; color: var(--accent); }
+details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.decide { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); border-radius: 6px; padding: 8px 10px; }
+.decide .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.decide .who { font: 600 12px var(--sans); color: var(--muted); margin-right: 4px; }
+.dbtn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 5px; padding: 3px 10px; font-size: 13px; }
+.dbtn[aria-pressed="true"][data-d="accept"] { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.dbtn[aria-pressed="true"][data-d="edit"] { background: var(--warn); border-color: var(--warn); color: var(--surface); }
+.dbtn[aria-pressed="true"][data-d="reject"] { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+textarea { width: 100%; font: 14px/1.45 var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; resize: vertical; }
+textarea.edit { font-family: var(--serif); font-size: 15px; }
+.status { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.status.err { color: var(--bad); font-weight: 600; } .status.dirty { color: var(--warn); }
+.status button { font-size: 12px; border: 1px solid var(--bad); color: var(--bad); background: transparent; border-radius: 4px; padding: 0 6px; margin-left: 4px; }
+.stale { font-size: 12px; color: var(--warn); }
+.save { border: 1px solid var(--accent); background: var(--accent); color: var(--surface); border-radius: 5px; padding: 3px 12px; font-size: 13px; }
+.save:disabled { opacity: .45; cursor: default; }
+.foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
+.ghost { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 5px; padding: 4px 10px; font-size: 13px; }
+.empty { color: var(--muted); font-size: 14px; padding: 24px; text-align: center; }
+.kbd { font: 11px var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+@media (prefers-reduced-motion: no-preference) { .card { transition: border-color .15s; } }
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <h1>Answer Key Review</h1>
+    <div class="tabs" role="group" aria-label="Eval" id="tabs"></div>
+    <div class="filters" role="group" aria-label="Show" id="filters"></div>
+    <span class="progress" id="progress" aria-live="polite"></span>
+  </header>
+  <div id="banners"></div>
+  <div class="layout">
+    <nav class="index" id="index" aria-label="Findings"></nav>
+    <main id="main"><p class="empty">Loading the answer keys…</p></main>
+  </div>
+</div>
+
+<script>
+"use strict";
+const EVALS = [
+  { id: "german-wiki", name: "German wiki", file: "keys/german-wiki.json", defaultFilter: "all" },
+  { id: "aivillage", name: "AI Village", file: "keys/aivillage.json", defaultFilter: "queue" },
+];
+const FILTERS = [["all", "All"], ["queue", "Review queue"], ["undecided", "Undecided"]];
+const VERDICT_CLASS = { "supported": "c-ok", "partly": "c-warn", "contradicted": "c-bad", "not found": "c-none", "outside the data": "c-none" };
+const OUTCOME_CLASS = { keep: "c-ok", narrow: "c-warn", drop: "c-bad" };
+const state = { keys: {}, loadErrors: {}, evalId: "german-wiki", filter: null, decisions: {}, saving: {}, status: {},
+                db: null, dbState: "connecting", userId: null, readOnly: false };
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+const docId = (ev, item) => `${ev}~${item}`;
+
+/* ---------- loading ---------- */
+async function loadKeys() {
+  await Promise.all(EVALS.map(async e => {
+    try {
+      const r = await fetch(e.file, { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      state.keys[e.id] = await r.json();
+    } catch (err) { state.loadErrors[e.id] = String(err.message || err); }
+  }));
+}
+
+function queueIds(key) {
+  const q = new Map();
+  for (const x of key.review_queue || []) q.set(x.id, (q.get(x.id) ? q.get(x.id) + " | " : "") + x.why);
+  return q;
+}
+
+/* Every reviewable item of a finding: its headline draft, the finding, each subfinding. */
+function itemsOf(ev, f) {
+  const items = [];
+  if (f.fields && f.fields.headline_status === "draft") items.push({ item: f.id + ".headline", kind: "headline", parent: f.id, text: f.claim });
+  items.push({ item: f.id, kind: "finding", text: f.claim, qa: f.qa });
+  for (const s of f.subfindings || []) items.push({ item: s.id, kind: "subfinding", parent: f.id, text: s.claim, qa: s.qa });
+  return items.map(i => ({ ...i, doc: docId(ev, i.item) }));
+}
+
+function visibleFindings() {
+  const key = state.keys[state.evalId];
+  if (!key) return [];
+  const q = queueIds(key);
+  return key.findings.filter(f => {
+    if (state.filter === "queue") return q.has(f.id);
+    if (state.filter === "undecided") return itemsOf(state.evalId, f).some(i => !(state.decisions[i.doc] || {}).decision);
+    return true;
+  });
+}
+
+/* ---------- rendering ---------- */
+function renderTabs() {
+  $("#tabs").innerHTML = EVALS.map(e => `<button class="tab" type="button" data-ev="${e.id}" aria-pressed="${e.id === state.evalId}">${esc(e.name)}</button>`).join("");
+  $("#filters").innerHTML = FILTERS.map(([id, label]) => `<button class="filter" type="button" data-f="${id}" aria-pressed="${id === state.filter}">${label}</button>`).join("");
+}
+
+function renderBanners() {
+  const out = [];
+  const err = state.loadErrors[state.evalId];
+  if (err) out.push(`<div class="banner err" role="alert">The ${esc(state.evalId)} answer key did not load (${esc(err)}). Reload the page; if it persists, the key file was not published with the page.</div>`);
+  if (state.dbState === "absent") out.push(`<div class="banner err" role="alert">Decisions cannot be saved in this view: the shared store is not available (open the page on claude.ai while signed in). Anything you type is kept only in this browser until saving works; use “Copy decisions” to hand them over another way.</div>`);
+  else if (state.dbState === "connecting") out.push(`<div class="banner info">Connecting to the shared store…</div>`);
+  else if (state.dbState === "error") out.push(`<div class="banner err" role="alert">Lost the live connection to the shared store (${esc(state.dbError)}). Saved decisions are safe; reload to reconnect. Unsaved text stays in this browser.</div>`);
+  if (state.readOnly) out.push(`<div class="banner err" role="alert">Your access level cannot write decisions here, so they are not saved. Ask the owner for Contributor access.</div>`);
+  $("#banners").innerHTML = out.join("");
+}
+
+function citeHtml(text, citations) {
+  const byRef = new Map((citations || []).map(c => [c.ref, c]));
+  return esc(text).replace(/\[([^\[\]]*)\]/g, (m, inner) => {
+    const ref = (inner.match(/^([a-z_]+:[^\s;,&]+)/) || [])[1];
+    const c = ref && byRef.get(ref.replace(/&quot;.*/, ""));
+    const cls = !c ? "" : c.check === "ok" || c.check === "no_quote" ? " okc" : c.check === "unchecked" ? "" : " fail";
+    const tip = c ? ` title="citation check: ${esc(c.check)}"` : "";
+    return `<span class="cite${cls}"${tip}>[${inner}]</span>`;
+  });
+}
+
+function evidenceHtml(ev) {
+  if (!ev || !ev.length) return "";
+  const fails = ev.flatMap(e => e.citations || []).filter(c => c.check === "id_missing" || c.check === "quote_missing").length;
+  return `<details${fails ? " open" : ""}><summary>Evidence (${ev.length})${fails ? ` · ${fails} citation${fails > 1 ? "s" : ""} failed the check` : ""}</summary>${
+    ev.map(e => `<p class="ev">${citeHtml(e.text, e.citations)}</p>`).join("")}</details>`;
+}
+
+function decideHtml(it, labels) {
+  const [a, e, r] = labels;
+  return `<div class="decide" data-doc="${esc(it.doc)}" data-item="${esc(it.item)}" data-kind="${it.kind}">
+    <div class="row" role="group" aria-label="Decision for ${esc(it.item)}">
+      <span class="who">${esc(it.kind === "headline" ? "Headline" : it.item)}</span>
+      <button type="button" class="dbtn" data-d="accept" aria-pressed="false">${a}</button>
+      <button type="button" class="dbtn" data-d="edit" aria-pressed="false">${e}</button>
+      <button type="button" class="dbtn" data-d="reject" aria-pressed="false">${r}</button>
+      <span class="status" aria-live="polite"></span>
+    </div>
+    <div class="stale" hidden></div>
+    <textarea class="edit" rows="2" hidden aria-label="Edited wording for ${esc(it.item)}"></textarea>
+    <textarea class="comment" rows="1" placeholder="Comment (optional)" aria-label="Comment on ${esc(it.item)}"></textarea>
+    <div class="row"><button type="button" class="save" disabled>Save text</button><span class="status-hint status">Ctrl+Enter saves</span></div>
+  </div>`;
+}
+
+function qaHtml(qa, kind) {
+  if (!qa) return `<div class="qa"><p class="status">No QA result yet.</p></div>`;
+  if (kind === "finding") return `<div class="qa">
+    <p><b>QA outcome: <span class="chip ${OUTCOME_CLASS[qa.outcome] || "c-none"}">${esc(qa.outcome)}</span></b>${qa.duplicate_of ? ` · duplicate of <b>${esc(qa.duplicate_of)}</b>` : ""}</p>
+    <p>${esc(qa.reason)}</p>
+    ${qa.proposed_wording ? `<div class="label">Proposed wording</div><p class="proposal">${esc(qa.proposed_wording)}</p>` : ""}
+    ${qa.make_harder ? `<div class="label">Make harder</div><p>${esc(qa.make_harder)}</p>` : ""}
+    ${qa.how_to_find ? `<details><summary>How an investigator could find it</summary><p>${esc(qa.how_to_find)}</p></details>` : ""}
+  </div>`;
+  return `<div class="qa">
+    <p>${qa.reason ? esc(qa.reason) : ""}${qa.duplicate_of ? ` <b>Duplicate of ${esc(qa.duplicate_of)}.</b>` : ""}</p>
+    ${qa.proposed_wording ? `<p class="proposal">${qa.proposed_wording === "REMOVE" ? "Proposed: remove this subfinding" : "Proposed: " + esc(qa.proposed_wording)}</p>` : ""}
+  </div>`;
+}
+
+function findingHtml(ev, f, q) {
+  const items = itemsOf(ev, f);
+  const head = items.find(i => i.kind === "headline");
+  const sig = f.significance ? `<span class="chip ${f.significance === "minor" ? "c-none" : "c-accent"}">${esc(f.significance)}</span>` : "";
+  const section = f.fields && f.fields.section ? `<span class="chip c-none">${esc(f.fields.section)}</span>` : "";
+  const dates = f.fields && f.fields.behavior_dates ? `<span class="status">${esc(f.fields.behavior_dates)}</span>` : "";
+  return `<article class="card" id="f-${esc(f.id)}" data-fid="${esc(f.id)}">
+    <div class="fhead"><span class="fid" tabindex="-1">${esc(f.id)}</span>${section}${sig}${q.has(f.id) ? `<span class="chip c-bad">in review queue</span>` : ""}${dates}</div>
+    <p class="claim">${esc(f.claim)}</p>
+    ${head ? `<p class="status">Headline drafted by a model from the human report; approve it, edit it or reject it.</p>${decideHtml(head, ["Approve", "Edit", "Reject"])}` : ""}
+    ${f.detail ? `<p class="detail">${esc(f.detail)}</p>` : ""}
+    ${q.has(f.id) ? `<div class="banner err">${esc(q.get(f.id))}</div>` : ""}
+    ${f.judge_notes ? `<p class="detail"><b>Judge notes:</b> ${esc(f.judge_notes)}</p>` : ""}
+    ${qaHtml(f.qa, "finding")}
+    ${evidenceHtml(f.evidence)}
+    ${decideHtml(items.find(i => i.kind === "finding"), ["Accept QA", "Edit", "Reject QA"])}
+    <div class="label">Subfindings</div>
+    <div class="subs">${(f.subfindings || []).map(s => {
+      const qa = s.qa || {};
+      return `<section class="sub" aria-label="${esc(s.id)}">
+        <div class="fhead"><span class="fid">${esc(s.id)}</span>
+          ${qa.verdict ? `<span class="chip ${VERDICT_CLASS[qa.verdict] || "c-none"}">${esc(qa.verdict)}</span>` : ""}
+          ${qa.overstated === "yes" ? `<span class="chip c-warn">overstated</span>` : ""}
+          ${s.significance ? `<span class="chip ${s.significance === "minor" ? "c-none" : "c-accent"}">${esc(s.significance)}</span>` : ""}</div>
+        <p class="sclaim">${esc(s.claim)}</p>
+        ${s.judge_notes ? `<p class="detail"><b>Judge notes:</b> ${esc(s.judge_notes)}</p>` : ""}
+        ${qaHtml(s.qa, "subfinding")}
+        ${evidenceHtml(s.evidence)}
+        ${decideHtml(items.find(i => i.item === s.id), ["Accept QA", "Edit", "Reject QA"])}
+      </section>`;
+    }).join("")}</div>
+  </article>`;
+}
+
+function renderMain() {
+  const ev = state.evalId, key = state.keys[ev];
+  const main = $("#main");
+  if (!key) { main.innerHTML = `<p class="empty">${state.loadErrors[ev] ? "This answer key could not be loaded." : "Loading…"}</p>`; $("#index").innerHTML = ""; return; }
+  const q = queueIds(key);
+  const fs = visibleFindings();
+  const intro = ev === "german-wiki"
+    ? `<p class="intro">Twelve findings, one per section of the human report; the original points (N01–N38) are their subfindings. Each was checked by one agent against the data the investigators get. Accept QA takes its outcome and proposed wording; Edit records your own wording; Reject QA keeps the original. Decisions save as you click.</p>`
+    : `<p class="intro">The AI Village key was QA'd earlier. The review queue holds what is still open: citation-check failures in the 84 findings never machine-checked, and the M029/M053 duplicate check. Switch to All to see every finding in the key.</p>`;
+  main.innerHTML = intro + (fs.length ? fs.map(f => findingHtml(ev, f, q)).join("") : `<p class="empty">Nothing matches this filter.</p>`)
+    + `<section class="card" aria-label="Whole-page comment"><div class="label">Comment on the whole ${esc(EVALS.find(e => e.id === ev).name)} answer key</div>
+        ${decideHtml({ doc: docId(ev, "_page"), item: "_page", kind: "page" }, ["", "", ""]).replace(/<button type="button" class="dbtn"[^>]*>[^<]*<\/button>/g, "")}</section>
+      <div class="foot"><button type="button" class="ghost" id="copy">Copy decisions as JSON</button><span id="copy-status" class="status" aria-live="polite"></span>
+      <span>Shortcuts: <span class="kbd">j</span>/<span class="kbd">k</span> next/previous finding · <span class="kbd">Ctrl+Enter</span> save text</span></div>
+      <textarea id="copy-fallback" rows="6" hidden aria-label="Decisions JSON"></textarea>`;
+  $("#index").innerHTML = fs.map(f => `<a href="#f-${esc(f.id)}" data-fid="${esc(f.id)}"><span class="dot"></span><span>${esc(f.id)} ${esc((f.fields && f.fields.section) || "")}</span></a>`).join("");
+  document.querySelectorAll(".decide").forEach(updateDecide);
+  updateProgress();
+}
+
+/* Sync one decision block with the stored decision, the local draft and the save status. */
+function updateDecide(box) {
+  const doc = box.dataset.doc, d = state.decisions[doc] || {}, draft = store.get("draft:" + doc), st = state.status[doc];
+  box.querySelectorAll(".dbtn").forEach(b => b.setAttribute("aria-pressed", String(d.decision === b.dataset.d)));
+  const edit = $("textarea.edit", box), comment = $("textarea.comment", box);
+  const wantEdit = (draft && draft.decision === "edit") || d.decision === "edit";
+  edit.hidden = !wantEdit;
+  if (document.activeElement !== edit) edit.value = draft && draft.text != null ? draft.text : d.text || edit.value || "";
+  if (document.activeElement !== comment) comment.value = draft && draft.comment != null ? draft.comment : d.comment || "";
+  if (comment.value.includes("\n") || comment.value.length > 80) comment.rows = 3;
+  const dirty = !!draft;
+  $(".save", box).disabled = !dirty || state.readOnly;
+  const status = $(".row .status", box);
+  status.className = "status";
+  if (st && st.kind === "saving") status.textContent = "Saving…";
+  else if (st && st.kind === "error") { status.className = "status err"; status.innerHTML = `Not saved: ${esc(st.msg)} <button type="button" class="retry">Retry</button>`; }
+  else if (dirty) { status.className = "status dirty"; status.textContent = "Unsaved text"; }
+  else if (d.updated_at) status.textContent = `Saved ${new Date(d.updated_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  else status.textContent = "";
+  const stale = $(".stale", box), cur = currentText(box);
+  if (d.decision && d.shown && cur != null && d.shown.text !== cur) { stale.hidden = false; stale.textContent = "The text under review changed after this decision was saved. Check it still applies."; }
+  else stale.hidden = true;
+}
+
+function currentText(box) {
+  const it = findItem(box.dataset.item);
+  return it ? it.text + " ‖ " + JSON.stringify(it.qa || null) : null;
+}
+function findItem(item) {
+  const key = state.keys[state.evalId];
+  if (!key) return null;
+  for (const f of key.findings) for (const it of itemsOf(state.evalId, f)) if (it.item === item) return it;
+  return item === "_page" ? { item, text: "", qa: null } : null;
+}
+
+function updateProgress() {
+  const key = state.keys[state.evalId];
+  if (!key) { $("#progress").textContent = ""; return; }
+  const all = visibleFindings().flatMap(f => itemsOf(state.evalId, f));
+  const done = all.filter(i => (state.decisions[i.doc] || {}).decision).length;
+  $("#progress").textContent = `${done} of ${all.length} items decided`;
+  for (const a of document.querySelectorAll("nav.index a")) {
+    const f = key.findings.find(x => x.id === a.dataset.fid), its = itemsOf(state.evalId, f);
+    const n = its.filter(i => (state.decisions[i.doc] || {}).decision).length;
+    a.querySelector(".dot").className = "dot" + (n === its.length ? " done" : n ? " part" : "");
+  }
+}
+
+/* ---------- saving ---------- */
+function setDraft(box, patch) {
+  const doc = box.dataset.doc, d = state.decisions[doc] || {};
+  const draft = store.get("draft:" + doc) || { decision: d.decision || "", text: d.text || "", comment: d.comment || "" };
+  store.set("draft:" + doc, { ...draft, ...patch });
+}
+
+async function save(box, decisionClick) {
+  const doc = box.dataset.doc;
+  if (decisionClick !== undefined) setDraft(box, { decision: decisionClick });
+  const draft = store.get("draft:" + doc);
+  if (!draft) return;
+  if (!state.db) { state.status[doc] = { kind: "error", msg: "no shared store in this view" }; updateDecide(box); return; }
+  if (state.saving[doc]) { state.saving[doc].again = true; return; }
+  state.saving[doc] = { again: false };
+  state.status[doc] = { kind: "saving" }; updateDecide(box);
+  const it = findItem(box.dataset.item);
+  const body = { eval: state.evalId, item: box.dataset.item, kind: box.dataset.kind, decision: draft.decision || "",
+                 text: draft.decision === "edit" ? draft.text || "" : "", comment: draft.comment || "",
+                 shown: { text: currentText(box) || "" }, updated_at: new Date().toISOString(), by: state.userId || "" };
+  if (it && it.parent) body.parent = it.parent;
+  try {
+    await withRetry(() => state.db.collection("decisions").doc(doc).set(body));
+    const now = store.get("draft:" + doc);
+    if (JSON.stringify(now) === JSON.stringify(draft)) store.del("draft:" + doc);
+    state.decisions[doc] = body;
+    delete state.status[doc];
+  } catch (e) {
+    if (e && e.code === "invalid_argument" && state.writeKnown === false) state.readOnly = true;
+    state.status[doc] = { kind: "error", msg: e && e.code === "quota_exceeded" ? "the store is full" : (e && (e.message || e.code)) || "unknown error" };
+    renderBanners();
+  }
+  const again = state.saving[doc].again;
+  delete state.saving[doc];
+  updateDecide(box); updateProgress();
+  if (again && store.get("draft:" + doc)) save(box);
+}
+
+async function withRetry(fn) {
+  try { return await fn(); }
+  catch (e) {
+    if (!e || (e.code !== "unavailable" && e.code)) throw e;
+    await new Promise(r => setTimeout(r, 600 + Math.random() * 900));
+    return fn();
+  }
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", ev => {
+  const t = ev.target;
+  if (t.matches(".tab")) { switchEval(t.dataset.ev); return; }
+  if (t.matches(".filter")) { state.filter = t.dataset.f; renderTabs(); renderMain(); return; }
+  const box = t.closest(".decide");
+  if (t.matches(".dbtn") && box) {
+    const d = t.dataset.d, cur = (state.decisions[box.dataset.doc] || {}).decision;
+    const next = cur === d && d !== "edit" ? "" : d;
+    if (next === "edit") {
+      const edit = $("textarea.edit", box);
+      const it = findItem(box.dataset.item);
+      if (!edit.value) edit.value = (it && it.qa && it.qa.proposed_wording && it.qa.proposed_wording !== "REMOVE") ? it.qa.proposed_wording : (it ? it.text : "");
+      setDraft(box, { decision: "edit", text: edit.value });
+      updateDecide(box); edit.hidden = false; edit.focus();
+      return;
+    }
+    save(box, next);
+    return;
+  }
+  if (t.matches(".save") && box) { save(box); return; }
+  if (t.matches(".retry") && box) { save(box); return; }
+  if (t.id === "copy") copyDecisions();
+});
+document.addEventListener("input", ev => {
+  const box = ev.target.closest(".decide");
+  if (!box) return;
+  if (ev.target.matches("textarea.edit")) setDraft(box, { text: ev.target.value });
+  if (ev.target.matches("textarea.comment")) setDraft(box, { comment: ev.target.value });
+  const b = $(".save", box); b.disabled = state.readOnly;
+  const s = $(".row .status", box); s.className = "status dirty"; s.textContent = "Unsaved text";
+});
+document.addEventListener("keydown", ev => {
+  const box = ev.target.closest && ev.target.closest(".decide");
+  if (box && ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); save(box); return; }
+  if (ev.target.matches("textarea, input") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (ev.key === "j" || ev.key === "k") {
+    const cards = [...document.querySelectorAll("article.card")];
+    if (!cards.length) return;
+    const y = window.scrollY + 90;
+    let i = cards.findIndex(c => c.offsetTop > y - 5);
+    if (i < 0) i = cards.length;
+    const target = ev.key === "j" ? cards[Math.min(i, cards.length - 1)] : cards[Math.max(i - 2, 0)];
+    target.scrollIntoView({ block: "start" }); $(".fid", target).focus({ preventScroll: true });
+  }
+});
+window.addEventListener("beforeunload", ev => {
+  if (Object.keys(state.saving).length) { ev.preventDefault(); ev.returnValue = ""; }
+});
+
+async function copyDecisions() {
+  const out = Object.values(state.decisions).filter(d => d.eval === state.evalId);
+  const drafts = {};
+  for (const f of state.keys[state.evalId]?.findings || []) for (const i of itemsOf(state.evalId, f)) { const d = store.get("draft:" + i.doc); if (d) drafts[i.item] = d; }
+  const text = JSON.stringify({ eval: state.evalId, decisions: out, unsaved_drafts: drafts }, null, 1);
+  try { await navigator.clipboard.writeText(text); $("#copy-status").textContent = `Copied ${out.length} decisions.`; }
+  catch { const ta = $("#copy-fallback"); ta.hidden = false; ta.value = text; ta.select(); $("#copy-status").textContent = "Copy was blocked; the JSON is selected below."; }
+}
+
+function switchEval(ev) {
+  state.evalId = ev;
+  state.filter = EVALS.find(e => e.id === ev).defaultFilter;
+  try { localStorage.setItem("review:eval", ev); } catch {}
+  renderTabs(); renderBanners(); renderMain();
+}
+
+/* ---------- store ---------- */
+async function connect() {
+  const db = window.claude && window.claude.use ? await window.claude.use("db") : null;
+  if (!db) { state.dbState = "absent"; renderBanners(); return; }
+  state.db = db;
+  const user = await window.claude.use("user");
+  if (user) {
+    try { state.userId = await user.id(); } catch {}
+    try { const w = await user.can("data.write"); if (w === false) state.readOnly = true; state.writeKnown = w; } catch {}
+  }
+  db.collection("decisions").onSnapshot(snap => {
+    state.dbState = "live";
+    const next = {};
+    for (const d of snap.docs) next[d.id] = d.data();
+    state.decisions = next;
+    renderBanners();
+    document.querySelectorAll(".decide").forEach(updateDecide);
+    updateProgress();
+  }, err => { state.dbState = "error"; state.dbError = err && (err.message || err.code); renderBanners(); });
+}
+
+(async function start() {
+  let ev = null; try { ev = localStorage.getItem("review:eval"); } catch {}
+  state.evalId = EVALS.some(e => e.id === ev) ? ev : "german-wiki";
+  state.filter = EVALS.find(e => e.id === state.evalId).defaultFilter;
+  renderTabs(); renderBanners();
+  connect().catch(e => { state.dbState = "error"; state.dbError = String(e && (e.message || e.code) || e); renderBanners(); });
+  await loadKeys();
+  renderBanners(); renderMain();
+})();
+</script>

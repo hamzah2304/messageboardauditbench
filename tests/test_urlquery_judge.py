@@ -122,3 +122,29 @@ def test_both_judge_paths_read_one_transport_table():
     config = finding_scorer._config(type("M", (), {"__str__": lambda s: "anthropic/claude-opus-5-5"})(), "xhigh")
     # reasoning_effort, not effort: Inspect then sends adaptive thinking like the batch grader.
     assert config.reasoning_effort == "xhigh" and config.effort is None and config.max_tokens == 32000
+
+
+def test_both_graders_default_to_the_standard_judge_including_openai(monkeypatch, tmp_path):
+    """openai/gpt-6.1-sol at high effort works in the batch grader and the Inspect scorer."""
+    from slopvestigator_bench import standard
+    from slopvestigator_bench.grading import findings
+    from slopvestigator_bench.grading.finding_scorer import finding_scorer
+
+    judge, effort = standard.judge()
+    assert (judge, effort) == ("openai/gpt-6.1-sol", "high")
+    # Batch grader: the default, the OpenAI route, its call settings and where its grades go.
+    args = grade.parser().parse_args([])
+    assert args.judge == judge and grade.DEFAULT_EFFORT == effort
+    assert grade.provider_of(judge) == ("openai", "gpt-6.1-sol")
+    assert grade.transport_of("openai") is findings.TRANSPORTS["openrouter"]
+    monkeypatch.setenv("OPENAI_API_KEY", "test-not-a-key")
+    client = grade.Judge(judge, effort)
+    assert client.provider == "openai" and client.effort == "high" and "openrouter" not in str(client.client.base_url)
+    assert findings.judge_dir("gpt-6.1-sol", "high") == "judge_gpt_6_1_sol_high"
+    # The article is read in full for a non-Anthropic judge, as for the v1.0 Astra grades.
+    assert findings.default_article_context(judge) == "full"
+    # Inspect scorer: built without a judge, it takes the standard one.
+    monkeypatch.setattr(findings, "article_text", lambda context: "ARTICLE")
+    assert finding_scorer() is not None
+    with pytest.raises(SystemExit):
+        grade.provider_of("mistral/large")

@@ -61,7 +61,25 @@ def template_path() -> Path:
 
 
 def findings_path() -> Path:
+    """The reviewed findings file (the v1.0 rubric); the answer key is converted from it."""
     return evaluator_root() / _grading()["findings"]
+
+
+def answer_key_path() -> Path:
+    return evaluator_root() / "answer-key.json"
+
+
+def findings_document() -> dict:
+    """The reviewed findings, read from the answer key (benchmarks/transluce/answer-key.json,
+    answer-key-v1) and rebuilt in the findings_reviewed.json structure the prompt is rendered from.
+    The rebuild is byte-identical to the reviewed file (tests/test_answer_key_transluce.py)."""
+    from slopvestigator_bench import answer_key
+    from slopvestigator_bench.answer_key_transluce import to_transluce
+
+    key = answer_key.load(answer_key_path())
+    if problems := answer_key.validate(key):
+        raise ValueError(f"{answer_key_path()}: " + "; ".join(problems[:5]))
+    return to_transluce(key)
 
 
 def scan_groups_path() -> Path:
@@ -113,7 +131,7 @@ def sha(text: str | bytes) -> str:
 
 
 def load_findings() -> list[dict]:
-    return [f for f in json.loads(findings_path().read_text())["findings"] if "not-scored" not in f["tags"]]
+    return [f for f in findings_document()["findings"] if "not-scored" not in f["tags"]]
 
 
 def headlines(findings: list[dict] | None = None) -> list[str]:
@@ -375,7 +393,8 @@ def stamp(judge: str, effort: str, article: str) -> dict:
         "judge": judge,
         "effort": effort,
         "prompt_sha256": sha(template_path().read_bytes()),
-        "findings_sha256": sha(findings_path().read_bytes()),
+        # The rebuilt file is byte-identical to the reviewed one, so earlier grades still match.
+        "findings_sha256": sha(json.dumps(findings_document(), indent=1, ensure_ascii=False) + "\n"),
         "article_sha256": sha(article),
     }
 

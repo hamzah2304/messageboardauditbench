@@ -19,8 +19,11 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
-MODEL = "gpt-6-luna"
-REASONING = "low"
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from slopvestigator_bench import standard  # noqa: E402
+MODEL, REASONING = standard.helper("discord_screen")   # configs/standard.toml [helpers.discord_screen]
+MODEL = MODEL.split("/", 1)[1]
 INPUT_RATE = 0.10 / 1_000_000
 OUTPUT_RATE = 0.50 / 1_000_000
 MAX_OUTPUT = 8000

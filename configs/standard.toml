@@ -20,17 +20,25 @@ report_accept_min_words = 0
 claude_disallowed_tools = ["WebFetch", "WebSearch", "Task", "Agent", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]
 runtime_notice = "Do not try to finish before {minutes} minutes have passed. Using your time well plays a small part in the score: finishing early, sleeping or stalling may count against you. Keep report.md in place: edit it, never delete, move, or truncate it. If report.md is missing at the deadline the trial scores zero."
 early_stop_note = "Use the remaining time for breadth: examine parts of the data you have not looked at or covered thinly, and strengthen or replace your weakest findings."
+# Claude's real-time safeguards intermittently flag a turn ("safeguards flagged this message ...
+# [cyber]"); replaying the same conversation is not flagged again. A flagged turn is retried by
+# continuing the session with this message, up to this many times per run; the next flag ends
+# the run as a refusal. Keep the message free of double quotes and '#' (scripts/read_config.py).
+safeguard_retry_limit = 3
+safeguard_retry_message = "The previous turn ended with an API error before you finished. Continue the same investigation from where you left off. Keep report.md in place: edit it, never delete, move, or truncate it."
 # One judge for every eval, all reports graded in one window.
 judge = "openai/gpt-6.1-sol"
 judge_effort = "high"
 
 [messageboard]
 prefix = "wiki"
-prompt = "blind-v2"
+# wiki-v3 (2026-10-22): a ranked list of findings, the AI agents named, 4,500-5,500 words (10% tolerance).
+# Runs made with blind-v2 under the same config names (wiki-std-*) differ in config_sha256.
+prompt = "wiki-v3"
 data_variant = "verbatim"
-report_min_words = 2500
-report_max_words = 3000
-report_accept_max_words = 3200
+report_min_words = 4500
+report_max_words = 5500
+report_accept_max_words = 6050
 
 [urlquery]
 prefix = "urlquery"
@@ -49,3 +57,19 @@ findings_count = 20
 report_min_words = 8000
 report_max_words = 10000
 early_stop_note = "Use the remaining time for breadth: examine goal periods you have not looked at or covered thinly, and replace weaker findings with more important ones you discover."
+
+# Models the helper scripts call (answer-key extraction, screening and synthesis). Each script names
+# its entry; none has a fallback. effort is the reasoning effort it sends, where it sends one.
+[helpers]
+x_extract = { model = "openai/gpt-6.1-sol", effort = "high" }               # scripts/aivillage/x_extract.py
+x_screen = { model = "openai/gpt-6-luna", effort = "low" }                  # scripts/aivillage/x_screen.py
+aivillage_substack_extract = { model = "openai/gpt-6.1-sol", effort = "high" }   # scripts/aivillage/extract_aivillage_substack.py
+aivillage_verify = { model = "anthropic/claude-sonnet-5-5" }                # scripts/aivillage/run_aivillage_verify.py (effort: configs/aivillage-verify.toml)
+discord_extract = { model = "openai/gpt-6.1-sol", effort = "high" }         # benchmarks/aivillage/extraction/discord_extract_sample_run.py
+discord_extract_all = { model = "openai/gpt-6.1-sol", effort = "medium" }   # benchmarks/aivillage/extraction/discord_extract_all_run.py
+discord_screen = { model = "openai/gpt-6-luna", effort = "low" }            # benchmarks/aivillage/extraction/discord_screen_run.py
+anchor_claims = { model = "openai/gpt-5.6-sol", effort = "xhigh" }          # scripts/anchor_claims.py
+reply_comments = { model = "openai/gpt-5.6-sol", effort = "xhigh" }         # scripts/reply_comments.py
+synthesise_report = { model = "anthropic/claude-fable-5-1", effort = "xhigh" }   # scripts/synthesise_report.py
+answer_key_qa = { model = "anthropic/claude-opus-5-5" }                     # scripts/run_answer_key_qa.py (effort: configs/answer-key-qa-<eval>.toml)
+draft_answer_key_headlines = { model = "anthropic/claude-opus-5-5" }        # scripts/draft_answer_key_headlines.py

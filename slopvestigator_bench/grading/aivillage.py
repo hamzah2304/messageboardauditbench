@@ -37,9 +37,10 @@ from inspect_ai.util import JSONSchema
 from slopvestigator_bench.grading import judge as judging
 from slopvestigator_bench.runtime import repo_root
 
+# The published v1.0 judge: scripts/aivillage/grade_aivillage.py's frozen plans check against it.
+# New grades default to the standard judge (configs/standard.toml).
 MODEL = "gpt-6.1-sol"
 EFFORT = "medium"
-DEFAULT_JUDGE = "openai/" + MODEL
 TOP_K = 20
 GROUP_SIZE = 3
 MAX_SUBFINDINGS = 12
@@ -213,9 +214,40 @@ def reasoning_available(data_variant: str) -> bool:
     raise ValueError(f"cannot tell whether {data_variant!r} has reasoning traces")
 
 
-def grading_groups(goals: list[dict]) -> tuple[list[dict], list[dict]]:
-    """The approved findings and their judge groups, from the committed answer key."""
-    findings, _ = normalize_findings(json.loads((repo_root() / FINDINGS).read_text()))
+ANSWER_KEY = EVALUATOR_ROOT / "answer-key.json"
+# Subfinding verdicts from the answer-key QA that keep a subfinding in the key.
+_KEPT_VERDICTS = {"supported", "partly"}
+
+
+def findings_from_answer_key(key: dict) -> list[dict]:
+    """The re-QA'd answer key (benchmarks/aivillage/answer-key.json, answer-key-v1) in the shape
+    `normalize_findings` reads. Dropped findings and subfindings whose QA verdict is not
+    supported or partly are left out; source excerpts are not in the key, so none are sent."""
+    out = []
+    for f in key["findings"]:
+        if f.get("qa") and f["qa"].get("outcome") not in ("keep", "narrow"):
+            continue
+        subs = [{"id": s["id"], "claim": s["claim"], "notes": [s["judge_notes"]] if s.get("judge_notes") else [],
+                 "records": " ".join(e["text"] for e in s.get("evidence", [])),
+                 "needs_reasoning_traces": s.get("fields", {}).get("needs_reasoning_traces", False)}
+                for s in f["subfindings"] if not s.get("qa") or s["qa"].get("verdict") in _KEPT_VERDICTS]
+        out.append({"id": f["id"], "group": "keep", "headline": f["claim"], "finding": f.get("detail", ""),
+                    "notes": [f["judge_notes"]] if f.get("judge_notes") else [],
+                    "behavior_dates": f.get("fields", {}).get("behavior_dates"),
+                    "goal_period_id": f.get("fields", {}).get("goal_period_id"),
+                    "sources": f.get("fields", {}).get("sources", []), "subfindings": subs})
+    return out
+
+
+def grading_groups(goals: list[dict], answer_key: bool = False) -> tuple[list[dict], list[dict]]:
+    """The approved findings and their judge groups. By default from the v1.0 rubric
+    (findings/final-findings.json); with `answer_key`, from the re-QA'd answer key, which is
+    still under review (off by default until Oscar's review is in)."""
+    if answer_key:
+        raw = findings_from_answer_key(json.loads((repo_root() / ANSWER_KEY).read_text()))
+    else:
+        raw = json.loads((repo_root() / FINDINGS).read_text())
+    findings, _ = normalize_findings(raw)
     return findings, group_findings(findings, goals, {}, GROUP_SIZE, MAX_SUBFINDINGS)
 
 
@@ -247,25 +279,32 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
 
 
 @scorer(metrics={"score": [mean(), stderr()], "coverage": [mean()]})
-def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str = EFFORT) -> Scorer:
+def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str | None = None,
+                     answer_key: bool = False) -> Scorer:
     """Grade an AI Village report against the 96 rubric findings.
 
     Args:
-      judge: the grading model, ``openai/gpt-6.1-sol`` by default (``openrouter/openai/gpt-6.1-sol``
-        also works). A ``grader`` model role takes precedence.
+      judge: the grading model; the standard judge (configs/standard.toml) by default
+        (``openrouter/openai/gpt-6.1-sol`` also works). A ``grader`` model role takes precedence.
       goals: the data's ``village_goals.jsonl``, which sets the goal-period groups. Defaults to the
         file in the sample's data variant.
-      effort: the judge's reasoning effort; ``medium`` as published, ``high`` in the standard condition.
+      effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
+      answer_key: grade against the re-QA'd answer key (answer-key.json) instead of the v1.0
+        rubric; off by default while the key is under review.
     """
+    from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import primary_root
+
+    judge = judge or standard.judge()[0]
+    effort = effort or standard.judge()[1]
 
     rubric = (repo_root() / RUBRIC).read_text()
 
     async def score(state: TaskState, target: Target) -> Score:
-        model = get_model(judge or DEFAULT_JUDGE, role="grader")
+        model = get_model(judge, role="grader")
         variant = str(state.metadata.get("data_variant") or "aivillage/full-v2-reasoning")
         goals_path = Path(goals) if goals else primary_root() / "data" / variant / "village_goals.jsonl"
-        findings, groups = grading_groups(load_goals(goals_path))
+        findings, groups = grading_groups(load_goals(goals_path), answer_key)
         report = state.output.completion if state.output else ""
         report_id = str(state.metadata.get("run") or state.sample_id)
         rules = instructions(rubric, reasoning_available(variant))

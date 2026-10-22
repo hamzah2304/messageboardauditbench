@@ -3,8 +3,8 @@
 One call per headline finding, the same prompt bytes the batch grader
 (benchmarks/transluce/judge/grade.py) sends, through Inspect's model layer so the judge's
 calls land in the eval log and obey ``--max-connections``. The judge is any Inspect model:
-``anthropic/claude-opus-5-5`` (the default) or ``openrouter/openai/gpt-6-astra``, the
-final-run judge. The full grade file, as the batch grader writes it, goes into
+the standard judge (configs/standard.toml) by default, or ``openrouter/openai/gpt-6-astra``,
+the v1.0 final-run judge. The full grade file, as the batch grader writes it, goes into
 ``Score.metadata["grade"]``.
 
 A refusal, a truncated or unparseable answer, or an API error leaves that finding
@@ -30,7 +30,6 @@ from inspect_ai.model import (
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
 
-from slopvestigator_bench.benchmarks import urlquery_manifest
 from slopvestigator_bench.grading import findings as fj
 from slopvestigator_bench.grading import judge as judging
 from slopvestigator_bench.grading.core import judge_name
@@ -111,15 +110,18 @@ def finding_scorer(
 
     Args:
       judge: the grading model. Resolved at scoring time through the ``grader`` model
-        role. Defaults to the manifest's judge (``anthropic/claude-opus-5-5``).
-      effort: reasoning effort; ``xhigh`` for Anthropic judges, ``high`` otherwise.
+        role. Defaults to the standard judge (configs/standard.toml), with its effort; the
+        manifest's ``default_judge`` records the v1.0 judge.
+      effort: reasoning effort; for another judge, ``xhigh`` for Anthropic, ``high`` otherwise.
       article_context: ``full`` gives the judge Transluce's article (the GPT-6 Astra final
         grades); ``omitted`` replaces it with a fixed note, which avoids the Opus judge's
         refusals on the article. Defaults per transport from the manifest: ``omitted``
         for Anthropic judges, ``full`` otherwise.
     """
-    grading = urlquery_manifest()["grading"]
-    judge = judge or grading["default_judge"]
+    if judge is None:
+        from slopvestigator_bench import standard
+
+        judge, effort = standard.judge()[0], effort or standard.judge()[1]
     context = article_context or fj.default_article_context(str(judge))
     fj.article_text(context)  # Validate the article is available before launching an agent.
     findings = fj.load_findings()

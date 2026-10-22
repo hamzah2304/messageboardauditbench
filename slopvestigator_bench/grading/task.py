@@ -84,7 +84,7 @@ def report_from_sample():
 def _german_wiki_report_grade(
     dir: str = "round4_blind120",  # noqa: A002 — the Inspect task parameter is named `dir`
     rubric: str = "v2",
-    judge: str = "openai/gpt-5.6-sol",
+    judge: str | None = None,
     variant: str | None = None,
     runs: str | None = None,
     judge_effort: str | None = None,
@@ -95,14 +95,19 @@ def _german_wiki_report_grade(
       dir: a folder under benchmarks/german-wiki/graded_inputs/, or an absolute path.
       runs: instead of `dir`, a glob of run directories under the primary checkout's runs/
         (e.g. ``*_wiki-std-30_*``); each run's own data variant picks its rubric variant.
-      judge_effort: one reasoning effort for every sheet; unset, xhigh then high then medium.
+      judge_effort: one reasoning effort for every sheet; unset, the standard judge's effort for
+        the standard judge, else xhigh then high then medium.
       rubric: a key of `core.MODES`, such as "v2", "tldrh", "m5",
         "m5tldrh", "rh", or "rhtldrh".
       variant: explicit rubric variant for reports without an index; indexed
         reports otherwise select their variant from data_variant per sample.
-      judge: Inspect model used to grade. As on the audit task, a ``grader``
-        model role supplied to Inspect takes precedence over this value.
+      judge: Inspect model used to grade; defaults to the standard judge (configs/standard.toml).
+        As on the audit task, a ``grader`` model role supplied to Inspect takes precedence.
     """
+    if judge is None:
+        from slopvestigator_bench import standard
+
+        judge, judge_effort = standard.judge()[0], judge_effort or standard.judge()[1]
     if runs:
         samples = run_samples("messageboard", runs)
         if not samples:
@@ -176,12 +181,13 @@ def _transluce_report_grade(
       runs: a glob under the primary checkout's runs/urlquery/ (e.g. ``2026092*_codex_*``).
       batch: a pilot plan directory whose ``*.result.json`` files name its run dirs.
       launch: a launch.json whose ``plans`` list plan files (the final-run launcher's).
-      judge: Inspect model; defaults to ``anthropic/claude-opus-5-5``. Use
-        ``openrouter/openai/gpt-6-astra`` for the final-run judge.
-      judge_effort: ``xhigh`` for Anthropic judges, ``high`` otherwise, by default.
+      judge: Inspect model; defaults to the standard judge (configs/standard.toml), with its
+        effort. Use ``openrouter/openai/gpt-6-astra`` for the v1.0 final-run judge.
+      judge_effort: for another judge, ``xhigh`` for Anthropic judges, ``high`` otherwise.
       article_context: ``omitted`` or ``full``; defaults to ``omitted`` for Anthropic
         judges and ``full`` otherwise.
     """
+    from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import (
         SPECS,
         primary_root,
@@ -189,6 +195,9 @@ def _transluce_report_grade(
     )
     from slopvestigator_bench.grading import findings
     from slopvestigator_bench.grading.finding_scorer import finding_scorer
+
+    if judge is None:
+        judge, judge_effort = standard.judge()[0], judge_effort or standard.judge()[1]
 
     run_root = primary_root() / SPECS["urlquery"].run_root
     run_dirs = findings.reports_from(
@@ -237,6 +246,7 @@ def aivillage_report_grade(
     judge: str | None = None,
     data_variant: str = "aivillage/full-v2-reasoning",
     judge_effort: str | None = None,
+    answer_key: bool = False,
 ) -> Task:
     """Grade finished AI Village reports against the 96 rubric findings.
 
@@ -247,14 +257,19 @@ def aivillage_report_grade(
       runs: a glob of run directories under the primary checkout's runs/
         (e.g. ``*_aivillage-v12-30*``); each needs a report.md.
       dir: or a folder of ``.md`` reports, one per run (absolute, or relative to the repo).
-      judge: Inspect model; defaults to ``openai/gpt-6.1-sol``. A ``grader`` role wins.
+      judge: Inspect model; defaults to the standard judge (configs/standard.toml). A ``grader`` role wins.
       data_variant: the data the reports were written from, for ``dir`` reports; run
         directories record their own. It sets the goal periods and whether the judge is
         told the investigator saw reasoning traces.
-      judge_effort: the judge's reasoning effort; ``medium`` as published, ``high`` in the standard condition.
+      judge_effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
+      answer_key: grade against the re-QA'd answer key (benchmarks/aivillage/answer-key.json) instead
+        of the v1.0 rubric; off by default while the key is under review.
     """
+    from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import SPECS
-    from slopvestigator_bench.grading.aivillage import EFFORT, aivillage_scorer
+    from slopvestigator_bench.grading.aivillage import aivillage_scorer
+
+    judge, judge_effort = judge or standard.judge()[0], judge_effort or standard.judge()[1]
 
     if bool(runs) == bool(dir):
         raise ValueError("pass exactly one of runs or dir")
@@ -275,8 +290,9 @@ def aivillage_report_grade(
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=aivillage_scorer(judge=judge, effort=judge_effort or EFFORT),
+        scorer=aivillage_scorer(judge=judge, effort=judge_effort, answer_key=answer_key),
         model="mockllm/model",
         metadata={"benchmark": SPECS["aivillage"].title, "benchmark_id": "aivillage", "mode": "grading",
-                  "judge": judge, "judge_effort": judge_effort or EFFORT},
+                  "judge": judge, "judge_effort": judge_effort,
+                  "rubric": "answer-key" if answer_key else "final-findings-v1.0"},
     )
