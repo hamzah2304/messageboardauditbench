@@ -60,12 +60,10 @@ nav.index .dot.done { background: var(--ok); } nav.index .dot.part { background:
 main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 .intro { font-size: 14px; color: var(--muted); max-width: 70ch; margin: 0; }
 
-/* legend */
-.legend { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 18px; font-size: 13px; }
-.legend > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.legend p { margin: 0; color: var(--muted); }
-.legend .diffkey { grid-column: 1 / -1; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
-.legend .diffkey .ex { font-family: var(--serif); font-size: 15px; }
+/* legend: one line */
+.legend { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.legend > span { display: inline-flex; gap: 5px; align-items: center; }
+.legend .ex { font-family: var(--serif); font-size: 14px; color: var(--ink); }
 
 /* layer badges: text label plus a distinct shape per layer */
 .badge { display: inline-flex; align-items: center; gap: 5px; font: 600 11px/1.6 var(--sans); text-transform: uppercase; letter-spacing: .08em; padding: 0 7px; border-radius: 4px; white-space: nowrap; width: max-content; }
@@ -73,9 +71,10 @@ main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 .b-qa { background: var(--qa); color: var(--surface); border: 1px solid var(--qa); }
 .b-prop { background: transparent; color: var(--prop); border: 1px dashed var(--prop); }
 .b-you { background: var(--you); color: var(--bg); border: 1px solid var(--you); }
+.b-draft { border: 1px dotted var(--warn); color: var(--warn); background: transparent; }
 .badge .glyph { font: 600 12px var(--mono); letter-spacing: 0; }
 
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .card:focus-within { border-color: var(--accent); }
 .fhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .fid { font: 600 15px var(--mono); color: var(--ink); }
@@ -90,12 +89,20 @@ main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 /* the four layers */
 .layer { border-radius: 6px; padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .lhead { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-.lsub { font-size: 12.5px; color: var(--muted); }
 .l-rubric { border: 1px solid var(--line); background: var(--surface); }
 .l-qa { background: var(--qa-soft); border: 1px solid var(--qa-line); }
-.l-prop { border: 1.5px dashed var(--prop-line); background: var(--surface); }
-.l-prop.none { padding: 6px 12px; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
-.l-prop.none .lsub { font-style: italic; }
+.pbox { border: 1.5px dashed var(--prop-line); border-radius: 6px; padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pbox + .pbox, .note + .pbox { margin-top: 6px; }
+.l-draft { border: 1px dotted var(--warn); background: var(--surface); }
+.l-draft .decide { margin-top: 2px; }
+.pts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font: 400 15px/1.45 var(--serif); }
+.pid { font: 500 12px var(--mono); color: var(--muted); margin-right: 4px; }
+.sep { border: 0; border-top: 1px dashed var(--line); margin: 4px 0; width: 100%; }
+.mini { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.mini .basesw { border: 0; border-radius: 0; color: var(--muted); }
+.mini .basesw[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.crow { flex-wrap: nowrap; align-items: flex-start; }
+.crow textarea { flex: 1; min-width: 0; }
 .decide { background: var(--you-soft); border-top: 2px solid var(--you); border-radius: 6px; padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
 
 .field { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 2px 10px; align-items: baseline; }
@@ -115,8 +122,6 @@ main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 .subs { display: flex; flex-direction: column; gap: 14px; }
 .subsh { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 8px 0 0; border-top: 1px solid var(--line); padding-top: 12px; }
 .sub { display: flex; flex-direction: column; gap: 8px; padding-left: 12px; border-left: 1px solid var(--line); }
-.headblock { display: flex; flex-direction: column; gap: 6px; }
-.findblock { display: flex; flex-direction: column; gap: 8px; }
 .ev { font-size: 13.5px; margin: 4px 0; max-width: 85ch; overflow-wrap: anywhere; }
 .cite { font: 12px var(--mono); background: var(--none-soft); border-radius: 3px; padding: 0 3px; }
 .cite.fail { background: var(--bad-soft); color: var(--bad); }
@@ -179,13 +184,7 @@ textarea.edit { font-family: var(--serif); font-size: 15px; }
   <div class="layout">
     <nav class="index" id="index" aria-label="Findings"></nav>
     <main id="main">
-      <section class="legend" aria-label="How to read this page">
-        <div><span class="badge b-rubric">Current rubric</span><p>What the answer key says now: headline, detail, judge notes, sources.</p></div>
-        <div><span class="badge b-qa">QA agent</span><p>The QA agent's assessment of that text: outcome or verdict, its reasons, the evidence it cites. Commentary, not key text.</p></div>
-        <div><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><p>New wording from the QA agent or a model-drafted headline, shown as changes to the current text.</p></div>
-        <div><span class="badge b-you">Your decision</span><p>Accept, edit or reject, plus a comment. Saved to the shared store; your edits also show as changes.</p></div>
-        <div class="diffkey"><span class="lsub">Changes:</span><span class="ex"><del class="d"><span class="sr">removed: </span>removed words</del> <ins class="i"><span class="sr">added: </span>added words</ins> unchanged words</span><span class="lsub">Switch between inline changes and old | new side by side in the toolbar.</span></div>
-      </section>
+      <p class="legend"><span><span class="badge b-rubric">Rubric</span> current key</span><span><span class="badge b-draft">Draft</span> model-drafted headline</span><span><span class="badge b-qa">QA</span> QA agent</span><span><span class="badge b-prop">Proposed</span> new wording</span><span><span class="badge b-you">You</span> your decision</span><span class="ex"><del class="d"><span class="sr">removed: </span>removed</del> <ins class="i"><span class="sr">added: </span>added</ins></span><span class="kh"><span class="kbd">j</span>/<span class="kbd">k</span> findings · <span class="kbd">Ctrl+Enter</span> save</span></p>
       <div id="content"><p class="empty">Loading the answer keys…</p></div>
     </main>
   </div>
@@ -276,11 +275,11 @@ function diffHtml(oldText, newText, opts = {}) {
   else segs = wordDiff(oldText, newText);
   const st = diffStats(segs);
   const inline = segs.map(g => g.t === "eq" ? esc(g.s) : g.t === "del" ? D(g.s) : I(g.s)).join("");
-  const oldSide = oldText == null || oldText === "" ? `<span class="empty-old">${esc(opts.noOldLabel || "Nothing here yet")}</span>`
+  const oldSide = oldText == null || oldText === "" ? `<span class="empty-old">none</span>`
     : segs.filter(g => g.t !== "ins").map(g => g.t === "eq" ? esc(g.s) : D(g.s)).join("");
-  const newSide = opts.remove ? `<span class="empty-old">Removed</span>` : segs.filter(g => g.t !== "del").map(g => g.t === "eq" ? esc(g.s) : I(g.s)).join("");
-  const stat = opts.remove ? `${st.d} words removed` : (oldText == null || oldText === "") ? `all new, ${st.i} words`
-    : st.d === 0 && st.i === 0 ? "identical to the current text" : `${st.d} words removed, ${st.i} added, ${st.e} kept`;
+  const newSide = opts.remove ? `<span class="empty-old">removed</span>` : segs.filter(g => g.t !== "del").map(g => g.t === "eq" ? esc(g.s) : I(g.s)).join("");
+  const stat = opts.remove ? `−${st.d}` : (oldText == null || oldText === "") ? `+${st.i}`
+    : st.d === 0 && st.i === 0 ? "no change" : `−${st.d} +${st.i} words`;
   return `<p class="diff v-inline${big}">${inline}</p>
     <div class="split v-split"><div><div class="colh">${esc(opts.oldLabel || "Current")}</div><p class="diff${big}">${oldSide}</p></div>
       <div><div class="colh">${esc(opts.newLabel || "Proposed")}</div><p class="diff${big}">${newSide}</p></div></div>
@@ -291,15 +290,15 @@ function diffHtml(oldText, newText, opts = {}) {
    the detail is used only when it shares clearly more words with the proposal (as in M029). The reviewer can switch. */
 function findingBases(f) {
   const drafted = f.fields && f.fields.headline_status === "draft";
-  const b = [{ key: "claim", label: drafted ? "drafted headline" : "headline", text: f.claim }];
-  if (f.detail) b.push({ key: "detail", label: "detail", text: f.detail });
+  const b = [{ key: "claim", short: drafted ? "Draft" : "Headline", text: f.claim }];
+  if (f.detail) b.push({ key: "detail", short: drafted ? "Report" : "Detail", text: f.detail });
   return b;
 }
 const baseCache = new Map();
 function chosenBase(f) {
   const bases = findingBases(f), prop = f.qa && f.qa.proposed_wording;
   if (state.baseChoice[f.id]) return bases.find(b => b.key === state.baseChoice[f.id]) || bases[0];
-  if (!prop || bases.length === 1) return bases[0];
+  if (!prop || bases.length === 1 || (f.fields && f.fields.headline_status === "draft")) return bases[0];
   const ck = f.id + "\u0000" + prop;
   if (!baseCache.has(ck)) {
     const score = b => { const st = diffStats(wordDiff(b.text, prop, true)); return 2 * st.e / Math.max(1, 2 * st.e + st.d + st.i); };
@@ -382,19 +381,20 @@ function citeHtml(text, citations) {
 function evidenceHtml(ev) {
   if (!ev || !ev.length) return "";
   const fails = ev.flatMap(e => e.citations || []).filter(c => c.check === "id_missing" || c.check === "quote_missing").length;
-  return `<details${fails ? " open" : ""}><summary>Evidence the QA agent cites (${ev.length})${fails ? ` · ${fails} citation${fails > 1 ? "s" : ""} failed the check` : ""}</summary>${
+  return `<details${fails ? " open" : ""}><summary>Evidence (${ev.length})${fails ? ` · ${fails} failed citation check` : ""}</summary>${
     ev.map(e => `<p class="ev">${citeHtml(e.text, e.citations)}</p>`).join("")}</details>`;
 }
 
 const field = (name, html) => `<div class="field"><span class="fname">${esc(name)}</span><div>${html}</div></div>`;
 const sigChip = s => s ? `<span class="chip ${s === "minor" ? "c-none" : "c-accent"}">${esc(s)}</span>` : "";
+const B = { rubric: `<span class="badge b-rubric">Rubric</span>`, qa: `<span class="badge b-qa">QA</span>`,
+            prop: `<span class="badge b-prop">Proposed</span>`, you: `<span class="badge b-you">You</span>`, draft: `<span class="badge b-draft">Draft</span>` };
 
 function decideHtml(it, labels, opts = {}) {
   const [a, e, r] = labels;
-  const target = it.kind === "headline" ? "the drafted headline" : it.kind === "finding" ? `finding ${it.item}` : it.kind === "subfinding" ? `subfinding ${it.item}` : "";
   return `<div class="decide" data-doc="${esc(it.doc)}" data-item="${esc(it.item)}" data-kind="${it.kind}">
     <div class="row" role="group" aria-label="Decision for ${esc(it.item)}">
-      <span class="badge b-you">${esc(opts.badge || "Your decision")}</span>${target ? `<span class="lsub">on ${esc(target)}</span>` : ""}
+      ${B.you}
       <button type="button" class="dbtn" data-d="accept" aria-pressed="false">${a}</button>
       <button type="button" class="dbtn" data-d="edit" aria-pressed="false">${e}</button>
       <button type="button" class="dbtn" data-d="reject" aria-pressed="false">${r}</button>
@@ -403,8 +403,7 @@ function decideHtml(it, labels, opts = {}) {
     <div class="stale" hidden></div>
     <textarea class="edit" rows="3" hidden aria-label="Your wording for ${esc(it.item)}"></textarea>
     <div class="editdiff" hidden></div>
-    <textarea class="comment" rows="1" placeholder="${esc(opts.placeholder || "Comment (optional)")}" aria-label="Comment on ${esc(it.item)}"></textarea>
-    <div class="row"><button type="button" class="save" disabled>Save text</button><span class="status-hint status">Ctrl+Enter saves</span></div>
+    <div class="row crow"><textarea class="comment" rows="1" placeholder="${esc(opts.placeholder || "Comment")}" aria-label="Comment on ${esc(it.item)}"></textarea><button type="button" class="save" disabled title="Ctrl+Enter">Save</button></div>
   </div>`;
 }
 
@@ -413,81 +412,92 @@ function editBase(itemId) {
   const key = state.keys[state.evalId];
   if (!key) return null;
   for (const f of key.findings) {
-    if (itemId === f.id + ".headline") return { label: "the drafted headline", text: f.claim };
-    if (itemId === f.id) { const b = chosenBase(f); return { label: "the current " + b.label, text: b.text }; }
+    if (itemId === f.id + ".headline") return { label: "Draft", text: f.claim };
+    if (itemId === f.id) { const b = chosenBase(f); return { label: b.short, text: b.text }; }
     const s = (f.subfindings || []).find(x => x.id === itemId);
-    if (s) return { label: "the current subfinding", text: s.claim };
+    if (s) return { label: "Current", text: s.claim };
   }
   return null;
+}
+
+/* A proposal shown in place of the text it changes: dashed box, "Proposed" badge, the old→new diff. */
+function propBox(oldText, newText, opts = {}) {
+  return `<div class="pbox">${opts.head || `<div class="lhead">${B.prop}${opts.extra || ""}</div>`}${diffHtml(oldText, newText, opts)}</div>`;
+}
+
+/* Headline and detail of a finding. The one the QA proposal rewrites shows as the diff instead of plain text, so each text appears once. */
+function findingText(f, which) {
+  const qa = f.qa || {}, b = qa.proposed_wording ? chosenBase(f) : null;
+  const text = which === "claim" ? f.claim : f.detail;
+  const cls = which === "claim" ? "claim" : "detail";
+  if (!b || b.key !== which) return `<p class="${cls}">${esc(text)}</p>`;
+  const bases = findingBases(f);
+  const sw = bases.length > 1 ? `<span class="mini" role="group" aria-label="Compare with">${bases.map(x =>
+    `<button type="button" class="basesw" data-fid="${esc(f.id)}" data-base="${x.key}" aria-pressed="${x.key === b.key}">${esc(x.short.toLowerCase())}</button>`).join("")}</span>` : "";
+  return propBox(text, qa.proposed_wording, { big: which === "claim", oldLabel: b.short, newLabel: "Proposed", extra: sw });
 }
 
 function rubricFinding(f) {
   const drafted = f.fields && f.fields.headline_status === "draft";
   const srcs = (f.fields && f.fields.sources) || [];
+  const mh = f.qa && f.qa.make_harder;
+  const notes = (f.judge_notes ? `<p class="note">${esc(f.judge_notes)}</p>` : "")
+    + (mh ? propBox(null, mh, { oldLabel: "Current", newLabel: "Proposed" }) : "");
   return `<div class="layer l-rubric">
-    <div class="lhead"><span class="badge b-rubric">Current rubric</span><span class="lsub">finding ${esc(f.id)} as the key has it</span></div>
-    ${field("Headline", `<p class="claim">${esc(f.claim)}${drafted ? `<span class="tag">model draft, decide above</span>` : ""}</p>`)}
-    ${f.detail ? field("Detail", `<p class="detail">${esc(f.detail)}</p>`) : ""}
-    ${field("Judge notes", f.judge_notes ? `<p class="note">${esc(f.judge_notes)}</p>` : `<p class="note">None</p>`)}
+    <div class="lhead">${B.rubric}</div>
+    ${drafted ? "" : field("Headline", findingText(f, "claim"))}
+    ${f.detail ? field(drafted ? "Report" : "Detail", findingText(f, "detail")) : ""}
+    ${notes ? field("Judge notes", notes) : ""}
     ${srcs.length ? field("Sources", `<p class="srcs">${srcs.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.id)} ${esc(s.type || "")}${s.date ? ", " + esc(s.date) : ""}</a>`).join("")}</p>`) : ""}
   </div>`;
 }
 
-function qaFinding(f, q) {
-  const qa = f.qa;
-  if (!qa) return `<div class="layer l-qa"><div class="lhead"><span class="badge b-qa">QA agent</span><span class="lsub">No QA result yet.</span></div>${evidenceHtml(f.evidence)}</div>`;
-  return `<div class="layer l-qa">
-    <div class="lhead"><span class="badge b-qa">QA agent</span><span class="lsub">its assessment of finding ${esc(f.id)}</span></div>
-    <div class="verdictline">Outcome <span class="chip ${OUTCOME_CLASS[qa.outcome] || "c-none"}">${esc(qa.outcome)}</span>
-      ${f.significance ? `· significance ${sigChip(f.significance)}` : ""}${qa.duplicate_of ? ` · duplicate of <b>${esc(qa.duplicate_of)}</b>` : ""}</div>
-    <p>${esc(qa.reason)}</p>
-    ${evidenceHtml(f.evidence)}
-    ${qa.how_to_find ? `<details><summary>How an investigator could find it</summary><p>${esc(qa.how_to_find)}</p></details>` : ""}
-  </div>`;
+/* Queue reasons that only repeat the QA reason are dropped; the chip names the queue entry. */
+function queueInfo(f, q) {
+  if (!q.has(f.id)) return { chip: "", text: "" };
+  const parts = q.get(f.id).split(" | ");
+  const kinds = [...new Set(parts.map(p => p.split(":")[0]))];
+  const reason = (f.qa && f.qa.reason) || "";
+  const rest = parts.filter(p => { const body = p.slice(p.indexOf(":") + 1).trim(); return !(reason && body === reason.trim()); });
+  return { chip: `<span class="chip c-bad">review queue: ${esc(kinds.join(", "))}</span>`, text: rest.length ? `<p class="queue">${esc(rest.join(" | "))}</p>` : "" };
 }
 
-function propFinding(f) {
-  const qa = f.qa || {};
-  const parts = [];
-  if (qa.proposed_wording) {
-    const bases = findingBases(f), b = chosenBase(f), other = bases.find(x => x.key !== b.key);
-    parts.push(`<div class="lhead"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">QA agent's rewrite, compared with the current ${esc(b.label)}</span>
-      ${other ? `<button type="button" class="basesw" data-fid="${esc(f.id)}" data-base="${other.key}">Compare with the ${esc(other.label)} instead</button>` : ""}</div>
-      ${diffHtml(b.text, qa.proposed_wording, { big: b.key === "claim", oldLabel: "Current " + b.label, newLabel: "Proposed" })}`);
-  }
-  if (qa.make_harder) {
-    parts.push(`<div class="lhead"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">new grading condition (make harder), added to the judge notes</span></div>
-      ${diffHtml(null, qa.make_harder, { noOldLabel: "No such condition in the key", oldLabel: "Current", newLabel: "Proposed addition" })}`);
-  }
-  if (!parts.length) return `<div class="layer l-prop none" id="prop-${attrSafe(f.id)}"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">No change proposed for finding ${esc(f.id)}.</span></div>`;
-  return `<div class="layer l-prop" id="prop-${attrSafe(f.id)}">${parts.join(`<hr style="border:0;border-top:1px dashed var(--line);margin:4px 0;width:100%">`)}</div>`;
+function qaFinding(f) {
+  const qa = f.qa;
+  if (!qa) return f.evidence && f.evidence.length ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(f.evidence)}</div>` : "";
+  return `<div class="layer l-qa">
+    <div class="lhead">${B.qa}<span class="verdictline"><span class="chip ${OUTCOME_CLASS[qa.outcome] || "c-none"}">${esc(qa.outcome)}</span>
+      ${sigChip(f.significance)}${qa.duplicate_of ? `<span class="chip c-warn">duplicate of ${esc(qa.duplicate_of)}</span>` : ""}</span></div>
+    ${qa.reason ? `<p>${esc(qa.reason)}</p>` : ""}
+    ${evidenceHtml(f.evidence)}
+    ${qa.how_to_find ? `<details><summary>How to find</summary><p>${esc(qa.how_to_find)}</p></details>` : ""}
+  </div>`;
 }
 
 function subHtml(s, it) {
   const qa = s.qa || null;
   const fl = s.fields || {};
+  const pw = qa && qa.proposed_wording;
+  const claim = !pw ? `<p class="sclaim">${esc(s.claim)}</p>`
+    : pw === "REMOVE" ? propBox(s.claim, "", { remove: true, extra: `<span class="chip c-bad">remove</span>` })
+    : propBox(s.claim, pw, { oldLabel: "Current", newLabel: "Proposed" });
   const rubric = `<div class="layer l-rubric">
-    <div class="lhead"><span class="badge b-rubric">Current rubric</span></div>
-    <p class="sclaim">${esc(s.claim)}</p>
-    ${fl.report_quote ? `<p class="quote">From the report: “${esc(fl.report_quote)}”</p>` : ""}
+    <div class="lhead">${B.rubric}</div>
+    ${claim}
+    ${fl.report_quote ? `<p class="quote">“${esc(fl.report_quote)}”</p>` : ""}
     ${s.judge_notes ? `<p class="note"><b>Judge notes:</b> ${esc(s.judge_notes)}</p>` : ""}
   </div>`;
-  const qaL = !qa ? `<div class="layer l-qa"><div class="lhead"><span class="badge b-qa">QA agent</span><span class="lsub">No QA result yet.</span></div>${evidenceHtml(s.evidence)}</div>`
+  const qaL = !qa ? (s.evidence && s.evidence.length ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(s.evidence)}</div>` : "")
     : `<div class="layer l-qa">
-    <div class="lhead"><span class="badge b-qa">QA agent</span>
-      <span class="verdictline">${qa.verdict ? `verdict <span class="chip ${VERDICT_CLASS[qa.verdict] || "c-none"}">${esc(qa.verdict)}</span>` : ""}
-      ${qa.overstated === "yes" ? `<span class="chip c-warn">overstated</span>` : qa.overstated === "no" ? `<span class="chip c-none">not overstated</span>` : ""}
-      ${s.significance ? `significance ${sigChip(s.significance)}` : ""}</span></div>
-    ${qa.reason || qa.duplicate_of ? `<p>${esc(qa.reason || "")}${qa.duplicate_of ? ` <b>Duplicate of ${esc(qa.duplicate_of)}.</b>` : ""}</p>` : ""}
+    <div class="lhead">${B.qa}<span class="verdictline">${qa.verdict ? `<span class="chip ${VERDICT_CLASS[qa.verdict] || "c-none"}">${esc(qa.verdict)}</span>` : ""}
+      ${qa.overstated === "yes" ? `<span class="chip c-warn">overstated</span>` : ""}
+      ${sigChip(s.significance)}${qa.duplicate_of ? `<span class="chip c-warn">duplicate of ${esc(qa.duplicate_of)}</span>` : ""}</span></div>
+    ${qa.reason ? `<p>${esc(qa.reason)}</p>` : ""}
     ${evidenceHtml(s.evidence)}
   </div>`;
-  const pw = qa && qa.proposed_wording;
-  const prop = !pw ? `<div class="layer l-prop none"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">No change proposed.</span></div>`
-    : pw === "REMOVE" ? `<div class="layer l-prop"><div class="lhead"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">remove this subfinding</span></div>${diffHtml(s.claim, "", { remove: true })}</div>`
-    : `<div class="layer l-prop"><div class="lhead"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">QA agent's rewrite of the subfinding</span></div>${diffHtml(s.claim, pw)}</div>`;
   return `<section class="sub" aria-label="Subfinding ${esc(s.id)}">
     <div class="fhead"><span class="fid">${esc(s.id)}</span></div>
-    ${rubric}${qaL}<div class="headblock">${prop}${decideHtml(it, ["Accept QA", "Edit", "Reject QA"])}</div>
+    ${rubric}${qaL}${decideHtml(it, ["Accept QA", "Edit", "Reject QA"])}
   </section>`;
 }
 
@@ -496,20 +506,16 @@ function findingHtml(ev, f, q) {
   const head = items.find(i => i.kind === "headline");
   const section = f.fields && f.fields.section ? `<span class="chip c-none">${esc(f.fields.section)}</span>` : "";
   const dates = f.fields && f.fields.behavior_dates ? `<span class="status">${esc(f.fields.behavior_dates)}</span>` : "";
-  const src = f.fields && f.fields.headline_source ? f.fields.headline_source : "drafted by a model from the human report";
+  const qi = queueInfo(f, q);
   return `<article class="card" id="f-${esc(f.id)}" data-fid="${esc(f.id)}">
-    <div class="fhead"><span class="fid" tabindex="-1">${esc(f.id)}</span>${section}${q.has(f.id) ? `<span class="chip c-bad">in review queue</span>` : ""}${dates}</div>
-    ${q.has(f.id) ? `<p class="queue"><b>Why it is in the review queue:</b> ${esc(q.get(f.id))}</p>` : ""}
-    ${head ? `<div class="headblock"><div class="layer l-prop">
-        <div class="lhead"><span class="badge b-prop"><span class="glyph">±</span> Proposed</span><span class="lsub">new headline, ${esc(src)}. The original key has no headline for this section.</span></div>
-        ${diffHtml(null, f.claim, { big: true, noOldLabel: "No headline in the original key", oldLabel: "Current", newLabel: "Drafted headline" })}
-      </div>${decideHtml(head, ["Approve", "Edit", "Reject"])}</div>` : ""}
-    <div class="findblock">
-      ${rubricFinding(f)}
-      ${qaFinding(f, q)}
-      <div class="headblock">${propFinding(f)}${decideHtml(items.find(i => i.kind === "finding"), ["Accept QA", "Edit", "Reject QA"])}</div>
-    </div>
-    ${(f.subfindings || []).length ? `<div class="subsh">Subfindings of ${esc(f.id)}</div>` : ""}
+    <div class="fhead"><span class="fid" tabindex="-1">${esc(f.id)}</span>${section}${qi.chip}${dates}</div>
+    ${qi.text}
+    ${head ? `<div class="layer l-draft" title="${esc((f.fields && f.fields.headline_source) || "")}"><div class="lhead">${B.draft}</div>${findingText(f, "claim")}
+      ${decideHtml(head, ["Approve", "Edit", "Reject"])}</div>` : ""}
+    ${rubricFinding(f)}
+    ${qaFinding(f)}
+    ${decideHtml(items.find(i => i.kind === "finding"), ["Accept QA", "Edit", "Reject QA"])}
+    ${(f.subfindings || []).length ? `<div class="subsh">Subfindings</div>` : ""}
     <div class="subs">${(f.subfindings || []).map(s => subHtml(s, items.find(i => i.item === s.id))).join("")}</div>
   </article>`;
 }
@@ -520,14 +526,12 @@ function renderMain() {
   if (!key) { main.innerHTML = `<p class="empty">${state.loadErrors[ev] ? "This answer key could not be loaded." : "Loading…"}</p>`; $("#index").innerHTML = ""; return; }
   const q = queueIds(key);
   const fs = visibleFindings();
-  const intro = ev === "german-wiki"
-    ? `<p class="intro">Twelve findings, one per section of the human report; the original points (N01–N38) are their subfindings. Each was checked by one QA agent against the data the investigators get. Accept QA takes its outcome and proposed wording; Edit records your own wording; Reject QA keeps the current rubric. Decisions save as you click.</p>`
-    : `<p class="intro">The AI Village key was QA'd earlier. The review queue holds what is still open: citation-check failures in the 84 findings never machine-checked, and the M029/M053 duplicate check. Switch to All to see every finding in the key.</p>`;
+  const intro = "";
   main.innerHTML = `<div style="display:flex;flex-direction:column;gap:18px">` + intro + (fs.length ? fs.map(f => findingHtml(ev, f, q)).join("") : `<p class="empty">Nothing matches this filter.</p>`)
-    + `<section class="card" aria-label="Whole-page comment"><div class="lsub">Comment on the whole ${esc(EVALS.find(e => e.id === ev).name)} answer key</div>
-        ${decideHtml({ doc: docId(ev, "_page"), item: "_page", kind: "page" }, ["", "", ""], { badge: "Your comment", placeholder: "Comment on the whole key (optional)" }).replace(/<button type="button" class="dbtn"[^>]*>[^<]*<\/button>/g, "")}</section>
+    + `<section class="card" aria-label="Whole-key comment">
+        ${decideHtml({ doc: docId(ev, "_page"), item: "_page", kind: "page" }, ["", "", ""], { placeholder: "Comment on the whole " + EVALS.find(e => e.id === ev).name + " key" }).replace(/<button type="button" class="dbtn"[^>]*>[^<]*<\/button>/g, "")}</section>
       <div class="foot"><button type="button" class="ghost" id="copy">Copy decisions as JSON</button><span id="copy-status" class="status" aria-live="polite"></span>
-      <span>Shortcuts: <span class="kbd">j</span>/<span class="kbd">k</span> next/previous finding · <span class="kbd">Ctrl+Enter</span> save text</span></div>
+</div>
       <textarea id="copy-fallback" rows="6" hidden aria-label="Decisions JSON"></textarea></div>`;
   $("#index").innerHTML = fs.map(f => `<a href="#f-${esc(f.id)}" data-fid="${esc(f.id)}"><span class="dot"></span><span>${esc(f.id)} ${esc((f.fields && f.fields.section) || "")}</span></a>`).join("");
   document.querySelectorAll(".decide").forEach(updateDecide);
@@ -540,8 +544,7 @@ function updateEditDiff(box) {
   const base = editBase(box.dataset.item);
   if (edit.hidden || !base) { out.hidden = true; return; }
   out.hidden = false;
-  out.innerHTML = `<div class="lhead"><span class="badge b-you">Your wording</span><span class="lsub">compared with ${esc(base.label)}</span></div>`
-    + diffHtml(base.text, edit.value, { oldLabel: "Current", newLabel: "Your wording" });
+  out.innerHTML = diffHtml(base.text, edit.value, { oldLabel: base.label, newLabel: "Yours" });
 }
 
 /* Sync one decision block with the stored decision, the local draft and the save status. */
@@ -649,10 +652,14 @@ document.addEventListener("click", ev => {
   if (t.matches(".segb")) { setDiffMode(t.dataset.mode); return; }
   if (t.matches(".basesw")) {
     const fid = t.dataset.fid, f = state.keys[state.evalId].findings.find(x => x.id === fid);
+    const card = document.getElementById("f-" + fid);
     state.baseChoice[fid] = t.dataset.base;
-    const el = document.getElementById("prop-" + attrSafe(fid));
-    if (el && f) { el.outerHTML = propFinding(f); const nb = $(`.basesw[data-fid="${CSS.escape(fid)}"]`); if (nb) nb.focus(); }
-    const box = $(`.decide[data-item="${CSS.escape(fid)}"]`); if (box) updateEditDiff(box);
+    if (card && f) {
+      card.outerHTML = findingHtml(state.evalId, f, queueIds(state.keys[state.evalId]));
+      const nc = document.getElementById("f-" + fid);
+      nc.querySelectorAll(".decide").forEach(updateDecide);
+      const nb = $(`.basesw[data-base="${t.dataset.base}"]`, nc); if (nb) nb.focus();
+    }
     return;
   }
   const box = t.closest(".decide");
