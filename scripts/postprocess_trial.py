@@ -40,7 +40,9 @@ def _walk(value):
 
 def _continued(after: list[dict]) -> bool:
     """Whether the agent kept working after a refusal event: a tool result or a real model turn
-    follows it (the CLI continued, or the runner resumed the session after a safeguard flag)."""
+    follows it (the CLI continued, or the runner resumed the session after a safeguard flag).
+    This applies to every refusal category and every config, retries on or off: a refusal the
+    run worked past is not its end."""
     for event in after:
         if event.get("type") == "user":
             return True

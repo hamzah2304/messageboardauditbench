@@ -149,7 +149,8 @@ def safeguard_retry_reason(
     state_file: Path = _STATE_FILE,
 ) -> str | None:
     """For a safeguard flag: the message that continues the session while the run has
-    retries left ("" once they are used up, so the stop stands); None for anything else.
+    retries left ("" once they are used up, so the stop stands); None for anything else,
+    and for every event when retries are off (limit 0).
 
     The limit is per run (MBAB_SAFEGUARD_RETRY_LIMIT, from the config's
     safeguard_retry_limit). Retries the runner made by resuming the session
@@ -163,6 +164,9 @@ def safeguard_retry_reason(
             limit = int(os.environ.get("MBAB_SAFEGUARD_RETRY_LIMIT", "0") or 0)
         except ValueError:
             limit = 0
+    if limit <= 0:
+        # Retries off (configs that set no limit): the old stop logic decides, unchanged.
+        return None
     if used_elsewhere is None:
         try:
             used_elsewhere = int(os.environ.get("MBAB_SAFEGUARD_RETRIES_USED", "0") or 0)

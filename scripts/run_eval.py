@@ -93,21 +93,33 @@ def task_name(ref: str | None, task: str) -> str:
     """The name `task` has at that version: renamed, or the pre-rename name."""
     pkg = package(ref)
     source = source_at(ref, f"{pkg}/task.py") + source_at(ref, f"{pkg}/grading/task.py")
-    return task if f'name="{task}"' in source else LEGACY[task]
+    # A task registered by name, or by a plain @task on a function of that name.
+    if f'name="{task}"' in source or f"def {task}(" in source:
+        return task
+    return LEGACY[task]
 
 
 def has_version_guard(ref: str | None) -> bool:
     return "def check_version" in source_at(ref, f"{package(ref)}/benchmarks.py")
 
 
+def commit_of(ref: str) -> str:
+    return git("rev-parse", f"{ref}^{{commit}}")
+
+
 def plan(name: str, version: str | None, role: str) -> dict:
+    """Where to run a version. This checkout, for no --version; also for this checkout's
+    version when it has no tag yet, or when HEAD is that tag's commit. A version that is
+    tagged runs from its tag otherwise: this checkout may carry changes made after the release
+    (a new default judge, say) under the same version number, which must not leak into it."""
     spec = BY_NAME[name]
     task = spec.task + ROLES[role]
     wanted = normalize_version(version) if version else spec.eval_version
-    if wanted == spec.eval_version:
-        return {"checkout": ROOT, "tag": None, "version": wanted, "task": task, "create": False}
     tag = f"{name}-v{wanted}"
-    if tag not in tags_for(name):
+    if wanted == spec.eval_version and (
+            version is None or tag not in tags_for(name) or commit_of(tag) == commit_of("HEAD")):
+        return {"checkout": ROOT, "tag": None, "version": wanted, "task": task, "create": False}
+    if tag not in tags_for(name):  # (an explicit, untagged older version)
         known = ", ".join(tags_for(name)) or "none"
         raise SystemExit(f"no tag {tag}; tagged versions of {name}: {known}")
     checkout = primary_root() / ".worktrees" / f"version-{tag}"

@@ -170,21 +170,46 @@ configs.
 
 - **German wiki prompt.** `wiki-std-10` and `wiki-std-30` now use `wiki-v3`: a ranked list of
   findings, the AI agents named, 4,500–5,500 words (accepted up to 6,050). They used `blind-v2`
-  at 2,500–3,000 words before, under the same config names. **Filter `wiki-std-*` runs by
-  `config_sha256`**: a run made with the earlier config (for example on another machine) is a
-  different condition. `scripts/run_matrix.py` and `slopvestigator_bench/results.py` already
-  count a run only if its `config_sha256` matches today's generated config.
-- **Judge.** Every grader defaults to the standard judge, `openai/gpt-6.1-sol` at high effort
+  at 2,500–3,000 words before, under the same config names.
+- **Every standard config's hash changed.** All six generated configs (`wiki`, `urlquery`,
+  `aivillage` at 10 and 30 minutes) gained `safeguard_retry_limit` and
+  `safeguard_retry_message`, so each has a new `config_sha256`. `scripts/run_matrix.py` and
+  `slopvestigator_bench/results.py` count a run only if its recorded `config_sha256` matches
+  today's config (`standard.same_condition`): standard runs made under the 2026-10-21 configs,
+  on any machine, are left out of the results and would be launched again. Filter on
+  `config_sha256`, not the config name. The hashes (old at `68ec9dc`, new from 2026-10-22):
+
+  | config | 2026-10-21 | 2026-10-22 |
+  |---|---|---|
+  | `wiki-std-10` | `9511526e…` | `8272d310…` |
+  | `wiki-std-30` | `be7ee858…` | `ac285969…` |
+  | `urlquery-std-10` | `e58f28c1…` | `539755fb…` |
+  | `urlquery-std-30` | `837c8091…` | `c2a2c571…` |
+  | `aivillage-std-10` | `57792f60…` | `6c5d0f23…` |
+  | `aivillage-std-30` | `50a55cd7…` | `5f3ec319…` |
+
+  List them with `git show <commit>:configs/<name>.toml | sha256sum` (old) and
+  `sha256sum configs/*-std-*.toml` (current); a run records the full hash in `meta.json`.
+- **Judge.** Every Inspect grader and scorer defaults to the standard judge, `openai/gpt-6.1-sol` at high effort
   (`standard.toml` `judge`, `judge_effort`): the German wiki sheets (published with Fable 5.1;
   the code default was GPT-5.6 Sol), the Transluce per-finding judge (v1.0 grades: GPT-6 Astra
   through OpenRouter; code default Opus 5.5) and AI Village (GPT-6.1 Sol at medium). Grades
   from the new judge are not comparable with published ones; reproduce a published number at
-  its tag with its judge.
+  its tag with its judge (`scripts/run_eval.py --version <MAJOR.MINOR>` now runs a tagged
+  version from its tag even when this checkout carries the same version number). The
+  exceptions reproduce published grades and keep their judges:
+  `scripts/aivillage/grade_aivillage.py`, the AI Village batch grader (GPT-6.1 Sol at medium,
+  checked by its frozen v1.0 plans), and the Transluce presets
+  `benchmarks/transluce/judge/grade_openrouter.py` and `grade_openai_batch.py` (GPT-6 Astra,
+  high).
 - **Safeguard retries.** A turn that Claude's real-time safeguards flag (an intermittent API
   error, `[cyber]`) is retried by continuing the session, up to three times per run
   (`safeguard_retry_limit`); the next flag ends the run as a refusal. Runs record
   `safeguard_retries` next to `safety_flags`, and a run that survived its flags is eligible.
-  Before, the first flag that ended a turn ended the run.
+  Before, the first flag that ended a turn ended the run. Configs without the setting (the
+  published ones) keep the old stop logic exactly. Separately, for every config and every
+  refusal category, a refusal event that the agent worked past (more tool results or model
+  turns follow it) no longer marks the run a refusal.
 - **Inspect runs** take the config's minimum-runtime fraction (0.9) instead of the task's
   0.75 default, and native Codex with subagents off gets the stripped model catalog, as the
   runner does.
