@@ -10,7 +10,7 @@ Usage: scripts/run_inspect_matrix.sh [options]
 
 Required:
   --agent AGENT                 claude, codex, or react
-  --config CONFIG               blind or context
+  --config CONFIG               blind, context, or a standard config such as wiki-std-30
 
 Backend/model:
   --backend BACKEND             inspect (default) or subscription
@@ -18,10 +18,10 @@ Backend/model:
   --subscription-model MODEL    CLI model for backend=subscription
 
 Run shape:
-  --time-limit-minutes N        agent budget (default: 20)
-  --min-runtime-fraction F      minimum fraction before completion (default: 0.75; 0 disables)
+  --time-limit-minutes N        agent budget (default: the config's budget_min)
+  --min-runtime-fraction F      minimum fraction before completion (default: the config's; 0 disables)
   --epochs N                    independent replicates (default: 1)
-  --judge MODEL                 grader model (default: openai/gpt-5.6-sol)
+  --judge MODEL                 grader model (default: the standard judge, configs/standard.toml)
   --logs DIR                    Inspect log directory (default: logs)
 
 Operational limits (all explicit in the resulting command):
@@ -46,10 +46,10 @@ agent=""
 config=""
 model=""
 subscription_model=""
-time_limit_minutes=20
-min_runtime_fraction=0.75
+time_limit_minutes=""
+min_runtime_fraction=""
 epochs=1
-judge="openai/gpt-5.6-sol"
+judge=""
 logs=logs
 max_samples=1
 max_sandboxes=1
@@ -98,7 +98,9 @@ uv_cmd=(uv run)
 [[ ! -f .env ]] || uv_cmd+=(--env-file .env)
 cmd=("${uv_cmd[@]}" inspect eval slopvestigator_bench/german_wiki_report
   -T "backend=$backend" -T "agent=$agent" -T "config=$config"
-  -T "time_limit_minutes=$time_limit_minutes" -T "min_runtime_fraction=$min_runtime_fraction" -T "judge=$judge"
+  ${time_limit_minutes:+-T "time_limit_minutes=$time_limit_minutes"}
+  ${min_runtime_fraction:+-T "min_runtime_fraction=$min_runtime_fraction"}
+  ${judge:+-T "judge=$judge"}
   --epochs "$epochs" --max-samples "$max_samples" --max-sandboxes "$max_sandboxes"
   --max-connections "$max_connections" --max-retries "$max_retries"
   --timeout "$request_timeout" --attempt-timeout "$attempt_timeout"

@@ -380,7 +380,11 @@ def _audit_task(
             "subscription uses the restricted proxy with shell-accessible credentials; choose backend=inspect for offline tools"
         )
     budget_min = _time_limit(time_limit_minutes, int(cfg["budget_min"]))
-    runtime_fraction = _min_runtime_fraction(min_runtime_fraction)
+    # The config's fraction unless the task was given one; a config without one (the published
+    # conditions) gets the runner's default, as run_trial.sh does.
+    runtime_fraction = _min_runtime_fraction(
+        cfg.get("min_runtime_fraction") if min_runtime_fraction is None else min_runtime_fraction
+    )
     minimum_runtime_seconds = runtime_policy.minimum_runtime_seconds(
         budget_min * 60, runtime_fraction
     )
@@ -500,7 +504,7 @@ def _german_wiki_report(
     config: str = "blind",
     allow_networked_subscription: bool = True,
     time_limit_minutes: int | None = None,
-    min_runtime_fraction: float = 0.75,
+    min_runtime_fraction: float | None = None,
     judge: str = "openai/gpt-5.6-sol",
     rubric: str | None = None,
     data_variant: str | None = None,
@@ -520,8 +524,9 @@ def _german_wiki_report(
             config's declared default. Native runs have a separate
             five-minute outer guard for cleanup and log recovery.
         min_runtime_fraction: Fraction of the agent budget that must elapse
-            before normal completion is accepted. Defaults to ``0.75``; set
-            ``0`` to disable this continuation policy for an ablation.
+            before normal completion is accepted. Defaults to the config's (0.9 in
+            the standard condition; 0.75 for configs that set none, as the runner
+            does); set ``0`` to disable this continuation policy for an ablation.
         judge: Inspect model used to grade the report. A ``grader`` model role,
             when supplied to Inspect, takes precedence over this value.
         rubric: Comma-separated sheet modes; defaults to ``v2,tldrh`` (findings
@@ -563,7 +568,7 @@ def incident_task(config: str, **kwargs) -> Task:
     scorer_args = {"judge": kwargs.pop("judge", "openai/gpt-5.6-sol"), "rubric": kwargs.pop("rubric", None)}
     defaults = {"agent": "claude", "backend": "inspect", "subscription_model": None,
                 "allow_networked_subscription": True, "time_limit_minutes": None,
-                "min_runtime_fraction": 0.75, "data_variant": None}
+                "min_runtime_fraction": None, "data_variant": None}
     return _audit_task(
         "messageboard", config=config, allow_drafts=True,
         scorers=_scorers(scorer_args["judge"], scorer_args["rubric"], kwargs.get("data_variant") or variant),
@@ -578,7 +583,7 @@ def _transluce_report(
     config: str | None = None,
     allow_networked_subscription: bool = True,
     time_limit_minutes: int | None = None,
-    min_runtime_fraction: float = 0.75,
+    min_runtime_fraction: float | None = None,
     judge: str | None = None,
     judge_effort: str | None = None,
     article_context: str | None = None,
