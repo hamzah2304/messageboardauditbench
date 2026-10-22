@@ -214,6 +214,10 @@ def _agent_env(cfg: dict, agent: str) -> dict[str, str]:
         env["BASH_MAX_OUTPUT_LENGTH"] = str(cfg["bash_max_output_length"])
     if cfg.get("early_stop_note"):
         env["MBAB_EARLY_STOP_NOTE"] = cfg["early_stop_note"]
+    # The Stop hook retries a Claude safeguard flag, as on the runner (run_trial.sh TIME_ENV).
+    if cfg.get("safeguard_retry_limit"):
+        env["MBAB_SAFEGUARD_RETRY_LIMIT"] = str(cfg["safeguard_retry_limit"])
+        env["MBAB_SAFEGUARD_RETRY_MESSAGE"] = cfg["safeguard_retry_message"]
     return env
 
 

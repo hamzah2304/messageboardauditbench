@@ -97,6 +97,10 @@ def test_config_settings_for_the_hooks_reach_both_runners(benchmark_id, name):
     # Every config-driven setting the Inspect agent gets is one the runner passes too.
     assert {k for k in env if k.startswith("MBAB_")} <= _runner_env_keys()
     assert env["MBAB_EARLY_STOP_NOTE"] == cfg["early_stop_note"]
+    assert env["MBAB_SAFEGUARD_RETRY_LIMIT"] == str(cfg["safeguard_retry_limit"])
+    assert env["MBAB_SAFEGUARD_RETRY_MESSAGE"] == cfg["safeguard_retry_message"]
+    # The runner passes the same two settings (TIME_ENV), from the same config keys.
+    assert '-e MBAB_SAFEGUARD_RETRY_MESSAGE="${CFG_SAFEGUARD_RETRY_MESSAGE:-}"' in RUNNER
     assert env["BASH_MAX_OUTPUT_LENGTH"] == str(cfg["bash_max_output_length"])
 
 

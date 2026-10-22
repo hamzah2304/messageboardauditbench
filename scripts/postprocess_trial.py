@@ -38,6 +38,17 @@ def _walk(value):
             yield from _walk(child)
 
 
+def _continued(after: list[dict]) -> bool:
+    """Whether the agent kept working after a refusal event: a tool result or a real model turn
+    follows it (the CLI continued, or the runner resumed the session after a safeguard flag)."""
+    for event in after:
+        if event.get("type") == "user":
+            return True
+        if event.get("type") == "assistant" and (event.get("message") or {}).get("model") not in (None, "<synthetic>"):
+            return True
+    return False
+
+
 def _terminal_refusal(events: list[dict]) -> bool:
     """Recognize structured terminal refusal markers, never prose."""
     if not events:
@@ -48,7 +59,8 @@ def _terminal_refusal(events: list[dict]) -> bool:
             return True
         if final.get("subtype") == "success" and final.get("is_error") is False:
             return False
-    if any(event.get("subtype") == "model_refusal_no_fallback" for event in events):
+    refusals = [i for i, event in enumerate(events) if event.get("subtype") == "model_refusal_no_fallback"]
+    if refusals and not _continued(events[refusals[-1] + 1:]):
         return True
     # The custom ReAct transcript ends with a synthetic result after the
     # provider response. Inspect the last assistant event before that result.

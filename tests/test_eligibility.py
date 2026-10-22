@@ -51,3 +51,11 @@ def test_same_model_checks_the_owner_and_unfinished_runs_do_not_count():
     assert not same_model("openrouter/openai/gpt-6.1-sol", "other/gpt-6.1-sol")
     v = eligibility.check_meta({k: v for k, v in GOOD.items() if k != "exit_code"})
     assert not v.eligible and "unfinished" in v.reasons
+
+
+def test_a_run_that_survived_safety_flags_through_retries_counts_and_keeps_the_count():
+    v = eligibility.check_meta({**GOOD, "safety_flags": 2, "safeguard_retries": 2, "safeguard_retry_limit": 3})
+    assert v.eligible and v.safety_flags == 2
+    exhausted = eligibility.check_meta({**GOOD, "safety_flags": 4, "safeguard_retries_exhausted": True,
+                                        "model_refusal": {"terminal": True}})
+    assert not exhausted.eligible and "refused" in exhausted.reasons

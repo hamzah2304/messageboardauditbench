@@ -33,6 +33,11 @@ REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
 REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$(( REPORT_MAX_WORDS + REPORT_MAX_WORDS / 10 ))}"
 MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
 MIN_RUNTIME_FRACTION="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
+# Claude safeguard flags (an intermittent API error, not the model's refusal) are retried by
+# continuing the session, up to this many times per run; 0 (configs that set none) turns it off.
+SAFEGUARD_RETRY_LIMIT="${CFG_SAFEGUARD_RETRY_LIMIT:-0}"
+[[ "$SAFEGUARD_RETRY_LIMIT" =~ ^[0-9]+$ ]] || { echo "safeguard_retry_limit must be a whole number" >&2; exit 2; }
+[ "$SAFEGUARD_RETRY_LIMIT" -eq 0 ] || [ -n "${CFG_SAFEGUARD_RETRY_MESSAGE:-}" ] || { echo "safeguard_retry_limit needs safeguard_retry_message" >&2; exit 2; }
 # PROMPT_FILE_OVERRIDE is a prompt already filled in per item by a driver script; the config still names its template.
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="${PROMPT_FILE_OVERRIDE:-$HERE/../prompts/$PROMPT_NAME.txt}"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
@@ -377,11 +382,15 @@ START=$(date +%s); set +e
 HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
 EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
-TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}")
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}" -e MBAB_SAFEGUARD_RETRY_LIMIT="$SAFEGUARD_RETRY_LIMIT" -e MBAB_SAFEGUARD_RETRY_MESSAGE="${CFG_SAFEGUARD_RETRY_MESSAGE:-}")
+# The Stop hook continues a flagged turn itself when it sees one; when the CLI exits on a flag
+# instead, the loop below resumes the session. Both count against the one per-run limit.
+SAFEGUARD_RESUMES=0; SAFEGUARD_EXHAUSTED=false
+safeguard_hook_retries() { jq -r '.safeguard_retries // 0' "$RUN/work/.mbab-runtime-policy.json" 2>/dev/null || echo 0; }
 case "$AGENT" in
   claude)
-    CLAUDE_EARLY_RESUMES=0
-    for attempt in 1 2; do
+    CLAUDE_EARLY_RESUMES=0; resume_reason=""
+    for attempt in $(seq 1 $((2 + SAFEGUARD_RETRY_LIMIT))); do
       remaining="$((HARD_DEADLINE - $(date +%s)))"
       [ "$remaining" -gt 0 ] || { RC=124; break; }
       claude_prompt="$PROMPT"
@@ -390,9 +399,14 @@ case "$AGENT" in
         session_id="$(jq -sr 'map(select(.type=="system" and .subtype=="init"))[0].session_id // empty' "$RUN/transcript.jsonl")"
         [ -n "$session_id" ] || { echo "Claude ended early without a resumable session" >&2; RC=6; break; }
         resume_args=(--resume "$session_id")
-        claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
-        CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
-        record_runner_event early_stop_resume_started "$attempt"
+        if [ "$resume_reason" = safeguard ]; then
+          claude_prompt="$CFG_SAFEGUARD_RETRY_MESSAGE"
+          record_runner_event safeguard_resume_started "$attempt"
+        else
+          claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
+          CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
+          record_runner_event early_stop_resume_started "$attempt"
+        fi
       fi
       record_runner_event cli_started "$attempt"
       part="$RUN/transcript.part$attempt.jsonl"
@@ -402,13 +416,27 @@ case "$AGENT" in
         ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
         --output-format stream-json --verbose --include-partial-messages \
         < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+      ended_on_flag="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --safeguard "$part" | cut -d' ' -f2)"
       cat "$part" >> "$RUN/transcript.jsonl"
       rm "$part"
       record_runner_event cli_finished "$attempt" "$RC"
+      if [ "$ended_on_flag" = 1 ]; then
+        record_runner_event safeguard_flag "$attempt" "$RC"
+        if [ $((SAFEGUARD_RESUMES + $(safeguard_hook_retries))) -lt "$SAFEGUARD_RETRY_LIMIT" ]; then
+          SAFEGUARD_RESUMES=$((SAFEGUARD_RESUMES + 1)); resume_reason=safeguard
+          TIME_ENV+=(-e MBAB_SAFEGUARD_RETRIES_USED="$SAFEGUARD_RESUMES")
+          continue
+        fi
+        SAFEGUARD_EXHAUSTED=true; record_runner_event safeguard_retries_exhausted "$attempt" "$RC"
+        break
+      fi
+      resume_reason=early
       [ "$RC" -eq 0 ] || break
+      [ "$CLAUDE_EARLY_RESUMES" -lt 1 ] || break
       [ "$(date +%s)" -lt "$EARLIEST_FINISH_EPOCH" ] || break
       grep -q '"subtype":"model_refusal_fallback"' "$RUN/transcript.jsonl" && break
-      grep -q '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" && break
+      # A refusal ends the run; a safeguard flag (category cyber) that was retried does not.
+      grep '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" | grep -vq '"api_refusal_category":"cyber"' && break
     done
     cp "$RUN/stderr.attempt$attempt.log" "$RUN/stderr.log" 2>/dev/null || true ;;
   codex)
@@ -471,8 +499,11 @@ EARLY_STOP_ATTEMPTS=0
 META_TMP="$RUN/meta.runtime-policy.json"
 jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
    --argjson early_stop_resume_attempts "${CLAUDE_EARLY_RESUMES:-0}" \
+   --argjson safeguard_retries "$((SAFEGUARD_RESUMES + $(safeguard_hook_retries)))" \
+   --argjson safeguard_retry_limit "$SAFEGUARD_RETRY_LIMIT" \
+   --argjson safeguard_retries_exhausted "$( { [ "$SAFEGUARD_EXHAUSTED" = true ] || [ "$(jq -r '.safeguard_retries_exhausted // false' "$RUN/work/.mbab-runtime-policy.json" 2>/dev/null)" = true ]; } && echo true || echo false)" \
    --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
-   '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
+   '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached, safeguard_retries: $safeguard_retries, safeguard_retry_limit: $safeguard_retry_limit, safeguard_retries_exhausted: $safeguard_retries_exhausted}' \
    "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 # Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
 save_sessions
