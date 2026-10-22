@@ -246,6 +246,7 @@ def aivillage_report_grade(
     judge: str | None = None,
     data_variant: str = "aivillage/full-v2-reasoning",
     judge_effort: str | None = None,
+    answer_key: bool = False,
 ) -> Task:
     """Grade finished AI Village reports against the 96 rubric findings.
 
@@ -261,6 +262,8 @@ def aivillage_report_grade(
         directories record their own. It sets the goal periods and whether the judge is
         told the investigator saw reasoning traces.
       judge_effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
+      answer_key: grade against the re-QA'd answer key (benchmarks/aivillage/answer-key.json) instead
+        of the v1.0 rubric; off by default while the key is under review.
     """
     from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import SPECS
@@ -287,8 +290,9 @@ def aivillage_report_grade(
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=aivillage_scorer(judge=judge, effort=judge_effort),
+        scorer=aivillage_scorer(judge=judge, effort=judge_effort, answer_key=answer_key),
         model="mockllm/model",
         metadata={"benchmark": SPECS["aivillage"].title, "benchmark_id": "aivillage", "mode": "grading",
-                  "judge": judge, "judge_effort": judge_effort},
+                  "judge": judge, "judge_effort": judge_effort,
+                  "rubric": "answer-key" if answer_key else "final-findings-v1.0"},
     )

@@ -214,3 +214,12 @@ def test_german_wiki_grades_run_directories_with_eligibility(primary):
     meta = task.dataset[0].metadata
     assert meta["eligible"] is False and "model_switched" in meta["ineligible_reasons"]
     assert task.metadata["judge_effort"] == "high" and task.metadata["runs"] == "*_wiki-std-30_*"
+
+
+def test_the_reqad_answer_key_is_behind_a_flag():
+    default, _ = av.grading_groups([])
+    assert len(default) == 96   # the v1.0 rubric, unchanged
+    keyed, groups = av.grading_groups([], answer_key=True)
+    assert keyed and groups and {f["id"] for f in keyed} <= {f["id"] for f in json.loads(
+        (ROOT / av.ANSWER_KEY).read_text())["findings"]}
+    assert all(f["subfindings"] for f in keyed)
