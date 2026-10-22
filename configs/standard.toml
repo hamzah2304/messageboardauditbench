@@ -57,3 +57,17 @@ findings_count = 20
 report_min_words = 8000
 report_max_words = 10000
 early_stop_note = "Use the remaining time for breadth: examine goal periods you have not looked at or covered thinly, and replace weaker findings with more important ones you discover."
+
+# Models the helper scripts call (answer-key extraction, screening and synthesis). Each script names
+# its entry; none has a fallback. effort is the reasoning effort it sends, where it sends one.
+[helpers]
+x_extract = { model = "openai/gpt-6.1-sol", effort = "high" }               # scripts/aivillage/x_extract.py
+x_screen = { model = "openai/gpt-6-luna", effort = "low" }                  # scripts/aivillage/x_screen.py
+aivillage_substack_extract = { model = "openai/gpt-6.1-sol", effort = "high" }   # scripts/aivillage/extract_aivillage_substack.py
+aivillage_verify = { model = "anthropic/claude-sonnet-5-5" }                # scripts/aivillage/run_aivillage_verify.py (effort: configs/aivillage-verify.toml)
+discord_extract = { model = "openai/gpt-6.1-sol", effort = "high" }         # benchmarks/aivillage/extraction/discord_extract_sample_run.py
+discord_extract_all = { model = "openai/gpt-6.1-sol", effort = "medium" }   # benchmarks/aivillage/extraction/discord_extract_all_run.py
+discord_screen = { model = "openai/gpt-6-luna", effort = "low" }            # benchmarks/aivillage/extraction/discord_screen_run.py
+anchor_claims = { model = "openai/gpt-5.6-sol", effort = "xhigh" }          # scripts/anchor_claims.py
+reply_comments = { model = "openai/gpt-5.6-sol", effort = "xhigh" }         # scripts/reply_comments.py
+synthesise_report = { model = "anthropic/claude-fable-5-1", effort = "xhigh" }   # scripts/synthesise_report.py

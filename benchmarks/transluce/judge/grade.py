@@ -8,15 +8,17 @@
 
 The resumable batch counterpart of the `transluce_report_grade` Inspect task: the prompt,
 parsing and arithmetic are `slopvestigator_bench.grading.findings`, shared with the
-Inspect scorer. Two judge transports:
+Inspect scorer. The judge defaults to the standard judge (configs/standard.toml: openai/gpt-6.1-sol
+at high effort); benchmark.json's ``default_judge`` records the v1.0 judge. Three judge transports:
 
-* ``anthropic/<model>`` (default ``anthropic/claude-opus-5-5``, effort xhigh, adaptive
-  thinking): synchronous Messages API calls. The prompt is sent as three blocks so the
+* ``anthropic/<model>`` (effort xhigh unless given, adaptive thinking): synchronous Messages
+  API calls. The prompt is sent as three blocks so the
   cache does the work: rules + article (identical for every call), the report (identical
   for a report's calls), then the finding. The first call on each report runs alone so the
   others read its cache.
 * ``openrouter/<model>`` (the final run used ``openrouter/openai/gpt-6-astra``, effort
   high): synchronous OpenRouter chat completions with a JSON response format.
+* ``openai/<model>`` (the standard judge): the same chat completions, from OpenAI directly.
 
 A refusal, an unparseable answer or an API error leaves that finding unscored and says so;
 it is never recorded as a zero, and there is no fallback to another model, so one file is
@@ -42,12 +44,13 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-from slopvestigator_bench.benchmarks import primary_root, urlquery_manifest  # noqa: E402
+from slopvestigator_bench import standard  # noqa: E402
+from slopvestigator_bench.benchmarks import primary_root  # noqa: E402
 from slopvestigator_bench.grading import findings as fj  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
-DEFAULT_JUDGE = urlquery_manifest()["grading"]["default_judge"]
+DEFAULT_JUDGE, DEFAULT_EFFORT = standard.judge()
 TRANSPORTS = fj.TRANSPORTS  # effort, max_tokens, attempts, refusal skip per transport
 # $ per million tokens: input, output, cache read, 5-minute cache write
 PRICES = {"claude-opus-5-5": (4.0, 20.0, 0.20, 5.0)}
@@ -78,13 +81,20 @@ def provider_of(judge: str) -> tuple[str, str]:
         return "anthropic", judge.removeprefix("anthropic/")
     if judge.startswith("claude"):
         return "anthropic", judge
-    raise SystemExit(f"judge must be anthropic/<model> or openrouter/<model>, not {judge!r}")
+    if judge.startswith("openai/"):
+        return "openai", judge.removeprefix("openai/")
+    raise SystemExit(f"judge must be anthropic/<model>, openai/<model> or openrouter/<model>, not {judge!r}")
+
+
+def transport_of(provider: str) -> dict:
+    """The call settings for a provider: OpenAI directly is called as OpenRouter is."""
+    return TRANSPORTS["openrouter" if provider == "openai" else provider]
 
 
 class Judge:
     def __init__(self, judge: str, effort: str | None = None):
         self.provider, self.model = provider_of(judge)
-        self.effort = effort or TRANSPORTS[self.provider]["effort"]
+        self.effort = effort or transport_of(self.provider)["effort"]
         self.lock = threading.Lock()
         self.spend = 0.0
         if self.provider == "anthropic":
@@ -92,6 +102,11 @@ class Judge:
 
             self.client = anthropic.Anthropic()
             self.errors = (anthropic.APIError,)
+        elif self.provider == "openai":
+            from openai import OpenAI
+
+            self.client = OpenAI(timeout=600.0, max_retries=2)
+            self.errors = (Exception,)
         else:
             from openai import OpenAI
 
@@ -135,7 +150,7 @@ class Judge:
             model=self.model,
             reasoning_effort=self.effort,
             response_format={"type": "json_object"},
-            max_completion_tokens=TRANSPORTS["openrouter"]["max_tokens"],
+            max_completion_tokens=transport_of(self.provider)["max_tokens"],
             messages=[{"role": "system", "content": fj.SYSTEM}, {"role": "user", "content": prompt}],
         )
         choice = response.choices[0]
@@ -148,7 +163,7 @@ class Judge:
     def grade(self, headline: str, subs: list[str], prompt: str) -> dict:
         started = time.time()
         usage_all, raws = [], []
-        for attempt in range(TRANSPORTS[self.provider]["attempts"]):
+        for attempt in range(transport_of(self.provider)["attempts"]):
             if self.provider == "anthropic":
                 text, usage, stop, refusal = self._anthropic(prompt, fj.JSON_ONLY if attempt else "")
             else:
@@ -181,8 +196,9 @@ def parser(defaults: dict | None = None) -> argparse.ArgumentParser:
                     help="article context; default omitted for Anthropic judges, full for OpenRouter")
     ap.add_argument("--omit-article", action="store_const", const="omitted", dest="article",
                     help="same as --article omitted")
-    ap.add_argument("--judge", default=DEFAULT_JUDGE, help="anthropic/<model> or openrouter/<model>")
-    ap.add_argument("--effort", help="default xhigh for Anthropic, high for OpenRouter")
+    ap.add_argument("--judge", default=DEFAULT_JUDGE,
+                    help="anthropic/<model>, openai/<model> or openrouter/<model> (default: the standard judge)")
+    ap.add_argument("--effort", help="default: the standard judge's effort for it; else xhigh for Anthropic, high otherwise")
     ap.add_argument("--output", type=Path, help="grade directory (default benchmarks/transluce/reports/graded/judge_<model>...)")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--findings", nargs="*", help="only these headline ids")
@@ -205,9 +221,9 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
         heads = [h for h in heads if h in args.findings]
     subs_of = {h: fj.sub_ids(h, findings) for h in heads}
     provider, model = provider_of(args.judge)
-    effort = args.effort or TRANSPORTS[provider]["effort"]
-    # Opus grades have always been filed without an effort suffix; OpenRouter's with one.
-    out_dir = args.output or fj.output_root() / fj.judge_dir(model, effort if provider == "openrouter" else None)
+    effort = args.effort or (DEFAULT_EFFORT if args.judge == DEFAULT_JUDGE else transport_of(provider)["effort"])
+    # Opus grades have always been filed without an effort suffix; OpenRouter's and OpenAI's with one.
+    out_dir = args.output or fj.output_root() / fj.judge_dir(model, effort if provider != "anthropic" else None)
     print(f"{len(run_dirs)} reports x {len(heads)} findings "
           f"({args.judge}, effort {effort}, article {context}) -> {out_dir}", flush=True)
 
@@ -217,7 +233,7 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
     reports: dict[str, str] = {}
     todo: list[tuple[Path, str]] = []
     # Anthropic refusals recur on every finding of a report; skip rather than repay them.
-    skip_refused = TRANSPORTS[provider]["skip_after_first_refusal"]
+    skip_refused = transport_of(provider)["skip_after_first_refusal"]
     for d in run_dirs:
         report = (d / "report.md").read_text()
         reports[d.name] = report

@@ -319,7 +319,7 @@ def _inspect_sandbox(
     )
 
 
-def _scorers(judge: str, rubric: str | None, data_variant: str | None = None) -> list:
+def _scorers(judge: str | None, rubric: str | None, data_variant: str | None = None) -> list:
     """Benchmark sheets plus diagnostic scores; legacy grading is explicit."""
     scorers = [process_metrics(), report_length()]
     if rubric == "legacy":
@@ -509,7 +509,7 @@ def _german_wiki_report(
     allow_networked_subscription: bool = True,
     time_limit_minutes: int | None = None,
     min_runtime_fraction: float | None = None,
-    judge: str = "openai/gpt-5.6-sol",
+    judge: str | None = None,
     rubric: str | None = None,
     data_variant: str | None = None,
     version: str | None = None,
@@ -531,8 +531,9 @@ def _german_wiki_report(
             before normal completion is accepted. Defaults to the config's (0.9 in
             the standard condition; 0.75 for configs that set none, as the runner
             does); set ``0`` to disable this continuation policy for an ablation.
-        judge: Inspect model used to grade the report. A ``grader`` model role,
-            when supplied to Inspect, takes precedence over this value.
+        judge: Inspect model used to grade the report; defaults to the standard judge
+            (configs/standard.toml). A ``grader`` model role, when supplied to Inspect, takes
+            precedence over this value.
         rubric: Comma-separated sheet modes; defaults to ``v2,tldrh`` (findings
             and the TL;DR summary). Use Inspect's ``--no-score`` to defer grading,
             or ``legacy`` for the old starter rubric.
@@ -569,7 +570,7 @@ def incident_task(config: str, **kwargs) -> Task:
     RubyHack). It is not an Inspect task: drafts become their own eval once reviewed.
     """
     variant = _load_config(config, allow_drafts=True)["data_variant"]
-    scorer_args = {"judge": kwargs.pop("judge", "openai/gpt-5.6-sol"), "rubric": kwargs.pop("rubric", None)}
+    scorer_args = {"judge": kwargs.pop("judge", None), "rubric": kwargs.pop("rubric", None)}
     defaults = {"agent": "claude", "backend": "inspect", "subscription_model": None,
                 "allow_networked_subscription": True, "time_limit_minutes": None,
                 "min_runtime_fraction": None, "data_variant": None}
@@ -601,10 +602,10 @@ def _transluce_report(
     Args:
         config: A URLQuery config from benchmarks/transluce/benchmark.json
             (default ``urlquery-agents-v6-30``).
-        judge: Inspect model for the per-finding judge; defaults to
-            ``anthropic/claude-opus-5-5``. ``openrouter/openai/gpt-6-astra`` with the full
-            article is the final-run judge. A ``grader`` model role takes precedence.
-        judge_effort: Judge reasoning effort (``xhigh`` for Anthropic, else ``high``).
+        judge: Inspect model for the per-finding judge; defaults to the standard judge
+            (configs/standard.toml), with its effort. ``openrouter/openai/gpt-6-astra`` with
+            the full article is the v1.0 final-run judge. A ``grader`` model role takes precedence.
+        judge_effort: for another judge, ``xhigh`` for Anthropic, else ``high``.
         article_context: ``full`` or ``omitted``: whether the judge reads Transluce's
             article or only the reviewed findings and their quotes. Defaults to
             ``omitted`` for Anthropic judges (the article made Opus refuse) and ``full``
@@ -663,8 +664,8 @@ def aivillage_report(
         config: ``aivillage-v12-30`` (default) or ``aivillage-v12-30-subagents``.
         subagents: shorthand for the config: ``true`` picks ``aivillage-v12-30-subagents``.
         min_runtime_fraction: defaults to the config's (0.9).
-        judge: Inspect model for the judge; defaults to ``openai/gpt-6.1-sol``, the
-            published judge. A ``grader`` model role takes precedence.
+        judge: Inspect model for the judge; defaults to the standard judge (configs/standard.toml),
+            with its effort. A ``grader`` model role takes precedence.
     """
     check_version("aivillage", version)
     if config is not None and subagents is not None:
@@ -690,7 +691,7 @@ def aivillage_report(
 def _german_wiki_report_replay(
     runs_glob: str = "*",
     include_failed: bool = True,
-    judge: str = "openai/gpt-5.6-sol",
+    judge: str | None = None,
     rubric: str | None = None,
 ) -> Task:
     """Import local run artifacts into Inspect without rerunning agents."""
@@ -767,7 +768,7 @@ def _german_wiki_report_continue(
     parent_log: str,
     parent_epochs: str = "all",
     config: str = "followup-5k",
-    judge: str = "openai/gpt-5.6-sol",
+    judge: str | None = None,
     rubric: str | None = None,
 ) -> Task:
     """Continue finished ReAct samples with a follow-up request.

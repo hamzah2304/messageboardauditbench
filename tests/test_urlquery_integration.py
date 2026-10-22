@@ -204,6 +204,11 @@ def test_replay_rejects_cross_benchmark_metadata(tmp_path, monkeypatch):
         module.german_wiki_report_replay()
 
 
+# The first URLQuery pilot's four trials (the launcher has no built-in matrix any more).
+FOUR = [("codex", "gpt-6-astra", 1), ("codex", "gpt-6-sol", 1),
+        ("claude", "claude-opus-5-5", 1), ("claude", "claude-opus-5-5", 2)]
+
+
 def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatch):
     import os
     import tomllib
@@ -214,7 +219,7 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     monkeypatch.setattr(pilot, "primary_root", lambda: tmp_path)
     monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
         "benchmark_id": "urlquery", "dataset_sha256": "a" * 64, "dataset_version": "test-v1"})
-    directory, payload = pilot.plan(dataset)
+    directory, payload = pilot.plan(dataset, trials=FOUR)
     assert directory.parent == tmp_path / "runs/urlquery"
     cfg = tomllib.loads(Path(payload["config"]).read_text())
     assert cfg["dataset_sha256"] == "a" * 64 and cfg["data_variant"] == "urlquery/test-v1"
@@ -233,20 +238,21 @@ def test_pilot_plan_pins_input_and_keeps_subscription_lanes(tmp_path, monkeypatc
     assert result.returncode == 0, result.stderr
     assert dict(line.split("=", 1) for line in result.stdout.splitlines() if line != "--build-arg") == payload["image_build_args"]
     assert not list(directory.glob("*.log"))
-    _, anthro = pilot.plan(dataset, agents=["claude"])
+    _, anthro = pilot.plan(dataset, agents=["claude"], trials=FOUR)
     assert len(anthro["matrix"]) == 2 and all(row["agent"] == "claude" for row in anthro["matrix"])
     with pytest.raises(ValueError, match="pilot agents"):
-        pilot.plan(dataset, agents=["other"])
-    _, retry = pilot.plan(dataset, models=["gpt-6-sol", "claude-opus-5-5"])
+        pilot.plan(dataset, agents=["other"], trials=FOUR)
+    _, retry = pilot.plan(dataset, models=["gpt-6-sol", "claude-opus-5-5"], trials=FOUR)
     assert len(retry["matrix"]) == 3 and all(r["model"] != "gpt-6-astra" for r in retry["matrix"])
     with pytest.raises(ValueError, match="select no trials"):
-        pilot.plan(dataset, agents=["claude"], models=["gpt-6-sol"])
+        pilot.plan(dataset, agents=["claude"], models=["gpt-6-sol"], trials=FOUR)
     custom = Path(__file__).parents[1] / "configs/superseded/urlquery-smaller-models.toml"
     _, smaller = pilot.plan(dataset, matrix_config=custom)
     assert [r["model"] for r in smaller["matrix"]] == [
         "gpt-6-luna", "gpt-5.6-terra", "claude-haiku-4-5-20251001", "claude-sonnet-5"]
     assert len(smaller["matrix_source_sha256"]) == 64
-    assert len(pilot.MATRIX) == 4 and pilot.MATRIX[0][1] == "gpt-6-astra"
+    with pytest.raises(ValueError, match="give the trials"):
+        pilot.plan(dataset)
     _, selected = pilot.plan(dataset, matrix_config=custom, models=["claude-sonnet-5"])
     assert len(selected["matrix"]) == 1
 
@@ -279,7 +285,7 @@ def test_pilot_lanes_and_scoped_cleanup_without_docker(tmp_path, monkeypatch, sc
                "dataset_sha256": "a" * 64, "outer_guard_seconds": 900, "status": "planned",
                "image": "mbab-urlquery-sandbox-codex-0.156.1-claude-2.1.283",
                "image_build_args": {"CLAUDE_VERSION": "2.1.283", "CODEX_VERSION": "rust-v0.156.1"},
-               "matrix": [{"agent": a, "model": m, "replicate": r} for a, m, r in pilot.MATRIX if agents is None or a in agents]}
+               "matrix": [{"agent": a, "model": m, "replicate": r} for a, m, r in FOUR if agents is None or a in agents]}
     if agents is not None:
         expected_runs //= 2
     calls, launches = [], []
@@ -344,7 +350,7 @@ def test_bad_cli_version_does_not_create_plan(tmp_path, monkeypatch, line):
     monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
         "benchmark_id": "urlquery", "dataset_sha256": "a" * 64, "dataset_version": "test-v1"})
     with pytest.raises(ValueError, match="claude_cli_version"):
-        pilot.plan(dataset)
+        pilot.plan(dataset, trials=FOUR)
     assert not (tmp_path / "runs").exists()
 
 
@@ -415,7 +421,7 @@ def test_bad_codex_cli_version_does_not_create_plan(tmp_path, monkeypatch, line)
     monkeypatch.setattr(pilot, "validate_trial_data", lambda *_: {
         "benchmark_id": "urlquery", "dataset_sha256": "a" * 64, "dataset_version": "test-v1"})
     with pytest.raises(ValueError, match="codex_cli_version"):
-        pilot.plan(dataset)
+        pilot.plan(dataset, trials=FOUR)
     assert not (tmp_path / "runs").exists()
 
 

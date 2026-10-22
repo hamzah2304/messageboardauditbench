@@ -145,7 +145,8 @@ def _state(report: str) -> TaskState:
 async def test_scorer_sends_the_batch_graders_requests(primary, monkeypatch):
     judge = FakeJudge(value=0.5)
     monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
-    score = await av.aivillage_scorer()(_state("A report."), Target(""))
+    # The published effort reproduces the batch grader; unset, the scorer uses the standard's.
+    score = await av.aivillage_scorer(effort=av.EFFORT)(_state("A report."), Target(""))
     findings, groups = av.grading_groups([])
     assert len(findings) == 96 and len(judge.calls) == len(groups)
     assert score.value == {"score": 0.5, "coverage": 0.5}
@@ -155,6 +156,9 @@ async def test_scorer_sends_the_batch_graders_requests(primary, monkeypatch):
     assert config.response_schema.strict and config.reasoning_effort == "medium"
     assert config.max_tokens in {av.max_output_tokens(g) for g in groups}
     assert config.extra_body is None
+    judge.calls.clear()
+    await av.aivillage_scorer()(_state("A report."), Target(""))
+    assert judge.calls[0][1].reasoning_effort == "high"   # configs/standard.toml judge_effort
 
 
 async def test_scorer_pins_the_openrouter_route(primary, monkeypatch):

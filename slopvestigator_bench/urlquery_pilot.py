@@ -39,8 +39,6 @@ from slopvestigator_bench.configs import validate_config
 from slopvestigator_bench.dataset_manifest import file_sha256
 from slopvestigator_bench.runtime import repo_root
 
-MATRIX = [("codex", "gpt-6-astra", 1), ("codex", "gpt-6-sol", 1),
-          ("claude", "claude-opus-5-5", 1), ("claude", "claude-opus-5-5", 2)]
 AGENTS = ("codex", "claude", "react")
 # ReAct models are OpenRouter ids such as google/gemini-3.8-flash.
 MODEL_ID = re.compile(r"[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)?")
@@ -50,7 +48,9 @@ OVERRIDES = ("PROMPT", "BUDGET_MIN", "TIMEOUT", "DATA_DIR", "DATA_DIR_OVERRIDE",
 
 def load_matrix(path: Path | None) -> list[tuple[str, str, int]]:
     if path is None:
-        return MATRIX
+        # No built-in matrix: the models come from a file (or --batch). The standard rerun's
+        # models are configs/lineup.toml, launched by scripts/run_matrix.py.
+        raise ValueError("give the trials: --matrix-config FILE ([[trials]]) or --batch FILE")
     return validate_matrix(tomllib.loads(path.read_text()).get("trials"))
 
 
@@ -352,7 +352,7 @@ def main():
     parser.add_argument("--launch", action="store_true")
     parser.add_argument("--agent", choices=AGENTS, action="append",
                         help="Run only this lane; repeat to include several (default: all in the matrix)")
-    parser.add_argument("--matrix-config", type=Path, help="Explicit TOML [[trials]] matrix; default keeps the original four-run matrix")
+    parser.add_argument("--matrix-config", type=Path, help="Explicit TOML [[trials]] matrix (required unless --batch)")
     parser.add_argument("--config", type=Path, help="URLQuery trial config; default the manifest's default config")
     parser.add_argument("--parallel-all", action="store_true", help="Run every selected trial concurrently")
     parser.add_argument("--batch", type=Path, help="Batch TOML: several config arms run from one queue")

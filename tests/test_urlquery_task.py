@@ -23,6 +23,13 @@ ROOT = Path(__file__).parents[1]
 MANIFEST = benchmarks.urlquery_manifest()
 
 
+@pytest.fixture(autouse=True)
+def article_present(monkeypatch):
+    """The standard judge (an OpenAI model) reads Transluce's article, which is gitignored data."""
+    real = fj.article_text
+    monkeypatch.setattr(fj, "article_text", lambda context: "ARTICLE" if context == "full" else real(context))
+
+
 def test_manifest_owns_the_active_configs_and_every_one_matches_its_pins():
     assert benchmarks.config_names("urlquery") == ("urlquery-agents-v6-30", "urlquery-agents-v6-10",
                                                    "urlquery-std-10", "urlquery-std-30")

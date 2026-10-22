@@ -29,13 +29,22 @@ def standard() -> dict:
 
 
 def benchmark_ids() -> tuple[str, ...]:
-    return tuple(k for k in standard() if k != "shared")
+    return tuple(k for k in standard() if k not in ("shared", "helpers"))
 
 
 def judge() -> tuple[str, str]:
     """The one judge model and its reasoning effort."""
     shared = standard()["shared"]
     return shared["judge"], shared["judge_effort"]
+
+
+def helper(name: str) -> tuple[str, str | None]:
+    """The model a helper script calls and its effort: configs/standard.toml [helpers.<name>].
+    Every helper's model is set there; a missing entry is an error, never a default."""
+    helpers = standard().get("helpers", {})
+    if name not in helpers:
+        raise KeyError(f"no [helpers.{name}] in configs/standard.toml")
+    return helpers[name]["model"], helpers[name].get("effort")
 
 
 def config_name(benchmark_id: str, budget: int) -> str:

@@ -10,8 +10,11 @@ from openai import OpenAI
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent
-MODEL = 'gpt-6.1-sol'
-EFFORT = 'high'
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from slopvestigator_bench import standard  # noqa: E402
+MODEL, EFFORT = standard.helper('discord_extract')   # configs/standard.toml [helpers.discord_extract]
+MODEL = MODEL.split('/', 1)[1]
 PROMPT = (OUT/'extraction-prompt.md').read_text()
 TRANSPORT = '''
 Transport instruction: preserve the extraction criteria above, but serialize the

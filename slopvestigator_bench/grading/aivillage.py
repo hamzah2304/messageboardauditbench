@@ -37,9 +37,10 @@ from inspect_ai.util import JSONSchema
 from slopvestigator_bench.grading import judge as judging
 from slopvestigator_bench.runtime import repo_root
 
+# The published v1.0 judge: scripts/aivillage/grade_aivillage.py's frozen plans check against it.
+# New grades default to the standard judge (configs/standard.toml).
 MODEL = "gpt-6.1-sol"
 EFFORT = "medium"
-DEFAULT_JUDGE = "openai/" + MODEL
 TOP_K = 20
 GROUP_SIZE = 3
 MAX_SUBFINDINGS = 12
@@ -247,22 +248,26 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
 
 
 @scorer(metrics={"score": [mean(), stderr()], "coverage": [mean()]})
-def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str = EFFORT) -> Scorer:
+def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str | None = None) -> Scorer:
     """Grade an AI Village report against the 96 rubric findings.
 
     Args:
-      judge: the grading model, ``openai/gpt-6.1-sol`` by default (``openrouter/openai/gpt-6.1-sol``
-        also works). A ``grader`` model role takes precedence.
+      judge: the grading model; the standard judge (configs/standard.toml) by default
+        (``openrouter/openai/gpt-6.1-sol`` also works). A ``grader`` model role takes precedence.
       goals: the data's ``village_goals.jsonl``, which sets the goal-period groups. Defaults to the
         file in the sample's data variant.
-      effort: the judge's reasoning effort; ``medium`` as published, ``high`` in the standard condition.
+      effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
     """
+    from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import primary_root
+
+    judge = judge or standard.judge()[0]
+    effort = effort or standard.judge()[1]
 
     rubric = (repo_root() / RUBRIC).read_text()
 
     async def score(state: TaskState, target: Target) -> Score:
-        model = get_model(judge or DEFAULT_JUDGE, role="grader")
+        model = get_model(judge, role="grader")
         variant = str(state.metadata.get("data_variant") or "aivillage/full-v2-reasoning")
         goals_path = Path(goals) if goals else primary_root() / "data" / variant / "village_goals.jsonl"
         findings, groups = grading_groups(load_goals(goals_path))

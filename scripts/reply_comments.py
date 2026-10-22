@@ -15,8 +15,12 @@ from slopvestigator_bench.paths import (ROOT, HUMAN_REPORT, CLAIMS, FEASIBILITY,
                    GRADED_INPUTS, PROMPTS, SNIPPETS, VIEWERS, VIEWER_DATA, ENV_FILE)
 
 
-MODEL = os.getenv("MODEL", "gpt-5.6-sol")
-EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
+from slopvestigator_bench import standard  # noqa: E402
+
+# configs/standard.toml [helpers.reply_comments]; MODEL and EFFORT override it for one run.
+_MODEL, _EFFORT = standard.helper("reply_comments")
+MODEL = os.getenv("MODEL") or _MODEL.split("/", 1)[1]
+EFFORTS = [os.getenv("EFFORT") or _EFFORT, "high", "medium"]
 client = OpenAI()
 
 GENERIC = {"coverage", "review", "hackathon", "combined", "export", "json", "data", "final", "v1", "v2"}

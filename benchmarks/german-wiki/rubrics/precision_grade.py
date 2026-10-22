@@ -5,7 +5,8 @@ human report and counts contradicted statements. Uses precision_prompt.md.
 Usage:  python precision_grade.py --batch          (report/rubrics/batch/*.md)
         python precision_grade.py --baselines      (report/rubrics/baselines/*.md)
         python precision_grade.py gpt opus haiku luna
-Writes report/rubrics/precision_<key>.json ; env OPENAI_API_KEY, MODEL, EFFORT.
+Writes report/rubrics/precision_<key>.json ; env OPENAI_API_KEY, MODEL, EFFORT (default: the
+standard judge in configs/standard.toml).
 """
 import json, os, re, sys
 from pathlib import Path
@@ -20,8 +21,10 @@ from openai import OpenAI
 
 
 
-MODEL = os.getenv("MODEL", "gpt-5.6-sol")
-EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
+from slopvestigator_bench import standard
+_JUDGE, _EFFORT = standard.judge()   # configs/standard.toml; MODEL and EFFORT override it for one run
+MODEL = os.getenv("MODEL") or _JUDGE.rsplit("/", 1)[-1]
+EFFORTS = [os.getenv("EFFORT") or _EFFORT, "high", "medium"]
 client = OpenAI()
 PROMPT = (RUBRICS / "precision_prompt.md").read_text()
 HUMAN = (HUMAN_REPORT).read_text()
