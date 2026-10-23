@@ -37,7 +37,9 @@ def test_react_retries_truncated_http_responses() -> None:
 
 
 def test_subscription_proxy_is_scoped_to_the_selected_agent() -> None:
-    assert '--agent "$AGENT"' in RUN_TRIAL
+    # Codex on OpenRouter gets ReAct's allowlist (openrouter.ai only); every other run its own agent's.
+    assert '--agent "$PROXY_AGENT"' in RUN_TRIAL
+    assert 'PROXY_AGENT="$AGENT"; [ "$CODEX_BACKEND" != openrouter ] || PROXY_AGENT=react' in RUN_TRIAL
 
 
 def test_subscription_never_mounts_two_cli_credential_directories() -> None:

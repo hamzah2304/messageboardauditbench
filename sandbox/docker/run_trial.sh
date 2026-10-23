@@ -20,6 +20,11 @@
 #   * a canary container on the same network/mounts proves both facts before the agent starts.
 set -euo pipefail
 AGENT="${1:?claude|codex|react}"; MODEL="${2:?model id}"; REPLICATE="${3:-1}"
+# Codex runs OpenAI models on the ChatGPT login; an OpenRouter id (vendor/model) runs in the same
+# Codex CLI through OpenRouter's Responses API, metered on the OpenRouter key.
+CODEX_BACKEND=""; [ "$AGENT" != codex ] || { CODEX_BACKEND=subscription; [[ "$MODEL" != */* ]] || CODEX_BACKEND=openrouter; }
+# The proxy's allowlist follows the backend: Codex on OpenRouter may reach openrouter.ai only, as ReAct does.
+PROXY_AGENT="$AGENT"; [ "$CODEX_BACKEND" != openrouter ] || PROXY_AGENT=react
 IMAGE="${IMAGE:-mbab-sandbox}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROOT/configs/$CONFIG.toml"
@@ -214,9 +219,9 @@ if [ "$AGENT" = claude ]; then
 fi
 # Optional per-config tool-output limit for Claude Code's Bash tool (characters; CLI default 30000).
 [ "$AGENT" != claude ] || [ -z "${CFG_BASH_MAX_OUTPUT_LENGTH:-}" ] || CLAUDE_ENV+=(-e "BASH_MAX_OUTPUT_LENGTH=$CFG_BASH_MAX_OUTPUT_LENGTH")
-# ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
+# ReAct and Codex-on-OpenRouter: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
-if [ "$AGENT" = react ]; then
+if [ "$AGENT" = react ] || [ "$CODEX_BACKEND" = openrouter ]; then
   if [ -n "${MBAB_OPENROUTER_KEY_FILE:-}" ]; then
     [ -s "$MBAB_OPENROUTER_KEY_FILE" ] || { echo "explicit OpenRouter key file missing" >&2; exit 1; }
     export OPENROUTER_API_KEY="$(cat "$MBAB_OPENROUTER_KEY_FILE")"
@@ -233,13 +238,19 @@ if [ "$AGENT" = react ]; then
 fi
 if [ "$AGENT" = codex ]; then
   mkdir -p "$SECRETS/codex"
-  if [ -f "$HOME/.codex/auth.json" ]; then
+  if [ "$CODEX_BACKEND" = openrouter ]; then
+    :   # the key travels as OPENROUTER_API_KEY (REACT_ENV above); no ChatGPT login is mounted
+  elif [ -f "$HOME/.codex/auth.json" ]; then
     cp "$HOME/.codex/auth.json" "$SECRETS/codex/auth.json"
   else
     echo "no Codex credentials: run \`codex login\` on the host" >&2; exit 1
   fi
   # Keep the rollout for per-call token and reasoning-item auditing.
   printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
+  # Codex has no catalog entry for other vendors' models and falls back to generic metadata (plain
+  # function tools, no code mode). The context window matches the OpenAI models' 272k, so Codex
+  # compacts at the same point for every model.
+  [ "$CODEX_BACKEND" != openrouter ] || printf 'model_provider = "openrouter"\nmodel_context_window = 272000\n' >> "$SECRETS/codex/config.toml"
   # Optional per-config limit on how much of each tool output Codex shows the model (tokens).
   [ -z "${CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT:-}" ] || printf 'tool_output_token_limit = %s\n' "$CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" >> "$SECRETS/codex/config.toml"
   # Subagents: URLQuery always disables them; elsewhere `subagents` / codex_multi_agent decide.
@@ -258,6 +269,7 @@ if [ "$AGENT" = codex ]; then
   # Account-linked apps, plugins and browser or computer use reach outside the sandbox; always off.
   printf '[features]\nhooks = true\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
   [ -z "$MULTI_AGENT" ] || printf 'multi_agent = %s\nmulti_agent_v2 = %s\n' "$MULTI_AGENT" "$MULTI_AGENT" >> "$SECRETS/codex/config.toml"
+  [ "$CODEX_BACKEND" != openrouter ] || printf '[model_providers.openrouter]\nname = "OpenRouter"\nbase_url = "https://openrouter.ai/api/v1"\nenv_key = "OPENROUTER_API_KEY"\nwire_api = "responses"\n' >> "$SECRETS/codex/config.toml"
   # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
   [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")
@@ -275,7 +287,7 @@ if [ "$AGENT" = claude ]; then printf '%s\n' "$HOOKS" > "$SECRETS/claude/setting
 if [ "$AGENT" = codex ]; then printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"; fi
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 docker network create --internal "$NET" >/dev/null
-docker run -d --name "$PROXY" --network bridge "$IMAGE" python3 -u /sandbox/proxy.py --bind 0.0.0.0 --port 3128 --agent "$AGENT" >/dev/null
+docker run -d --name "$PROXY" --network bridge "$IMAGE" python3 -u /sandbox/proxy.py --bind 0.0.0.0 --port 3128 --agent "$PROXY_AGENT" >/dev/null
 docker network connect "$NET" "$PROXY"
 # On a busy host the proxy can take seconds to start; the canary would otherwise find its port closed.
 for _ in $(seq 60); do docker logs "$PROXY" 2>&1 | grep -q listening && break; sleep 0.5; done
@@ -292,6 +304,7 @@ DOCKER_ARGS=("${DOCKER_BASE[@]}" ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} ${REACT_ENV
 
 # Canary: same image, network and mounts. Abort the trial if isolation does not hold.
 case "$AGENT" in claude) VENDOR_HOST=api.anthropic.com ;; codex) VENDOR_HOST=chatgpt.com ;; react) VENDOR_HOST=openrouter.ai ;; *) echo "unknown agent $AGENT" >&2; exit 2 ;; esac
+[ "$CODEX_BACKEND" != openrouter ] || VENDOR_HOST=openrouter.ai
 docker run -e VENDOR_HOST="$VENDOR_HOST" "${CANARY_ARGS[@]}" bash -c '
   fail=0
   getent hosts collusion.wiki >/dev/null 2>&1 && { echo "FAIL dns resolves"; fail=1; }
@@ -357,6 +370,7 @@ cat > "$RUN/meta.json" <<JSON
 JSON
 META_TMP="$RUN/meta.data.json"
 jq --argjson dp "$DATA_PROVENANCE" '. + $dp' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+[ -z "$CODEX_BACKEND" ] || { jq --arg b "$CODEX_BACKEND" '. + {codex_backend: $b}' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"; }
 if [ "$BENCHMARK_ID" = urlquery ]; then
   META_TMP="$RUN/meta.benchmark.json"
   jq --argjson bp "$BENCHMARK_PROVENANCE" --arg variant "$CFG_DATA_VARIANT" --argjson seconds "$((BUDGET_MIN * 60))" --arg outer "$OUTER_TIMEOUT" '. + $bp + {data_variant: $variant, active_time_limit_seconds: $seconds, configured_outer_timeout: $outer, termination_grace_seconds: 1}' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
