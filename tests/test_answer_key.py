@@ -72,3 +72,30 @@ def test_qa_prompt_fills_every_placeholder():
     text = qa.build_prompt("german-wiki", key, [key["findings"][1]], "")
     assert "{{" not in text.replace("{{BUDGET_MIN}}", "")
     assert "DERIVABILITY" in text and "DATA NOTE: GERMAN WIKI" in text and "W02 —" in text
+
+
+def test_review_decisions_accept_qa_and_apply_overrides_once():
+    mod = _script("apply_answer_key_review")
+    f = _finding()
+    f["detail"] = "old detail"
+    f["fields"] = {"headline_status": "draft"}
+    f["qa"] = {"outcome": "narrow", "reason": "r", "duplicate_of": "", "proposed_wording": "narrowed",
+               "make_harder": "be specific", "how_to_find": ""}
+    f["subfindings"].append({**f["subfindings"][0], "id": "N02", "qa": {"proposed_wording": "REMOVE", "duplicate_of": "N01",
+                                                                       "reason": "same sentence"}})
+    key = {"format": answer_key.FORMAT, "findings": [f], "excluded": []}
+    review = {"default": "accept_qa", "overrides": {"N01": {"why": "x", "claim": "mine"}},
+              "detail_edits": {"W01": [["old", "new"]]}}
+    out = mod.apply(key, review, "r.json")
+    w = out["findings"][0]
+    assert (w["claim"], w["detail"], w["judge_notes"], w["fields"]["headline_status"]) == (
+        "narrowed", "new detail", "be specific", "approved")
+    assert [s["claim"] for s in w["subfindings"]] == ["mine"]
+    assert out["excluded"][0]["id"] == "N02" and out["excluded"][0]["reason"].startswith("merged into N01")
+    assert answer_key.validate(out) == []
+    try:
+        mod.apply(out, review, "r.json")
+    except SystemExit:
+        pass
+    else:
+        raise AssertionError("applied twice")
