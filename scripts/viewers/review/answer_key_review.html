@@ -291,7 +291,7 @@ function diffHtml(oldText, newText, opts = {}) {
 function findingBases(f) {
   const drafted = f.fields && f.fields.headline_status === "draft";
   const b = [{ key: "claim", short: drafted ? "Draft" : "Headline", text: f.claim }];
-  if (f.detail) b.push({ key: "detail", short: drafted ? "Report" : "Detail", text: f.detail });
+  if (f.detail) b.push({ key: "detail", short: "Detail", text: f.detail });
   return b;
 }
 const baseCache = new Map();
@@ -446,7 +446,7 @@ function rubricFinding(f) {
   return `<div class="layer l-rubric">
     <div class="lhead">${B.rubric}</div>
     ${drafted ? "" : field("Headline", findingText(f, "claim"))}
-    ${f.detail ? field(drafted ? "Report" : "Detail", findingText(f, "detail")) : ""}
+    ${f.detail ? field("Detail", findingText(f, "detail")) : ""}
     ${notes ? field("Judge notes", notes) : ""}
     ${srcs.length ? field("Sources", `<p class="srcs">${srcs.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.id)} ${esc(s.type || "")}${s.date ? ", " + esc(s.date) : ""}</a>`).join("")}</p>`) : ""}
   </div>`;
