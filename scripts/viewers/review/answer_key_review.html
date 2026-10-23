@@ -40,6 +40,7 @@
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
 .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; max-width: 1240px; margin: 0 auto; }
+.card { overflow-wrap: anywhere; }
 header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding-block: 12px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
 h1 { font: 600 18px/1.2 var(--sans); margin: 0; letter-spacing: .01em; }
 .tabs, .filters, .seg { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -192,6 +193,7 @@ textarea.edit { font-family: var(--serif); font-size: 15px; }
 const EVALS = [
   { id: "german-wiki", name: "German wiki", file: "keys/german-wiki.json", defaultFilter: "all" },
   { id: "aivillage", name: "AI Village", file: "keys/aivillage.json", defaultFilter: "queue" },
+  { id: "transluce", name: "Transluce", file: "keys/transluce.json", defaultFilter: "all" },
 ];
 const FILTERS = [["all", "All"], ["queue", "Review queue"], ["undecided", "Undecided"]];
 const VERDICT_CLASS = { "supported": "c-ok", "partly": "c-warn", "contradicted": "c-bad", "not found": "c-none", "outside the data": "c-none" };
@@ -457,6 +459,7 @@ function qaFinding(f) {
 function subHtml(s, it) {
   const qa = s.qa || null;
   const fl = s.fields || {};
+  const quote = fl.report_quote || (Array.isArray(fl.quotes) && fl.quotes[0]) || "";
   const pw = qa && qa.proposed_wording;
   const claim = !pw ? `<p class="sclaim">${esc(s.claim)}</p>`
     : pw === "REMOVE" ? propBox(s.claim, "", { remove: true, extra: `<span class="chip c-bad">remove</span>` })
@@ -464,7 +467,7 @@ function subHtml(s, it) {
   const rubric = `<div class="layer l-rubric">
     <div class="lhead">${B.rubric}</div>
     ${claim}
-    ${fl.report_quote ? `<p class="quote">“${esc(fl.report_quote)}”</p>` : ""}
+    ${quote ? `<p class="quote">“${esc(quote)}”</p>` : ""}
     ${s.judge_notes ? `<p class="note"><b>Judge notes:</b> ${esc(s.judge_notes)}</p>` : ""}
   </div>`;
   const qaL = !qa ? (s.evidence && s.evidence.length ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(s.evidence)}</div>` : "")
