@@ -41,6 +41,7 @@ OVERSTATED = ("yes", "no")
 CITATION_KINDS = {
     "german-wiki": ("rev", "event", "page", "label"),
     "aivillage": ("chat", "turn", "session", "event", "memory", "claude_code", "transcript"),
+    "transluce": ("scan", "content"),
 }
 _BRACKET = re.compile(r"\[([^\[\]]*)\]")
 

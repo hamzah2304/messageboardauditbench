@@ -3,6 +3,7 @@
 
     python3 scripts/run_answer_key_qa.py german-wiki OUT_DIR [--only W02 W11] [--workers 4]
     python3 scripts/run_answer_key_qa.py aivillage OUT_DIR --group M029 M053 --focus "..."
+    python3 scripts/run_answer_key_qa.py transluce OUT_DIR --budget 30
     python3 scripts/run_answer_key_qa.py german-wiki OUT_DIR --status
     python3 scripts/run_answer_key_qa.py german-wiki OUT_DIR --merge     # write results into the answer key
 
@@ -57,6 +58,10 @@ EVALS = {
                   "modules": ["finding-description.txt", "finding-description-aivillage.txt",
                               "derivability.txt", "data-note-aivillage.txt"],
                   "full_key_in_prompt": False},
+    "transluce": {"config": "answer-key-qa-transluce", "data": PRIMARY / "data/urlquery/2026-09-26-v1",
+                  "modules": ["finding-description.txt", "finding-description-transluce.txt",
+                              "derivability.txt", "data-note-transluce.txt"],
+                  "full_key_in_prompt": True},
 }
 lock = threading.Lock()
 start_lock = threading.Lock()
@@ -84,7 +89,9 @@ def render_finding(f):
         if quote:
             lines.append(f"  The original report's wording: \"{quote}\"")
         for e in s.get("evidence", []):
-            lines.append(f"  Earlier check's evidence (verify it yourself): {e['text']}")
+            shown = e["text"] or ", ".join(c["ref"] for c in e.get("citations", []))
+            if shown:
+                lines.append(f"  Earlier check's evidence (verify it yourself): {shown}")
         lines.append("")
     return "\n".join(lines).rstrip()
 
