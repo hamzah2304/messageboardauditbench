@@ -99,8 +99,6 @@ main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 .pid { font: 500 12px var(--mono); color: var(--muted); margin-right: 4px; }
 .sep { border: 0; border-top: 1px dashed var(--line); margin: 4px 0; width: 100%; }
 .mini { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-.mini .basesw { border: 0; border-radius: 0; color: var(--muted); }
-.mini .basesw[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .crow { flex-wrap: nowrap; align-items: flex-start; }
 .crow textarea { flex: 1; min-width: 0; }
 .decide { background: var(--you-soft); border-top: 2px solid var(--you); border-radius: 6px; padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -143,7 +141,6 @@ ins.i { background: var(--ins-bg); color: var(--ins-ink); text-decoration-line: 
 .colh { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 2px; }
 .wrap[data-diff="inline"] .v-split, .wrap[data-diff="split"] .v-inline { display: none; }
 .dstat { font: 12px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
-.basesw { border: 1px solid var(--line); background: var(--surface); color: var(--accent); border-radius: 4px; padding: 0 6px; font-size: 12px; }
 .empty-old { color: var(--muted); font: italic 13px var(--sans); }
 
 /* decision controls */
@@ -200,7 +197,7 @@ const FILTERS = [["all", "All"], ["queue", "Review queue"], ["undecided", "Undec
 const VERDICT_CLASS = { "supported": "c-ok", "partly": "c-warn", "contradicted": "c-bad", "not found": "c-none", "outside the data": "c-none" };
 const OUTCOME_CLASS = { keep: "c-ok", narrow: "c-warn", drop: "c-bad" };
 const state = { keys: {}, loadErrors: {}, evalId: "german-wiki", filter: null, decisions: {}, saving: {}, status: {},
-                db: null, dbState: "connecting", userId: null, readOnly: false, baseChoice: {} };
+                db: null, dbState: "connecting", userId: null, readOnly: false };
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -286,25 +283,10 @@ function diffHtml(oldText, newText, opts = {}) {
     <span class="dstat">${stat}</span>`;
 }
 
-/* Which current text a finding-level proposal rewrites. The QA field is a proposed claim, so the headline is the default;
-   the detail is used only when it shares clearly more words with the proposal (as in M029). The reviewer can switch. */
-function findingBases(f) {
-  const drafted = f.fields && f.fields.headline_status === "draft";
-  const b = [{ key: "claim", short: drafted ? "Draft" : "Headline", text: f.claim }];
-  if (f.detail) b.push({ key: "detail", short: "Detail", text: f.detail });
-  return b;
-}
-const baseCache = new Map();
+/* The text a finding-level QA proposal replaces: always the headline (proposed_claim in answer-key-qa-v1). */
 function chosenBase(f) {
-  const bases = findingBases(f), prop = f.qa && f.qa.proposed_wording;
-  if (state.baseChoice[f.id]) return bases.find(b => b.key === state.baseChoice[f.id]) || bases[0];
-  if (!prop || bases.length === 1 || (f.fields && f.fields.headline_status === "draft")) return bases[0];
-  const ck = f.id + "\u0000" + prop;
-  if (!baseCache.has(ck)) {
-    const score = b => { const st = diffStats(wordDiff(b.text, prop, true)); return 2 * st.e / Math.max(1, 2 * st.e + st.d + st.i); };
-    baseCache.set(ck, score(bases[1]) > 1.5 * score(bases[0]) ? "detail" : "claim");
-  }
-  return bases.find(b => b.key === baseCache.get(ck));
+  const drafted = f.fields && f.fields.headline_status === "draft";
+  return { key: "claim", short: drafted ? "Draft" : "Headline", text: f.claim };
 }
 
 /* ---------- loading ---------- */
@@ -422,7 +404,8 @@ function editBase(itemId) {
 
 /* A proposal shown in place of the text it changes: dashed box, "Proposed" badge, the old→new diff. */
 function propBox(oldText, newText, opts = {}) {
-  return `<div class="pbox">${opts.head || `<div class="lhead">${B.prop}${opts.extra || ""}</div>`}${diffHtml(oldText, newText, opts)}</div>`;
+  const badge = opts.what ? `<span class="badge b-prop">Proposed ${esc(opts.what)}</span>` : B.prop;
+  return `<div class="pbox">${opts.head || `<div class="lhead">${badge}${opts.extra || ""}</div>`}${diffHtml(oldText, newText, opts)}</div>`;
 }
 
 /* Headline and detail of a finding. The one the QA proposal rewrites shows as the diff instead of plain text, so each text appears once. */
@@ -431,10 +414,7 @@ function findingText(f, which) {
   const text = which === "claim" ? f.claim : f.detail;
   const cls = which === "claim" ? "claim" : "detail";
   if (!b || b.key !== which) return `<p class="${cls}">${esc(text)}</p>`;
-  const bases = findingBases(f);
-  const sw = bases.length > 1 ? `<span class="mini" role="group" aria-label="Compare with">${bases.map(x =>
-    `<button type="button" class="basesw" data-fid="${esc(f.id)}" data-base="${x.key}" aria-pressed="${x.key === b.key}">${esc(x.short.toLowerCase())}</button>`).join("")}</span>` : "";
-  return propBox(text, qa.proposed_wording, { big: which === "claim", oldLabel: b.short, newLabel: "Proposed", extra: sw });
+  return propBox(text, qa.proposed_wording, { big: true, what: "headline", oldLabel: b.short, newLabel: "Proposed" });
 }
 
 function rubricFinding(f) {
@@ -442,7 +422,7 @@ function rubricFinding(f) {
   const srcs = (f.fields && f.fields.sources) || [];
   const mh = f.qa && f.qa.make_harder;
   const notes = (f.judge_notes ? `<p class="note">${esc(f.judge_notes)}</p>` : "")
-    + (mh ? propBox(null, mh, { oldLabel: "Current", newLabel: "Proposed" }) : "");
+    + (mh ? propBox(null, mh, { what: "judge note", oldLabel: "Current", newLabel: "Proposed" }) : "");
   return `<div class="layer l-rubric">
     <div class="lhead">${B.rubric}</div>
     ${drafted ? "" : field("Headline", findingText(f, "claim"))}
@@ -650,18 +630,6 @@ document.addEventListener("click", ev => {
   if (t.matches(".tab")) { switchEval(t.dataset.ev); return; }
   if (t.matches(".filter")) { state.filter = t.dataset.f; renderTabs(); renderMain(); return; }
   if (t.matches(".segb")) { setDiffMode(t.dataset.mode); return; }
-  if (t.matches(".basesw")) {
-    const fid = t.dataset.fid, f = state.keys[state.evalId].findings.find(x => x.id === fid);
-    const card = document.getElementById("f-" + fid);
-    state.baseChoice[fid] = t.dataset.base;
-    if (card && f) {
-      card.outerHTML = findingHtml(state.evalId, f, queueIds(state.keys[state.evalId]));
-      const nc = document.getElementById("f-" + fid);
-      nc.querySelectorAll(".decide").forEach(updateDecide);
-      const nb = $(`.basesw[data-base="${t.dataset.base}"]`, nc); if (nb) nb.focus();
-    }
-    return;
-  }
   const box = t.closest(".decide");
   if (t.matches(".dbtn") && box) {
     const d = t.dataset.d, cur = (state.decisions[box.dataset.doc] || {}).decision;
