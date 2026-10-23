@@ -61,7 +61,10 @@ EVALS = {
     "transluce": {"config": "answer-key-qa-transluce", "data": PRIMARY / "data/urlquery/2026-09-26-v1",
                   "modules": ["finding-description.txt", "finding-description-transluce.txt",
                               "derivability.txt", "data-note-transluce.txt"],
-                  "full_key_in_prompt": True},
+                  "full_key_in_prompt": True,
+                  # The Transluce grader builds its rubric from answer-key.json (grading/findings.py), so QA
+                  # results go to a separate file until the review decisions are applied as a new version.
+                  "qa_key": "answer-key-qa.json"},
 }
 lock = threading.Lock()
 start_lock = threading.Lock()
@@ -69,6 +72,11 @@ start_lock = threading.Lock()
 
 def key_path(ev):
     return ROOT / "benchmarks" / ev / "answer-key.json"
+
+
+def qa_key_path(ev):
+    """Where --merge writes: the answer key itself, unless a grader reads it as-is (see EVALS)."""
+    return ROOT / "benchmarks" / ev / EVALS[ev].get("qa_key", "answer-key.json")
 
 
 def render_finding(f):
@@ -227,8 +235,8 @@ def merge(ev, out, key, model, budget):
     problems = answer_key.validate(key)
     if problems:
         raise SystemExit("\n".join(problems))
-    answer_key.dump(key, key_path(ev))
-    print(f"merged {len(merged)} findings into {key_path(ev)}: {merged}")
+    answer_key.dump(key, qa_key_path(ev))
+    print(f"merged {len(merged)} findings into {qa_key_path(ev)}: {merged}")
 
 
 def main():

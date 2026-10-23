@@ -6,7 +6,7 @@
     python3 scripts/check_answer_key_citations.py transluce [--data DIR]
 
 Sets each citation's `check` to ok, id_missing, quote_missing or no_quote (the record exists; there is
-no quote to compare) in benchmarks/<eval>/answer-key.json, and adds a review_queue entry for each
+no quote to compare) in benchmarks/<eval>/answer-key.json (answer-key-qa.json for transluce), and adds a review_queue entry for each
 finding with a failure (replacing earlier citation entries). Quotes are compared after normalising
 case, whitespace, curly quotes and JSON escapes.
 """
@@ -86,7 +86,8 @@ def main():
     ap.add_argument("eval", choices=sorted(DATA))
     ap.add_argument("--data", type=Path)
     a = ap.parse_args()
-    path = ROOT / "benchmarks" / a.eval / "answer-key.json"
+    # The Transluce grader reads answer-key.json as-is; its QA results live in answer-key-qa.json.
+    path = ROOT / "benchmarks" / a.eval / ("answer-key-qa.json" if a.eval == "transluce" else "answer-key.json")
     key = answer_key.load(path)
     cites = list(answer_key.iter_citations(key))
     wanted = {tuple(c["ref"].split(":", 1)) for _, c in cites}
