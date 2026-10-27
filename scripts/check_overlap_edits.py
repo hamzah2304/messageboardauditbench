@@ -69,6 +69,17 @@ def main():
         if named:
             print(f"WARNING {i}: judge notes name {sorted(named)} from other findings; the judge never sees "
                   "them, so describe the excluded fact in words")
+    listed = [set(e.get("items", [])) for e in ov.get("overlaps", []) + ov.get("kept_separate", [])]
+    covered = set().union(*listed) if listed else set()
+    for f in key["findings"]:
+        if not ({f["id"]} | {s["id"] for s in f["subfindings"]}) & covered:
+            print(f"WARNING {f['id']}: neither it nor its subfindings appear in overlaps or kept_separate; "
+                  "list the findings closest to it")
+        subs_f = [s["id"] for s in f["subfindings"]]
+        for i, a in enumerate(subs_f):
+            for b in subs_f[i + 1:]:
+                if not any({a, b} <= x for x in listed):
+                    print(f"WARNING {a} and {b} (same finding): in neither overlaps nor kept_separate")
     print(f"ok: {len(ov['overlaps'])} overlaps, {len(after_key['findings'])} findings, "
           f"{sum(len(f['subfindings']) for f in after_key['findings'])} subfindings after the edits")
     return 0
