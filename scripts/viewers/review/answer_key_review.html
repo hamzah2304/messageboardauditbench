@@ -334,7 +334,9 @@ function overlapHtml(id) {
     const others = (o.items || []).filter(i => i !== id);
     return `<div class="ovnote"><span class="chip c-warn">overlap ${esc(o.id)}</span>${others.length ? ` with ${esc(others.join(", "))}` : ""}${
       acts.length ? ` · this item: ${esc([...new Set(acts)].join(", "))}` : ""}. ${esc(o.reason || "")}
-      ${o.sentence ? `<details><summary>A report sentence that would earn credit for each</summary><p class="sent">“${esc(o.sentence)}”</p></details>` : ""}</div>`;
+      ${o.fact ? `<p>Credited twice: ${esc(o.fact)}</p>` : ""}
+      ${o.sentence ? `<details><summary>A report sentence that would earn credit for each</summary><p class="sent">“${esc(o.sentence)}”</p></details>` : ""}
+      ${o.after && Object.keys(o.after).length ? `<details><summary>What earns each item after the fix</summary>${Object.entries(o.after).map(([i, t]) => `<p class="sent"><b>${esc(i)}</b> “${esc(t)}”</p>`).join("")}</details>` : ""}</div>`;
   }).join("") + (inc.length ? `<div class="ovnote">This finding ${inc.join("; ")}.</div>` : "");
 }
 

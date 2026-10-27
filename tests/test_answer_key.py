@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 from slopvestigator_bench import answer_key
@@ -163,7 +164,9 @@ def test_overlap_prompt_fills_every_placeholder():
     for ev in ("german-wiki", "aivillage", "transluce"):
         key = ov.post_qa_key(ev)
         text = ov.build_prompt(ev, key)
-        assert "{{" not in text.replace("{{BUDGET_MIN}}", ""), ev
+        # Template placeholders only: QA reasons quote payloads such as "{{7*7}}".
+        assert set(re.findall(r"\{\{[A-Z_]+\}\}", text)) == {"{{BUDGET_MIN}}"}, ev
+        assert "Per-finding check:" in text, ev
         assert "## The answer key" in text and "NOTE" in text and key["findings"][0]["id"] + " —" in text
         assert "REMOVE" not in "\n".join(s["claim"] for f in key["findings"] for s in f["subfindings"])
 

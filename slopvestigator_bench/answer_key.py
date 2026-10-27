@@ -26,8 +26,9 @@ Keys QA'd before the overlap step also carry "duplicate_of" in qa; it is optiona
 After QA, one overlap check reads the whole key (scripts/run_answer_key_overlap.py) and adds
 
     "overlap": {"process": {...}, "applied": "" | <date>,
-                "overlaps": [{"id": "O1", "items": [ids], "sentence", "reason",
-                              "edits": [{"id", "action": "remove"|"rewrite"|"move"|"fold", ...}]}],
+                "overlaps": [{"id": "O1", "items": [ids], "fact", "reason",
+                              "edits": [{"id", "action": "remove"|"rewrite"|"move"|"fold", ...}],
+                              "after": {id: the shortest report sentence that earns it after the fix}}],
                 "kept_separate": [{"items": [ids], "reason"}]}
 
 A rewrite edit has "field" (claim, detail or judge_notes) and "text"; a move has "to" (a finding id);
@@ -152,11 +153,22 @@ def overlap_problems(overlap: dict, key: dict | None = None) -> list[str]:
     subs = {s["id"] for f in (key or {}).get("findings", []) for s in f.get("subfindings", [])}
     if not isinstance(overlap.get("overlaps"), list) or not isinstance(overlap.get("kept_separate", []), list):
         return ["overlap: overlaps and kept_separate must be lists"]
+    rewritten = {}
     for i, o in enumerate(overlap["overlaps"]):
         where = o.get("id") or f"overlap {i + 1}"
         if not isinstance(o.get("items"), list) or not isinstance(o.get("edits"), list):
             problems.append(f"{where}: needs items and edits lists")
             continue
+        if key is not None:
+            problems += [f"{where}: items names unknown id {x!r} (use bare ids such as N19)"
+                         for x in o["items"] if x not in findings | subs]
+        for e in o["edits"]:
+            if e.get("action") == "rewrite":
+                k = (e.get("id"), e.get("field"))
+                if k in rewritten:
+                    problems.append(f"{where}: {k[0]}.{k[1]} is also rewritten in {rewritten[k]}; "
+                                    "put every change to one field in a single rewrite")
+                rewritten.setdefault(k, where)
         for e in o["edits"]:
             act, eid = e.get("action"), e.get("id")
             if act not in OVERLAP_ACTIONS:

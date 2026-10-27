@@ -24,7 +24,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("answer_key", ROOT / "slopvestigator_bench/answer_key.py")
+# In the overlap sandbox this file sits next to a copy of answer_key.py (scripts/check_overlap_edits.py).
+_ak = ROOT / "slopvestigator_bench/answer_key.py"
+if not _ak.exists():
+    _ak = Path(__file__).with_name("answer_key.py")
+_spec = importlib.util.spec_from_file_location("answer_key", _ak)
 answer_key = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(answer_key)
 

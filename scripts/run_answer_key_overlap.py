@@ -22,6 +22,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -61,6 +62,8 @@ def render_item(x, indent=""):
         lines.append(f"{indent}  Detail: {x['detail']}")
     if x.get("judge_notes"):
         lines.append(f"{indent}  Judge notes: {x['judge_notes']}")
+    if (x.get("qa") or {}).get("reason"):
+        lines.append(f"{indent}  Per-finding check: {x['qa']['reason']}")
     return lines
 
 
@@ -102,12 +105,21 @@ def prepare(ev, out):
     key = post_qa_key(ev)
     (out / "work-files").mkdir(parents=True, exist_ok=True)
     answer_key.dump(key, out / "work-files/answer-key.json")
+    # The agent's self-check (prompt step 5) applies its edits exactly as the review step will.
+    for src in ("slopvestigator_bench/answer_key.py", "scripts/apply_answer_key_review.py",
+                "scripts/check_overlap_edits.py"):
+        shutil.copy(ROOT / src, out / "work-files" / Path(src).name)
+    # The QA config, renamed so the run folder and metadata say this is the overlap check.
+    cfg = (ROOT / "configs" / f"{qa.EVALS[ev]['config']}.toml").read_text()
+    cfg = re.sub(r'^name = ".*"$', f'name = "answer-key-overlap-{ev}"', cfg, count=1, flags=re.M)
+    cfg = re.sub(r'^prompt = ".*"$', 'prompt = "answer-key-overlap-v1"', cfg, count=1, flags=re.M)
+    (out / "config.toml").write_text(cfg)
     (out / "prompt.txt").write_text(build_prompt(ev, key))
     return key
 
 
 def launch(ev, out, model, budget):
-    env = {**os.environ, "CONFIG": str(ROOT / "configs" / f"{qa.EVALS[ev]['config']}.toml"),
+    env = {**os.environ, "CONFIG": str(out / "config.toml"),
            "DATA_DIR": str(qa.EVALS[ev]["data"]), "PROMPT_FILE_OVERRIDE": str(out / "prompt.txt"),
            "BUDGET_MIN": str(budget), "WORK_FILES_DIR": str(out / "work-files")}
     log = out / "run.log"
@@ -137,12 +149,14 @@ def merge(ev, out, model, budget):
         raise SystemExit(f"not merged, format problems: {result['format_problems']}")
     path = qa.qa_key_path(ev)
     key = answer_key.load(path)
-    overlaps = [{"id": f"O{i}", **{k: o.get(k, "") for k in ("items", "sentence", "reason")}, "edits": o["edits"]}
+    overlaps = [{"id": f"O{i}", **{k: o.get(k, "") for k in ("items", "fact", "reason")}, "edits": o["edits"],
+                 "after": o.get("after", {})}
                 for i, o in enumerate(result["overlaps"], 1)]
     key["overlap"] = {
         "process": {"prompt": "sandbox/prompts/answer-key-overlap-v1.txt", "prompt_sha256": qa.sha(TEMPLATE),
                     "modules": {m: qa.sha(qa.MODULES / m) for m in [*qa.EVALS[ev]["modules"], qa.EVALS[ev]["overlap_note"]]},
-                    "config": f"configs/{qa.EVALS[ev]['config']}.toml", "model": model, "budget_min": budget,
+                    "config": f"configs/{qa.EVALS[ev]['config']}.toml (renamed answer-key-overlap-{ev})",
+                    "model": model, "budget_min": budget,
                     "key_sha256": qa.sha(out / "work-files/answer-key.json"),
                     "run": os.path.relpath(os.path.realpath(result["run_dir"]), qa.PRIMARY),
                     "merged": datetime.date.today().isoformat()},
