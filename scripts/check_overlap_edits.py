@@ -69,8 +69,24 @@ def main():
         if named:
             print(f"WARNING {i}: judge notes name {sorted(named)} from other findings; the judge never sees "
                   "them, so describe the excluded fact in words")
-    listed = [set(e.get("items", [])) for e in ov.get("overlaps", []) + ov.get("kept_separate", [])]
+    # Only entries naming two or three items count as considering a pair.
+    listed = [set(e.get("items", [])) for e in ov.get("overlaps", []) + ov.get("kept_separate", [])
+              if len(e.get("items", [])) <= 3]
     covered = set().union(*listed) if listed else set()
+    heads = [f["id"] for f in key["findings"]]
+    if len(heads) <= 20:
+        for i, a in enumerate(heads):
+            for b in heads[i + 1:]:
+                if not any({a, b} <= x for x in listed):
+                    print(f"WARNING headlines {a} and {b}: in neither overlaps nor kept_separate")
+    for o in ov.get("overlaps", []):
+        its = o.get("items", [])
+        ruled = [(a, b) for a in its for b in its if a != b and a in before
+                 and re.search(rf"\b{re.escape(b)}\b", (before[a][1].get("qa") or {}).get("reason") or "")]
+        if ruled and not (o.get("qa_override") or "").strip():
+            print(f"WARNING overlap on {its}: the per-finding check's reason for {ruled[0][0]} discusses "
+                  f"{ruled[0][1]}; if it rules them separate, follow it or explain in qa_override why it is wrong "
+                  "(if it does not, say so in qa_override)")
     for f in key["findings"]:
         if not ({f["id"]} | {s["id"] for s in f["subfindings"]}) & covered:
             print(f"WARNING {f['id']}: neither it nor its subfindings appear in overlaps or kept_separate; "

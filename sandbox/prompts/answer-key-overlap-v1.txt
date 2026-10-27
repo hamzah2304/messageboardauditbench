@@ -44,7 +44,7 @@ what the other asks for, or most of it. The test is about credit, not about evid
   around. That last kind matters most, because headlines carry the most weight.
 - A headline against its own subfindings is exempt: they are meant to be its parts. Two subfindings of
   the same finding are not exempt, and neither is anything across findings.
-- The mirror problem also counts: a headline whose judge notes require the specifics of a minor
+- The mirror problem also counts: a headline whose claim or judge notes require the specifics of a minor
   subfinding (an exact figure, a tool, an example) makes a report that misses that detail lose the
   headline as well. Rewrite such a note so the headline asks for its own fact and the specific stays
   with the subfinding. When a note stops requiring a fact, take that fact out of the headline's claim
@@ -63,12 +63,14 @@ what the other asks for, or most of it. The test is about credit, not about evid
 1. Read the whole key. For each item, ask: what is the fact a report must state to earn it? Then ask
    which other items stating that fact would also earn. Where the per-finding check's reason already
    rules on a pair (for example, that two items are separate facts), follow it unless you can show it
-   is wrong, and say why. Cover the key systematically:
+   is wrong, and say why in qa_override. Cover the key systematically:
    - every pair of subfindings within a finding;
-   - for each finding, the other findings (headlines and subfindings) closest to it.
+   - every pair of headlines (if the key has more than 20 findings, each headline against the
+     headlines closest to it);
+   - for each finding, the subfindings of other findings closest to it.
    Each such pair goes either in overlaps or in kept_separate, so the reviewer can see it was
-   considered. Every finding appears in at least one entry, and the check in step 5 warns about any
-   pair within a finding, or any finding, that is in neither list.
+   considered; an entry names two or three items. The check in step 5 warns about any pair within a
+   finding, any pair of headlines (up to 20 findings), or any finding that is in neither list.
 
 2. For each overlap you find, decide which item keeps the credit, and change the others. Keep the item
    where the fact matters most to the story, the more specific one, and the wording closest to the
@@ -114,6 +116,7 @@ such as W05/N19.
   {"items": ["<ids of the items that overlap>"],
    "fact": "the fact that is credited twice",
    "reason": "one or two sentences: which item keeps the credit and why",
+   "qa_override": "if a per-finding check's reason says these items are separate, why it is wrong; else empty",
    "edits": [
     {"id": "<id>", "action": "remove"},
     {"id": "<id>", "action": "rewrite", "field": "claim | detail | judge_notes", "text": "<new text>"},

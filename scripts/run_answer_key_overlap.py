@@ -149,7 +149,7 @@ def merge(ev, out, model, budget):
         raise SystemExit(f"not merged, format problems: {result['format_problems']}")
     path = qa.qa_key_path(ev)
     key = answer_key.load(path)
-    overlaps = [{"id": f"O{i}", **{k: o.get(k, "") for k in ("items", "fact", "reason")}, "edits": o["edits"],
+    overlaps = [{"id": f"O{i}", **{k: o.get(k, "") for k in ("items", "fact", "reason", "qa_override")}, "edits": o["edits"],
                  "after": o.get("after", {})}
                 for i, o in enumerate(result["overlaps"], 1)]
     key["overlap"] = {
