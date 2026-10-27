@@ -5,7 +5,8 @@
 <style>
 /* Layout: a sticky toolbar and legend over one reading column of finding cards; a findings index sits to the left on wide screens.
    Every finding shows four layers in the same order, each with its own badge and border style:
-   current rubric (plain outline, serif) / QA agent (violet tint, sans) / proposed wording (dashed teal, diff) / your decision (grey fill, ink top rule). */
+   current rubric (plain outline, serif) / QA agent (violet tint, sans) / proposed wording (dashed teal, diff) / your decision (grey fill, ink top rule).
+   QA has two steps, the per-finding data check and one overlap check of the whole key (key.overlap); each item shows one proposal combining both. */
 :root {
   --bg: #f5f6f4; --surface: #ffffff; --ink: #1c2320; --muted: #5d6863; --line: #d9ddd9;
   --accent: #1f5a73; --accent-soft: #e2edf2;
@@ -118,6 +119,9 @@ main { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 
 .l-qa p { margin: 0; max-width: 80ch; font-size: 14px; }
 .l-qa .verdictline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.ovnote { font-size: 13.5px; margin: 0; max-width: 80ch; border-top: 1px dashed var(--qa-line); padding-top: 6px; }
+.ovnote .sent { font: italic 14px/1.45 var(--serif); color: var(--muted); }
+.ovlist { margin: 0; padding-left: 18px; font-size: 13.5px; display: flex; flex-direction: column; gap: 4px; }
 .subs { display: flex; flex-direction: column; gap: 14px; }
 .subsh { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 8px 0 0; border-top: 1px solid var(--line); padding-top: 12px; }
 .sub { display: flex; flex-direction: column; gap: 8px; padding-left: 12px; border-left: 1px solid var(--line); }
@@ -182,7 +186,7 @@ textarea.edit { font-family: var(--serif); font-size: 15px; }
   <div class="layout">
     <nav class="index" id="index" aria-label="Findings"></nav>
     <main id="main">
-      <p class="legend"><span><span class="badge b-rubric">Rubric</span> current key</span><span><span class="badge b-draft">Draft</span> model-drafted headline</span><span><span class="badge b-qa">QA</span> QA agent</span><span><span class="badge b-prop">Proposed</span> new wording</span><span><span class="badge b-you">You</span> your decision</span><span class="ex"><del class="d"><span class="sr">removed: </span>removed</del> <ins class="i"><span class="sr">added: </span>added</ins></span><span class="kh"><span class="kbd">j</span>/<span class="kbd">k</span> findings · <span class="kbd">Ctrl+Enter</span> save</span></p>
+      <p class="legend"><span><span class="badge b-rubric">Rubric</span> current key</span><span><span class="badge b-draft">Draft</span> model-drafted headline</span><span><span class="badge b-qa">QA</span> QA: data check and overlap check</span><span><span class="badge b-prop">Proposed</span> new wording</span><span><span class="badge b-you">You</span> your decision</span><span class="ex"><del class="d"><span class="sr">removed: </span>removed</del> <ins class="i"><span class="sr">added: </span>added</ins></span><span class="kh"><span class="kbd">j</span>/<span class="kbd">k</span> findings · <span class="kbd">Ctrl+Enter</span> save</span></p>
       <div id="content"><p class="empty">Loading the answer keys…</p></div>
     </main>
   </div>
@@ -289,6 +293,49 @@ function diffHtml(oldText, newText, opts = {}) {
 function chosenBase(f) {
   const drafted = f.fields && f.fields.headline_status === "draft";
   return { key: "claim", short: drafted ? "Draft" : "Headline", text: f.claim };
+}
+
+/* ---------- overlap step: its edits per item, merged with the per-finding QA into one proposal ---------- */
+const ovCache = new WeakMap();
+function overlapOf(key) {
+  if (!key) return new Map();
+  if (ovCache.has(key)) return ovCache.get(key);
+  const by = new Map();
+  const get = id => { if (!by.has(id)) by.set(id, { edits: [], notes: [], incoming: [] }); return by.get(id); };
+  const ov = key.overlap;
+  if (ov && !ov.applied) for (const o of ov.overlaps || []) {
+    for (const e of o.edits || []) { get(e.id).edits.push({ o, e }); if (e.to) get(e.to).incoming.push({ o, e }); }
+    for (const id of [...(o.items || []), ...(o.edits || []).map(e => e.id)]) { const x = get(id); if (!x.notes.includes(o)) x.notes.push(o); }
+  }
+  ovCache.set(key, by);
+  return by;
+}
+const ovFor = id => overlapOf(state.keys[state.evalId]).get(id) || null;
+const ovEdit = (id, action, fieldName) => ((ovFor(id) || {}).edits || []).find(x => x.e.action === action && (!fieldName || x.e.field === fieldName));
+const isRemove = pw => /^REMOVE\b/.test(pw || "");
+
+/* The proposed headline or subfinding wording after both steps: {remove, why} or {text}, or null for no change. */
+function proposal(x) {
+  const rm = ovEdit(x.id, "remove"), rw = ovEdit(x.id, "rewrite", "claim"), pw = x.qa && x.qa.proposed_wording;
+  if (rm) return { remove: true, why: `overlap ${rm.o.id}` };
+  if (rw) return { text: rw.e.text };
+  if (isRemove(pw)) return { remove: true, why: "QA" };
+  return pw ? { text: pw } : null;
+}
+
+/* What the overlap check says about an item, for its QA layer. */
+function overlapHtml(id) {
+  const x = ovFor(id);
+  if (!x) return "";
+  const acts = x.edits.map(({ o, e }) => e.action === "move" ? `moves to ${e.to}` : e.action === "fold" ? `folds into ${e.to} as a subfinding`
+    : e.action === "remove" ? "removed" : `${e.field === "claim" ? "reworded" : e.field.replace("_", " ") + " rewritten"}`);
+  const inc = x.incoming.map(({ o, e }) => e.action === "fold" ? `gains ${e.id} as a subfinding: “${esc(e.claim)}” (${o.id})` : `gains ${esc(e.id)}, moved here (${o.id})`);
+  return x.notes.map(o => {
+    const others = (o.items || []).filter(i => i !== id);
+    return `<div class="ovnote"><span class="chip c-warn">overlap ${esc(o.id)}</span>${others.length ? ` with ${esc(others.join(", "))}` : ""}${
+      acts.length ? ` · this item: ${esc([...new Set(acts)].join(", "))}` : ""}. ${esc(o.reason || "")}
+      ${o.sentence ? `<details><summary>A report sentence that would earn credit for each</summary><p class="sent">“${esc(o.sentence)}”</p></details>` : ""}</div>`;
+  }).join("") + (inc.length ? `<div class="ovnote">This finding ${inc.join("; ")}.</div>` : "");
 }
 
 /* ---------- loading ---------- */
@@ -412,18 +459,26 @@ function propBox(oldText, newText, opts = {}) {
 
 /* Headline and detail of a finding. The one the QA proposal rewrites shows as the diff instead of plain text, so each text appears once. */
 function findingText(f, which) {
-  const qa = f.qa || {}, b = qa.proposed_wording ? chosenBase(f) : null;
   const text = which === "claim" ? f.claim : f.detail;
   const cls = which === "claim" ? "claim" : "detail";
-  if (!b || b.key !== which) return `<p class="${cls}">${esc(text)}</p>`;
-  return propBox(text, qa.proposed_wording, { big: true, what: "headline", oldLabel: b.short, newLabel: "Proposed" });
+  if (which === "detail") {
+    const rw = ovEdit(f.id, "rewrite", "detail");
+    return rw ? propBox(text, rw.e.text, { what: "detail", oldLabel: "Current", newLabel: "Proposed" }) : `<p class="${cls}">${esc(text)}</p>`;
+  }
+  const b = chosenBase(f), fold = ovEdit(f.id, "fold"), p = proposal(f);
+  if (fold) return propBox(text, fold.e.claim, { big: true, what: `subfinding of ${fold.e.to}`, oldLabel: b.short, newLabel: "Proposed",
+    extra: `<span class="chip c-warn">fold into ${esc(fold.e.to)}</span>` });
+  if (!p) return `<p class="${cls}">${esc(text)}</p>`;
+  if (p.remove) return propBox(text, "", { big: true, remove: true, extra: `<span class="chip c-bad">remove (${esc(p.why)})</span>` });
+  return propBox(text, p.text, { big: true, what: "headline", oldLabel: b.short, newLabel: "Proposed" });
 }
 
 function rubricFinding(f) {
   const drafted = f.fields && f.fields.headline_status === "draft";
   const srcs = (f.fields && f.fields.sources) || [];
-  const mh = f.qa && f.qa.make_harder;
-  const notes = (f.judge_notes ? `<p class="note">${esc(f.judge_notes)}</p>` : "")
+  const mh = f.qa && f.qa.make_harder, rwj = ovEdit(f.id, "rewrite", "judge_notes");
+  const notes = rwj ? propBox(f.judge_notes, rwj.e.text, { what: "judge note", oldLabel: "Current", newLabel: "Proposed" })
+    : (f.judge_notes ? `<p class="note">${esc(f.judge_notes)}</p>` : "")
     + (mh ? propBox(null, mh, { what: "judge note", oldLabel: "Current", newLabel: "Proposed" }) : "");
   return `<div class="layer l-rubric">
     <div class="lhead">${B.rubric}</div>
@@ -446,13 +501,15 @@ function queueInfo(f, q) {
 
 function qaFinding(f) {
   const qa = f.qa;
-  if (!qa) return f.evidence && f.evidence.length ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(f.evidence)}</div>` : "";
+  const ov = overlapHtml(f.id);
+  if (!qa) return (f.evidence && f.evidence.length) || ov ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(f.evidence)}${ov}</div>` : "";
   return `<div class="layer l-qa">
     <div class="lhead">${B.qa}<span class="verdictline"><span class="chip ${OUTCOME_CLASS[qa.outcome] || "c-none"}">${esc(qa.outcome)}</span>
       ${sigChip(f.significance)}${qa.duplicate_of ? `<span class="chip c-warn">duplicate of ${esc(qa.duplicate_of)}</span>` : ""}</span></div>
     ${qa.reason ? `<p>${esc(qa.reason)}</p>` : ""}
     ${evidenceHtml(f.evidence)}
     ${qa.how_to_find ? `<details><summary>How to find</summary><p>${esc(qa.how_to_find)}</p></details>` : ""}
+    ${ov}
   </div>`;
 }
 
@@ -460,27 +517,32 @@ function subHtml(s, it) {
   const qa = s.qa || null;
   const fl = s.fields || {};
   const quote = fl.report_quote || (Array.isArray(fl.quotes) && fl.quotes[0]) || "";
-  const pw = qa && qa.proposed_wording;
-  const claim = !pw ? `<p class="sclaim">${esc(s.claim)}</p>`
-    : pw === "REMOVE" ? propBox(s.claim, "", { remove: true, extra: `<span class="chip c-bad">remove</span>` })
-    : propBox(s.claim, pw, { oldLabel: "Current", newLabel: "Proposed" });
+  const p = proposal(s), mv = ovEdit(s.id, "move"), rwj = ovEdit(s.id, "rewrite", "judge_notes");
+  const claim = (!p ? `<p class="sclaim">${esc(s.claim)}</p>`
+    : p.remove ? propBox(s.claim, "", { remove: true, extra: `<span class="chip c-bad">remove (${esc(p.why)})</span>` })
+    : propBox(s.claim, p.text, { oldLabel: "Current", newLabel: "Proposed" }))
+    + (mv ? `<p class="note"><span class="chip c-warn">moves to ${esc(mv.e.to)}</span></p>` : "");
+  const jn = rwj ? propBox(s.judge_notes, rwj.e.text, { what: "judge note", oldLabel: "Current", newLabel: "Proposed" })
+    : s.judge_notes ? `<p class="note"><b>Judge notes:</b> ${esc(s.judge_notes)}</p>` : "";
+  const ov = overlapHtml(s.id);
   const rubric = `<div class="layer l-rubric">
     <div class="lhead">${B.rubric}</div>
     ${claim}
     ${quote ? `<p class="quote">“${esc(quote)}”</p>` : ""}
-    ${s.judge_notes ? `<p class="note"><b>Judge notes:</b> ${esc(s.judge_notes)}</p>` : ""}
+    ${jn}
   </div>`;
-  const qaL = !qa ? (s.evidence && s.evidence.length ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(s.evidence)}</div>` : "")
+  const qaL = !qa ? ((s.evidence && s.evidence.length) || ov ? `<div class="layer l-qa"><div class="lhead">${B.qa}</div>${evidenceHtml(s.evidence)}${ov}</div>` : "")
     : `<div class="layer l-qa">
     <div class="lhead">${B.qa}<span class="verdictline">${qa.verdict ? `<span class="chip ${VERDICT_CLASS[qa.verdict] || "c-none"}">${esc(qa.verdict)}</span>` : ""}
       ${qa.overstated === "yes" ? `<span class="chip c-warn">overstated</span>` : ""}
       ${sigChip(s.significance)}${qa.duplicate_of ? `<span class="chip c-warn">duplicate of ${esc(qa.duplicate_of)}</span>` : ""}</span></div>
     ${qa.reason ? `<p>${esc(qa.reason)}</p>` : ""}
     ${evidenceHtml(s.evidence)}
+    ${ov}
   </div>`;
   return `<section class="sub" aria-label="Subfinding ${esc(s.id)}">
     <div class="fhead"><span class="fid">${esc(s.id)}</span></div>
-    ${rubric}${qaL}${decideHtml(it, ["Accept QA", "Edit", "Reject QA"])}
+    ${rubric}${qaL}${decideHtml(it, ["Accept", "Edit", "Reject"])}
   </section>`;
 }
 
@@ -497,7 +559,7 @@ function findingHtml(ev, f, q) {
       ${decideHtml(head, ["Approve", "Edit", "Reject"])}</div>` : ""}
     ${rubricFinding(f)}
     ${qaFinding(f)}
-    ${decideHtml(items.find(i => i.kind === "finding"), ["Accept QA", "Edit", "Reject QA"])}
+    ${decideHtml(items.find(i => i.kind === "finding"), ["Accept", "Edit", "Reject"])}
     ${(f.subfindings || []).length ? `<div class="subsh">Subfindings</div>` : ""}
     <div class="subs">${(f.subfindings || []).map(s => subHtml(s, items.find(i => i.item === s.id))).join("")}</div>
   </article>`;
@@ -509,7 +571,7 @@ function renderMain() {
   if (!key) { main.innerHTML = `<p class="empty">${state.loadErrors[ev] ? "This answer key could not be loaded." : "Loading…"}</p>`; $("#index").innerHTML = ""; return; }
   const q = queueIds(key);
   const fs = visibleFindings();
-  const intro = "";
+  const intro = overlapSummary(key);
   main.innerHTML = `<div style="display:flex;flex-direction:column;gap:18px">` + intro + (fs.length ? fs.map(f => findingHtml(ev, f, q)).join("") : `<p class="empty">Nothing matches this filter.</p>`)
     + `<section class="card" aria-label="Whole-key comment">
         ${decideHtml({ doc: docId(ev, "_page"), item: "_page", kind: "page" }, ["", "", ""], { placeholder: "Comment on the whole " + EVALS.find(e => e.id === ev).name + " key" }).replace(/<button type="button" class="dbtn"[^>]*>[^<]*<\/button>/g, "")}</section>
@@ -519,6 +581,21 @@ function renderMain() {
   $("#index").innerHTML = fs.map(f => `<a href="#f-${esc(f.id)}" data-fid="${esc(f.id)}"><span class="dot"></span><span>${esc(f.id)} ${esc((f.fields && f.fields.section) || "")}</span></a>`).join("");
   document.querySelectorAll(".decide").forEach(updateDecide);
   updateProgress();
+}
+
+/* One card for the overlap check: what it changed and the close pairs it kept apart. */
+function overlapSummary(key) {
+  const ov = key.overlap;
+  if (!ov) return "";
+  const os = ov.overlaps || [], ks = ov.kept_separate || [];
+  const link = id => `<a href="#f-${esc(String(id).split(".")[0])}">${esc(id)}</a>`;
+  return `<section class="card" aria-label="Overlap check">
+    <div class="fhead"><span class="fid">Overlap check</span><span class="chip c-warn">${os.length} overlap${os.length === 1 ? "" : "s"}</span>
+      <span class="chip c-none">${ks.length} kept separate</span>${ov.applied ? `<span class="chip c-ok">applied ${esc(ov.applied)}</span>` : ""}</div>
+    <p class="note">The second QA step read the whole key and removed double credit. Each change is part of the proposal on the items it touches.</p>
+    ${os.length ? `<ul class="ovlist">${os.map(o => `<li><b>${esc(o.id)}</b> ${(o.items || []).map(link).join(", ")}: ${esc(o.reason || "")}</li>`).join("")}</ul>` : ""}
+    ${ks.length ? `<details><summary>Close pairs kept separate (${ks.length})</summary><ul class="ovlist">${ks.map(k => `<li>${(k.items || []).map(link).join(", ")}: ${esc(k.reason || "")}</li>`).join("")}</ul></details>` : ""}
+  </section>`;
 }
 
 /* Show the reviewer's own wording as changes against the current rubric text. */
@@ -558,7 +635,9 @@ function updateDecide(box) {
 /* Fingerprint of what the reviewer saw; stored as shown.text. Unchanged from the first version so saved decisions do not turn stale. */
 function currentText(box) {
   const it = findItem(box.dataset.item);
-  return it ? it.text + " ‖ " + JSON.stringify(it.qa || null) : null;
+  if (!it) return null;
+  const ov = it.item === "_page" ? null : ovFor(it.item);
+  return it.text + " ‖ " + JSON.stringify(it.qa || null) + (ov && ov.edits.length ? " ‖ " + JSON.stringify(ov.edits.map(x => x.e)) : "");
 }
 function findItem(item) {
   const key = state.keys[state.evalId];
@@ -640,7 +719,8 @@ document.addEventListener("click", ev => {
     if (next === "edit") {
       const edit = $("textarea.edit", box);
       const it = findItem(box.dataset.item);
-      if (!edit.value) edit.value = (it && it.qa && it.qa.proposed_wording && it.qa.proposed_wording !== "REMOVE") ? it.qa.proposed_wording : (it ? it.text : "");
+      const p = it && it.kind !== "headline" && it.item !== "_page" ? proposal({ id: it.item, qa: it.qa }) : null;
+      if (!edit.value) edit.value = p && !p.remove ? p.text : (it ? it.text : "");
       setDraft(box, { decision: "edit", text: edit.value });
       updateDecide(box); edit.hidden = false; updateEditDiff(box); edit.focus();
       return;

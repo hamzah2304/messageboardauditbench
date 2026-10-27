@@ -114,6 +114,13 @@ if [ -n "$RESUME_FROM" ]; then
   (cd "$RESUME_FROM/work" && tar cf - --exclude=./data --exclude=./.mbab-runtime-policy.json --exclude=./final_message.md .) | (cd "$RUN/work" && tar xf -)
   echo "resuming codex thread $PARENT_THREAD_ID from $RESUME_FROM"
 fi
+# WORK_FILES_DIR (driver scripts only, e.g. the answer-key overlap check): files copied into /work
+# before the agent starts. The canary below lists them with the rest of /work.
+if [ -n "${WORK_FILES_DIR:-}" ]; then
+  [ -z "$RESUME_FROM" ] || { echo "WORK_FILES_DIR cannot be combined with RESUME_FROM" >&2; exit 2; }
+  [ -d "$WORK_FILES_DIR" ] || { echo "no directory at WORK_FILES_DIR=$WORK_FILES_DIR" >&2; exit 2; }
+  cp -R "$WORK_FILES_DIR/." "$RUN/work/"
+fi
 # Reproducibility record for every future subscription run. Keep exact inputs
 # and the runnable checkout, rather than relying on a mutable branch name.
 cp "$CONFIG" "$RUN/config.source.toml"
