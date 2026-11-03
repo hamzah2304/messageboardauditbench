@@ -16,8 +16,8 @@ def test_replicates_are_spread_over_the_batch():
 
 
 def test_any_existing_run_counts_as_done(tmp_path):
-    model = lineup.model("moonshotai/kimi-k3")
-    run = tmp_path / "20261021T000000Z_react_moonshotai_kimi-k3_r2_wiki-std-30_abc"
+    model = lineup.model("moonshotai/kimi-k3.1-pro")
+    run = tmp_path / "20261021T000000Z_react_moonshotai_kimi-k3.1-pro_r2_wiki-std-30_abc"
     run.mkdir()
     assert run_matrix.existing(tmp_path, model, "wiki-std-30", 2) == []  # no meta.json yet: still running or died
     (run / "meta.json").write_text('{"launch_status": "preparing"}')      # died before reaching the model
