@@ -239,10 +239,10 @@ def findings_from_answer_key(key: dict) -> list[dict]:
     return out
 
 
-def grading_groups(goals: list[dict], answer_key: bool = False) -> tuple[list[dict], list[dict]]:
-    """The approved findings and their judge groups. By default from the v1.0 rubric
-    (findings/final-findings.json); with `answer_key`, from the re-QA'd answer key, which is
-    still under review (off by default until Oscar's review is in)."""
+def grading_groups(goals: list[dict], answer_key: bool = True) -> tuple[list[dict], list[dict]]:
+    """The approved findings and their judge groups. By default from the reviewed answer key
+    (answer-key.json: re-QA'd, overlap-checked); without `answer_key`, from the v1.0 rubric
+    (findings/final-findings.json) that the published grades used."""
     if answer_key:
         raw = findings_from_answer_key(json.loads((repo_root() / ANSWER_KEY).read_text()))
     else:
@@ -280,7 +280,7 @@ async def _grade_group(model: Model, rules: str, report_id: str, group: dict, re
 
 @scorer(metrics={"score": [mean(), stderr()], "coverage": [mean()]})
 def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str | None = None,
-                     answer_key: bool = False) -> Scorer:
+                     answer_key: bool = True) -> Scorer:
     """Grade an AI Village report against the 96 rubric findings.
 
     Args:
@@ -289,8 +289,8 @@ def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None,
       goals: the data's ``village_goals.jsonl``, which sets the goal-period groups. Defaults to the
         file in the sample's data variant.
       effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
-      answer_key: grade against the re-QA'd answer key (answer-key.json) instead of the v1.0
-        rubric; off by default while the key is under review.
+      answer_key: grade against the reviewed answer key (answer-key.json), the default; False
+        grades against the v1.0 rubric (findings/final-findings.json) the published grades used.
     """
     from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import primary_root
@@ -311,7 +311,8 @@ def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None,
         results = await asyncio.gather(*(_grade_group(model, rules, report_id, g, report, effort) for g in groups))
         failed = [r for r in results if r["status"] != "ok"]
         scores = {f["finding_id"]: f for r in results if r["status"] == "ok" for f in r["findings"]}
-        grade = {"judge": str(model), "effort": effort, "report_sha256": digest(report), "findings": scores, "failed_groups": failed}
+        grade = {"judge": str(model), "effort": effort, "rubric": "answer-key" if answer_key else "final-findings-v1.0",
+                 "report_sha256": digest(report), "findings": scores, "failed_groups": failed}
         if failed:
             return Score.unscored(
                 reason=f"{sum(len(r['finding_ids']) for r in failed)} of {len(findings)} findings unscored",

@@ -21,6 +21,7 @@ from inspect_ai.solver import Generate, TaskState, solver
 
 from slopvestigator_bench.benchmarks import reject_foreign_grading
 from slopvestigator_bench.grading import core
+from slopvestigator_bench.grading.german_wiki_key import german_wiki_key_scorer
 from slopvestigator_bench.grading.scorer import sheet_scorer
 from slopvestigator_bench.runtime import repo_root
 
@@ -83,7 +84,7 @@ def report_from_sample():
 
 def _german_wiki_report_grade(
     dir: str = "round4_blind120",  # noqa: A002 — the Inspect task parameter is named `dir`
-    rubric: str = "v2",
+    rubric: str = "answer-key",
     judge: str | None = None,
     variant: str | None = None,
     runs: str | None = None,
@@ -97,8 +98,8 @@ def _german_wiki_report_grade(
         (e.g. ``*_wiki-std-30_*``); each run's own data variant picks its rubric variant.
       judge_effort: one reasoning effort for every sheet; unset, the standard judge's effort for
         the standard judge, else xhigh then high then medium.
-      rubric: a key of `core.MODES`, such as "v2", "tldrh", "m5",
-        "m5tldrh", "rh", or "rhtldrh".
+      rubric: "answer-key" (benchmarks/german-wiki/answer-key.json, grading.german_wiki_key), or a
+        key of `core.MODES`, such as "v2", "tldrh", "m5", "m5tldrh", "rh", or "rhtldrh".
       variant: explicit rubric variant for reports without an index; indexed
         reports otherwise select their variant from data_variant per sample.
       judge: Inspect model used to grade; defaults to the standard judge (configs/standard.toml).
@@ -147,7 +148,8 @@ def _german_wiki_grade_task(samples, rubric, judge, variant, effort, source: dic
     return Task(
         dataset=samples,
         solver=report_from_sample(),
-        scorer=sheet_scorer(rubric=rubric, judge=judge, variant=variant, effort=effort),
+        scorer=(german_wiki_key_scorer(judge=judge, effort=effort, variant=variant) if rubric == "answer-key"
+                else sheet_scorer(rubric=rubric, judge=judge, variant=variant, effort=effort)),
         model="mockllm/model",
         metadata={
             "benchmark": "German wiki report",
@@ -246,7 +248,7 @@ def aivillage_report_grade(
     judge: str | None = None,
     data_variant: str = "aivillage/full-v2-reasoning",
     judge_effort: str | None = None,
-    answer_key: bool = False,
+    answer_key: bool = True,
 ) -> Task:
     """Grade finished AI Village reports against the 96 rubric findings.
 
@@ -262,8 +264,8 @@ def aivillage_report_grade(
         directories record their own. It sets the goal periods and whether the judge is
         told the investigator saw reasoning traces.
       judge_effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
-      answer_key: grade against the re-QA'd answer key (benchmarks/aivillage/answer-key.json) instead
-        of the v1.0 rubric; off by default while the key is under review.
+      answer_key: grade against the reviewed answer key (benchmarks/aivillage/answer-key.json), the
+        default; False grades against the v1.0 rubric the published grades used.
     """
     from slopvestigator_bench import standard
     from slopvestigator_bench.benchmarks import SPECS

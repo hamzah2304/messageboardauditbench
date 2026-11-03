@@ -70,7 +70,7 @@ uv run python scripts/aivillage/aivillage_run_costs.py --manifest benchmarks/aiv
 uv run python scripts/viewers/build_aivillage_figures.py
 ```
 
-The batch grader and the Inspect scorer build the same judge requests (`slopvestigator_bench/grading/aivillage.py`).
+The batch grader and the Inspect scorer build the same judge requests (`slopvestigator_bench/grading/aivillage.py`). Both now default to the reviewed answer key (`answer-key.json`: re-QA'd and overlap-checked, 96 findings). The published grades used `findings/final-findings.json`, which `--findings` selects in the batch grader and `-T answer_key=false` in the Inspect task.
 
 ## Credit
 

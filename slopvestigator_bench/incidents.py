@@ -161,7 +161,13 @@ def data_variants() -> frozenset[str]:
 
 
 def default_rubrics(data_variant: str) -> str:
-    return ",".join(incident_for_variant(data_variant).rubrics)
+    """The rubrics a live trial is scored with. An incident whose answer key covers the data
+    variant (grading.answer_key_variants) is scored on the key in place of its finding mode."""
+    item = incident_for_variant(data_variant)
+    finding, summary = item.rubrics
+    if data_variant in item.grading.get("answer_key_variants", ()):
+        finding = "answer-key"
+    return f"{finding},{summary}"
 
 
 def registered_mode_specs() -> dict[str, dict[str, Any]]:
