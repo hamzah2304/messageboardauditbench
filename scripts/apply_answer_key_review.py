@@ -3,9 +3,11 @@
 
     python3 scripts/apply_answer_key_review.py german-wiki [--check]
     python3 scripts/apply_answer_key_review.py german-wiki --overlap-only   # key reviewed before the overlap step
+    python3 scripts/apply_answer_key_review.py transluce --source answer-key-qa.json   # QA'd key kept apart
 
 The decisions file holds the default for every item ("accept_qa"), the items rewritten by hand
-("overrides": id -> fields to set) and exact edits to finding details ("detail_edits": id -> [[old, new], ...]).
+("overrides": id -> fields to set) and exact edits to finding details ("detail_edits": id -> [[old, new], ...]), and optionally significance levels
+to set ("significance": id -> major/minor).
 Accepting QA means: a narrowed proposal replaces the headline or subfinding claim, a REMOVE moves the
 subfinding to `excluded`, make_harder is appended to the judge notes, and a drafted headline is marked
 approved. The key records the decisions file in `review`; a key that already has one is not applied twice.
@@ -78,6 +80,9 @@ def apply(key: dict, review: dict, review_path: str, overlap: bool = True) -> di
         f["subfindings"] = subs
         findings.append(f)
     key["findings"], key["excluded"] = findings, excluded
+    levels = review.get("significance", {})  # id -> level, for keys graded by their own weights (Transluce)
+    for x in [x for f in findings for x in [f, *f["subfindings"]] if x["id"] in levels]:
+        x["significance"] = levels[x["id"]]
     if overlap and key.get("overlap"):
         protected = {(i, k) for i, o in overrides.items() for k in o if k != "why"}
         protected |= {(i, "detail") for i in edits if not i.startswith("_")}
@@ -164,13 +169,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("eval")
     ap.add_argument("--check", action="store_true", help="validate and print a summary without writing")
+    ap.add_argument("--source", default="answer-key.json",
+                    help="the QA'd key in benchmarks/<eval>/ to apply the decisions to (written to answer-key.json)")
     ap.add_argument("--overlap-only", action="store_true",
                     help="apply only the overlap edits, to a key whose QA review is already applied")
     a = ap.parse_args()
     key_path = ROOT / "benchmarks" / a.eval / "answer-key.json"
     review_rel = f"benchmarks/{a.eval}/answer-key-review.json"
     review = json.loads((ROOT / review_rel).read_text())
-    key = answer_key.load(key_path)
+    key = answer_key.load(key_path.with_name(a.source))
     if a.overlap_only:
         if not key.get("review") or not key.get("overlap"):
             sys.exit("--overlap-only needs a key with its review applied and an overlap result")

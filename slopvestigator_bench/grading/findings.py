@@ -61,7 +61,7 @@ def template_path() -> Path:
 
 
 def findings_path() -> Path:
-    """The reviewed findings file (the v1.0 rubric); the answer key is converted from it."""
+    """The reviewed findings file (the v1.0 rubric); the v1.0 answer key is converted from it."""
     return evaluator_root() / _grading()["findings"]
 
 
@@ -70,9 +70,9 @@ def answer_key_path() -> Path:
 
 
 def findings_document() -> dict:
-    """The reviewed findings, read from the answer key (benchmarks/transluce/answer-key.json,
-    answer-key-v1) and rebuilt in the findings_reviewed.json structure the prompt is rendered from.
-    The rebuild is byte-identical to the reviewed file (tests/test_answer_key_transluce.py)."""
+    """The findings, read from the answer key (benchmarks/transluce/answer-key.json, answer-key-v1,
+    rubric v1.1) and rebuilt in the findings_reviewed.json structure the prompt is rendered from.
+    The v1.0 key rebuilds the reviewed file byte for byte (tests/test_answer_key_transluce.py)."""
     from slopvestigator_bench import answer_key
     from slopvestigator_bench.answer_key_transluce import to_transluce
 

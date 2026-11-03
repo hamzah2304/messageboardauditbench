@@ -53,9 +53,17 @@ reproducible. They are not Inspect conditions.
 
 ## Grade
 
-The canonical rubric is `claims/findings_reviewed.json`: 13 headline findings and 51
-sub-findings. F1–F12 incorporate the data and fairness audits. F13 is the separately
-sourced header-injection finding, recorded in `claims/header_injection.json`.
+The grader reads rubric v1.1, `answer-key.json`: 13 headline findings and 47
+sub-findings. It is v1.0 after the per-finding QA and the overlap check
+(`answer-key-qa.json`), with the review decisions in `answer-key-review.json` applied by
+`scripts/apply_answer_key_review.py transluce --source answer-key-qa.json`. Grades
+made under v1.0 carry a different findings hash and `rubric_version`, so they are not
+mixed with v1.1 grades.
+
+Rubric v1.0 is `claims/findings_reviewed.json` (13 headline findings, 51 sub-findings),
+kept in answer-key form in `superseded/answer-key-v1.0.json`. F1–F12 incorporate the data
+and fairness audits. F13 is the separately sourced header-injection finding, recorded in
+`claims/header_injection.json`.
 
 The judge prompt is `judge/finding_sheet_reviewed.md`. The judge scores one headline
 finding and its sub-findings per call. The headline gets a score from 0 to 1 in tenths,

@@ -1,17 +1,22 @@
 """The Transluce answer key in answer-key-v1 (slopvestigator_bench/answer_key.py) and back.
 
-benchmarks/transluce/answer-key.json is converted from the reviewed findings file
+The v1.0 key (benchmarks/transluce/superseded/answer-key-v1.0.json) is converted from the reviewed findings file
 benchmarks/transluce/claims/findings_reviewed.json (the transluce-report-v1.0 rubric): headlines
 become findings and their children subfindings, scans become `scan:<id>` citations, headline F3
 (weight 0.5 in v1.0) and the "low-weight" children are minor. The grader reads the key and
-rebuilds the reviewed file with `to_transluce`, byte for byte (tests check it), so the judge sees
-the same prompts and earlier grades still match their findings hash.
+rebuilds the reviewed file with `to_transluce`, byte for byte (tests check it), so earlier grades
+still match their findings hash.
+
+The grader now reads benchmarks/transluce/answer-key.json, rubric v1.1: the v1.0 key after the
+per-finding QA and the overlap check (answer-key-qa.json), with the review decisions in
+answer-key-review.json applied by scripts/apply_answer_key_review.py.
 """
 from __future__ import annotations
 
 from slopvestigator_bench import answer_key
 
 SOURCE = "benchmarks/transluce/claims/findings_reviewed.json"
+V1_0_KEY = "benchmarks/transluce/superseded/answer-key-v1.0.json"
 # The two key orders the reviewed file uses (findings added from a model report differ).
 _ORDER = ("id", "parent", "text", "kind", "derivable", "tags", "episode", "note", "judge_notes",
           "scan_note", "evidence_scans", "quotes", "revised_from")
