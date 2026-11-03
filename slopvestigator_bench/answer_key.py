@@ -10,7 +10,7 @@ A finding:
     {"id", "claim", "detail", "significance": "major"|"minor"|None, "judge_notes",
      "evidence": [{"text", "citations": [{"ref", "quote", "check"}]}],
      "fields": {...eval-specific...},
-     "qa": {"outcome": "keep"|"narrow"|"drop", "reason", "duplicate_of", "proposed_wording",
+     "qa": {"outcome": "keep"|"narrow"|"drop", "reason", "proposed_wording",
             "make_harder", "how_to_find", "run"} | None,
      "subfindings": [<subfinding>, ...]}
 
@@ -18,9 +18,21 @@ A subfinding:
 
     {"id", "claim", "significance", "judge_notes", "evidence", "fields",
      "qa": {"verdict": "supported"|"partly"|"contradicted"|"not found"|"outside the data",
-            "overstated": "yes"|"no"|None, "duplicate_of", "reason", "proposed_wording"} | None}
+            "overstated": "yes"|"no"|None, "reason", "proposed_wording"} | None}
 
 `significance` and `qa` are None until QA has run. Ids are stable across QA, review and grading.
+Keys QA'd before the overlap step also carry "duplicate_of" in qa; it is optional.
+
+After QA, one overlap check reads the whole key (scripts/run_answer_key_overlap.py) and adds
+
+    "overlap": {"process": {...}, "applied": "" | <date>,
+                "overlaps": [{"id": "O1", "items": [ids], "fact", "reason",
+                              "edits": [{"id", "action": "remove"|"rewrite"|"move"|"fold", ...}],
+                              "after": {id: the shortest report sentence that earns it after the fix}}],
+                "kept_separate": [{"items": [ids], "reason"}]}
+
+A rewrite edit has "field" (claim, detail or judge_notes) and "text"; a move has "to" (a finding id);
+a fold has "to", "claim" and "judge_notes". scripts/apply_answer_key_review.py applies the edits.
 `excluded` lists what was decided out before this file (id, kind, claim, reason); `review_queue`
 lists items that need a person's look beyond the normal review (id, why).
 
@@ -41,6 +53,7 @@ OVERSTATED = ("yes", "no")
 CITATION_KINDS = {
     "german-wiki": ("rev", "event", "page", "label"),
     "aivillage": ("chat", "turn", "session", "event", "memory", "claude_code", "transcript"),
+    "transluce": ("scan", "content"),
 }
 _BRACKET = re.compile(r"\[([^\[\]]*)\]")
 
@@ -103,7 +116,7 @@ def validate(key: dict) -> list[str]:
             if qa.get("outcome") not in OUTCOMES:
                 problems.append(f"{fid}: outcome {qa.get('outcome')!r}")
             for k in ("reason", "duplicate_of", "proposed_wording", "make_harder", "how_to_find"):
-                if not isinstance(qa.get(k, None), str):
+                if not isinstance(qa.get(k, ""), str):
                     problems.append(f"{fid}: qa.{k} must be a string")
         for s in f.get("subfindings", []):
             sid = s.get("id")
@@ -125,6 +138,58 @@ def validate(key: dict) -> list[str]:
     for x in key.get("excluded", []):
         if not x.get("id") or not x.get("reason"):
             problems.append(f"excluded entry needs id and reason: {x}")
+    if key.get("overlap") is not None:
+        problems += overlap_problems(key["overlap"], key if not key["overlap"].get("applied") else None)
+    return problems
+
+
+OVERLAP_ACTIONS = ("remove", "rewrite", "move", "fold")
+
+
+def overlap_problems(overlap: dict, key: dict | None = None) -> list[str]:
+    """Why an overlap check's output is unusable; with `key`, also edits that name ids it lacks."""
+    problems = []
+    findings = {f["id"] for f in (key or {}).get("findings", [])}
+    subs = {s["id"] for f in (key or {}).get("findings", []) for s in f.get("subfindings", [])}
+    if not isinstance(overlap.get("overlaps"), list) or not isinstance(overlap.get("kept_separate", []), list):
+        return ["overlap: overlaps and kept_separate must be lists"]
+    rewritten = {}
+    for i, o in enumerate(overlap["overlaps"]):
+        where = o.get("id") or f"overlap {i + 1}"
+        if not isinstance(o.get("items"), list) or not isinstance(o.get("edits"), list):
+            problems.append(f"{where}: needs items and edits lists")
+            continue
+        if key is not None:
+            problems += [f"{where}: items names unknown id {x!r} (use bare ids such as N19)"
+                         for x in o["items"] if x not in findings | subs]
+        for e in o["edits"]:
+            if e.get("action") == "rewrite":
+                k = (e.get("id"), e.get("field"))
+                if k in rewritten:
+                    problems.append(f"{where}: {k[0]}.{k[1]} is also rewritten in {rewritten[k]}; "
+                                    "put every change to one field in a single rewrite")
+                rewritten.setdefault(k, where)
+        for e in o["edits"]:
+            act, eid = e.get("action"), e.get("id")
+            if act not in OVERLAP_ACTIONS:
+                problems.append(f"{where}: unknown action {act!r}")
+            elif act == "rewrite" and (e.get("field") not in ("claim", "detail", "judge_notes")
+                                       or not isinstance(e.get("text"), str)):
+                problems.append(f"{where}: rewrite of {eid} needs field claim/detail/judge_notes and text")
+            elif act in ("move", "fold") and not e.get("to"):
+                problems.append(f"{where}: {act} of {eid} needs to")
+            elif act == "fold" and not e.get("claim"):
+                problems.append(f"{where}: fold of {eid} needs claim")
+            if key is None:
+                continue
+            if eid not in findings | subs:
+                problems.append(f"{where}: unknown id {eid!r}")
+            elif act == "move" and (eid not in subs or e.get("to") not in findings):
+                problems.append(f"{where}: move needs a subfinding and a finding, got {eid} -> {e.get('to')}")
+            elif act == "fold" and (eid not in findings or e.get("to") not in findings or e.get("to") == eid):
+                problems.append(f"{where}: fold needs two findings, got {eid} -> {e.get('to')}")
+            elif act == "rewrite" and e.get("field") == "detail" and eid in subs:
+                problems.append(f"{where}: {eid} is a subfinding and has no detail")
     return problems
 
 
@@ -171,7 +236,6 @@ def apply_qa(finding: dict, result: dict, kinds, run: str = "") -> dict:
     f["qa"] = {
         "outcome": str(result.get("outcome", "")).lower(),
         "reason": result.get("reason", "") or "",
-        "duplicate_of": result.get("duplicate_of", "") or "",
         "proposed_wording": result.get("proposed_claim", "") or "",
         "make_harder": result.get("make_harder", "") or "",
         "how_to_find": result.get("how_to_find", "") or "",
@@ -187,7 +251,6 @@ def apply_qa(finding: dict, result: dict, kinds, run: str = "") -> dict:
         s["qa"] = {
             "verdict": _norm_verdict(r.get("verdict")),
             "overstated": _yes_no(r.get("overstated")),
-            "duplicate_of": r.get("duplicate_of", "") or "",
             "reason": r.get("reason", "") or "",
             "proposed_wording": r.get("proposed_claim", "") or "",
         }

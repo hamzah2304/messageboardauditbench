@@ -3,6 +3,7 @@
 
     python3 scripts/run_answer_key_qa.py german-wiki OUT_DIR [--only W02 W11] [--workers 4]
     python3 scripts/run_answer_key_qa.py aivillage OUT_DIR --group M029 M053 --focus "..."
+    python3 scripts/run_answer_key_qa.py transluce OUT_DIR --budget 30
     python3 scripts/run_answer_key_qa.py german-wiki OUT_DIR --status
     python3 scripts/run_answer_key_qa.py german-wiki OUT_DIR --merge     # write results into the answer key
 
@@ -13,7 +14,8 @@ config (configs/answer-key-qa-<eval>.toml): the same isolated container and read
 investigators get, Claude Code on the subscription. The agent writes /work/qa/<id>.json; this saves it
 as OUT_DIR/results/<id>.json with its run folder and any format problems. A finding with a saved result
 is skipped, so rerunning resumes. --merge folds the results into benchmarks/<eval>/answer-key.json
-(answer-key-v1) and records the prompt, modules and model under qa_process.
+(answer-key-v1) and records the prompt, modules and model under qa_process. Overlap between findings is
+the next step, scripts/run_answer_key_overlap.py, which reads the whole key at once.
 """
 import argparse
 import importlib.util
@@ -52,11 +54,18 @@ EVALS = {
     "german-wiki": {"config": "answer-key-qa-german-wiki", "data": PRIMARY / "data/verbatim",
                     "modules": ["finding-description.txt", "finding-description-german-wiki.txt",
                                 "derivability.txt", "data-note-german-wiki.txt"],
-                    "full_key_in_prompt": True},
+                    "overlap_note": "overlap-note-german-wiki.txt"},
     "aivillage": {"config": "answer-key-qa-aivillage", "data": PRIMARY / "data/aivillage/full-v2-reasoning",
                   "modules": ["finding-description.txt", "finding-description-aivillage.txt",
                               "derivability.txt", "data-note-aivillage.txt"],
-                  "full_key_in_prompt": False},
+                  "overlap_note": "overlap-note-aivillage.txt"},
+    "transluce": {"config": "answer-key-qa-transluce", "data": PRIMARY / "data/urlquery/2026-09-26-v1",
+                  "modules": ["finding-description.txt", "finding-description-transluce.txt",
+                              "derivability.txt", "data-note-transluce.txt"],
+                  "overlap_note": "overlap-note-transluce.txt",
+                  # The Transluce grader builds its rubric from answer-key.json (grading/findings.py), so QA
+                  # results go to a separate file until the review decisions are applied as a new version.
+                  "qa_key": "answer-key-qa.json"},
 }
 lock = threading.Lock()
 start_lock = threading.Lock()
@@ -64,6 +73,11 @@ start_lock = threading.Lock()
 
 def key_path(ev):
     return ROOT / "benchmarks" / ev / "answer-key.json"
+
+
+def qa_key_path(ev):
+    """Where --merge writes: the answer key itself, unless a grader reads it as-is (see EVALS)."""
+    return ROOT / "benchmarks" / ev / EVALS[ev].get("qa_key", "answer-key.json")
 
 
 def render_finding(f):
@@ -84,20 +98,16 @@ def render_finding(f):
         if quote:
             lines.append(f"  The original report's wording: \"{quote}\"")
         for e in s.get("evidence", []):
-            lines.append(f"  Earlier check's evidence (verify it yourself): {e['text']}")
+            shown = e["text"] or ", ".join(c["ref"] for c in e.get("citations", []))
+            if shown:
+                lines.append(f"  Earlier check's evidence (verify it yourself): {shown}")
         lines.append("")
     return "\n".join(lines).rstrip()
 
 
-def render_key(key, skip, with_subfindings):
-    lines = []
-    for f in key["findings"]:
-        if f["id"] in skip:
-            continue
-        lines.append(f"{f['id']} — {f['claim']}")
-        if with_subfindings:
-            lines += [f"  {s['id']} — {s['claim']}" for s in f["subfindings"]]
-    return "\n".join(lines)
+def render_key(key, skip):
+    """The rest of the key, headlines only: enough to judge significance (overlap is a later step)."""
+    return "\n".join(f"{f['id']} — {f['claim']}" for f in key["findings"] if f["id"] not in skip)
 
 
 def build_prompt(ev, key, group, focus):
@@ -111,7 +121,7 @@ def build_prompt(ev, key, group, focus):
         "{{FINDING_HEADING}}": "The findings to check" if many else "The finding to check",
         "{{FOCUS}}": f"{focus.strip()}\n\n" if focus else "",
         "{{FINDINGS}}": "\n\n---\n\n".join(render_finding(f) for f in group),
-        "{{ANSWER_KEY}}": render_key(key, set(ids), cfg["full_key_in_prompt"]),
+        "{{ANSWER_KEY}}": render_key(key, set(ids)),
         "{{OUTPUT_TEXT}}": ("one file per finding, " + " and ".join(f"/work/qa/{i}.json" for i in ids)) if many
         else f"/work/qa/{ids[0]}.json",
         "{{DATA_NOTE}}": next(v for k, v in mods.items() if k.startswith("data-note")),
@@ -220,8 +230,8 @@ def merge(ev, out, key, model, budget):
     problems = answer_key.validate(key)
     if problems:
         raise SystemExit("\n".join(problems))
-    answer_key.dump(key, key_path(ev))
-    print(f"merged {len(merged)} findings into {key_path(ev)}: {merged}")
+    answer_key.dump(key, qa_key_path(ev))
+    print(f"merged {len(merged)} findings into {qa_key_path(ev)}: {merged}")
 
 
 def main():

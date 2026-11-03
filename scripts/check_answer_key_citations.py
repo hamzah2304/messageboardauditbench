@@ -3,9 +3,10 @@
 
     python3 scripts/check_answer_key_citations.py german-wiki [--data DIR]
     python3 scripts/check_answer_key_citations.py aivillage [--data DIR]
+    python3 scripts/check_answer_key_citations.py transluce [--data DIR]
 
 Sets each citation's `check` to ok, id_missing, quote_missing or no_quote (the record exists; there is
-no quote to compare) in benchmarks/<eval>/answer-key.json, and adds a review_queue entry for each
+no quote to compare) in benchmarks/<eval>/answer-key.json (answer-key-qa.json for transluce), and adds a review_queue entry for each
 finding with a failure (replacing earlier citation entries). Quotes are compared after normalising
 case, whitespace, curly quotes and JSON escapes.
 """
@@ -27,7 +28,9 @@ _spec = importlib.util.spec_from_file_location("answer_key", ROOT / "slopvestiga
 answer_key = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(answer_key)
 
-DATA = {"german-wiki": PRIMARY / "data/verbatim", "aivillage": PRIMARY / "data/aivillage/full-v2-reasoning"}
+DATA = {"german-wiki": PRIMARY / "data/verbatim", "aivillage": PRIMARY / "data/aivillage/full-v2-reasoning",
+        "transluce": PRIMARY / "data/urlquery/2026-09-26-v1"}
+SCAN_FILES = ("scans.jsonl", "http.jsonl", "resources.jsonl", "decoded_text.jsonl")
 WIKI_FILES = {"rev": ("revisions.jsonl", "rev_id"), "event": ("events.jsonl", "event_id"),
               "page": ("pages.jsonl", "page_id"), "label": ("labels.jsonl", "label")}
 
@@ -51,6 +54,25 @@ def load_wiki(data, wanted):
     return found
 
 
+def load_transluce(data, wanted):
+    """A scan's text is its rows in every per-scan file; a content citation is the stored file."""
+    scans = {i for k, i in wanted if k == "scan"}
+    found = {}
+    for name in SCAN_FILES:
+        with open(data / name) as fh:
+            for line in fh:
+                sid = re.search(r'"scan_id": ?"([^"]+)"', line)
+                if sid and sid.group(1) in scans:
+                    r = json.loads(line)
+                    found[("scan", sid.group(1))] = found.get(("scan", sid.group(1)), "") + " " + " ".join(
+                        str(v) for v in r.values()) + " " + line
+    for k, i in wanted:
+        path = data / "content" / f"{i}.txt"
+        if k == "content" and re.fullmatch(r"[0-9a-f]{64}", i) and path.exists():
+            found[(k, i)] = path.read_text(errors="replace")
+    return found
+
+
 def load_village(data, wanted):
     spec = importlib.util.spec_from_file_location("cac", ROOT / "scripts/aivillage/check_aivillage_citations.py")
     cac = importlib.util.module_from_spec(spec)
@@ -64,12 +86,13 @@ def main():
     ap.add_argument("eval", choices=sorted(DATA))
     ap.add_argument("--data", type=Path)
     a = ap.parse_args()
-    path = ROOT / "benchmarks" / a.eval / "answer-key.json"
+    # The Transluce grader reads answer-key.json as-is; its QA results live in answer-key-qa.json.
+    path = ROOT / "benchmarks" / a.eval / ("answer-key-qa.json" if a.eval == "transluce" else "answer-key.json")
     key = answer_key.load(path)
     cites = list(answer_key.iter_citations(key))
     wanted = {tuple(c["ref"].split(":", 1)) for _, c in cites}
     data = a.data or DATA[a.eval]
-    found = (load_wiki if a.eval == "german-wiki" else load_village)(data, wanted)
+    found = {"german-wiki": load_wiki, "aivillage": load_village, "transluce": load_transluce}[a.eval](data, wanted)
     failures = {}
     for owner, c in cites:
         text = found.get(tuple(c["ref"].split(":", 1)))

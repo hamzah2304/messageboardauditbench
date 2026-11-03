@@ -76,20 +76,21 @@ def test_combining_f13_preserves_existing_judgments():
 # sha256 of each headline's rendered prompt for a fixed article and report, taken from
 # the judge before it moved into slopvestigator_bench.grading.findings. A change here
 # changes what the judge reads: bump the rubric, and regrade, rather than update the pins.
+# Re-pinned for rubric v1.1 (answer-key.json after QA and the overlap check, 2026-11-03).
 PROMPT_PINS = {
-    "F1": "7b01f15ddfa3046991e03cc454b145611c1b86a563b017c56f1c7d612eaf77e8",
-    "F2": "b66104d0193cfe319942bea71ac073c14f3a779d734bf91e471d24d2af52b11c",
-    "F3": "2087b530f4271d507b23769fac244b327e1f55d79988edfaaddb13d5a19a50c3",
-    "F4": "f17b553d8daac8049000efffcde165a00546e144e69062763687bd4d49c16324",
-    "F5": "f56662c78cc5c5ec49bc0fdd494bce483a5c8f93b39f103c7a8b6e2e7ccf3736",
-    "F6": "c545ea8c83650bbc29386c4c04812eb68b876fa3a51a35076e8e74826246530f",
-    "F7": "fbb3fa4c4c027accc7424848b8f42db838bacb539bf2b618cca9711d89feee27",
-    "F8": "07790c6e0f184ecc6be1bd3e6389c2317bfece63de029a33fde443826d6fbd6e",
-    "F9": "32293f52f0206ecbe66a5cb31036e0e01c1bfa8a8101f18018241543b48a7eb4",
-    "F10": "d42c63d990ce68c88ca2f1c2ef521919a39c03787ce973c177f72640a9fb2c50",
-    "F11": "bc06b50c7521e0554daf29e5d7434b0a59403a660de950d1fae7a83b2e268116",
-    "F12": "d1da476e1ac3ffb47f037087bc2e0b9fc71efecc4e9e37118c6a8fe464efa751",
-    "F13": "f05bf925e1789f0a4fa5635704c51988b84e161ed5822cb59ccb5edeff26fc89",
+    "F1": "6c70434a9795a1db6af7fdc13d64bb2e2c6f7154b4ed69955533c86bdb292bd4",
+    "F2": "1f32385f6ec46849083b1340071b2cb34b03a2a47efdfcb5f4741f24cda838c4",
+    "F3": "ec132b5825857a866a6b80f646a89bf9ca99e723575451280b5b7cc53e5f7dbb",
+    "F4": "5f38d588d7b489ef56a67a0c2fb147d46636af04beec2cafa4b9b777a508d508",
+    "F5": "3957f2611b9e4789fa1057ddedd69f1bd9956447fdd203c0a1f5d035a12bd514",
+    "F6": "f419b62b03b82ee967599fd576058d6de1a88e7b586c719995bc4cdfc48191a5",
+    "F7": "11e43a61ed557ae0e7d76727013d185bdfd0bc6a03da6ec976ff861923f8dc3a",
+    "F8": "1d56ea8c515cfb1b16d57facf5fa45df19901228f14c905286a30b5abd637283",
+    "F9": "f56c39a839cfa48cc9412f1f82d3df447920657965f2d63ad677f660208ff84b",
+    "F10": "564caa6e213356ea6de0912319bb9e4e1271c0466dbfd6ba2c342ac100531d9d",
+    "F11": "1b4ee087f07647e6534609ba7be03c1ca3e312a8e54f623eab713ff10b93ae10",
+    "F12": "813ada74eb6b86bb82334422ba79a66f31e603a49ddc3dc8597f8c2e83b08d53",
+    "F13": "b1c28c3ce58b8bede8c0b38420a6a99561de913e35ab29dd2571ce14ec0ba2c0",
 }
 PIN_REPORT = "A report linking https://urlquery.net/report/" + "0" * 8 + "-0000-0000-0000-" + "0" * 12 + " and more.\n"
 

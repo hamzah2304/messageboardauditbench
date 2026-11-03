@@ -114,6 +114,13 @@ if [ -n "$RESUME_FROM" ]; then
   (cd "$RESUME_FROM/work" && tar cf - --exclude=./data --exclude=./.mbab-runtime-policy.json --exclude=./final_message.md .) | (cd "$RUN/work" && tar xf -)
   echo "resuming codex thread $PARENT_THREAD_ID from $RESUME_FROM"
 fi
+# WORK_FILES_DIR (driver scripts only, e.g. the answer-key overlap check): files copied into /work
+# before the agent starts. The canary below lists them with the rest of /work.
+if [ -n "${WORK_FILES_DIR:-}" ]; then
+  [ -z "$RESUME_FROM" ] || { echo "WORK_FILES_DIR cannot be combined with RESUME_FROM" >&2; exit 2; }
+  [ -d "$WORK_FILES_DIR" ] || { echo "no directory at WORK_FILES_DIR=$WORK_FILES_DIR" >&2; exit 2; }
+  cp -R "$WORK_FILES_DIR/." "$RUN/work/"
+fi
 # Reproducibility record for every future subscription run. Keep exact inputs
 # and the runnable checkout, rather than relying on a mutable branch name.
 cp "$CONFIG" "$RUN/config.source.toml"
@@ -412,13 +419,18 @@ case "$AGENT" in
       part="$RUN/transcript.part$attempt.jsonl"
       # The CLI ends a turn after 8 Stop-hook blocks in a row, which let runs finish below the
       # minimum runtime; the hard deadline is the cap that matters.
+      # Linux caps one argument at 128 KB, so a longer prompt (a whole large answer key) goes in on stdin.
+      prompt_arg=("$claude_prompt"); prompt_in=/dev/null
+      if [ "$(printf %s "$claude_prompt" | wc -c)" -gt 100000 ]; then
+        printf %s "$claude_prompt" > "$RUN/.prompt-stdin.txt"; prompt_arg=(); prompt_in="$RUN/.prompt-stdin.txt"
+      fi
       docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" -e CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=1000000 -e CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK=1 \
-        "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p "$claude_prompt" \
+        "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p ${prompt_arg[@]+"${prompt_arg[@]}"} \
         ${resume_args[@]+"${resume_args[@]}"} --model "$MODEL" --effort "$EFFORT" \
         --dangerously-skip-permissions --no-chrome --setting-sources user \
         ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
         --output-format stream-json --verbose --include-partial-messages \
-        < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+        < "$prompt_in" > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
       ended_on_flag="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --safeguard "$part" | cut -d' ' -f2)"
       cat "$part" >> "$RUN/transcript.jsonl"
       rm "$part"
