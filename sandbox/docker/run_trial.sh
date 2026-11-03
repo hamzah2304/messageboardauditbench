@@ -417,12 +417,17 @@ case "$AGENT" in
       fi
       record_runner_event cli_started "$attempt"
       part="$RUN/transcript.part$attempt.jsonl"
-      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p "$claude_prompt" \
+      # Linux caps one argument at 128 KB, so a longer prompt (a whole large answer key) goes in on stdin.
+      prompt_arg=("$claude_prompt"); prompt_in=/dev/null
+      if [ "$(printf %s "$claude_prompt" | wc -c)" -gt 100000 ]; then
+        printf %s "$claude_prompt" > "$RUN/.prompt-stdin.txt"; prompt_arg=(); prompt_in="$RUN/.prompt-stdin.txt"
+      fi
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p ${prompt_arg[@]+"${prompt_arg[@]}"} \
         ${resume_args[@]+"${resume_args[@]}"} --model "$MODEL" --effort "$EFFORT" \
         --dangerously-skip-permissions --no-chrome --setting-sources user \
         ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
         --output-format stream-json --verbose --include-partial-messages \
-        < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+        < "$prompt_in" > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
       ended_on_flag="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --safeguard "$part" | cut -d' ' -f2)"
       cat "$part" >> "$RUN/transcript.jsonl"
       rm "$part"
