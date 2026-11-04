@@ -284,10 +284,14 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
                 {**fj.run_meta(d), **stamp, **extra, "report_sha256": fj.sha(report),
                  **({"prompt_variables": variables[d.name]} if variables[d.name] else {}), "findings": {}})
         files[d.name] = body
-        done_statuses = ("ok", "refused") if skip_refused else ("ok",)
         if skip_refused and body["findings"].get(heads[0], {}).get("status") == "refused":
             continue
-        todo += [(d, h) for h in heads if body["findings"].get(h, {}).get("status") not in done_statuses]
+
+        def done(result: dict) -> bool:
+            # A stored "ok" with an unscored sub-finding predates the stricter check: grade it again.
+            return fj.usable(result) or (skip_refused and result.get("status") == "refused")
+
+        todo += [(d, h) for h in heads if not done(body["findings"].get(h, {}))]
     # With --plan this is the resume-aware count a real run would pay for.
     print(f"{len(todo)} calls to make", flush=True)
     if args.plan:

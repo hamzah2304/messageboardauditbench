@@ -74,3 +74,23 @@ def test_the_export_says_how_many_answer_key_grades_it_leaves_out():
     score = SimpleNamespace(value=0.5, metadata={"grade": {"rubric": "answer-key", "score": 0.5}})
     log = SimpleNamespace(samples=[SimpleNamespace(scores={"german_wiki_key_scorer": score}, metadata={}, epoch=1)])
     assert export.grades_in(log) == [] and export.answer_key_grades_in(log) == 1
+
+
+def test_duplicate_extra_or_non_numeric_entries_are_not_a_grade():
+    expected = ["S1", "S2"]
+    good = {"finding_id": "F", "score": 0.5, "sub_findings": [{"id": "S1", "score": 1}, {"id": "S2", "score": 0}]}
+    cases = [
+        {**good, "sub_findings": good["sub_findings"] + [{"id": "S1", "score": 0}]},  # duplicate
+        {**good, "sub_findings": good["sub_findings"] + [{"id": "S3", "score": 1}]},  # extra
+        {**good, "score": "NaN"},
+        {**good, "sub_findings": [{"id": "S1", "score": float("inf")}, {"id": "S2", "score": 0}]},
+    ]
+    result, _ = fj.validate(good, "F", expected)
+    assert fj.incomplete(good, result, "F") is None and fj.usable({"status": "ok", **result})
+    for bad in cases:
+        try:
+            result, _ = fj.validate(bad, "F", expected)
+        except (TypeError, ValueError):
+            continue
+        assert fj.incomplete(bad, result, "F"), bad
+    assert not fj.usable({"status": "ok", "sub_findings": [{"id": "S1", "score": None}]})

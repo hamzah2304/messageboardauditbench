@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import math
 import re
 from functools import lru_cache
 from html.parser import HTMLParser
@@ -325,13 +326,23 @@ def validate(data: dict, headline: str, sub_ids: list[str]) -> tuple[dict, list[
 
 
 def incomplete(data: dict, result: dict, headline: str) -> str | None:
-    """Why a validated answer cannot be used as a grade: it names another finding, or leaves a
-    sub-finding unscored. Such an answer is kept as invalid rather than scored."""
+    """Why a validated answer cannot be used as a grade: it names another finding, does not give
+    exactly one entry per expected sub-finding, or has a score that is not a finite number. Such an
+    answer is kept as invalid rather than scored."""
     if data.get("finding_id") not in (None, headline):
         return f"answer is for {data.get('finding_id')!r}, not {headline}"
-    if missing := [s["id"] for s in result["sub_findings"] if s["score"] is None]:
-        return "no score for sub-findings " + ", ".join(missing)
+    given = [s.get("id") for s in data.get("sub_findings", []) if isinstance(s, dict)]
+    if sorted(given, key=str) != sorted(s["id"] for s in result["sub_findings"]):
+        return f"sub-finding entries {given} are not one per expected sub-finding"
+    raw = [data.get("score")] + [s.get("score") for s in data.get("sub_findings", []) if isinstance(s, dict)]
+    if not all(isinstance(x, int | float) and not isinstance(x, bool) and math.isfinite(x) for x in raw):
+        return "a score is not a finite number"
     return None
+
+
+def usable(result: dict) -> bool:
+    """A stored finding result counts as graded: ok, with every sub-finding scored."""
+    return result.get("status") == "ok" and all(s.get("score") is not None for s in result.get("sub_findings", []))
 
 
 # --- the arithmetic and the file ------------------------------------------------------
