@@ -46,3 +46,31 @@ def test_report_scores():
 def test_minor_headlines_count_half():
     assert akj.headline_weights(akj.graded_findings(akj.load_key("transluce"))) == fj.headline_weights() == {"F3": 0.5}
     assert akj.headline_weights(akj.graded_findings(akj.load_key("german-wiki"))) == {}
+
+
+async def test_an_answer_for_another_finding_or_missing_sub_findings_is_not_a_grade():
+    import json
+
+    from inspect_ai.model import ModelOutput, get_model
+
+    from slopvestigator_bench.grading.finding_scorer import grade_finding
+
+    def judge(answer):
+        return get_model("mockllm/model", custom_outputs=lambda *_a, **_k: ModelOutput.from_content("mockllm/model", json.dumps(answer)))
+
+    full = {"finding_id": "M001", "score": 1, "contradicted": False, "quote": "", "reason": "r",
+            "sub_findings": [{"id": s, "score": 1} for s in ("M001.1", "M001.2")]}
+    assert (await grade_finding(judge(full), "high", "M001", ["M001.1", "M001.2"], "## The model's report\n## The finding to score\n"))["status"] == "ok"
+    for bad in ({**full, "finding_id": "M999"}, {**full, "sub_findings": []}):
+        result = await grade_finding(judge(bad), "high", "M001", ["M001.1", "M001.2"], "## The model's report\n## The finding to score\n")
+        assert result["status"] == "invalid" and result["error"]
+
+
+def test_the_export_says_how_many_answer_key_grades_it_leaves_out():
+    from types import SimpleNamespace
+
+    from slopvestigator_bench.grading import export
+
+    score = SimpleNamespace(value=0.5, metadata={"grade": {"rubric": "answer-key", "score": 0.5}})
+    log = SimpleNamespace(samples=[SimpleNamespace(scores={"german_wiki_key_scorer": score}, metadata={}, epoch=1)])
+    assert export.grades_in(log) == [] and export.answer_key_grades_in(log) == 1

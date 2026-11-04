@@ -35,6 +35,9 @@ def main() -> None:
 
     log = read_eval_log(args.log)
     grades = export.grades_in(log)
+    if keyed := export.answer_key_grades_in(log):
+        print(f"{keyed} answer-key grade{'' if keyed == 1 else 's'} not exported: this layout holds sheet grades; "
+              "the answer-key grade is in each sample's score metadata, and scripts/grade_answer_key.py writes grade files")
     if not grades:
         raise SystemExit(f"{args.log}: no graded samples — was sheet_scorer attached?")
 

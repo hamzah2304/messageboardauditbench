@@ -94,6 +94,8 @@ async def grade_finding(model: Model, effort: str, headline: str, subs: list[str
                 result, notes = fj.validate(data, headline, subs)
             except (TypeError, ValueError) as exc:
                 return {"status": "invalid", "error": repr(exc), "usage": usage, "raw": raws}
+            if reason := fj.incomplete(data, result, headline):
+                return {"status": "invalid", "error": reason, **result, "validation": notes, "usage": usage, "raw": raws}
             return {"status": "ok", **result, "validation": notes, "usage": usage, "raw": raws,
                     "seconds": round(time.time() - started, 1)}
     except Exception as exc:  # noqa: BLE001 — recorded, not raised: other findings stand
@@ -127,15 +129,16 @@ def answer_key_score(name: str, judge: str | Model | None, effort: str | None,
         model = get_model(judge, role="grader")
         used_effort = effort or default_effort(str(model))
         report = state.output.completion if state.output else ""
+        variables = akj.report_variables(name, state.metadata.get("data_variant"))
         body: dict = {
             **({"run": state.metadata["run"]} if state.metadata.get("run") else {}),
             # Recorded without the transport prefix, as the batch grader's files record it.
             **akj.stamp(name, judge_name(str(model)), used_effort, source, key),
             **({"article_context": context} if context else {}),
             "report_sha256": fj.sha(report),
+            **({"prompt_variables": variables} if variables else {}),
             "findings": {},
         }
-        variables = akj.report_variables(name, state.metadata.get("data_variant"))
         await akj.grade_report(name, model, used_effort, report, source, variables, findings, body)
         n = body["n_findings"]
         if body["score"] is None:

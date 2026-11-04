@@ -324,6 +324,16 @@ def validate(data: dict, headline: str, sub_ids: list[str]) -> tuple[dict, list[
     }, notes
 
 
+def incomplete(data: dict, result: dict, headline: str) -> str | None:
+    """Why a validated answer cannot be used as a grade: it names another finding, or leaves a
+    sub-finding unscored. Such an answer is kept as invalid rather than scored."""
+    if data.get("finding_id") not in (None, headline):
+        return f"answer is for {data.get('finding_id')!r}, not {headline}"
+    if missing := [s["id"] for s in result["sub_findings"] if s["score"] is None]:
+        return "no score for sub-findings " + ", ".join(missing)
+    return None
+
+
 # --- the arithmetic and the file ------------------------------------------------------
 
 

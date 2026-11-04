@@ -187,6 +187,9 @@ class Judge:
                     result, notes = fj.validate(data, headline, subs)
                 except (TypeError, ValueError) as exc:
                     return {"status": "invalid", "error": repr(exc), "usage": usage_all, "raw": raws}
+                if reason := fj.incomplete(data, result, headline):
+                    return {"status": "invalid", "error": reason, **result, "validation": notes,
+                            "usage": usage_all, "raw": raws}
                 return {"status": "ok", **result, "validation": notes, "usage": usage_all,
                         "raw": raws, "seconds": round(time.time() - started, 1)}
         return {"status": "unparseable", "usage": usage_all, "raw": raws}
@@ -273,11 +276,13 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
         prev = json.loads(path.read_text()) if path.exists() else {}
         if spec.source == "article" and prev.get("article_sha256") not in (None, stamp["article_sha256"]):
             sys.exit(f"{path} was graded with a different article context; use another --output")
-        same = all(prev.get(k) == v for k, v in stamp.items()) and prev.get("report_sha256") == fj.sha(report)
+        same = (all(prev.get(k) == v for k, v in stamp.items()) and prev.get("report_sha256") == fj.sha(report)
+                and prev.get("prompt_variables", {}) == variables[d.name])
         # A matching file keeps every field it has (e.g. rubric_provenance on combined grades).
         extra = {"article_context": prev.get("article_context", context) if same else context} if context else {}
         body = ({**prev, **extra} if same else
-                {**fj.run_meta(d), **stamp, **extra, "report_sha256": fj.sha(report), "findings": {}})
+                {**fj.run_meta(d), **stamp, **extra, "report_sha256": fj.sha(report),
+                 **({"prompt_variables": variables[d.name]} if variables[d.name] else {}), "findings": {}})
         files[d.name] = body
         done_statuses = ("ok", "refused") if skip_refused else ("ok",)
         if skip_refused and body["findings"].get(heads[0], {}).get("status") == "refused":

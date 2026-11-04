@@ -44,6 +44,12 @@ def grades_in(log: Any) -> list[dict]:
     return out
 
 
+def answer_key_grades_in(log: Any) -> int:
+    """How many samples carry an answer-key grade (grading.answer_key_judge), which `grades_in` leaves out."""
+    return sum(1 for sample in log.samples or [] for score in (sample.scores or {}).values()
+               if ((score.metadata or {}).get("grade") or {}).get("rubric") == "answer-key")
+
+
 def export(log: Any, out_dir: Path | None = None, force: bool = False) -> list[Path]:
     """Write one graded_<key>.json per scored sample. Returns the paths written."""
     written = []
