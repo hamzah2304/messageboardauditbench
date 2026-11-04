@@ -43,7 +43,13 @@ scripts/collect_reports.py                 # runs/ -> benchmarks/german-wiki/rep
 ```
 
 The eval runs the registered finding and summary graders inline; `--no-score` defers
-them. Every script resolves its inputs through `slopvestigator_bench/paths.py`, so the repo works from a plain
+them. On verbatim and raw_stripped data the finding grader is the answer key
+(`answer-key.json`), graded as every benchmark is: one judge call per headline finding with
+its sub-findings (`slopvestigator_bench/grading/answer_key_judge.py`), with the prompt
+`judge/finding_sheet_answer_key.md` and the human report as context. `german_wiki_report_grade` defaults to `-T rubric=answer-key`, and
+`scripts/grade_answer_key.py --benchmark german-wiki` is the batch grader. The key names OpenAI, so
+verbatim_anthropic data keeps the v2 sheets. The published numbers below use the v2 sheets
+(`-T rubric=v2` reproduces them); a headline formula for the answer-key score is not set yet. Every script resolves its inputs through `slopvestigator_bench/paths.py`, so the repo works from a plain
 clone.
 
 The draft incidents are not Inspect conditions. Pilot one through the subscription
@@ -126,7 +132,7 @@ The agent must not see `benchmarks/german-wiki/` — it holds the answer key.
 works and no index file is needed.
 
 ```bash
-# both sheets, into an Inspect log each
+# both sheets, into an Inspect log each (the published v2 sheets; the default is rubric=answer-key)
 uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=/abs/path/to/my-reports -T rubric=v2 \
   --model-role grader=anthropic/claude-fable-5-1

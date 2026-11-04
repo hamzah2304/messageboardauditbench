@@ -155,7 +155,7 @@ async def test_scorer_grades_every_headline_with_the_manifest_weights():
     expected = fj.score_means({h: 1.0 for h in heads} | {"F3": 0.0}, heads)
     assert (score.value, grade["score_mean_unweighted"]) == expected
     assert grade["article_context"] == "omitted" and grade["judge"] == "model"
-    assert grade["prompt_sha256"] == fj.sha(fj.template_path().read_bytes())
+    assert grade["prompt_sha256"] == fj.sha(fj.template_path().read_bytes()) and grade["rubric"] == "answer-key"
 
 
 @pytest.mark.parametrize(("transport", "skips"), [("anthropic", True), ("openrouter", False)])

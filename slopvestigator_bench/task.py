@@ -82,6 +82,7 @@ from slopvestigator_bench.configs import CONFIG_NAME, load_config
 from slopvestigator_bench.grading.aivillage import aivillage_scorer
 from slopvestigator_bench.grading.core import variant_for_data
 from slopvestigator_bench.grading.finding_scorer import finding_scorer
+from slopvestigator_bench.grading.german_wiki_key import german_wiki_key_scorer
 from slopvestigator_bench.grading.scorer import sheet_scorer
 from slopvestigator_bench.incidents import (
     data_variants,
@@ -329,7 +330,8 @@ def _scorers(judge: str | None, rubric: str | None, data_variant: str | None = N
     if len(modes) != len(set(modes)):
         raise ValueError("rubric must not contain duplicate modes")
     return [
-        sheet_scorer(rubric=mode, judge=judge, variant=variant_for_data(data_variant))
+        german_wiki_key_scorer(judge=judge, variant=variant_for_data(data_variant)) if mode == "answer-key"
+        else sheet_scorer(rubric=mode, judge=judge, variant=variant_for_data(data_variant))
         for mode in modes
     ] + scorers
 

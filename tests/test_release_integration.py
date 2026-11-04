@@ -11,6 +11,7 @@ from slopvestigator_bench.grading.task import (
     german_wiki_report_grade,
     report_from_sample,
 )
+from tests.test_german_wiki_key import key_judge
 from tests.test_grading_scorer import judge, sheet_reply
 
 
@@ -57,15 +58,20 @@ def test_default_eval_runs_both_benchmark_graders(tmp_path, monkeypatch, variant
     task = tasks.german_wiki_report(agent="react", data_variant=variant)
     task.sandbox = None
     task.solver = report_from_sample()
-    replies = [sheet_reply("v2", i, 1) for i in range(8)] + [sheet_reply("tldrh", 0, 1)]
-    model = judge(replies)
+    # The answer key covers verbatim data; its provider variant keeps the v2 sheets.
+    finding = "v2" if variant.endswith("anthropic") else "answer-key"
+    if finding == "v2":
+        model = judge([sheet_reply("v2", i, 1) for i in range(8)] + [sheet_reply("tldrh", 0, 1)])
+    else:
+        model = key_judge(other=sheet_reply("tldrh", 0, 1))
     [log] = eval(task, model="mockllm/model", model_roles={"grader": model},
         display="none", log_realtime=False, log_dir=str(tmp_path / "logs"))
     assert log.status == "success", log.error
     grades = [s.metadata["grade"] for s in log.samples[0].scores.values()
               if s.metadata and "grade" in s.metadata]
-    assert {g["rubric"] for g in grades} == {"v2", "tldrh"}
-    assert all(g["accuracy"] == 1 for g in grades)
+    assert {g["rubric"] for g in grades} == {finding, "tldrh"}
+    assert all(g["accuracy"] == 1 for g in grades if g["rubric"] != "answer-key")
+    assert all(g["score_mean"] == 1 for g in grades if g["rubric"] == "answer-key")
     assert all(g.get("rubric_variant") == ("anthropic" if variant.endswith("anthropic") else None)
                for g in grades)
 

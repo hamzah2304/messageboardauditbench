@@ -1,20 +1,17 @@
-"""The AI Village judge: findings, prompt, response schema and score, plus its Inspect scorer.
+"""The AI Village judge: its Inspect scorer, and the v1.0 judge that wrote the published grades.
 
-`scripts/aivillage/grade_aivillage.py` runs the same requests as resumable batch jobs against the
-OpenAI Responses API; `aivillage_scorer` sends them through Inspect's model layer so the
-judge's calls land in the eval log. Both build each request from the helpers here, so a
-report gets the same instructions, input, schema, effort and token cap either way. The wire
-format differs (Inspect may send chat messages rather than a Responses request), so the
-batch grades in `benchmarks/aivillage/` are the reference; native scores should agree
-closely, not byte for byte.
+`aivillage_scorer` grades against the reviewed answer key as every benchmark is graded
+(`grading.answer_key_judge`): one call per finding, the shared finding sheet, and a score that is
+the mean of the report's 20 best findings (`TOP_K`), the 20 findings a report writes; coverage is
+the mean over every finding.
 
-A report is graded in groups of at most three findings from one goal period. Its score
-is the mean of its 20 best finding scores (`TOP_K`), the 20 findings a report writes;
-coverage is the mean over every rubric finding. Contradiction penalties are not applied.
+The rest of this module is the v1.0 judge, kept so `scripts/aivillage/grade_aivillage.py` can
+reproduce the published grades in `benchmarks/aivillage/`: findings/final-findings.json, graded in
+groups of at most three findings from one goal period with judge-prompt-v8.txt, as resumable
+OpenAI Responses jobs. Contradiction penalties are not applied in either.
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import math
@@ -23,19 +20,9 @@ from collections import defaultdict
 from pathlib import Path
 
 from inspect_ai.model import (
-    ChatMessageSystem,
-    ChatMessageUser,
-    GenerateConfig,
     Model,
-    ResponseSchema,
-    get_model,
 )
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
-from inspect_ai.solver import TaskState
-from inspect_ai.util import JSONSchema
-
-from slopvestigator_bench.grading import judge as judging
-from slopvestigator_bench.runtime import repo_root
+from inspect_ai.scorer import Scorer, mean, scorer, stderr
 
 # The published v1.0 judge: scripts/aivillage/grade_aivillage.py's frozen plans check against it.
 # New grades default to the standard judge (configs/standard.toml).
@@ -214,116 +201,20 @@ def reasoning_available(data_variant: str) -> bool:
     raise ValueError(f"cannot tell whether {data_variant!r} has reasoning traces")
 
 
-ANSWER_KEY = EVALUATOR_ROOT / "answer-key.json"
-# Subfinding verdicts from the answer-key QA that keep a subfinding in the key.
-_KEPT_VERDICTS = {"supported", "partly"}
-
-
-def findings_from_answer_key(key: dict) -> list[dict]:
-    """The re-QA'd answer key (benchmarks/aivillage/answer-key.json, answer-key-v1) in the shape
-    `normalize_findings` reads. Dropped findings and subfindings whose QA verdict is not
-    supported or partly are left out; source excerpts are not in the key, so none are sent."""
-    out = []
-    for f in key["findings"]:
-        if f.get("qa") and f["qa"].get("outcome") not in ("keep", "narrow"):
-            continue
-        subs = [{"id": s["id"], "claim": s["claim"], "notes": [s["judge_notes"]] if s.get("judge_notes") else [],
-                 "records": " ".join(e["text"] for e in s.get("evidence", [])),
-                 "needs_reasoning_traces": s.get("fields", {}).get("needs_reasoning_traces", False)}
-                for s in f["subfindings"] if not s.get("qa") or s["qa"].get("verdict") in _KEPT_VERDICTS]
-        out.append({"id": f["id"], "group": "keep", "headline": f["claim"], "finding": f.get("detail", ""),
-                    "notes": [f["judge_notes"]] if f.get("judge_notes") else [],
-                    "behavior_dates": f.get("fields", {}).get("behavior_dates"),
-                    "goal_period_id": f.get("fields", {}).get("goal_period_id"),
-                    "sources": f.get("fields", {}).get("sources", []), "subfindings": subs})
-    return out
-
-
-def grading_groups(goals: list[dict], answer_key: bool = False) -> tuple[list[dict], list[dict]]:
-    """The approved findings and their judge groups. By default from the v1.0 rubric
-    (findings/final-findings.json); with `answer_key`, from the re-QA'd answer key, which is
-    still under review (off by default until Oscar's review is in)."""
-    if answer_key:
-        raw = findings_from_answer_key(json.loads((repo_root() / ANSWER_KEY).read_text()))
-    else:
-        raw = json.loads((repo_root() / FINDINGS).read_text())
-    findings, _ = normalize_findings(raw)
-    return findings, group_findings(findings, goals, {}, GROUP_SIZE, MAX_SUBFINDINGS)
-
-
-async def _grade_group(model: Model, rules: str, report_id: str, group: dict, report: str,
-                       effort: str = EFFORT, attempts: int = 3) -> dict:
-    """One judge call. Returns validated scores or a failure status; never raises."""
-    job = {"findings": group["findings"], "report": report}
-    config = GenerateConfig(reasoning_effort=effort, max_tokens=max_output_tokens(group))
-    if judging.is_openrouter(model):
-        # Inspect sends response_format.json_schema.description = null, and OpenRouter then
-        # drops the whole schema without error; send the format ourselves, without it.
-        response_format = {"type": "json_schema", "json_schema": {"name": "finding_scores", "strict": True, "schema": schema()}}
-        config = config.merge(GenerateConfig(extra_body={"response_format": response_format}))
-    else:
-        config = config.merge(GenerateConfig(
-            response_schema=ResponseSchema(name="finding_scores", json_schema=JSONSchema.model_validate(schema()), strict=True)))
-    messages = [ChatMessageSystem(content=rules), ChatMessageUser(content=request_input(report_id, group, report))]
-    error = None
-    for _ in range(attempts):
-        try:
-            out = await judging.generate(model, messages, config)
-            if out.stop_reason == "max_tokens":
-                error = "truncated"
-                continue
-            return {"status": "ok", **validate(json.loads(out.completion), job)}
-        except Exception as exc:  # noqa: BLE001 — recorded, not raised: other groups stand
-            error = f"{type(exc).__name__}: {exc}"[:500]
-    return {"status": "failed", "error": error, "finding_ids": [f["id"] for f in group["findings"]]}
-
-
 @scorer(metrics={"score": [mean(), stderr()], "coverage": [mean()]})
-def aivillage_scorer(judge: str | Model | None = None, goals: str | None = None, effort: str | None = None,
-                     answer_key: bool = False) -> Scorer:
-    """Grade an AI Village report against the 96 rubric findings.
+def aivillage_scorer(judge: str | Model | None = None, effort: str | None = None) -> Scorer:
+    """Grade an AI Village report against the reviewed answer key (benchmarks/aivillage/answer-key.json).
+
+    Graded as every benchmark is (`grading.answer_key_judge`): one judge call per finding with its
+    own sub-findings. The score is the mean of the report's 20 best finding scores; coverage is the
+    mean over every finding. The published v1.0 grades used findings/final-findings.json, three
+    findings per call (judge-prompt-v8.txt); scripts/aivillage/grade_aivillage.py reproduces them.
 
     Args:
-      judge: the grading model; the standard judge (configs/standard.toml) by default
-        (``openrouter/openai/gpt-6.1-sol`` also works). A ``grader`` model role takes precedence.
-      goals: the data's ``village_goals.jsonl``, which sets the goal-period groups. Defaults to the
-        file in the sample's data variant.
-      effort: the judge's reasoning effort; defaults to the standard's (``high``); ``medium`` as published.
-      answer_key: grade against the re-QA'd answer key (answer-key.json) instead of the v1.0
-        rubric; off by default while the key is under review.
+      judge: the grading model; the standard judge (configs/standard.toml) by default. A ``grader``
+        model role takes precedence.
+      effort: the judge's reasoning effort; defaults to the standard's (``high``).
     """
-    from slopvestigator_bench import standard
-    from slopvestigator_bench.benchmarks import primary_root
+    from slopvestigator_bench.grading.finding_scorer import answer_key_score
 
-    judge = judge or standard.judge()[0]
-    effort = effort or standard.judge()[1]
-
-    rubric = (repo_root() / RUBRIC).read_text()
-
-    async def score(state: TaskState, target: Target) -> Score:
-        model = get_model(judge, role="grader")
-        variant = str(state.metadata.get("data_variant") or "aivillage/full-v2-reasoning")
-        goals_path = Path(goals) if goals else primary_root() / "data" / variant / "village_goals.jsonl"
-        findings, groups = grading_groups(load_goals(goals_path), answer_key)
-        report = state.output.completion if state.output else ""
-        report_id = str(state.metadata.get("run") or state.sample_id)
-        rules = instructions(rubric, reasoning_available(variant))
-        results = await asyncio.gather(*(_grade_group(model, rules, report_id, g, report, effort) for g in groups))
-        failed = [r for r in results if r["status"] != "ok"]
-        scores = {f["finding_id"]: f for r in results if r["status"] == "ok" for f in r["findings"]}
-        grade = {"judge": str(model), "effort": effort, "report_sha256": digest(report), "findings": scores, "failed_groups": failed}
-        if failed:
-            return Score.unscored(
-                reason=f"{sum(len(r['finding_ids']) for r in failed)} of {len(findings)} findings unscored",
-                answer="ungraded", metadata={"grade": grade},
-            )
-        values = [f["score"] for f in scores.values()]
-        top, coverage = report_score(values), sum(values) / len(values)
-        return Score(
-            value={"score": top, "coverage": coverage},
-            answer=f"{top:.3f}",
-            explanation=f"{len(values)} findings graded by {model}; {sum(v >= 0.5 for v in values)} at 0.5 or more",
-            metadata={"grade": grade},
-        )
-
-    return score
+    return answer_key_score("aivillage", judge, effort)

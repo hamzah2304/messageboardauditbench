@@ -76,7 +76,7 @@ unscored. It is never recorded as zero. If the judge refuses the first headline,
 report's remaining headlines are skipped. The model report that suggested F13 is not
 treated as evidence in its prompt.
 
-The prompt and arithmetic are `slopvestigator_bench.grading.findings`. Two entry
+The prompt and arithmetic are `slopvestigator_bench.grading.answer_key_judge`. Two entry
 points share them:
 
 - **Inspect.** `transluce_report` scores each fresh trial. `transluce_report_grade`
@@ -86,7 +86,7 @@ points share them:
         -T launch=runs/urlquery/final-20260927-agents-v6/launch.json \
         -T judge=openrouter/openai/gpt-6-astra
 
-- **Batch grader.** `judge/grade.py` makes resumable, synchronous API calls and writes
+- **Batch grader.** `scripts/grade_answer_key.py` (`judge/grade.py` still runs it) makes resumable, synchronous API calls and writes
   one grade file per report to the gitignored `benchmarks/transluce/reports/graded/judge_<model>/`.
   Every file carries the prompt, rubric, article and report hashes. A rerun reuses a
   grade only when all of these match.
