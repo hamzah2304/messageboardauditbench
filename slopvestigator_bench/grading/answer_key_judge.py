@@ -213,7 +213,7 @@ def summarize(name: str, body: dict, heads: list[str], weights: dict[str, float]
     is not comparable with a complete one.
     """
     spec = SPECS[name]
-    scored = {h: body["findings"][h]["score"] for h in heads if body["findings"].get(h, {}).get("status") == "ok"}
+    scored = {h: body["findings"][h]["score"] for h in heads if fj.usable(body["findings"].get(h, {}))}
     body["headline_weights"] = weights
     body["n_scored"] = len(scored)
     body["n_findings"] = len(heads)

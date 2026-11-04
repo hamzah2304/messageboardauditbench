@@ -94,3 +94,9 @@ def test_duplicate_extra_or_non_numeric_entries_are_not_a_grade():
             continue
         assert fj.incomplete(bad, result, "F"), bad
     assert not fj.usable({"status": "ok", "sub_findings": [{"id": "S1", "score": None}]})
+
+
+def test_a_finding_with_an_unscored_sub_finding_does_not_count():
+    body = {"findings": {"A": {"status": "ok", "score": 1.0, "sub_findings": [{"id": "A.1", "score": None}]}}}
+    akj.summarize("german-wiki", body, ["A"], {}, "")
+    assert body["score"] is None and body["unscored"] == ["A"]
