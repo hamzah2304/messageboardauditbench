@@ -7,6 +7,7 @@ from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 
 from slopvestigator_bench import incidents
+from slopvestigator_bench.grading import answer_key_judge as akj
 from slopvestigator_bench.grading import findings as fj
 from slopvestigator_bench.grading import german_wiki_key as gk
 from slopvestigator_bench.grading.task import german_wiki_report_grade
@@ -22,8 +23,8 @@ def _text(messages) -> str:
 
 def key_reply(prompt: str, score: float = 1.0) -> str:
     """A well-formed answer for whichever headline the prompt asks about."""
-    head = re.search(r"answer-key finding sheet — (W\d+)", prompt)[1]
-    finding = {f["id"]: f for f in gk.load_key()["findings"]}[head]
+    head = re.search(r"Finding sheet — (W\d+)", prompt)[1]
+    finding = {f["id"]: f for f in akj.graded_findings(akj.load_key("german-wiki"))}[head]
     subs = [{"id": s["id"], "score": score, "contradicted": False, "quote": "", "reason": "x"}
             for s in finding["subfindings"]]
     return json.dumps({"finding_id": head, "sub_findings": subs, "contradicted": False,
@@ -34,7 +35,7 @@ def key_judge(score: float = 1.0, other: str | None = None):
     """A mock judge that answers answer-key prompts per headline and anything else with `other`."""
     def reply(messages, *_args, **_kwargs) -> ModelOutput:
         prompt = _text(messages)
-        text = key_reply(prompt, score) if "answer-key finding sheet" in prompt else other
+        text = key_reply(prompt, score) if "# Finding sheet — W" in prompt else other
         return ModelOutput.from_content("mockllm/model", text)
     return get_model("mockllm/model", custom_outputs=reply)
 
@@ -47,25 +48,27 @@ def state(report="A report.", variant="verbatim") -> TaskState:
 
 
 def test_every_headline_renders_a_complete_prompt():
-    key = gk.load_key()
-    human = (gk.repo_root() / gk.HUMAN_REPORT).read_text()
-    for finding in key["findings"]:
-        prompt = gk.render(finding, human, "THE REPORT")
+    findings = akj.graded_findings(akj.load_key("german-wiki"))
+    human = akj.source_text("german-wiki")
+    for finding in findings:
+        prompt = akj.render("german-wiki", finding, "THE REPORT", human)
         assert "{{" not in prompt.replace(human, ""), finding["id"]
+        assert "<human_report>\n" + human in prompt
         assert "".join(fj.split_prompt(prompt)) == prompt
         assert "THE REPORT" in fj.split_prompt(prompt)[1]
         for sub in finding["subfindings"]:
             assert f"Sub-finding {sub['id']}" in prompt
             block = prompt.split(f"Sub-finding {sub['id']}", 1)[1].split("#### ", 1)[0]
             assert ("Low-weight detail" in block) == (sub["significance"] == "minor")
+            assert f"**In the human report:** “{sub['fields']['report_quote']}”" in block
 
 
 async def test_full_marks_score_one_with_every_headline_graded():
     score = await gk.german_wiki_key_scorer(judge=key_judge(), effort="high")(state(), Target(""))
     grade = score.metadata["grade"]
     assert score.value == 1.0
-    assert grade["n_scored"] == grade["n_findings"] == len(gk.load_key()["findings"])
-    assert grade["rubric"] == "answer-key" and grade["key_sha256"] and grade["human_report_sha256"]
+    assert grade["n_scored"] == grade["n_findings"] == len(akj.load_key("german-wiki")["findings"]) == 12
+    assert grade["rubric"] == "answer-key" and grade["findings_sha256"] and grade["source_sha256"]
     assert all(r["status"] == "ok" and not r["validation"] for r in grade["findings"].values())
 
 

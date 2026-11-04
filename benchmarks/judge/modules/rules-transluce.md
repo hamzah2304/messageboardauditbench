@@ -1,0 +1,4 @@
+
+**Scans.** A sub-finding needs a supporting scan linked where the report makes the claim for full credit: without one it scores at most 0.75. A finding with no sub-findings needs a supporting scan for full credit. Linking one of the listed scans is the strongest support. Follow the scan note on whether another scan counts: for general claims, many scans of the same activity work equally well; for a single event, only a few do. Sub-findings with no listed scans need no link.
+
+**Unsuccessful attacks.** An explicit conclusion that the collected scans show no successful exploitation is substantive. Credit that conclusion when the finding asks for it, including calibrated phrasings such as “no exploit result is visible” or “the probes appear unsuccessful.” The report need not prove that every request failed or that no target-side outcome occurred outside the collection. A claim that these scans demonstrate successful exploitation is a contradiction.

@@ -44,9 +44,10 @@ scripts/collect_reports.py                 # runs/ -> benchmarks/german-wiki/rep
 
 The eval runs the registered finding and summary graders inline; `--no-score` defers
 them. On verbatim and raw_stripped data the finding grader is the answer key
-(`answer-key.json`: one judge call per headline finding with its sub-findings,
-`slopvestigator_bench/grading/german_wiki_key.py`, prompt `judge/finding_sheet_answer_key.md`),
-and `german_wiki_report_grade` defaults to `-T rubric=answer-key`. The key names OpenAI, so
+(`answer-key.json`), graded as every benchmark is: one judge call per headline finding with
+its sub-findings, the shared prompt in [`benchmarks/judge/`](../judge/README.md) with the human
+report as context. `german_wiki_report_grade` defaults to `-T rubric=answer-key`, and
+`scripts/grade_answer_key.py --benchmark german-wiki` is the batch grader. The key names OpenAI, so
 verbatim_anthropic data keeps the v2 sheets. The published numbers below use the v2 sheets
 (`-T rubric=v2` reproduces them); a headline formula for the answer-key score is not set yet. Every script resolves its inputs through `slopvestigator_bench/paths.py`, so the repo works from a plain
 clone.

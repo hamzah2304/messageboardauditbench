@@ -1,0 +1,1 @@
+The **In the article** quote shows where an item comes from; the full article is context for what it means. **Scans** says which of the scans Transluce cited the report links (computed for you), and **Scan note** says whether other scans would support the sub-finding just as well. A **Source** line marks an item the article does not state directly.

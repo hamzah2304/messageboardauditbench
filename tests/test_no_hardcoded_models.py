@@ -33,7 +33,7 @@ ALLOWED_FILES = {
 # Single assignments whose model names are data: (file, start of the line).
 ALLOWED_LINES = {
     ("scripts/synthesise_report.py", "EXCLUDE ="): "which recorded round-4 reports the synthesis leaves out",
-    ("benchmarks/transluce/judge/grade.py", "PRICES ="): "API prices for cost reporting",
+    ("scripts/grade_answer_key.py", "PRICES ="): "API prices for cost reporting",
     ("slopvestigator_bench/grading/core.py", "ROOT_GRADES_JUDGE ="): "names the judge whose grades sit at graded/ (storage layout)",
     ("slopvestigator_bench/grading/aivillage.py", "MODEL ="): "the v1.0 judge the batch grader's frozen plans check against",
     ("scripts/score_reports.py", '"    # figures used Fable'): "a hint naming the published judge",

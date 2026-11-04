@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Prepare a frozen AI Village grading plan, then run it with resumable API jobs."""
+"""Reproduce the published v1.0 AI Village grades: a frozen grading plan (findings/final-findings.json,
+three findings per call with judge-prompt-v8.txt), run with resumable API jobs. New grades use the
+answer key through scripts/grade_answer_key.py --benchmark aivillage."""
 from __future__ import annotations
 
 import argparse
@@ -49,17 +51,8 @@ def read(path):
     return json.loads(path.read_text())
 
 
-def read_findings(path):
-    """A findings file, or an answer key (answer-key-v1) in the shape normalize_findings reads."""
-    raw = read(path)
-    if isinstance(raw, dict) and raw.get("format") == "answer-key-v1":
-        from slopvestigator_bench.grading.aivillage import findings_from_answer_key
-        return findings_from_answer_key(raw)
-    return raw
-
-
 def prepare(args):
-    frozen_findings = read_findings(args.findings)
+    frozen_findings = read(args.findings)
     findings, excluded = normalize_findings(frozen_findings)
     if args.expected_findings is not None and len(findings) != args.expected_findings:
         raise ValueError(f"Expected {args.expected_findings} findings, found {len(findings)}; input was not launched")
@@ -323,8 +316,7 @@ def run(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("stage", choices=["prepare", "run"])
-    p.add_argument("--findings", type=Path, default=Path(__file__).resolve().parents[2] / "benchmarks/aivillage/answer-key.json",
-                   help="the reviewed answer key by default; findings/final-findings.json for the v1.0 rubric")
+    p.add_argument("--findings", type=Path)
     p.add_argument("--expected-findings", type=int, default=96)
     p.add_argument("--reports", type=Path)
     p.add_argument("--runs-root", type=Path, default=Path(__file__).resolve().parents[2] / "runs")
@@ -344,8 +336,8 @@ def main():
     if min(args.concurrency, args.group_size, args.max_subfindings) <= 0 or args.deadline_minutes <= 0:
         p.error("Concurrency, group limits and deadline must be positive")
     if args.stage == "prepare":
-        if not args.reports:
-            p.error("prepare requires --reports")
+        if not args.findings or not args.reports:
+            p.error("prepare requires --findings and --reports")
         prepare(args)
     else:
         run(args)

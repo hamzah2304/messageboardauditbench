@@ -1,8 +1,10 @@
-"""The URLQuery finding judge, as an Inspect scorer.
+"""The answer-key finding judge, as Inspect scorers.
 
-One call per headline finding, the same prompt bytes the batch grader
-(benchmarks/transluce/judge/grade.py) sends, through Inspect's model layer so the judge's
-calls land in the eval log and obey ``--max-connections``. The judge is any Inspect model:
+One call per headline finding (`grading.answer_key_judge`), the same prompt bytes the batch
+grader (scripts/grade_answer_key.py) sends, through Inspect's model layer so the judge's
+calls land in the eval log and obey ``--max-connections``. `answer_key_score` is shared by the
+Transluce scorer here, the German wiki one (`grading.german_wiki_key`) and the AI Village one
+(`grading.aivillage`). The judge is any Inspect model:
 the standard judge (configs/standard.toml) by default, or ``openrouter/openai/gpt-6-astra``,
 the v1.0 final-run judge. The full grade file, as the batch grader writes it, goes into
 ``Score.metadata["grade"]``.
@@ -15,7 +17,6 @@ over a subset of findings is not comparable with a complete one.
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 
@@ -100,13 +101,66 @@ async def grade_finding(model: Model, effort: str, headline: str, subs: list[str
     return {"status": "unparseable", "usage": usage, "raw": raws}
 
 
+def answer_key_score(name: str, judge: str | Model | None, effort: str | None,
+                     article_context: str | None = None, unscored_if=None):
+    """The scoring function every benchmark's scorer shares (`grading.answer_key_judge`).
+
+    One call per headline of the benchmark's answer key; the full grade goes into
+    ``Score.metadata["grade"]``. ``unscored_if(metadata)`` may return a reason to leave a report
+    unscored without calling the judge.
+    """
+    from slopvestigator_bench.grading import answer_key_judge as akj
+
+    if judge is None:
+        from slopvestigator_bench import standard
+
+        judge, effort = standard.judge()[0], effort or standard.judge()[1]
+    spec = akj.SPECS[name]
+    context = (article_context or fj.default_article_context(str(judge))) if spec.source == "article" else None
+    source = akj.source_text(name, context)  # Fails here, before an agent runs, if the article is missing.
+    key = akj.load_key(name)
+    findings = akj.graded_findings(key)
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if unscored_if and (reason := unscored_if(state.metadata)):
+            return Score.unscored(reason=reason, answer="ungraded")
+        model = get_model(judge, role="grader")
+        used_effort = effort or default_effort(str(model))
+        report = state.output.completion if state.output else ""
+        body: dict = {
+            **({"run": state.metadata["run"]} if state.metadata.get("run") else {}),
+            # Recorded without the transport prefix, as the batch grader's files record it.
+            **akj.stamp(name, judge_name(str(model)), used_effort, source, key),
+            **({"article_context": context} if context else {}),
+            "report_sha256": fj.sha(report),
+            "findings": {},
+        }
+        variables = akj.report_variables(name, state.metadata.get("data_variant"))
+        await akj.grade_report(name, model, used_effort, report, source, variables, findings, body)
+        n = body["n_findings"]
+        if body["score"] is None:
+            return Score.unscored(
+                reason=f"{len(body['unscored'])} of {n} findings unscored",
+                answer="ungraded",
+                explanation=", ".join(f"{h}: {body['findings'].get(h, {}).get('status', 'skipped')}"
+                                      for h in body["unscored"]),
+                metadata={"grade": body},
+            )
+        value = {"score": body["score"], "coverage": body["score_mean"]} if spec.top_k else body["score"]
+        how = f"mean of the best {spec.top_k}, coverage {body['score_mean']}" if spec.top_k else f"unweighted mean {body['score_mean_unweighted']}"
+        return Score(value=value, answer=f"{body['score']:.3f}",
+                     explanation=f"{n} findings graded by {model}; {how}", metadata={"grade": body})
+
+    return score
+
+
 @scorer(metrics=[mean(), stderr()])
 def finding_scorer(
     judge: str | Model | None = None,
     effort: str | None = None,
     article_context: str | None = None,
 ) -> Scorer:
-    """Grade a URLQuery report against every headline of the reviewed findings rubric.
+    """Grade a URLQuery report against every headline of the Transluce answer key.
 
     Args:
       judge: the grading model. Resolved at scoring time through the ``grader`` model
@@ -118,54 +172,4 @@ def finding_scorer(
         refusals on the article. Defaults per transport from the manifest: ``omitted``
         for Anthropic judges, ``full`` otherwise.
     """
-    if judge is None:
-        from slopvestigator_bench import standard
-
-        judge, effort = standard.judge()[0], effort or standard.judge()[1]
-    context = article_context or fj.default_article_context(str(judge))
-    fj.article_text(context)  # Validate the article is available before launching an agent.
-    findings = fj.load_findings()
-    heads = fj.headlines(findings)
-    subs = {h: fj.sub_ids(h, findings) for h in heads}
-
-    async def score(state: TaskState, target: Target) -> Score:
-        model = get_model(judge, role="grader")
-        used_effort = effort or default_effort(str(model))
-        report = state.output.completion if state.output else ""
-        article = fj.article_text(context)
-        body: dict = {
-            **({"run": state.metadata["run"]} if state.metadata.get("run") else {}),
-            # Recorded without the transport prefix, as the batch grader's files record it.
-            **fj.stamp(judge_name(str(model)), used_effort, article),
-            "article_context": context,
-            "report_sha256": fj.sha(report),
-            "findings": {},
-        }
-
-        async def one(h: str) -> None:
-            body["findings"][h] = await grade_finding(model, used_effort, h, subs[h], fj.render(h, article, report))
-
-        # The first call warms the shared prefix. For Anthropic, a report-level refusal
-        # on it recurs on every finding; keep it as unscored rather than repeat it.
-        await one(heads[0])
-        skip = fj.TRANSPORTS[fj.transport(str(model))]["skip_after_first_refusal"]
-        if not (skip and body["findings"][heads[0]]["status"] == "refused"):
-            await asyncio.gather(*(one(h) for h in heads[1:]))
-        fj.summarize(body, heads, report)
-        value = body["score_mean"]
-        if value is None:
-            return Score.unscored(
-                reason=f"{len(body['unscored'])} of {len(heads)} findings unscored",
-                answer="ungraded",
-                explanation=", ".join(f"{h}: {body['findings'].get(h, {}).get('status', 'skipped')}"
-                                      for h in body["unscored"]),
-                metadata={"grade": body},
-            )
-        return Score(
-            value=value,
-            answer=f"{value:.3f}",
-            explanation=f"{len(heads)} findings graded by {model}; unweighted mean {body['score_mean_unweighted']}",
-            metadata={"grade": body},
-        )
-
-    return score
+    return answer_key_score("transluce", judge, effort, article_context)

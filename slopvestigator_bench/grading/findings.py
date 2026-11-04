@@ -1,17 +1,12 @@
-"""The URLQuery finding judge: the sheet, the prompt, the parsing, the arithmetic, the path.
+"""The URLQuery finding judge's Transluce parts, and the parsing and arithmetic every finding judge uses.
 
 URLQuery is graded per headline finding rather than per claim sheet: one judge call per
-headline in benchmarks/transluce/claims/findings_reviewed.json, scoring the headline 0-1
-(tenths) and each of its sub-findings 0-1 (quarters). This module is the provider-free
-core, the counterpart of `grading.core` for the message-board sheets. Two callers share it:
-
-* `grading.finding_scorer.finding_scorer`, the Inspect scorer on `transluce_report`
-  and `transluce_report_grade`; and
-* benchmarks/transluce/judge/grade.py, the resumable batch grader that wrote the existing
-  grade files under benchmarks/transluce/reports/graded/.
-
-The prompt bytes are those of the original benchmarks/transluce/judge/render_sheet.py;
-tests/test_urlquery_judge.py pins them.
+headline of benchmarks/transluce/answer-key.json, scoring the headline 0-1 (tenths) and each of
+its sub-findings 0-1 (quarters). Every benchmark is now graded that way, with one prompt
+(`grading.answer_key_judge`); `render`, `stamp` and `summarize` here are its Transluce case, kept
+under their old names for the batch graders in benchmarks/transluce/judge/. This module also
+holds what the shared judge reuses: the judge transports, the answer validation, the score
+means, Transluce's article and scan links. tests/test_urlquery_judge.py pins the prompt bytes.
 
 Scan coverage is computed here, not by the judge: the judge is told which of each
 sub-finding's listed scans the report links, and `coverage` gives the ratios a grade file
@@ -57,7 +52,10 @@ def _grading() -> dict:
 
 
 def template_path() -> Path:
-    return evaluator_root() / _grading()["sheet"]
+    """The finding sheet every benchmark shares; the v1.0 grades used judge/finding_sheet_reviewed.md."""
+    from slopvestigator_bench.grading.answer_key_judge import TEMPLATE
+
+    return repo_root() / TEMPLATE
 
 
 def findings_path() -> Path:
@@ -207,46 +205,20 @@ def scans_line(group: set[str], linked: set[str] | None) -> str:
     )
 
 
-def render_item(f: dict, group: set[str], linked: set[str] | None, show_scans: bool) -> str:
-    kind = " (a conclusion)" if f["kind"] == "conclusion" else ""
-    if f["parent"] is None:
-        lines = [f"### Finding {f['id']}{kind}", "", f"**Finding:** {f['text']}", ""]
-    else:
-        lines = [f"#### Sub-finding {f['id']}{kind}", "", f"**Sub-finding:** {f['text']}", ""]
-    if "added" in f["tags"]:
-        if f.get("source", {}).get("kind") == "model_report":
-            lines += ["**Source:** added after checking the frozen records; a model report suggested this finding, but that report is not evidence and its wording is not the scoring target.", ""]
-        else:
-            lines += ["**Source:** added by the benchmark authors from the records; the article does not state it directly.", ""]
-    if "low-weight" in f["tags"]:
-        lines += ["**Scoring role:** Low-weight detail. Score it for diagnostics, but its omission alone should not lower the parent finding score.", ""]
-    if f.get("source", {}).get("kind") != "model_report":
-        for quote in f["quotes"]:
-            lines += [f"**In the article:** “{quote}”", ""]
-    if f["judge_notes"]:
-        lines += [f"**Notes:** {f['judge_notes']}", ""]
-    if show_scans:
-        lines.append(scans_line(group, linked))
-        if f.get("scan_note"):
-            lines += ["", f"**Scan note:** {f['scan_note']}"]
-    return "\n".join(lines).rstrip()
+def _headline(headline_id: str) -> dict:
+    from slopvestigator_bench.grading import answer_key_judge as akj
+
+    found = [f for f in akj.graded_findings(akj.load_key("transluce")) if f["id"] == headline_id]
+    if not found:
+        raise ValueError(f"{headline_id} is not a headline finding")
+    return found[0]
 
 
 def render(headline_id: str, article: str, report: str | None) -> str:
-    findings = load_findings()
-    groups = scan_groups(findings)
-    group = scored_group(findings, headline_id)
-    linked = linked_scans(report) if report is not None else None
-    subs = [f["id"] for f in group if f["parent"]]
-    blocks = [render_item(f, groups[f["id"]], linked, show_scans=bool(f["parent"]) or not subs) for f in group]
-    return (
-        template_path().read_text()
-        .replace("{{SOURCE_ARTICLE}}", article)
-        .replace("{{MODEL_REPORT}}", report if report is not None else "{{MODEL_REPORT}}")
-        .replace("{{FINDING_BLOCK}}", "\n\n".join(blocks))
-        .replace("{{SUB_IDS}}", "(" + ", ".join(subs) + ")" if subs else "(none: this finding has no sub-findings, so return an empty list)")
-        .replace("{{HEADLINE_ID}}", headline_id)
-    )
+    """The shared finding sheet (`grading.answer_key_judge`) for one Transluce headline."""
+    from slopvestigator_bench.grading import answer_key_judge as akj
+
+    return akj.render("transluce", _headline(headline_id), report, article)
 
 
 def split_prompt(prompt: str) -> tuple[str, str, str]:
@@ -377,26 +349,16 @@ def score_means(
 
 def summarize(body: dict, heads: list[str], report: str, weights: dict[str, float] | None = None) -> dict:
     """Fill a grade file's summary fields from its per-finding results."""
-    scored = {h: body["findings"][h]["score"] for h in heads if body["findings"].get(h, {}).get("status") == "ok"}
-    body["headline_weights"] = headline_weights() if weights is None else weights
-    body["n_scored"] = len(scored)
-    body["n_findings"] = len(heads)
-    body["score_mean"], body["score_mean_unweighted"] = score_means(scored, heads, body["headline_weights"])
-    body["unscored"] = [h for h in heads if body["findings"].get(h, {}).get("status") != "ok"]
-    body["scan_coverage"] = coverage(report)
-    return body
+    from slopvestigator_bench.grading import answer_key_judge as akj
+
+    return akj.summarize("transluce", body, heads, headline_weights() if weights is None else weights, report)
 
 
 def stamp(judge: str, effort: str, article: str) -> dict:
     """What a grade depends on besides the report. A resumed run reuses only matching grades."""
-    return {
-        "judge": judge,
-        "effort": effort,
-        "prompt_sha256": sha(template_path().read_bytes()),
-        # The rebuilt file is byte-identical to the reviewed one, so earlier grades still match.
-        "findings_sha256": sha(json.dumps(findings_document(), indent=1, ensure_ascii=False) + "\n"),
-        "article_sha256": sha(article),
-    }
+    from slopvestigator_bench.grading import answer_key_judge as akj
+
+    return akj.stamp("transluce", judge, effort, article)
 
 
 def run_meta(run_dir: Path) -> dict:

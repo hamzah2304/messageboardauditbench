@@ -1,0 +1,1 @@
+The **In the human report** quote shows where a sub-finding comes from; the full human report is context for what it means. Many findings are conclusions the human drew (the editors are OpenAI agents, the agents colluded, the drop in activity was an intervention).

@@ -16,6 +16,7 @@ from inspect_ai.solver import TaskState
 import slopvestigator_bench.task as task_module
 from slopvestigator_bench import benchmarks
 from slopvestigator_bench.configs import load_config
+from slopvestigator_bench.grading import answer_key_judge as akj
 from slopvestigator_bench.grading import findings as fj
 from slopvestigator_bench.grading.finding_scorer import finding_scorer
 
@@ -155,7 +156,7 @@ async def test_scorer_grades_every_headline_with_the_manifest_weights():
     expected = fj.score_means({h: 1.0 for h in heads} | {"F3": 0.0}, heads)
     assert (score.value, grade["score_mean_unweighted"]) == expected
     assert grade["article_context"] == "omitted" and grade["judge"] == "model"
-    assert grade["prompt_sha256"] == fj.sha(fj.template_path().read_bytes())
+    assert grade["prompt_sha256"] == fj.sha(akj.sheet("transluce")) and grade["rubric"] == "answer-key"
 
 
 @pytest.mark.parametrize(("transport", "skips"), [("anthropic", True), ("openrouter", False)])

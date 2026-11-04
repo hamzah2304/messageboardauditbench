@@ -65,7 +65,8 @@ kept in answer-key form in `superseded/answer-key-v1.0.json`. F1–F12 incorpora
 and fairness audits. F13 is the separately sourced header-injection finding, recorded in
 `claims/header_injection.json`.
 
-The judge prompt is `judge/finding_sheet_reviewed.md`. The judge scores one headline
+The judge prompt is the one every benchmark shares ([`benchmarks/judge/`](../judge/README.md));
+the v1.0 grades used `judge/finding_sheet_reviewed.md`. The judge scores one headline
 finding and its sub-findings per call. The headline gets a score from 0 to 1 in tenths,
 and each sub-finding a score from 0 to 1 in quarters. The report score is the mean over
 headlines, with F3 weighted 0.5 because it synthesises F4–F6. Grade files record the
@@ -76,7 +77,7 @@ unscored. It is never recorded as zero. If the judge refuses the first headline,
 report's remaining headlines are skipped. The model report that suggested F13 is not
 treated as evidence in its prompt.
 
-The prompt and arithmetic are `slopvestigator_bench.grading.findings`. Two entry
+The prompt and arithmetic are `slopvestigator_bench.grading.answer_key_judge`. Two entry
 points share them:
 
 - **Inspect.** `transluce_report` scores each fresh trial. `transluce_report_grade`
@@ -86,7 +87,7 @@ points share them:
         -T launch=runs/urlquery/final-20260927-agents-v6/launch.json \
         -T judge=openrouter/openai/gpt-6-astra
 
-- **Batch grader.** `judge/grade.py` makes resumable, synchronous API calls and writes
+- **Batch grader.** `scripts/grade_answer_key.py` (`judge/grade.py` still runs it) makes resumable, synchronous API calls and writes
   one grade file per report to the gitignored `benchmarks/transluce/reports/graded/judge_<model>/`.
   Every file carries the prompt, rubric, article and report hashes. A rerun reuses a
   grade only when all of these match.
