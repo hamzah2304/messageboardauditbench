@@ -20,16 +20,17 @@ def test_every_headline_renders_a_complete_prompt(name):
         assert all(f"#### Sub-finding {s['id']}" in block for s in finding["subfindings"])
 
 
-def test_the_benchmarks_share_everything_but_their_modules():
-    """Blanking each benchmark's module text leaves the same sheet for all three."""
-    blanked = set()
+def test_every_judge_sees_a_finding_in_the_same_form():
+    """The prompts differ; the finding block is one renderer's, so the same fields show the same way."""
     for name in akj.SPECS:
-        text = akj.sheet(name)
-        for kind in ("framing", "parts", "rules"):
-            if module := akj._module(kind, name):
-                text = text.replace(module, f"<{kind}>")
-        blanked.add(text.replace("\n<rules>\n", ""))
-    assert len(blanked) == 1
+        finding = akj.graded_findings(akj.load_key(name))[0]
+        block = akj.render_finding(name, finding)
+        assert block.startswith(f"### Finding {finding['id']}") and f"**Finding:** {finding['claim']}" in block
+        assert (f"**Notes:** {finding['judge_notes']}" in block) == bool(finding["judge_notes"])
+        assert (f"**Detail:** {finding['detail']}" in block) == bool(finding.get("detail"))
+        for sub in finding["subfindings"]:
+            assert f"#### Sub-finding {sub['id']}\n\n**Sub-finding:** {sub['claim']}" in block
+        assert akj.render_finding(name, finding, "R") in akj.render(name, finding, "R", "S", akj.report_variables(name, None))
 
 
 def test_report_scores():

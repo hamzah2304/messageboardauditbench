@@ -1,16 +1,19 @@
 """The finding judge every benchmark shares: a report graded against its answer key (answer-key-v1).
 
 Every benchmark is graded the same way. There is one judge call per headline finding, with that
-finding's own sub-findings; the judge scores each sub-finding 0-1 in quarters and the headline
-0-1 in tenths, following one prompt (benchmarks/judge/finding-sheet.md). The call, its retries and
-the answer's validation are `grading.finding_scorer.grade_finding` and `grading.findings.validate`.
+finding's own sub-findings, and every judge sees a finding in the same form (`render_finding`):
+the claim, its detail and notes, each sub-finding with its notes and whether it is low-weight.
+The judge scores each sub-finding 0-1 in quarters and the headline 0-1 in tenths. The call, its
+retries and the answer's validation are `grading.finding_scorer.grade_finding` and
+`grading.findings.validate`.
 
-What a benchmark configures (`SPECS`):
+Each benchmark keeps its own prompt, and configures (`SPECS`):
 
-* three prompt modules from benchmarks/judge/modules/: the framing (what was investigated and how
-  the key was built), the benchmark's own parts of a finding, and any extra rules;
-* the source document the judge reads for context: Transluce's article, the German wiki human
-  report, or none (the AI Village);
+* the prompt file, with the slots {{FINDING_BLOCK}}, {{SUB_IDS}}, {{HEADLINE_ID}} and
+  {{MODEL_REPORT}}, and the headings "## The model's report" and "## The finding to score" that
+  split it into cacheable parts (`findings.split_prompt`);
+* the source document the judge reads for context, and the slot it fills: Transluce's article,
+  the German wiki human report, or none (the AI Village);
 * the extra material shown on each item: quotes from the source, Transluce's scan links (computed
   per report), the AI Village records;
 * how headline scores make the report score. By default it is the mean over headlines, a minor
@@ -30,8 +33,6 @@ from functools import lru_cache
 from slopvestigator_bench.grading import findings as fj
 from slopvestigator_bench.runtime import repo_root
 
-TEMPLATE = "benchmarks/judge/finding-sheet.md"
-MODULES = "benchmarks/judge/modules"
 MINOR_HEADLINE_WEIGHT = 0.5
 KEPT_OUTCOMES = {"keep", "narrow"}
 KEPT_VERDICTS = {"supported", "partly"}
@@ -42,9 +43,9 @@ NO_SUBS = "(none: this finding has no sub-findings, so return an empty list)"
 class Spec:
     name: str
     key: str
+    template: str
     source: str | None  # "article" (Transluce's, from findings.article_text), a file path, or None
-    source_title: str = ""
-    source_tag: str = ""
+    source_slot: str = ""
     quote_label: str | None = None  # "In the article", ...; None shows no source quotes
     evidence: str | None = None  # "scans" (Transluce links), "records" (AI Village), or None
     top_k: int | None = None  # report score = mean of the best top_k headlines; None = weighted mean
@@ -55,12 +56,15 @@ class Spec:
 
 
 SPECS = {
-    "transluce": Spec("transluce", "benchmarks/transluce/answer-key.json", "article",
-                      "Transluce's article", "article", "In the article", "scans"),
+    "transluce": Spec("transluce", "benchmarks/transluce/answer-key.json",
+                      "benchmarks/transluce/judge/finding_sheet_reviewed.md", "article", "{{SOURCE_ARTICLE}}",
+                      "In the article", "scans"),
     "german-wiki": Spec("german-wiki", "benchmarks/german-wiki/answer-key.json",
-                        "benchmarks/german-wiki/human_report.txt", "The human report", "human_report",
-                        "In the human report"),
-    "aivillage": Spec("aivillage", "benchmarks/aivillage/answer-key.json", None, evidence="records", top_k=20),
+                        "benchmarks/german-wiki/judge/finding_sheet_answer_key.md",
+                        "benchmarks/german-wiki/human_report.txt", "{{HUMAN_REPORT}}", "In the human report"),
+    "aivillage": Spec("aivillage", "benchmarks/aivillage/answer-key.json",
+                      "benchmarks/aivillage/judge/finding_sheet_answer_key.txt", None,
+                      evidence="records", top_k=20),
 }
 
 
@@ -99,18 +103,9 @@ def key_sha(key: dict) -> str:
 # --- the prompt -----------------------------------------------------------------------
 
 
-def _module(kind: str, name: str) -> str:
-    path = repo_root() / MODULES / f"{kind}-{name}.md"
-    return path.read_text().strip() if path.is_file() else ""
-
-
 def sheet(name: str) -> str:
-    """The shared template with the benchmark's modules: everything but the source, report and finding."""
-    rules = _module("rules", name)
-    return ((repo_root() / TEMPLATE).read_text()
-            .replace("{{FRAMING}}", _module("framing", name))
-            .replace("{{PARTS}}", _module("parts", name))
-            .replace("{{RULES}}", f"\n{rules}\n" if rules else ""))
+    """The benchmark's prompt, before the source, report and finding go in."""
+    return (repo_root() / SPECS[name].template).read_text()
 
 
 @lru_cache(maxsize=4)
@@ -176,9 +171,8 @@ def render(name: str, finding: dict, report: str | None, source: str | None = No
               .replace("{{HEADLINE_ID}}", finding["id"]))
     for var, value in (variables or {}).items():
         prompt = prompt.replace("{{" + var + "}}", value)
-    section = (f"\n## {spec.source_title}\n\n<{spec.source_tag}>\n{source}\n</{spec.source_tag}>\n"
-               if spec.source and source is not None else "")
-    prompt = prompt.replace("{{SOURCE}}", section)
+    if spec.source and source is not None:
+        prompt = prompt.replace(spec.source_slot, source)
     return prompt.replace("{{MODEL_REPORT}}", report if report is not None else "{{MODEL_REPORT}}")
 
 
@@ -203,7 +197,7 @@ def stamp(name: str, judge: str, effort: str, source: str | None, key: dict | No
         "judge": judge,
         "effort": effort,
         "rubric": "answer-key",
-        "prompt_sha256": fj.sha(sheet(name)),
+        "prompt_sha256": fj.sha((repo_root() / spec.template).read_bytes()),
         "findings_sha256": key_sha(key or load_key(name)),
     }
     if spec.source:

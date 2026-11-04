@@ -129,7 +129,7 @@ class FakeJudge:
 
     async def generate(self, messages, config):
         prompt = "".join(part.text for part in messages[1].content)
-        head = re.search(r"Finding sheet — (M\d+)", prompt)[1]
+        head = re.search(r"Finding ID: (M\d+)", prompt)[1]
         self.calls.append((prompt, config))
         if head == self.fail:
             raise RuntimeError("judge down")
@@ -153,7 +153,7 @@ async def test_scorer_judges_each_finding_on_its_own(monkeypatch):
     assert score.value == {"score": 0.5, "coverage": 0.5}
     prompt, config = judge.calls[0]
     assert "It also had reasoning traces" in prompt and "{{" not in prompt
-    assert prompt.startswith("# Finding sheet — ") and "## The finding to score" in prompt
+    assert prompt.startswith("We are measuring") and "## The finding to score" in prompt
     assert config.reasoning_effort == "medium"
     grade = score.metadata["grade"]
     assert grade["rubric"] == "answer-key" and grade["top_k"] == av.TOP_K == akj.SPECS["aivillage"].top_k

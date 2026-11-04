@@ -2,8 +2,8 @@
 
 URLQuery is graded per headline finding rather than per claim sheet: one judge call per
 headline of benchmarks/transluce/answer-key.json, scoring the headline 0-1 (tenths) and each of
-its sub-findings 0-1 (quarters). Every benchmark is now graded that way, with one prompt
-(`grading.answer_key_judge`); `render`, `stamp` and `summarize` here are its Transluce case, kept
+its sub-findings 0-1 (quarters). Every benchmark is now graded that way, each with its own
+prompt (`grading.answer_key_judge`); `render`, `stamp` and `summarize` here are its Transluce case, kept
 under their old names for the batch graders in benchmarks/transluce/judge/. This module also
 holds what the shared judge reuses: the judge transports, the answer validation, the score
 means, Transluce's article and scan links. tests/test_urlquery_judge.py pins the prompt bytes.
@@ -52,10 +52,7 @@ def _grading() -> dict:
 
 
 def template_path() -> Path:
-    """The finding sheet every benchmark shares; the v1.0 grades used judge/finding_sheet_reviewed.md."""
-    from slopvestigator_bench.grading.answer_key_judge import TEMPLATE
-
-    return repo_root() / TEMPLATE
+    return evaluator_root() / _grading()["sheet"]
 
 
 def findings_path() -> Path:

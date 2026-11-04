@@ -65,8 +65,7 @@ kept in answer-key form in `superseded/answer-key-v1.0.json`. F1–F12 incorpora
 and fairness audits. F13 is the separately sourced header-injection finding, recorded in
 `claims/header_injection.json`.
 
-The judge prompt is the one every benchmark shares ([`benchmarks/judge/`](../judge/README.md));
-the v1.0 grades used `judge/finding_sheet_reviewed.md`. The judge scores one headline
+The judge prompt is `judge/finding_sheet_reviewed.md`. The judge scores one headline
 finding and its sub-findings per call. The headline gets a score from 0 to 1 in tenths,
 and each sub-finding a score from 0 to 1 in quarters. The report score is the mean over
 headlines, with F3 weighted 0.5 because it synthesises F4–F6. Grade files record the

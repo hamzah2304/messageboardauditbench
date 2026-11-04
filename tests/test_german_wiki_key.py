@@ -23,7 +23,7 @@ def _text(messages) -> str:
 
 def key_reply(prompt: str, score: float = 1.0) -> str:
     """A well-formed answer for whichever headline the prompt asks about."""
-    head = re.search(r"Finding sheet — (W\d+)", prompt)[1]
+    head = re.search(r"answer-key finding sheet — (W\d+)", prompt)[1]
     finding = {f["id"]: f for f in akj.graded_findings(akj.load_key("german-wiki"))}[head]
     subs = [{"id": s["id"], "score": score, "contradicted": False, "quote": "", "reason": "x"}
             for s in finding["subfindings"]]
@@ -35,7 +35,7 @@ def key_judge(score: float = 1.0, other: str | None = None):
     """A mock judge that answers answer-key prompts per headline and anything else with `other`."""
     def reply(messages, *_args, **_kwargs) -> ModelOutput:
         prompt = _text(messages)
-        text = key_reply(prompt, score) if "# Finding sheet — W" in prompt else other
+        text = key_reply(prompt, score) if "answer-key finding sheet — W" in prompt else other
         return ModelOutput.from_content("mockllm/model", text)
     return get_model("mockllm/model", custom_outputs=reply)
 

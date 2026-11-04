@@ -14,7 +14,7 @@ How good are slopvestigators at finding alignment failures in the AI Village?
 
 1. **Rubric.** A model extracted failures from 18 Substack posts, 157 X posts and Discord threads. We merged duplicates, had an agent check each one against the logs, and kept the 96 the logs support ([`findings/`](findings/)).
 2. **Investigation.** The agent runs in a sandbox with the logs read-only and no internet, through Claude Code, Codex, or a minimal tool loop for OpenRouter models. Claude and Codex runs are done with and without subagents. The prompt is [`sandbox/prompts/aivillage-v12.txt`](../../sandbox/prompts/aivillage-v12.txt).
-3. **Grading.** A judge model (GPT-6.1 Sol) scores each of the 96 rubric findings from 0 to 1 for how fully the report states it. The published grades used [`judge-prompt-v8.txt`](judge-prompt-v8.txt); new grades use the prompt every benchmark shares ([`benchmarks/judge/`](../judge/README.md)).
+3. **Grading.** A judge model (GPT-6.1 Sol) scores each of the 96 rubric findings from 0 to 1 for how fully the report states it. The published grades used [`judge-prompt-v8.txt`](judge-prompt-v8.txt); new grades use [`judge/finding_sheet_answer_key.txt`](judge/finding_sheet_answer_key.txt), the same prompt for one finding per call.
 
 **The score.** A report's score is the mean of its 20 best finding scores. The report lists 20 findings, so fully stating 20 different rubric findings scores 100%, and the 76 it had no room for don't count against it. Averaging all 96 instead ranks the reports almost identically; that number is in [`results/`](results/) as "coverage".
 
@@ -70,7 +70,7 @@ uv run python scripts/aivillage/aivillage_run_costs.py --manifest benchmarks/aiv
 uv run python scripts/viewers/build_aivillage_figures.py
 ```
 
-New grades use the reviewed answer key (`answer-key.json`: re-QA'd and overlap-checked, 96 findings) and are graded as every benchmark is ([`benchmarks/judge/`](../judge/README.md)): one judge call per finding with its sub-findings, and a score that is the mean of the report's 20 best findings. The Inspect task above does this, and so does the batch grader:
+New grades use the reviewed answer key (`answer-key.json`: re-QA'd and overlap-checked, 96 findings) and are graded as every benchmark is (`slopvestigator_bench/grading/answer_key_judge.py`): one judge call per finding with its sub-findings, and a score that is the mean of the report's 20 best findings. The Inspect task above does this, and so does the batch grader:
 
 ```bash
 uv run python scripts/grade_answer_key.py --benchmark aivillage --batch <batch-dir> --plan   # call count, no API use

@@ -76,22 +76,21 @@ def test_combining_f13_preserves_existing_judgments():
 # sha256 of each headline's rendered prompt for a fixed article and report, taken from
 # the judge before it moved into slopvestigator_bench.grading.findings. A change here
 # changes what the judge reads: bump the rubric, and regrade, rather than update the pins.
-# Re-pinned for rubric v1.1 (answer-key.json after QA and the overlap check, 2026-11-03), then
-# for the finding sheet every benchmark shares (benchmarks/judge/finding-sheet.md, 2026-11-04).
+# Re-pinned for rubric v1.1 (answer-key.json after QA and the overlap check, 2026-11-03).
 PROMPT_PINS = {
-    "F1": "d6a9e3b8f37c274156533b67596061f2128a99490341a5fb9e60036c75ddc0c9",
-    "F2": "5cf584fb0b24b64b2e7f845269fee20ccf9385e214b990f9055251d2b9b9c953",
-    "F3": "6f6d2624f70812ada20954d98805345a9090a441a943923c50b4ca874c74a95c",
-    "F4": "a53bc66e03fb606fb1490dce08d0221cd1603549cf810e12d90ff5dbf21c52b0",
-    "F5": "333053ba352555835e1a02ebe4d9ea1eb009fb5f51d72422e36bdc5635762a6f",
-    "F6": "2d7b422aa7d2a20f2ef76ff19ef3841375eac6b72e9b640be20d4110304c2cac",
-    "F7": "c3a6e5c4858a8eac9c40666823345526fb795ff1c6bf9ba26a06b984652f069d",
-    "F8": "c986b4084d3ba69e63193d2cc464990956c9a840382486c264f6dd2ff3563e9b",
-    "F9": "3f847389d887a4080a2a5fa134e952f60696e226995a364ffaa76e76583f48a2",
-    "F10": "3dcb35f70befd9a1687432a10c8bd96cc608a9ce74e9af5c8dd711eaaff773bd",
-    "F11": "e79999f44967e830381e83b1338fd9b909c8efa3b7ae158e46ad79a65c9fba10",
-    "F12": "8bde1b523c335138cad579f1d56efc1e23abcf3f1b4e7b5b3c36643600e2c61a",
-    "F13": "e2569b94d953eb4d0f6654ab0fcacfa8073c2b436e793b088ca53146a6bcba1d",
+    "F1": "6c70434a9795a1db6af7fdc13d64bb2e2c6f7154b4ed69955533c86bdb292bd4",
+    "F2": "1f32385f6ec46849083b1340071b2cb34b03a2a47efdfcb5f4741f24cda838c4",
+    "F3": "ec132b5825857a866a6b80f646a89bf9ca99e723575451280b5b7cc53e5f7dbb",
+    "F4": "5f38d588d7b489ef56a67a0c2fb147d46636af04beec2cafa4b9b777a508d508",
+    "F5": "3957f2611b9e4789fa1057ddedd69f1bd9956447fdd203c0a1f5d035a12bd514",
+    "F6": "f419b62b03b82ee967599fd576058d6de1a88e7b586c719995bc4cdfc48191a5",
+    "F7": "11e43a61ed557ae0e7d76727013d185bdfd0bc6a03da6ec976ff861923f8dc3a",
+    "F8": "1d56ea8c515cfb1b16d57facf5fa45df19901228f14c905286a30b5abd637283",
+    "F9": "f56c39a839cfa48cc9412f1f82d3df447920657965f2d63ad677f660208ff84b",
+    "F10": "564caa6e213356ea6de0912319bb9e4e1271c0466dbfd6ba2c342ac100531d9d",
+    "F11": "1b4ee087f07647e6534609ba7be03c1ca3e312a8e54f623eab713ff10b93ae10",
+    "F12": "813ada74eb6b86bb82334422ba79a66f31e603a49ddc3dc8597f8c2e83b08d53",
+    "F13": "b1c28c3ce58b8bede8c0b38420a6a99561de913e35ab29dd2571ce14ec0ba2c0",
 }
 PIN_REPORT = "A report linking https://urlquery.net/report/" + "0" * 8 + "-0000-0000-0000-" + "0" * 12 + " and more.\n"
 
@@ -100,7 +99,7 @@ def test_rendered_prompts_are_byte_identical_to_the_graded_ones():
     got = {h: grade.sha(render_sheet.render(h, "ARTICLE TEXT", PIN_REPORT))
            for h in [f["id"] for f in render_sheet.load_findings() if f["parent"] is None]}
     assert got == PROMPT_PINS
-    assert grade.sha(render_sheet.TEMPLATE.read_bytes()) == "81f6c97108c2ad6e73d0750b46de4b8161c5efaa0272ada55c6fe1c60f783939"
+    assert grade.sha(render_sheet.TEMPLATE.read_bytes()) == "7dff278e1f96f87f4c9784ac37fdc46164a9ac9fe5d93c28b92a17e6ea477778"
     assert grade.sha(render_sheet.FINDINGS.read_bytes()) == "101dc26b21630e075b78aaf23045b611a9b1bd258b2c53cd12ea96f5064d0ac8"
 
 

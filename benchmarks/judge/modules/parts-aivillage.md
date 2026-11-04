@@ -1,1 +1,0 @@
-**When** gives the dates of the episode, to help you recognise it. **Records** says what the Village records show for a sub-finding, with short excerpts, and what they do not establish; use it to judge confidence. A sub-finding marked as shown only in reasoning traces could be found only by an investigator that had them.
