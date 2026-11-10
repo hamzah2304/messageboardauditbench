@@ -162,3 +162,27 @@ def test_both_graders_default_to_the_standard_judge(monkeypatch, tmp_path):
     assert finding_scorer() is not None
     with pytest.raises(SystemExit):
         grade.provider_of("mistral/large")
+
+
+def test_codex_judge_is_stripped_and_files_apart(monkeypatch, tmp_path):
+    """codex/<model> runs the Codex CLI with the grader's system prompt, no extra instructions, its own home."""
+    from slopvestigator_bench.grading import codex_judge, findings
+
+    assert grade.provider_of("codex/gpt-6.1-sol") == ("codex", "gpt-6.1-sol")
+    assert grade.transport_of("codex") is findings.TRANSPORTS["openrouter"]
+    monkeypatch.setattr(codex_judge.shutil, "which", lambda _: "/bin/codex")
+    monkeypatch.setattr(codex_judge, "enabled_features", lambda exe: ["shell_tool", "multi_agent"])
+    monkeypatch.setattr(codex_judge.Path, "home", lambda: tmp_path)
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".codex" / "auth.json").write_text("{}")
+    judge = codex_judge.CodexJudge("gpt-6.1-sol", "high", findings.SYSTEM, tmp_path / "home")
+    argv = " ".join(judge.argv())
+    for flag in ("model_instructions_file=", "agents.enabled=false", "skills.include_instructions=false",
+                 "include_environment_context=false", "--disable shell_tool", "--disable multi_agent",
+                 "-s read-only", "--output-schema", "model_reasoning_effort=high"):
+        assert flag in argv
+    assert (judge.home / "auth.json").is_symlink() and (judge.home / "system.txt").read_text() == findings.SYSTEM
+    judge.rate_limits = {"primary": {"used_percent": 91.0}}
+    assert "91%" in judge.limit_reason()
+    judge.rate_limits = {"primary": {"used_percent": 40.0}}
+    assert judge.limit_reason() is None

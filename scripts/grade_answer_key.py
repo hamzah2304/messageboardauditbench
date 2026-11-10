@@ -21,6 +21,10 @@ every benchmark is graded the same way. ``--benchmark`` defaults to transluce, w
   ``openrouter/openai/gpt-6-astra``, effort high): synchronous OpenRouter chat completions with a
   JSON response format, no fallback provider, and OpenRouter's reported cost recorded.
 * ``openai/<model>``: the same chat completions, from OpenAI directly.
+* ``codex/<model>`` (e.g. ``codex/gpt-6.1-sol``): the Codex CLI on the ChatGPT subscription, stripped
+  to the grader's system prompt and the judge prompt (`grading.codex_judge`). Its grades file under
+  judge_codex_<model>_<effort>/, apart from the API judge's. The batch stops when the subscription
+  window passes ``--codex-stop-at`` percent (default 90), so it never spends Codex credits.
 
 A refusal, an unparseable answer or an API error leaves that finding unscored and says so;
 it is never recorded as a zero, and there is no fallback to another model, so one file is
@@ -51,6 +55,7 @@ sys.path.insert(0, str(ROOT))
 from slopvestigator_bench import standard  # noqa: E402
 from slopvestigator_bench.benchmarks import primary_root  # noqa: E402
 from slopvestigator_bench.grading import answer_key_judge as akj  # noqa: E402
+from slopvestigator_bench.grading import codex_judge  # noqa: E402
 from slopvestigator_bench.grading import findings as fj  # noqa: E402
 from slopvestigator_bench.grading.core import variant_for_data  # noqa: E402
 from slopvestigator_bench.grading.judge import OPENROUTER_ROUTE  # noqa: E402
@@ -84,27 +89,34 @@ def provider_of(judge: str) -> tuple[str, str]:
     """('anthropic', 'claude-opus-5-5') from 'anthropic/claude-opus-5-5' or a bare Claude name."""
     if judge.startswith("openrouter/"):
         return "openrouter", judge.removeprefix("openrouter/")
+    if judge.startswith("codex/"):
+        return "codex", judge.removeprefix("codex/")
     if judge.startswith("anthropic/"):
         return "anthropic", judge.removeprefix("anthropic/")
     if judge.startswith("claude"):
         return "anthropic", judge
     if judge.startswith("openai/"):
         return "openai", judge.removeprefix("openai/")
-    raise SystemExit(f"judge must be anthropic/<model>, openai/<model> or openrouter/<model>, not {judge!r}")
+    raise SystemExit(f"judge must be anthropic/<model>, openai/<model>, openrouter/<model> or codex/<model>, not {judge!r}")
 
 
 def transport_of(provider: str) -> dict:
     """The call settings for a provider: OpenAI directly is called as OpenRouter is."""
-    return TRANSPORTS["openrouter" if provider == "openai" else provider]
+    return TRANSPORTS["openrouter" if provider in ("openai", "codex") else provider]
 
 
 class Judge:
-    def __init__(self, judge: str, effort: str | None = None):
+    def __init__(self, judge: str, effort: str | None = None, codex_stop_at: float = 90.0):
         self.provider, self.model = provider_of(judge)
         self.effort = effort or transport_of(self.provider)["effort"]
         self.lock = threading.Lock()
         self.spend = 0.0
-        if self.provider == "anthropic":
+        self.codex = None
+        if self.provider == "codex":
+            self.codex = codex_judge.CodexJudge(self.model, self.effort, fj.SYSTEM,
+                                                primary_root() / "runs" / ".codex-judge-home", codex_stop_at)
+            self.errors = (Exception,)
+        elif self.provider == "anthropic":
             import anthropic
 
             self.client = anthropic.Anthropic()
@@ -176,6 +188,8 @@ class Judge:
         for attempt in range(transport_of(self.provider)["attempts"]):
             if self.provider == "anthropic":
                 text, usage, stop, refusal = self._anthropic(prompt, fj.JSON_ONLY if attempt else "")
+            elif self.codex:
+                text, usage, stop, refusal = self.codex.call(prompt)
             else:
                 text, usage, stop, refusal = self._openrouter(prompt)
             usage_all.append(usage)
@@ -215,6 +229,8 @@ def parser(defaults: dict | None = None) -> argparse.ArgumentParser:
     ap.add_argument("--effort", help="default: the standard judge's effort for it; else xhigh for Anthropic, high otherwise")
     ap.add_argument("--output", type=Path, help="grade directory (default: see above, then judge_<model>...)")
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--codex-stop-at", type=float, default=90.0,
+                    help="codex judge: stop when the subscription window is this percent used")
     ap.add_argument("--findings", nargs="*", help="only these headline ids")
     ap.add_argument("--plan", action="store_true", help="print the calls a run would make (after resume) and stop")
     ap.set_defaults(**(defaults or {}))
@@ -255,7 +271,8 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
     provider, model = provider_of(args.judge)
     effort = args.effort or (DEFAULT_EFFORT if args.judge == DEFAULT_JUDGE else transport_of(provider)["effort"])
     # Opus grades have always been filed without an effort suffix; OpenRouter's and OpenAI's with one.
-    out_dir = args.output or output_root(bench) / fj.judge_dir(model, effort if provider != "anthropic" else None)
+    out_dir = args.output or output_root(bench) / fj.judge_dir(f"codex_{model}" if provider == "codex" else model,
+                                                              effort if provider != "anthropic" else None)
     variables: dict[str, dict[str, str]] = {}
     for d in list(run_dirs):
         found = report_setup(bench, d)
@@ -268,7 +285,7 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
           f"({bench}, {args.judge}, effort {effort}{f', article {context}' if context else ''}) -> {out_dir}", flush=True)
 
     # Recorded without the transport prefix, as the existing grade files record it.
-    stamp = akj.stamp(bench, model, effort, source, key)
+    stamp = akj.stamp(bench, args.judge if provider == "codex" else model, effort, source, key)
     files: dict[str, dict] = {}
     reports: dict[str, str] = {}
     todo: list[tuple[Path, str]] = []
@@ -302,7 +319,8 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
     if args.plan:
         return
 
-    judge = Judge(args.judge, effort)
+    judge = Judge(args.judge, effort, args.codex_stop_at)
+    stop = threading.Event()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     write_lock = threading.Lock()
@@ -318,10 +336,16 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
         tmp.replace(out_dir / f"{name}.json")
 
     def do(item: tuple[Path, str]) -> None:
+        if stop.is_set():
+            return
         d, h = item
         prompt = akj.render(bench, by_id[h], reports[d.name], source, variables[d.name])
         try:
             result = judge.grade(h, [s["id"] for s in by_id[h]["subfindings"]], prompt)
+        except codex_judge.UsageLimit as exc:
+            stop.set()
+            print(f"stopping: subscription usage limit: {exc}", flush=True)
+            return
         except judge.errors as exc:
             result = {"status": "api_error", "error": f"{type(exc).__name__}: {exc}"[:500]}
         with write_lock:
@@ -332,7 +356,11 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
             files[d.name]["findings"][h] = result
             write(d.name)
         tag = result["status"] if result["status"] != "ok" else f"{result['score']:.1f}"
-        print(f"  {d.name[17:60]:44} {h:4} {tag:10} spend ${judge.spend:.2f}", flush=True)
+        cost = judge.codex.window() if judge.codex else f"spend ${judge.spend:.2f}"
+        print(f"  {d.name[17:60]:44} {h:4} {tag:10} {cost}", flush=True)
+        if judge.codex and (reason := judge.codex.limit_reason()) and not stop.is_set():
+            stop.set()
+            print(f"stopping: {reason}; rerun to resume", flush=True)
 
     # warm the shared prefix, then each report's own prefix, then everything else
     first, rest = [], []
