@@ -316,6 +316,11 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
         todo += [(d, h) for h in heads if not done(body["findings"].get(h, {}))]
     # With --plan this is the resume-aware count a real run would pay for.
     print(f"{len(todo)} calls to make", flush=True)
+    if judge.codex and todo:
+        judge.codex.refresh_limits(force=True)
+        if reason := judge.codex.limit_reason():
+            raise SystemExit(f"not starting: {reason}")
+        print(judge.codex.window(), flush=True)
     if args.plan:
         return
 

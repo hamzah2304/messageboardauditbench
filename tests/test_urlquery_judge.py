@@ -182,7 +182,11 @@ def test_codex_judge_is_stripped_and_files_apart(monkeypatch, tmp_path):
                  "-s read-only", "--output-schema", "model_reasoning_effort=high"):
         assert flag in argv
     assert (judge.home / "auth.json").is_symlink() and (judge.home / "system.txt").read_text() == findings.SYSTEM
-    judge.rate_limits = {"primary": {"used_percent": 91.0}}
+    assert "--ephemeral" in argv
+    assert judge.limit_reason() == "could not read the subscription usage window"
+    judge.rate_limits = {"ordinaryUsageAllowed": True, "rateLimits": {"primary": {"usedPercent": 91}}}
     assert "91%" in judge.limit_reason()
-    judge.rate_limits = {"primary": {"used_percent": 40.0}}
-    assert judge.limit_reason() is None
+    judge.rate_limits = {"ordinaryUsageAllowed": True, "rateLimits": {"primary": {"usedPercent": 40}}}
+    assert judge.limit_reason() is None and judge.window() == "window 40%"
+    judge.rate_limits = {"ordinaryUsageAllowed": False, "rateLimits": {"primary": {"usedPercent": 40}}}
+    assert judge.limit_reason()
