@@ -62,7 +62,7 @@ uv run inspect eval slopvestigator_bench/aivillage_report   -T agent=codex  --mo
 
 `-T agent=` is `claude` (Claude Code), `codex` (Codex CLI) or `react` (a minimal tool loop
 for any Inspect model). Each task grades its report inline with the standard judge
-(`configs/standard.toml`: `openai/gpt-6.1-sol`, high effort); set another judge with
+(`configs/standard.toml`: `openrouter/openai/gpt-6.1-sol`, high effort); set another judge with
 `--model-role grader=<model>`, or skip grading with `--no-score`. The
 `*_grade` tasks grade reports that already exist.
 `scripts/e2e_smoke.sh` runs one short trial of each, end to end.

@@ -193,7 +193,7 @@ configs.
 
   List them with `git show <commit>:configs/<name>.toml | sha256sum` (old) and
   `sha256sum configs/*-std-*.toml` (current); a run records the full hash in `meta.json`.
-- **Judge.** Every Inspect grader and scorer defaults to the standard judge, `openai/gpt-6.1-sol` at high effort
+- **Judge.** Every Inspect grader and scorer defaults to the standard judge, `openrouter/openai/gpt-6.1-sol` at high effort
   (`standard.toml` `judge`, `judge_effort`): the German wiki sheets (published with Fable 5.1;
   the code default was GPT-5.6 Sol), the Transluce per-finding judge (v1.0 grades: GPT-6 Astra
   through OpenRouter; code default Opus 5.5) and AI Village (GPT-6.1 Sol at medium). Grades

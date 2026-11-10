@@ -114,7 +114,7 @@ by process and length diagnostics. (The Mythos 5 and RubyHack incidents are draf
 future evals, not configs of this task; see
 [adding an incident](adding-an-incident.md).) The two rubric scores and
 per-finding grades appear in the `.eval` log. The judge defaults to the standard
-judge in `configs/standard.toml` (`openai/gpt-6.1-sol`, high effort);
+judge in `configs/standard.toml` (`openrouter/openai/gpt-6.1-sol`, high effort);
 `--model-role grader=...` overrides it. Reproducing a published comparison
 requires its recorded judge, prompts and data version.
 The sheet mean differs from the figures' strict score: they transform each

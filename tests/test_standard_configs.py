@@ -39,7 +39,7 @@ def test_the_shared_settings_are_identical_across_evals():
 
 
 def test_one_judge():
-    assert standard.judge() == ("openai/gpt-6.1-sol", "high")
+    assert standard.judge() == ("openrouter/openai/gpt-6.1-sol", "high")
 
 
 @pytest.mark.parametrize("name", [standard.config_name(b, m) for b in standard.benchmark_ids()

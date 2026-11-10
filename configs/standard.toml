@@ -26,8 +26,9 @@ early_stop_note = "Use the remaining time for breadth: examine parts of the data
 # the run as a refusal. Keep the message free of double quotes and '#' (scripts/read_config.py).
 safeguard_retry_limit = 3
 safeguard_retry_message = "The previous turn ended with an API error before you finished. Continue the same investigation from where you left off. Keep report.md in place: edit it, never delete, move, or truncate it."
-# One judge for every eval, all reports graded in one window.
-judge = "openai/gpt-6.1-sol"
+# One judge for every eval, all reports graded in one window. Called through OpenRouter, with no
+# fallback provider (grading/judge.py OPENROUTER_ROUTE).
+judge = "openrouter/openai/gpt-6.1-sol"
 judge_effort = "high"
 
 [messageboard]

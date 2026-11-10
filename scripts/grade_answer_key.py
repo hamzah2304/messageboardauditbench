@@ -10,16 +10,17 @@ The resumable batch counterpart of the ``*_report_grade`` Inspect tasks: the pro
 arithmetic are `slopvestigator_bench.grading.answer_key_judge`, shared with the Inspect scorers, so
 every benchmark is graded the same way. ``--benchmark`` defaults to transluce, whose old command
 (benchmarks/transluce/judge/grade.py) still runs this. The judge defaults to the standard judge
-(configs/standard.toml: openai/gpt-6.1-sol at high effort). Three judge transports:
+(configs/standard.toml: openrouter/openai/gpt-6.1-sol at high effort). Three judge transports:
 
 * ``anthropic/<model>`` (effort xhigh unless given, adaptive thinking): synchronous Messages
   API calls. The prompt is sent as three blocks so the
   cache does the work: rules + source (identical for every call), the report (identical
   for a report's calls), then the finding. The first call on each report runs alone so the
   others read its cache.
-* ``openrouter/<model>`` (the Transluce final run used ``openrouter/openai/gpt-6-astra``, effort
-  high): synchronous OpenRouter chat completions with a JSON response format.
-* ``openai/<model>`` (the standard judge): the same chat completions, from OpenAI directly.
+* ``openrouter/<model>`` (the standard judge; the Transluce final run used
+  ``openrouter/openai/gpt-6-astra``, effort high): synchronous OpenRouter chat completions with a
+  JSON response format, no fallback provider, and OpenRouter's reported cost recorded.
+* ``openai/<model>``: the same chat completions, from OpenAI directly.
 
 A refusal, an unparseable answer or an API error leaves that finding unscored and says so;
 it is never recorded as a zero, and there is no fallback to another model, so one file is
@@ -52,6 +53,7 @@ from slopvestigator_bench.benchmarks import primary_root  # noqa: E402
 from slopvestigator_bench.grading import answer_key_judge as akj  # noqa: E402
 from slopvestigator_bench.grading import findings as fj  # noqa: E402
 from slopvestigator_bench.grading.core import variant_for_data  # noqa: E402
+from slopvestigator_bench.grading.judge import OPENROUTER_ROUTE  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
@@ -123,6 +125,8 @@ class Judge:
             self.errors = (Exception,)
 
     def cost(self, usage) -> float:
+        if "cost" in usage:  # OpenRouter reports what it charged
+            return usage["cost"] or 0.0
         p_in, p_out, p_read, p_write = PRICES.get(self.model, (0, 0, 0, 0))
         return (usage.get("input_tokens", 0) * p_in + usage.get("output_tokens", 0) * p_out
                 + usage.get("cache_read_input_tokens", 0) * p_read
@@ -157,6 +161,7 @@ class Judge:
             response_format={"type": "json_object"},
             max_completion_tokens=transport_of(self.provider)["max_tokens"],
             messages=[{"role": "system", "content": fj.SYSTEM}, {"role": "user", "content": prompt}],
+            **({"extra_body": {**OPENROUTER_ROUTE, "usage": {"include": True}}} if self.provider == "openrouter" else {}),
         )
         choice = response.choices[0]
         usage = response.usage.model_dump() if response.usage else {}
@@ -304,8 +309,10 @@ def main(argv: list[str] | None = None, defaults: dict | None = None) -> None:
 
     def write(name: str) -> None:
         body = akj.summarize(bench, files[name], all_heads, weights, reports[name])
-        if judge.model in PRICES:  # no price table for OpenRouter judges; record nothing rather than $0
-            body["cost_usd"] = round(sum(judge.cost(u) for f in body["findings"].values() for u in f.get("usage", [])), 4)
+        usages = [u for f in body["findings"].values() for u in f.get("usage", [])]
+        # Anthropic from the price table, OpenRouter from its reported cost; OpenAI direct records nothing rather than $0.
+        if judge.model in PRICES or any("cost" in u for u in usages):
+            body["cost_usd"] = round(sum(judge.cost(u) for u in usages), 4)
         tmp = out_dir / f".{name}.json.tmp"
         tmp.write_text(json.dumps(body, indent=1, ensure_ascii=False))
         tmp.replace(out_dir / f"{name}.json")

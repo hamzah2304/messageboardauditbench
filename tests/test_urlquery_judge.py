@@ -125,23 +125,36 @@ def test_both_judge_paths_read_one_transport_table():
     assert config.reasoning_effort == "xhigh" and config.effort is None and config.max_tokens == 32000
 
 
-def test_both_graders_default_to_the_standard_judge_including_openai(monkeypatch, tmp_path):
-    """openai/gpt-6.1-sol at high effort works in the batch grader and the Inspect scorer."""
+def test_both_graders_default_to_the_standard_judge(monkeypatch, tmp_path):
+    """openrouter/openai/gpt-6.1-sol at high effort works in the batch grader and the Inspect scorer."""
     from slopvestigator_bench import standard
     from slopvestigator_bench.grading import findings
     from slopvestigator_bench.grading.finding_scorer import finding_scorer
 
     judge, effort = standard.judge()
-    assert (judge, effort) == ("openai/gpt-6.1-sol", "high")
-    # Batch grader: the default, the OpenAI route, its call settings and where its grades go.
+    assert (judge, effort) == ("openrouter/openai/gpt-6.1-sol", "high")
+    # Batch grader: the default, the OpenRouter route, its call settings and where its grades go.
     args = grade.parser().parse_args([])
     assert args.judge == judge and grade.DEFAULT_EFFORT == effort
-    assert grade.provider_of(judge) == ("openai", "gpt-6.1-sol")
+    assert grade.provider_of(judge) == ("openrouter", "openai/gpt-6.1-sol")
     assert grade.transport_of("openai") is findings.TRANSPORTS["openrouter"]
-    monkeypatch.setenv("OPENAI_API_KEY", "test-not-a-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-not-a-key")
     client = grade.Judge(judge, effort)
-    assert client.provider == "openai" and client.effort == "high" and "openrouter" not in str(client.client.base_url)
-    assert findings.judge_dir("gpt-6.1-sol", "high") == "judge_gpt_6_1_sol_high"
+    assert client.provider == "openrouter" and client.effort == "high" and "openrouter.ai" in str(client.client.base_url)
+    assert findings.judge_dir("openai/gpt-6.1-sol", "high") == "judge_gpt_6_1_sol_high"  # where the OpenAI-direct grades went
+    # The request: no fallback provider, OpenRouter's cost reported and recorded.
+    sent = {}
+
+    def create(**kwargs):
+        sent.update(kwargs)
+        msg = type("Msg", (), {"content": "{}", "refusal": None})()
+        usage = type("U", (), {"model_dump": lambda s: {"prompt_tokens": 10, "completion_tokens": 5, "cost": 0.002}})()
+        return type("R", (), {"choices": [type("C", (), {"message": msg, "finish_reason": "stop"})()], "usage": usage})()
+
+    monkeypatch.setattr(client.client.chat.completions, "create", create)
+    _, usage, _, _ = client._openrouter("prompt")
+    assert sent["extra_body"]["provider"] == {"allow_fallbacks": False, "require_parameters": True}
+    assert client.cost(usage) == 0.002
     # The article is read in full for a non-Anthropic judge, as for the v1.0 Astra grades.
     assert findings.default_article_context(judge) == "full"
     # Inspect scorer: built without a judge, it takes the standard one.
