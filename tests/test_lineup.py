@@ -6,8 +6,9 @@ EXCLUDED = {"claude-opus-5-5", "claude-fable-5-1"}  # switch to Opus 4.8 on safe
 
 def test_lineup_is_well_formed():
     models = lineup.models()
-    assert len(models) == 12 and len({m.id for m in models}) == 12
-    assert not {"google/gemini-3.8-flash", "qwen/qwen3.8-max-prime", "moonshotai/kimi-k3"} & {m.id for m in models}
+    assert len(models) == 11 and len({m.id for m in models}) == 11
+    assert not {"google/gemini-3.8-flash", "qwen/qwen3.8-max-prime", "moonshotai/kimi-k3",
+             "google/gemini-4-argon"} & {m.id for m in models}
     assert not EXCLUDED & {m.id for m in models}
     assert {m.harness for m in models if m.lab == "anthropic"} == {"claude"}
     assert {m.harness for m in models if m.lab == "openai"} == {"codex"}
