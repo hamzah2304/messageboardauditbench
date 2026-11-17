@@ -7,8 +7,9 @@ judge scores the report against findings taken from human write-ups.
 
 ## Performance and cost across all three evals
 
-The latest evaluation compares 11 models at 10 and 30 minutes, using five eligible reports per
-model, eval and time budget. Each point below gives German wiki, Transluce and
+The latest evaluation compares 11 models at 10 and 30 minutes, targeting five eligible reports per
+model, eval and time budget. Grok’s 10-minute AI Village condition has four: four
+additional attempts produced no report. Each point below gives German wiki, Transluce and
 AI Village equal weight: it averages the three eval means, rather than pooling
 all reports. Open points show 10 minutes; filled points show 30 minutes.
 

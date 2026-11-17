@@ -8,7 +8,7 @@ by autonomous OpenAI agents that used it to coordinate on a web-retrieval task. 
 investigators wrote up what happened. We give an agent the raw dump, and nothing else,
 and score its report against that write-up.
 
-The [current evaluation](../../README.md) uses five eligible reports per model and time
+The [current evaluation](../../README.md) targets five eligible reports per model and time
 budget, scored against the [12-headline answer key](answer-key.json). Its score is the
 mean of those 12 headline scores. See the [grading method](../../docs/answer-keys.md).
 

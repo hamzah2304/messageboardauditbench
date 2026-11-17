@@ -39,7 +39,7 @@ def aggregate(rows):
                 rs = [r for r in group if r['benchmark'] == ev]
                 assert len(rs) >= 5
                 valid = [r['score'] * 100 for r in rs if r['selected']]
-                assert len(valid) == 5
+                assert 1 <= len(valid) <= 5
                 evals[ev] = {'score': statistics.fmean(valid), 'n': len(valid),
                              'cost_usd': statistics.fmean(r['cost_usd'] for r in rs)}
             out.append({'model': model, 'label': group[0]['model_label'], 'budget': budget,

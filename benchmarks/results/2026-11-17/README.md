@@ -3,8 +3,12 @@
 The [headline figure](../../../docs/figures/results/performance-vs-cost.png) compares
 11 models at 10 and 30 minutes. Each point gives German wiki, Transluce and AI Village
 equal weight. The [30-minute breakdown](../../../docs/figures/results/eval-breakdown.png)
-shows the five selected reports per model and eval as small dots, with their mean as
+shows the five selected 30-minute reports per model and eval as small dots, with their mean as
 a diamond. SVG and PDF exports accompany both figures.
+
+The snapshot contains **347 attempted runs**, **338 graded reports** and **329 selected
+reports**. Nine attempts produced no report; nine other reports were excluded by the
+existing eligibility checks. All attempts count toward cost.
 
 ## Run conditions
 
@@ -16,8 +20,13 @@ the snapshot records the hashes of all six generated condition configs.
 
 ## Reports and selection
 
-Each model, eval and time budget contributes the first five eligible reports in
-replicate order. The original five attempts are retained, and supplementary runs
+Each model, eval and time budget contributes the first up to five eligible reports in
+replicate order. All 30-minute cells and all but one 10-minute cell have five. Grok’s
+10-minute AI Village cell has four eligible reports from nine attempts: its four
+supplementary attempts all ended without a report. The bounded rerun plan is complete,
+and the remaining shortfall is recorded explicitly in the selection manifest.
+
+The original five attempts are retained, and supplementary runs
 fill cells that had fewer than five eligible reports. Selection does not depend on
 judge scores. The exact selected run names are in [selection.json](selection.json);
 [runs.jsonl](runs.jsonl) records every attempt, eligibility, exclusion reasons,
@@ -31,7 +40,7 @@ models with more failed attempts.
 
 ## Scores
 
-Average the five selected report scores within each eval, then average the three
+Average the selected report scores within each eval, then average the three
 eval means equally and multiply by 100. This is a summary of three distinct rubrics,
 not accuracy. German wiki averages 12 headline scores; Transluce averages 13, with
 F3 at half weight; AI Village averages the best 20 of 96 finding scores.
@@ -83,12 +92,13 @@ the local archive. Plotting uses isolated, pinned dependencies. To
 re-export from the original local archive:
 
 ```bash
-uv run python scripts/export_eval_results.py --archive /path/to/archive
+uv run python scripts/export_eval_results.py --archive /path/to/archive --allow-shortfalls
 uv run scripts/plot_eval_results.py
 uv run python scripts/verify_eval_results.py
 ```
 
 The exporter rejects unfinished runs, missing or incomplete grades, stale grading
-inputs and missing original attempts. It publishes only allowlisted numeric fields
+inputs and missing original attempts. It normally requires five eligible reports per
+cell; `--allow-shortfalls` records an explicit exception after bounded retries. It publishes only allowlisted numeric fields
 and provenance. The [initial snapshot](../2026-11-16/README.md) preserves the results
 before the supplementary runs.

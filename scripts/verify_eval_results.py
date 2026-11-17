@@ -25,7 +25,9 @@ def verify(snapshot):
                                                for e in ('messageboard','urlquery','aivillage') for b in (10,30)}
     assert len(rows) == provenance['trials'] == len({r['run'] for r in rows})
     assert set(selection['runs']) == {r['run'] for r in rows if r['selected']}
-    assert len(selection['runs']) == 330
+    assert len(selection['runs']) == provenance['selected']
+    if not selection.get('allow_shortfalls', False):
+        assert len(selection['runs']) == 330
     models = {m['id'] for m in provenance['models']}
     assert len(models) == 11
     expected_cells = {(m,b,e) for m in models for b in (10,30) for e in ('german-wiki','transluce','aivillage')}
@@ -90,13 +92,17 @@ def verify(snapshot):
     summary = json.loads((snapshot/'summary.json').read_text())
     assert len(summary) == 22
     assert {(s['model'],s['budget']) for s in summary} == {(m,b) for m in models for b in (10,30)}
+    shortfalls = []
     for item in summary:
         means, costs = [], []
         for bench in ('german-wiki','transluce','aivillage'):
             attempts = [r for r in rows if (r['model'],r['budget'],r['benchmark'])==(item['model'],item['budget'],bench)]
             eligible = sorted((r for r in attempts if r['eligible']),key=lambda r:r['replicate'])
             selected = [r for r in attempts if r['selected']]
-            assert len(selected)==5 and {r['run'] for r in selected} == {r['run'] for r in eligible[:5]}
+            assert 1 <= len(selected) <= 5 and {r['run'] for r in selected} == {r['run'] for r in eligible[:5]}
+            assert item['evals'][bench]['n'] == len(selected)
+            if len(selected) < 5:
+                shortfalls.append(dict(benchmark=bench, model=item['model'], budget=item['budget'], reports=len(selected), target=5))
             assert len({r['replicate'] for r in attempts})==len(attempts)
             score = statistics.fmean(r['score']*100 for r in selected)
             cost = statistics.fmean(r['cost_usd'] for r in attempts)
@@ -106,7 +112,10 @@ def verify(snapshot):
             costs.append(cost)
         assert math.isclose(statistics.fmean(means),item['score'],abs_tol=1e-10)
         assert math.isclose(statistics.fmean(costs),item['cost_usd'],abs_tol=1e-10)
-    print(f'Verified {len(rows)} attempted runs, 330 selected reports, all finding scores and 22 model/budget means.')
+    order = lambda r: (r['benchmark'], r['model'], r['budget'])
+    assert sorted(shortfalls, key=order) == sorted(selection.get('shortfalls', []), key=order)
+    assert not shortfalls or selection['allow_shortfalls']
+    print(f'Verified {len(rows)} attempted runs, {len(selection["runs"])} selected reports, all finding scores and 22 model/budget means.')
 
 
 if __name__ == '__main__':

@@ -13,6 +13,7 @@ import json
 import math
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +25,7 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def select_reports(rows, count=5):
+def select_reports(rows, count=5, allow_shortfalls=False):
     """Choose by replicate, never score; retain excluded and surplus attempts."""
     groups = {}
     for row in rows:
@@ -35,7 +36,7 @@ def select_reports(rows, count=5):
         if len(set(reps)) != len(reps):
             raise ValueError(f'Duplicate replicate: {key}')
         valid = sorted((r for r in group if r['eligible']), key=lambda r: (r['replicate'], r['run']))
-        if len(valid) < count:
+        if not valid or (len(valid) < count and not allow_shortfalls):
             raise ValueError(f'{key}: only {len(valid)}/{count} eligible reports')
         for row in valid[:count]:
             if row['score'] is None:
@@ -69,6 +70,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--archive', type=Path, required=True, help='Primary checkout containing runs and raw grades')
     ap.add_argument('--output', type=Path, default=ROOT/'benchmarks/results/2026-11-17')
+    ap.add_argument('--allow-shortfalls', action='store_true',
+                    help='After bounded retries finish, publish and declare cells with fewer than five eligible reports')
     args = ap.parse_args()
     from slopvestigator_bench import eligibility, standard
     from slopvestigator_bench.grading import answer_key_judge as akj
@@ -153,12 +156,16 @@ def main():
             rows.append(row)
     if found_baseline != baseline:
         raise ValueError(f'Missing original attempts: {sorted(baseline-found_baseline)}')
-    select_reports(rows)
+    select_reports(rows, allow_shortfalls=args.allow_shortfalls)
     if len({(r['benchmark'], r['model'], r['budget']) for r in rows}) != 66:
         raise ValueError('Expected all 66 model/eval/budget cells')
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output/'runs.jsonl').write_text(''.join(json.dumps(r, sort_keys=True)+'\n' for r in rows))
-    selection = {'rule': 'First five eligible standard-condition reports by replicate number; no score-based selection. All attempts retained for cost.',
+    selected_counts = Counter((r['benchmark'],r['model'],r['budget']) for r in rows if r['selected'])
+    shortfalls = [dict(benchmark=b, model=m, budget=t, reports=n, target=5)
+                  for (b,m,t),n in sorted(selected_counts.items()) if n < 5]
+    selection = {'rule': 'First up to five eligible standard-condition reports by replicate number; no score-based selection. All attempts retained for cost.',
+                 'allow_shortfalls': args.allow_shortfalls, 'shortfalls': shortfalls,
                  'runs': [r['run'] for r in rows if r['selected']]}
     (args.output/'selection.json').write_text(json.dumps(selection, indent=2)+'\n')
     provenance['grade_exports'] = {}
@@ -170,7 +177,7 @@ def main():
     provenance.update(trials=len(rows), eligible=sum(r['eligible'] for r in rows),
                       selected=sum(r['selected'] for r in rows), missing_reports=sum(not r['report_exists'] for r in rows),
                       source='Original standard cohort plus completed supplementary standard runs',
-                      scores='First five eligible standard-condition reports per cell; equal eval weights.', grading_inputs=inputs,
+                      scores='First up to five eligible standard-condition reports per cell; declared shortfalls; equal eval weights.', grading_inputs=inputs,
                       publication='Numeric grades omit report text, judge quotes, reasons and raw responses. Original hashes refer to the local archive.')
     provenance['condition_configs'] = {standard.config_name(ev,b): standard.config_sha256(standard.config_name(ev,b))
                                        for ev in EVAL_IDS.values() for b in (10,30)}

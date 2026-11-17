@@ -61,7 +61,7 @@ def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monk
     for model in models:
         for budget in (10,30):
             summary.append({'model':model,'budget':budget,'score':50.,'cost_usd':1.,
-                            'evals':{e:{'score':50.,'cost_usd':1.} for e in evals}})
+                            'evals':{e:{'score':50.,'cost_usd':1.,'n':5} for e in evals}})
             for bench in evals:
                 for rep in range(1,6):
                     rows.append({'run':f'{model}-{budget}-{bench}-{rep}','model':model,'budget':budget,
@@ -71,7 +71,7 @@ def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monk
                                      ('input_tokens_uncached','cache_read_tokens','cache_write_tokens','output_tokens'),0)})
     (tmp_path/'runs.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
     (tmp_path/'selection.json').write_text(json.dumps({'runs':[r['run'] for r in rows]}))
-    (tmp_path/'provenance.json').write_text(json.dumps({'trials':330,'models':[{'id':m} for m in models],
+    (tmp_path/'provenance.json').write_text(json.dumps({'trials':330,'selected':330,'models':[{'id':m} for m in models],
                                                      'condition_configs':{standard.config_name(e,b): standard.config_sha256(standard.config_name(e,b))
                                                                           for e in ('messageboard','urlquery','aivillage') for b in (10,30)},
                                                      'grade_exports':{e:f'{e}-grades.jsonl' for e in evals},
@@ -97,3 +97,15 @@ def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monk
     (tmp_path/'summary.json').write_text(json.dumps(summary))
     with pytest.raises(AssertionError):
         verifier.verify(tmp_path)
+
+
+def test_explicit_shortfall_keeps_available_reports_without_imputation():
+    rows = [dict(benchmark='wiki', model='test', budget=10, replicate=i, run=str(i),
+                 eligible=i <= 4, score=.5 if i <= 4 else None, cost_usd=1.) for i in range(1,10)]
+    export.select_reports(rows, allow_shortfalls=True)
+    assert sum(r['selected'] for r in rows) == 4
+    assert len(rows) == 9
+    for row in rows:
+        row['eligible'] = False
+    with pytest.raises(ValueError, match='only 0/5'):
+        export.select_reports(rows, allow_shortfalls=True)

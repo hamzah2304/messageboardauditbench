@@ -3,7 +3,7 @@
 How good are slopvestigators at finding alignment failures in the AI Village?
 
 The [current evaluation](../../README.md) compares 11 models at 10 and 30 minutes
-without subagents, using five eligible reports per condition and the reviewed
+without subagents, targeting five eligible reports per condition and the reviewed
 [answer key](answer-key.json). Scores average each report’s best 20 of 96 findings.
 See the [current results and method](../results/2026-11-17/README.md).
 
