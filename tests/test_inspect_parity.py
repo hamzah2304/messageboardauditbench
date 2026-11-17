@@ -62,8 +62,17 @@ def small_data(tmp_path, monkeypatch):
     data.mkdir()
     (data / "events.jsonl").write_text("{}\n")
     real = task_module._data_mount
-    monkeypatch.setattr(task_module, "_data_mount", lambda variant, bench: (data, real(variant, bench)[1])
-                        if bench != "urlquery" else (data, {}))
+    monkeypatch.setattr(task_module, "primary_root", lambda: tmp_path)
+
+    def small_mount(variant, bench):
+        if bench == "urlquery":
+            return data, {}
+        if bench == "aivillage":
+            # Exercise the real mount metadata without requiring the private dataset.
+            (tmp_path / "data" / variant).mkdir(parents=True, exist_ok=True)
+        return data, real(variant, bench)[1]
+
+    monkeypatch.setattr(task_module, "_data_mount", small_mount)
     return data
 
 
