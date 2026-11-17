@@ -11,6 +11,9 @@
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', 'Performance versus cost. Model labels can be dragged or moved with arrow keys.');
     document.getElementById('cost-interactive').replaceChildren(svg);
+    const layoutResponse = await fetch('label-layout.json', {cache: 'no-cache'});
+    if (!layoutResponse.ok) throw new Error('Could not load the approved label layout');
+    const approved = (await layoutResponse.json()).positions;
     const KEY = 'cost-label-layout-v1';
     const labels = new Map();
     let drag = null;
@@ -81,7 +84,7 @@
       for (const [id,label] of labels) {
         const offset = saved[id];
         if (offset && Number.isFinite(offset.dx) && Number.isFinite(offset.dy)) {
-          move(id, label.x+offset.dx, label.y+offset.dy);
+          move(id, label.x+offset.dx-approved[id].dx, label.y+offset.dy-approved[id].dy);
         } else {
           label.text.setAttribute('x', label.x); label.text.setAttribute('y', label.y);
           label.leader.setAttribute('d', label.originalPath);
@@ -91,7 +94,8 @@
     async function persist() {
       const positions = {};
       for (const [id,label] of labels) positions[id] = {
-        dx: Number(label.text.getAttribute('x'))-label.x, dy: Number(label.text.getAttribute('y'))-label.y};
+        dx: Number(label.text.getAttribute('x'))-label.x+approved[id].dx,
+        dy: Number(label.text.getAttribute('y'))-label.y+approved[id].dy};
       await kit.save(KEY, {...(kit.get(KEY) || {}), positions});
     }
     kit.onChange(key => {if (!drag && (!key || key === KEY)) restore();});

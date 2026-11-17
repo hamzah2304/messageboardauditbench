@@ -84,13 +84,14 @@ def main():
     by_key = {(r['model'], r['budget']): r for r in summary}
     OUT.mkdir(parents=True, exist_ok=True)
     (DATA/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
-    for name in ['runs.jsonl', 'summary.json', 'provenance.json']:
+    for name in ['runs.jsonl', 'summary.json', 'provenance.json', 'label-layout.json']:
         shutil.copyfile(DATA/name, OUT/name)
 
+    approved = json.loads((DATA / 'label-layout.json').read_text())['positions']
     fig, ax = plt.subplots(figsize=(14, 8.8))
     fig.subplots_adjust(left=.09, right=.96, top=.77, bottom=.23)
     fig.text(.04, .945, 'Performance across three evals, at what cost?', fontsize=24, weight='bold')
-    fig.text(.04, .895, 'Each point averages German wiki, Transluce and AI Village equally. Lines connect the two time budgets.', fontsize=11, color=MUTED)
+    fig.text(.04, .895, 'Mean across German wiki, Transluce and AI Village.', fontsize=11, color=MUTED)
     legend = [Line2D([], [], marker='o', ls='', markerfacecolor='white', markeredgecolor=INK,
                      markersize=9, label='10 minutes'),
               Line2D([], [], marker='o', ls='', color=INK, markersize=9, label='30 minutes')]
@@ -120,15 +121,17 @@ def main():
         ax.scatter(a['cost_usd'], a['score'], s=78, facecolors='white', edgecolors=c, linewidths=2, zorder=4)
         ax.scatter(b['cost_usd'], b['score'], s=90, c=c, edgecolors='white', linewidths=.8, zorder=5)
         dx, dy = offsets[m['model']]
+        anchor = 'left' if dx >= 0 else 'right'
+        label_id = m['model'].replace('/', '-').replace('.', '-')
+        shift = approved['model-label-' + label_id]
+        dx += shift['dx']
+        dy -= shift['dy']
         annotation = ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=(dx,dy), textcoords='offset points',
-                    fontsize=10, color=c, weight='bold', ha='left' if dx >= 0 else 'right', va='center',
+                    fontsize=10, color=c, weight='bold', ha=anchor, va='center',
                     arrowprops={'arrowstyle':'-', 'color':c, 'lw':.6, 'alpha':.65}, zorder=6)
         label_id = m['model'].replace('/', '-').replace('.', '-')
         annotation.set_gid('model-label-' + label_id)
         annotation.arrow_patch.set_gid('model-leader-' + label_id)
-    fig.text(.04, .12, 'Cost: recorded ReAct API spend; Claude Code API-equivalent cost; Codex token-based estimate. Subscription cash spend is not shown.', fontsize=9, color=MUTED)
-    fig.text(.04, .075, 'Mean cost includes all attempts and excludes grading. Scores retain the existing report exclusions. Different model scaffolds remain confounded.', fontsize=9, color=MUTED)
-    fig.text(.04, .035, 'An equal-weight average of three rubric scores, not accuracy. Five trials per eval and budget; judge: GPT-6.1 Sol, high effort.', fontsize=9, color=MUTED)
     save(fig, 'performance-vs-cost')
 
     # Restore the original option 1: individual 30-minute runs and their mean,
@@ -137,7 +140,7 @@ def main():
     fig, axes = plt.subplots(1, 3, figsize=(16, 8.5), sharey=True)
     fig.subplots_adjust(left=.205, right=.97, top=.77, bottom=.20, wspace=.14)
     fig.text(.035, .945, 'How do models compare after 30 minutes?', fontsize=23, weight='bold')
-    fig.text(.035, .89, 'Small dots show individual runs; diamonds show the mean. Colors follow the model labs, matching the cost plot.', fontsize=11, color=MUTED)
+    fig.text(.035, .89, 'Small dots: individual runs · Diamonds: mean', fontsize=11, color=MUTED)
     for ax, ev, name in zip(axes, EVALS, NAMES):
         ax.set_title(name, loc='left', fontsize=15, weight='bold', pad=16)
         ax.set_xlim(0, 100)
@@ -157,8 +160,6 @@ def main():
             ax.scatter(statistics.fmean(values), i, s=78, marker='D', c=c, edgecolors='white', linewidths=.8, zorder=4)
     for i, m in enumerate(order):
         fig.text(.19, .77-(i+.5)*(.77-.20)/len(order), m['label'], ha='right', va='center', fontsize=10.5, color=colors[m['id']])
-    fig.text(.035, .105, 'Report exclusions are unchanged; counts and reasons are in the data. Run spread is shown directly, not as a confidence interval.', fontsize=9, color=MUTED)
-    fig.text(.035, .065, 'Each eval has its own rubric. Models use different scaffolds. Judge: GPT-6.1 Sol, high effort.', fontsize=9, color=MUTED)
     save(fig, 'eval-breakdown')
     print('Wrote two figures in SVG, PNG and PDF, plus 22 model-budget summaries.')
 

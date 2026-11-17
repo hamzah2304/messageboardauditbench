@@ -15,8 +15,8 @@ all reports. Open points show 10 minutes; filled points show 30 minutes.
 ![Mean performance across three evals versus mean USD per run at 10 and 30 minutes.](docs/figures/eval-options/performance-vs-cost.png)
 
 USD is recorded API spend for ReAct, API-equivalent cost for Claude Code, and a
-token-based estimate for Codex. It includes all attempts and excludes grading;
-it is not subscription cash spend. The axis is logarithmic. See the
+token-based estimate for Codex. It includes all attempts and excludes grading.
+The axis is logarithmic. See the
 [results snapshot and cost assumptions](benchmarks/results/2026-11-16/README.md).
 
 The 30-minute breakdown shows individual runs as small dots and their means as
