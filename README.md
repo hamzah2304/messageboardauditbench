@@ -12,7 +12,7 @@ model, eval and time budget. Each point below gives German wiki, Transluce and
 AI Village equal weight: it averages the three eval means, rather than pooling
 all reports. Open points show 10 minutes; filled points show 30 minutes.
 
-![Mean performance across three evals versus mean USD per run at 10 and 30 minutes.](docs/figures/eval-options/performance-vs-cost.png)
+![Mean performance across three evals versus mean USD per run at 10 and 30 minutes.](docs/figures/results/performance-vs-cost.png)
 
 USD is recorded API spend for ReAct, API-equivalent cost for Claude Code, and a
 token-based estimate for Codex. It includes all attempts and excludes grading.
@@ -20,11 +20,9 @@ The axis is logarithmic. See the
 [results snapshot and cost assumptions](benchmarks/results/2026-11-16/README.md).
 
 The 30-minute breakdown shows individual runs as small dots and their means as
-diamonds, with one panel per eval. Both figures use the established lab colors.
-The shared preview also lets you drag the cost plot’s model labels, save their
-positions under your name, and download an adjusted SVG.
+diamonds, with one panel per eval. Colors identify model labs.
 
-![Individual thirty-minute scores and means on each of the three evals.](docs/figures/eval-options/eval-breakdown.png)
+![Individual thirty-minute scores and means on each of the three evals.](docs/figures/results/eval-breakdown.png)
 
 The average summarizes three different rubric scores, not accuracy. Scoring
 retains the existing report exclusions, and models use different scaffolds;
@@ -41,33 +39,7 @@ The German wiki benchmark is written up on LessWrong:
 
 Each details page says how to get the data, run a trial and grade it.
 
-## Earlier experiments
-
-These older figures use different model lineups, rubrics or judges and are not
-directly comparable with the latest evaluation above.
-
-Every plot below puts score against the estimated cost of a run at list prices, on a log
-scale, with one colour per lab.
-
-**German wiki.** The score is 70% finding coverage (38 findings from the human report) and
-30% a judged TLDR. The best run, Opus 5 at 120 minutes, scores 51%; GPT-5.6 Sol reaches
-49% for a seventh of the cost.
-
-![German wiki: score against cost at 10, 30 and 120 minutes.](scripts/viewers/figures/results_fig2_combined_vs_cost.png)
-
-**Transluce.** The score is the weighted mean of 13 reviewed headline findings, each graded
-by GPT-6 Astra. Three valid reports per model and time limit.
-
-![Transluce: score against cost at 10 and 30 minutes.](benchmarks/transluce/figures/score_vs_cost.png)
-
-**AI Village.** The score is the mean of a report's 20 best scores against a 96-finding
-rubric, graded by GPT-6.1 Sol. Of the six models run with and without subagents,
-subagents raise five by 8 to 17 points and lower Opus 4.8 by 8. GPT-6.1 Sol with subagents
-scores close to GPT-6 Astra with subagents at about a ninth of the cost. The judge has
-since become stricter: regrading one published report on 21 October 2026 gave 0.41
-against the published 0.62, so regrade old reports alongside new ones before comparing.
-
-![AI Village: score against cost, with and without subagents.](benchmarks/aivillage/figures/score_vs_cost.png)
+[Earlier experiments](docs/earlier-results.md) used different lineups, rubrics or judges.
 
 ## Run one
 

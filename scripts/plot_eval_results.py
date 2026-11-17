@@ -10,7 +10,6 @@ scoring eligibility is preserved, while cost includes all attempted trials.
 from __future__ import annotations
 
 import json
-import shutil
 import statistics
 from pathlib import Path
 
@@ -23,7 +22,7 @@ from matplotlib.ticker import FuncFormatter
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'benchmarks/results/2026-11-16'
-OUT = ROOT / 'docs/figures/eval-options'
+OUT = ROOT / 'docs/figures/results'
 EVALS = ['german-wiki', 'transluce', 'aivillage']
 NAMES = ['German wiki', 'Transluce', 'AI Village']
 INK, MUTED = '#172b3b', '#5c6c78'
@@ -84,8 +83,6 @@ def main():
     by_key = {(r['model'], r['budget']): r for r in summary}
     OUT.mkdir(parents=True, exist_ok=True)
     (DATA/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
-    for name in ['runs.jsonl', 'summary.json', 'provenance.json', 'label-layout.json']:
-        shutil.copyfile(DATA/name, OUT/name)
 
     approved = json.loads((DATA / 'label-layout.json').read_text())['positions']
     fig, ax = plt.subplots(figsize=(14, 8.8))

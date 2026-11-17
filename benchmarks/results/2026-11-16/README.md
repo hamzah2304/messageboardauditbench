@@ -2,10 +2,10 @@
 
 The headline figure shows performance averaged equally across German wiki, Transluce and AI Village against mean USD per run, with both 10- and 30-minute points. The 30-minute breakdown restores the individual-run view: small dots for report scores and diamonds for their means, with one panel per eval and no count columns. Both figures use the established lab colors from the original benchmark plots.
 
-- [Performance versus USD](../../../docs/figures/eval-options/performance-vs-cost.png)
-- [Individual runs and means by eval](../../../docs/figures/eval-options/eval-breakdown.png)
+- [Performance versus USD](../../../docs/figures/results/performance-vs-cost.png)
+- [Individual runs and means by eval](../../../docs/figures/results/eval-breakdown.png)
 
-SVG and PDF exports accompany both PNGs. The lab colors match between the two figures. The shared HTML preview lets you drag cost-plot labels, saves layouts under your reviewer name through ui-kit, and exports the adjusted SVG. PNG/PDF downloads retain the default label positions. Earlier plot alternatives remain in `draft/` and `refined/` as design history, but are not the current results presentation.
+This is the initial results snapshot before the supplementary runs. See the [current results](../../../README.md).
 
 ## Averaging
 
@@ -15,7 +15,7 @@ The snapshot contains all 330 trials: 11 models × 3 evals × 2 budgets × 5 rep
 
 ## USD
 
-Cost is the arithmetic mean over all 15 attempted trials per model and budget (five per eval). Failed or excluded attempts count toward cost. Judge cost does not. ReAct uses recorded OpenRouter cost. Claude Code uses the CLI's reported API-equivalent list cost; one report without that field uses the token fallback below. Codex always uses the token fallback. These are not subscription cash charges, and the frozen rates are not presented as current market prices.
+Cost is the arithmetic mean over all 15 attempted trials per model and budget (five per eval). Failed or excluded attempts count toward cost. Judge cost does not. ReAct uses recorded OpenRouter cost. Claude Code uses the CLI's reported API-equivalent list cost; one report without that field uses the token fallback below. Codex always uses the token fallback. Rates are frozen for this evaluation.
 
 The fallback reproduces the existing results cost convention: uncached input and cache-write tokens at the pinned input rate, cached input tokens at 10% of that rate, and output tokens at the pinned output rate, divided by one million. `provenance.json` records each model's rates from `configs/lineup.toml` at commit `7a8c937`. Each trial records its cost basis, token inputs and usage-file SHA-256; `summary.json` contains all 22 model–budget averages and their eval components.
 
@@ -27,4 +27,4 @@ uv run scripts/plot_eval_results.py
 
 The script uses isolated, pinned plotting dependencies without changing the benchmark environment. It reads this frozen snapshot and regenerates the two figures and the numeric summary. It checks that every model–budget–eval cell has five trials and all cells have scored reports.
 
-Scores were graded with GPT-6.1 Sol at high effort through the Codex subscription. Every report row includes the source run name and grade-file SHA-256. The raw reports, usage files and grades are retained in the local archive, not included in this numeric snapshot. The hashes permit verification against that archive; this snapshot alone does not reproduce judge calls. Integrating the grading pipeline and raw evidence into the publication branch remains separate from this figure update.
+Scores were graded with GPT-6.1 Sol at high effort through Codex CLI. Every report row includes the source run name and grade-file SHA-256. The raw reports, usage files and grades are retained in the local archive, not included in this numeric snapshot. The hashes permit verification against that archive; this snapshot alone does not reproduce judge calls. Integrating the grading pipeline and raw evidence into the publication branch remains separate from this figure update.
