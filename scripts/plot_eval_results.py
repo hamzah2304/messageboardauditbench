@@ -5,12 +5,11 @@
 """Plot equal-eval performance against run cost, plus a compact eval breakdown.
 
 Run with `uv run scripts/plot_eval_results.py`. Reads the frozen trial snapshot;
-scoring eligibility is preserved, while cost includes all attempted trials.
+the selection manifest chooses the first five eligible reports, while cost includes all attempts.
 """
 from __future__ import annotations
 
 import json
-import shutil
 import statistics
 from pathlib import Path
 
@@ -22,8 +21,8 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / 'benchmarks/results/2026-11-16'
-OUT = ROOT / 'docs/figures/eval-options'
+DATA = ROOT / 'benchmarks/results/2026-11-17'
+OUT = ROOT / 'docs/figures/results'
 EVALS = ['german-wiki', 'transluce', 'aivillage']
 NAMES = ['German wiki', 'Transluce', 'AI Village']
 INK, MUTED = '#172b3b', '#5c6c78'
@@ -38,9 +37,9 @@ def aggregate(rows):
             evals = {}
             for ev in EVALS:
                 rs = [r for r in group if r['benchmark'] == ev]
-                assert len(rs) == 5
-                valid = [r['score'] * 100 for r in rs if r['eligible']]
-                assert valid
+                assert len(rs) >= 5
+                valid = [r['score'] * 100 for r in rs if r['selected']]
+                assert 1 <= len(valid) <= 5
                 evals[ev] = {'score': statistics.fmean(valid), 'n': len(valid),
                              'cost_usd': statistics.fmean(r['cost_usd'] for r in rs)}
             out.append({'model': model, 'label': group[0]['model_label'], 'budget': budget,
@@ -75,19 +74,19 @@ def save(fig, name):
 def main():
     style()
     rows = [json.loads(s) for s in (DATA/'runs.jsonl').read_text().splitlines()]
-    assert len(rows) == 330 and len({r['run'] for r in rows}) == 330
+    assert len(rows) >= 330 and len({r['run'] for r in rows}) == len(rows)
     assert all(r['cost_usd'] >= 0 for r in rows)
     summary = aggregate(rows)
     models = sorted([r for r in summary if r['budget'] == 30], key=lambda x: -x['score'])
     provenance = json.loads((DATA / 'provenance.json').read_text())
     colors = {m['id']: m['color'] for m in provenance['models']}
     by_key = {(r['model'], r['budget']): r for r in summary}
+    initial = json.loads((ROOT / 'benchmarks/results/2026-11-16/summary.json').read_text())
+    label_anchors = {r['model']: r for r in initial if r['budget'] == 30}
     OUT.mkdir(parents=True, exist_ok=True)
     (DATA/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
-    for name in ['runs.jsonl', 'summary.json', 'provenance.json', 'label-layout.json']:
-        shutil.copyfile(DATA/name, OUT/name)
 
-    approved = json.loads((DATA / 'label-layout.json').read_text())['positions']
+    approved = {'model-label-gpt-6-astra': {'dx': 2.2799316164212087, 'dy': -11.699189914365206}, 'model-label-meta-muse-wonder': {'dx': 3.280309774646639, 'dy': -26.4576758242342}, 'model-label-moonshotai-kimi-k3-1-pro': {'dx': 75.88042814703704, 'dy': 5.185099581733283}, 'model-label-gpt-6-1-sol': {'dx': 0, 'dy': 0}, 'model-label-x-ai-grok-4-7': {'dx': 67.36267342191297, 'dy': 4.007328784985106}, 'model-label-claude-sonnet-5-5': {'dx': 0, 'dy': -16.19507547429771}, 'model-label-claude-opus-5': {'dx': 18.50990400321507, 'dy': -1.0498154509285769}, 'model-label-deepseek-deepseek-v4-1-flash-1017': {'dx': 5.019339247376081, 'dy': -33.91107471822329}, 'model-label-z-ai-glm-5-3': {'dx': 13.129963326711163, 'dy': 0.18611686664655736}, 'model-label-gpt-6-luna': {'dx': 0, 'dy': 0}, 'model-label-claude-haiku-5-5': {'dx': 0, 'dy': 0}}
     fig, ax = plt.subplots(figsize=(14, 8.8))
     fig.subplots_adjust(left=.09, right=.96, top=.77, bottom=.23)
     fig.text(.04, .945, 'Performance across three evals, at what cost?', fontsize=24, weight='bold')
@@ -126,7 +125,11 @@ def main():
         shift = approved['model-label-' + label_id]
         dx += shift['dx']
         dy -= shift['dy']
-        annotation = ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=(dx,dy), textcoords='offset points',
+        # Preserve the approved page positions when supplemental runs move the data points.
+        old = label_anchors[m['model']]
+        x, y = ax.transData.transform((old['cost_usd'], old['score']))
+        text_position = ax.transData.inverted().transform((x+dx*fig.dpi/72, y+dy*fig.dpi/72))
+        annotation = ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=text_position, textcoords='data',
                     fontsize=10, color=c, weight='bold', ha=anchor, va='center',
                     arrowprops={'arrowstyle':'-', 'color':c, 'lw':.6, 'alpha':.65}, zorder=6)
         label_id = m['model'].replace('/', '-').replace('.', '-')
@@ -153,7 +156,7 @@ def main():
         for boundary in [2.5, 5.5]:
             ax.axhline(boundary, color='#d7dfe5', lw=.8)
         for i, m in enumerate(order):
-            values = [r['score']*100 for r in rows if r['model']==m['id'] and r['benchmark']==ev and r['budget']==30 and r['eligible']]
+            values = [r['score']*100 for r in rows if r['model']==m['id'] and r['benchmark']==ev and r['budget']==30 and r['selected']]
             jitter = [0] if len(values)==1 else [(.26*k/(len(values)-1))-.13 for k in range(len(values))]
             c = colors[m['id']]
             ax.scatter(values, [i+j for j in jitter], s=25, c=c, alpha=.48, zorder=3)

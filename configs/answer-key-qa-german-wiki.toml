@@ -1,0 +1,15 @@
+# Answer-key QA for the German wiki: one sandboxed agent checks one headline finding against the data the
+# investigators get. Launched per finding by scripts/run_answer_key_qa.py, which fills the finding, the
+# modules in benchmarks/qa/modules/ and the rest of the answer key into the prompt.
+name = "answer-key-qa-german-wiki"
+prompt = "answer-key-qa-v1"
+budget_min = 20
+timeout_min = 25
+data_variant = "verbatim"
+effort = "high"
+claude_cli_version = "2.1.283"
+codex_cli_version = "0.160.0"
+min_runtime_fraction = 0
+bash_max_output_length = 50000
+subagents = false
+claude_disallowed_tools = ["WebFetch", "WebSearch", "Skill", "ToolSearch", "RemoteTrigger", "SendMessage", "ListAgents", "Workflow", "CronCreate", "CronDelete", "CronList", "ScheduleWakeup", "EnterWorktree"]

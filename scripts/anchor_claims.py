@@ -66,8 +66,12 @@ from dotenv import load_dotenv
 load_dotenv(ENV_FILE)
 from openai import OpenAI
 
-MODEL = os.getenv("MODEL", "gpt-5.6-sol")
-EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
+from slopvestigator_bench import standard  # noqa: E402
+
+# configs/standard.toml [helpers.anchor_claims]; MODEL and EFFORT override it for one run.
+_MODEL, _EFFORT = standard.helper("anchor_claims")
+MODEL = os.getenv("MODEL") or _MODEL.split("/", 1)[1]
+EFFORTS = [os.getenv("EFFORT") or _EFFORT, "high", "medium"]
 client = OpenAI()
 
 HUMAN_OUT = CLAIMS / "anchors_human.json"

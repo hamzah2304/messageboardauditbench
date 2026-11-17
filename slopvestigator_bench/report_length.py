@@ -164,9 +164,12 @@ def memory_note(limit: str, data_dir: Path) -> str:
     big = sorted(((path.stat().st_size, path.name) for path in files if path.stat().st_size > cap / 10), reverse=True)
     sizes = "; ".join(f"{f} is {size / 1e9:.1f} GB" + (" compressed" if f.endswith(".gz") else "") for size, f in big)
     never = f"Several data files are large ({sizes}), so never" if sizes else "Never"
+    # Only the AI Village data has a SQLite database; the other evals' data is JSON Lines.
+    how = "query village.db with SQLite or stream files line by line" if (data_dir / "village.db").exists() \
+        else "stream files line by line"
     return (f"\nMemory limit: your sandbox has {memory_words(limit)} of RAM, shared by everything running in it, "
             f"including any subagents, and any command that goes over it is killed. {never} load a whole file into "
-            "memory: query village.db with SQLite or stream files line by line.\n")
+            f"memory: {how}.\n")
 
 
 def render_prompt(

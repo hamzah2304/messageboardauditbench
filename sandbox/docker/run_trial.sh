@@ -20,6 +20,11 @@
 #   * a canary container on the same network/mounts proves both facts before the agent starts.
 set -euo pipefail
 AGENT="${1:?claude|codex|react}"; MODEL="${2:?model id}"; REPLICATE="${3:-1}"
+# Codex runs OpenAI models on the ChatGPT login; an OpenRouter id (vendor/model) runs in the same
+# Codex CLI through OpenRouter's Responses API, metered on the OpenRouter key.
+CODEX_BACKEND=""; [ "$AGENT" != codex ] || { CODEX_BACKEND=subscription; [[ "$MODEL" != */* ]] || CODEX_BACKEND=openrouter; }
+# The proxy's allowlist follows the backend: Codex on OpenRouter may reach openrouter.ai only, as ReAct does.
+PROXY_AGENT="$AGENT"; [ "$CODEX_BACKEND" != openrouter ] || PROXY_AGENT=react
 IMAGE="${IMAGE:-mbab-sandbox}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 CONFIG="${CONFIG:-$ROOT/configs/default.toml}"; [ -f "$CONFIG" ] || CONFIG="$ROOT/configs/$CONFIG.toml"
@@ -33,6 +38,11 @@ REPORT_ACCEPT_MIN_WORDS="${CFG_REPORT_ACCEPT_MIN_WORDS:-$REPORT_MIN_WORDS}"
 REPORT_ACCEPT_MAX_WORDS="${CFG_REPORT_ACCEPT_MAX_WORDS:-$(( REPORT_MAX_WORDS + REPORT_MAX_WORDS / 10 ))}"
 MIN_RUNTIME_FRACTION="${MBAB_MIN_RUNTIME_FRACTION:-${MIN_RUNTIME_FRACTION:-${CFG_MIN_RUNTIME_FRACTION:-0.75}}}"
 MIN_RUNTIME_FRACTION="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --validate-fraction "$MIN_RUNTIME_FRACTION")"
+# Claude safeguard flags (an intermittent API error, not the model's refusal) are retried by
+# continuing the session, up to this many times per run; 0 (configs that set none) turns it off.
+SAFEGUARD_RETRY_LIMIT="${CFG_SAFEGUARD_RETRY_LIMIT:-0}"
+[[ "$SAFEGUARD_RETRY_LIMIT" =~ ^[0-9]+$ ]] || { echo "safeguard_retry_limit must be a whole number" >&2; exit 2; }
+[ "$SAFEGUARD_RETRY_LIMIT" -eq 0 ] || [ -n "${CFG_SAFEGUARD_RETRY_MESSAGE:-}" ] || { echo "safeguard_retry_limit needs safeguard_retry_message" >&2; exit 2; }
 # PROMPT_FILE_OVERRIDE is a prompt already filled in per item by a driver script; the config still names its template.
 PROMPT_NAME="${PROMPT:-$CFG_PROMPT}"; PROMPT_FILE="${PROMPT_FILE_OVERRIDE:-$HERE/../prompts/$PROMPT_NAME.txt}"
 [ -f "$PROMPT_FILE" ] || { echo "no prompt at $PROMPT_FILE" >&2; exit 1; }
@@ -108,6 +118,13 @@ if [ -n "$RESUME_FROM" ]; then
   # state file and the final-message capture the model never saw.
   (cd "$RESUME_FROM/work" && tar cf - --exclude=./data --exclude=./.mbab-runtime-policy.json --exclude=./final_message.md .) | (cd "$RUN/work" && tar xf -)
   echo "resuming codex thread $PARENT_THREAD_ID from $RESUME_FROM"
+fi
+# WORK_FILES_DIR (driver scripts only, e.g. the answer-key overlap check): files copied into /work
+# before the agent starts. The canary below lists them with the rest of /work.
+if [ -n "${WORK_FILES_DIR:-}" ]; then
+  [ -z "$RESUME_FROM" ] || { echo "WORK_FILES_DIR cannot be combined with RESUME_FROM" >&2; exit 2; }
+  [ -d "$WORK_FILES_DIR" ] || { echo "no directory at WORK_FILES_DIR=$WORK_FILES_DIR" >&2; exit 2; }
+  cp -R "$WORK_FILES_DIR/." "$RUN/work/"
 fi
 # Reproducibility record for every future subscription run. Keep exact inputs
 # and the runnable checkout, rather than relying on a mutable branch name.
@@ -209,9 +226,9 @@ if [ "$AGENT" = claude ]; then
 fi
 # Optional per-config tool-output limit for Claude Code's Bash tool (characters; CLI default 30000).
 [ "$AGENT" != claude ] || [ -z "${CFG_BASH_MAX_OUTPUT_LENGTH:-}" ] || CLAUDE_ENV+=(-e "BASH_MAX_OUTPUT_LENGTH=$CFG_BASH_MAX_OUTPUT_LENGTH")
-# ReAct: an explicit batch key wins; otherwise use per-model, env, or shared key.
+# ReAct and Codex-on-OpenRouter: an explicit batch key wins; otherwise use per-model, env, or shared key.
 REACT_ENV=()
-if [ "$AGENT" = react ]; then
+if [ "$AGENT" = react ] || [ "$CODEX_BACKEND" = openrouter ]; then
   if [ -n "${MBAB_OPENROUTER_KEY_FILE:-}" ]; then
     [ -s "$MBAB_OPENROUTER_KEY_FILE" ] || { echo "explicit OpenRouter key file missing" >&2; exit 1; }
     export OPENROUTER_API_KEY="$(cat "$MBAB_OPENROUTER_KEY_FILE")"
@@ -228,13 +245,19 @@ if [ "$AGENT" = react ]; then
 fi
 if [ "$AGENT" = codex ]; then
   mkdir -p "$SECRETS/codex"
-  if [ -f "$HOME/.codex/auth.json" ]; then
+  if [ "$CODEX_BACKEND" = openrouter ]; then
+    :   # the key travels as OPENROUTER_API_KEY (REACT_ENV above); no ChatGPT login is mounted
+  elif [ -f "$HOME/.codex/auth.json" ]; then
     cp "$HOME/.codex/auth.json" "$SECRETS/codex/auth.json"
   else
     echo "no Codex credentials: run \`codex login\` on the host" >&2; exit 1
   fi
   # Keep the rollout for per-call token and reasoning-item auditing.
   printf 'approval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\nmodel_reasoning_summary = "detailed"\nshow_raw_agent_reasoning = true\n' > "$SECRETS/codex/config.toml"
+  # Codex has no catalog entry for other vendors' models and falls back to generic metadata (plain
+  # function tools, no code mode). The context window matches the OpenAI models' 272k, so Codex
+  # compacts at the same point for every model.
+  [ "$CODEX_BACKEND" != openrouter ] || printf 'model_provider = "openrouter"\nmodel_context_window = 272000\n' >> "$SECRETS/codex/config.toml"
   # Optional per-config limit on how much of each tool output Codex shows the model (tokens).
   [ -z "${CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT:-}" ] || printf 'tool_output_token_limit = %s\n' "$CFG_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" >> "$SECRETS/codex/config.toml"
   # Subagents: URLQuery always disables them; elsewhere `subagents` / codex_multi_agent decide.
@@ -253,6 +276,7 @@ if [ "$AGENT" = codex ]; then
   # Account-linked apps, plugins and browser or computer use reach outside the sandbox; always off.
   printf '[features]\nhooks = true\napps = false\nplugins = false\nremote_plugin = false\nbrowser_use = false\nbrowser_use_external = false\ncomputer_use = false\nin_app_browser = false\nin_app_local_automation = false\n' >> "$SECRETS/codex/config.toml"
   [ -z "$MULTI_AGENT" ] || printf 'multi_agent = %s\nmulti_agent_v2 = %s\n' "$MULTI_AGENT" "$MULTI_AGENT" >> "$SECRETS/codex/config.toml"
+  [ "$CODEX_BACKEND" != openrouter ] || printf '[model_providers.openrouter]\nname = "OpenRouter"\nbase_url = "https://openrouter.ai/api/v1"\nenv_key = "OPENROUTER_API_KEY"\nwire_api = "responses"\n' >> "$SECRETS/codex/config.toml"
   # A resumed thread needs its rollout where Codex looks for it: ~/.codex/sessions/YYYY/MM/DD/.
   [ -z "$RESUME_FROM" ] || cp -R "$RESUME_FROM/codex_sessions" "$SECRETS/codex/sessions"
   AGENT_SECRET_MOUNTS=(-v "$SECRETS/codex:/home/agent/.codex")
@@ -270,7 +294,7 @@ if [ "$AGENT" = claude ]; then printf '%s\n' "$HOOKS" > "$SECRETS/claude/setting
 if [ "$AGENT" = codex ]; then printf '%s\n' "$HOOKS" > "$SECRETS/codex/hooks.json"; fi
 chmod -R a+rwX "$SECRETS" "$RUN/work"   # container user is uid 1000, which may not be us
 docker network create --internal "$NET" >/dev/null
-docker run -d --name "$PROXY" --network bridge "$IMAGE" python3 -u /sandbox/proxy.py --bind 0.0.0.0 --port 3128 --agent "$AGENT" >/dev/null
+docker run -d --name "$PROXY" --network bridge "$IMAGE" python3 -u /sandbox/proxy.py --bind 0.0.0.0 --port 3128 --agent "$PROXY_AGENT" >/dev/null
 docker network connect "$NET" "$PROXY"
 # On a busy host the proxy can take seconds to start; the canary would otherwise find its port closed.
 for _ in $(seq 60); do docker logs "$PROXY" 2>&1 | grep -q listening && break; sleep 0.5; done
@@ -287,6 +311,7 @@ DOCKER_ARGS=("${DOCKER_BASE[@]}" ${CLAUDE_ENV[@]+"${CLAUDE_ENV[@]}"} ${REACT_ENV
 
 # Canary: same image, network and mounts. Abort the trial if isolation does not hold.
 case "$AGENT" in claude) VENDOR_HOST=api.anthropic.com ;; codex) VENDOR_HOST=chatgpt.com ;; react) VENDOR_HOST=openrouter.ai ;; *) echo "unknown agent $AGENT" >&2; exit 2 ;; esac
+[ "$CODEX_BACKEND" != openrouter ] || VENDOR_HOST=openrouter.ai
 docker run -e VENDOR_HOST="$VENDOR_HOST" "${CANARY_ARGS[@]}" bash -c '
   fail=0
   getent hosts collusion.wiki >/dev/null 2>&1 && { echo "FAIL dns resolves"; fail=1; }
@@ -352,6 +377,7 @@ cat > "$RUN/meta.json" <<JSON
 JSON
 META_TMP="$RUN/meta.data.json"
 jq --argjson dp "$DATA_PROVENANCE" '. + $dp' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
+[ -z "$CODEX_BACKEND" ] || { jq --arg b "$CODEX_BACKEND" '. + {codex_backend: $b}' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"; }
 if [ "$BENCHMARK_ID" = urlquery ]; then
   META_TMP="$RUN/meta.benchmark.json"
   jq --argjson bp "$BENCHMARK_PROVENANCE" --arg variant "$CFG_DATA_VARIANT" --argjson seconds "$((BUDGET_MIN * 60))" --arg outer "$OUTER_TIMEOUT" '. + $bp + {data_variant: $variant, active_time_limit_seconds: $seconds, configured_outer_timeout: $outer, termination_grace_seconds: 1}' "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
@@ -377,11 +403,15 @@ START=$(date +%s); set +e
 HARD_DEADLINE="$((START + $(timeout_seconds "$TIMEOUT")))"
 # The clock the agent is told about: the deadline is BUDGET_MIN from launch, exported so the hook and the ReAct loop agree.
 EARLIEST_FINISH_EPOCH="$((START + MINIMUM_RUNTIME_SECONDS))"
-TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}")
+TIME_ENV=(-e MBAB_REPORT_MIN_WORDS="$REPORT_MIN_WORDS" -e MBAB_REPORT_MAX_WORDS="$REPORT_MAX_WORDS" -e MBAB_DEADLINE_EPOCH="$((START + BUDGET_MIN * 60))" -e MBAB_BUDGET_MIN="$BUDGET_MIN" -e MBAB_MIN_RUNTIME_FRACTION="$MIN_RUNTIME_FRACTION" -e MBAB_EARLIEST_FINISH_EPOCH="$EARLIEST_FINISH_EPOCH" -e MBAB_EARLY_STOP_NOTE="${CFG_EARLY_STOP_NOTE:-}" -e MBAB_SAFEGUARD_RETRY_LIMIT="$SAFEGUARD_RETRY_LIMIT" -e MBAB_SAFEGUARD_RETRY_MESSAGE="${CFG_SAFEGUARD_RETRY_MESSAGE:-}")
+# The Stop hook continues a flagged turn itself when it sees one; when the CLI exits on a flag
+# instead, the loop below resumes the session. Both count against the one per-run limit.
+SAFEGUARD_RESUMES=0; SAFEGUARD_EXHAUSTED=false
+safeguard_hook_retries() { jq -r '.safeguard_retries // 0' "$RUN/work/.mbab-runtime-policy.json" 2>/dev/null || echo 0; }
 case "$AGENT" in
   claude)
-    CLAUDE_EARLY_RESUMES=0
-    for attempt in 1 2; do
+    CLAUDE_EARLY_RESUMES=0; resume_reason=""
+    for attempt in $(seq 1 $((2 + SAFEGUARD_RETRY_LIMIT))); do
       remaining="$((HARD_DEADLINE - $(date +%s)))"
       [ "$remaining" -gt 0 ] || { RC=124; break; }
       claude_prompt="$PROMPT"
@@ -390,25 +420,52 @@ case "$AGENT" in
         session_id="$(jq -sr 'map(select(.type=="system" and .subtype=="init"))[0].session_id // empty' "$RUN/transcript.jsonl")"
         [ -n "$session_id" ] || { echo "Claude ended early without a resumable session" >&2; RC=6; break; }
         resume_args=(--resume "$session_id")
-        claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
-        CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
-        record_runner_event early_stop_resume_started "$attempt"
+        if [ "$resume_reason" = safeguard ]; then
+          claude_prompt="$CFG_SAFEGUARD_RETRY_MESSAGE"
+          record_runner_event safeguard_resume_started "$attempt"
+        else
+          claude_prompt="Continue this same benchmark investigation. Recheck at least five report claims against their underlying scan evidence, and inspect five remaining scan rows for missed material findings. Revise /work/report.md where the evidence warrants it; keep the report within its word limits. If no substantive work remains, end honestly."
+          CLAUDE_EARLY_RESUMES=$((CLAUDE_EARLY_RESUMES + 1))
+          record_runner_event early_stop_resume_started "$attempt"
+        fi
       fi
       record_runner_event cli_started "$attempt"
       part="$RUN/transcript.part$attempt.jsonl"
-      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p "$claude_prompt" \
+      # The CLI ends a turn after 8 Stop-hook blocks in a row, which let runs finish below the
+      # minimum runtime; the hard deadline is the cap that matters.
+      # Linux caps one argument at 128 KB, so a longer prompt (a whole large answer key) goes in on stdin.
+      prompt_arg=("$claude_prompt"); prompt_in=/dev/null
+      if [ "$(printf %s "$claude_prompt" | wc -c)" -gt 100000 ]; then
+        printf %s "$claude_prompt" > "$RUN/.prompt-stdin.txt"; prompt_arg=(); prompt_in="$RUN/.prompt-stdin.txt"
+      fi
+      docker run -i --name "mbab-agent-$RUN_ID" "${TIME_ENV[@]}" -e CLAUDE_CODE_STOP_HOOK_BLOCK_CAP=1000000 -e CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK=1 \
+        "${DOCKER_ARGS[@]}" timeout -k "$KILL_GRACE" "${remaining}s" claude -p ${prompt_arg[@]+"${prompt_arg[@]}"} \
         ${resume_args[@]+"${resume_args[@]}"} --model "$MODEL" --effort "$EFFORT" \
         --dangerously-skip-permissions --no-chrome --setting-sources user \
         ${CLAUDE_DISALLOWED[@]+--disallowedTools "${CLAUDE_DISALLOWED[@]}"} \
         --output-format stream-json --verbose --include-partial-messages \
-        < /dev/null > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+        < "$prompt_in" > "$part" 2> "$RUN/stderr.attempt$attempt.log"; RC=$?
+      ended_on_flag="$(python3 "$ROOT/slopvestigator_bench/runtime_policy.py" --safeguard "$part" | cut -d' ' -f2)"
       cat "$part" >> "$RUN/transcript.jsonl"
       rm "$part"
       record_runner_event cli_finished "$attempt" "$RC"
+      if [ "$ended_on_flag" = 1 ]; then
+        record_runner_event safeguard_flag "$attempt" "$RC"
+        if [ $((SAFEGUARD_RESUMES + $(safeguard_hook_retries))) -lt "$SAFEGUARD_RETRY_LIMIT" ]; then
+          SAFEGUARD_RESUMES=$((SAFEGUARD_RESUMES + 1)); resume_reason=safeguard
+          TIME_ENV+=(-e MBAB_SAFEGUARD_RETRIES_USED="$SAFEGUARD_RESUMES")
+          continue
+        fi
+        SAFEGUARD_EXHAUSTED=true; record_runner_event safeguard_retries_exhausted "$attempt" "$RC"
+        break
+      fi
+      resume_reason=early
       [ "$RC" -eq 0 ] || break
+      [ "$CLAUDE_EARLY_RESUMES" -lt 1 ] || break
       [ "$(date +%s)" -lt "$EARLIEST_FINISH_EPOCH" ] || break
       grep -q '"subtype":"model_refusal_fallback"' "$RUN/transcript.jsonl" && break
-      grep -q '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" && break
+      # A refusal ends the run; a safeguard flag (category cyber) that was retried does not.
+      grep '"subtype":"model_refusal_no_fallback"' "$RUN/transcript.jsonl" | grep -vq '"api_refusal_category":"cyber"' && break
     done
     cp "$RUN/stderr.attempt$attempt.log" "$RUN/stderr.log" 2>/dev/null || true ;;
   codex)
@@ -471,8 +528,11 @@ EARLY_STOP_ATTEMPTS=0
 META_TMP="$RUN/meta.runtime-policy.json"
 jq --argjson early_stop_attempts "$EARLY_STOP_ATTEMPTS" \
    --argjson early_stop_resume_attempts "${CLAUDE_EARLY_RESUMES:-0}" \
+   --argjson safeguard_retries "$((SAFEGUARD_RESUMES + $(safeguard_hook_retries)))" \
+   --argjson safeguard_retry_limit "$SAFEGUARD_RETRY_LIMIT" \
+   --argjson safeguard_retries_exhausted "$( { [ "$SAFEGUARD_EXHAUSTED" = true ] || [ "$(jq -r '.safeguard_retries_exhausted // false' "$RUN/work/.mbab-runtime-policy.json" 2>/dev/null)" = true ]; } && echo true || echo false)" \
    --argjson minimum_runtime_reached "$([ "$END" -ge "$EARLIEST_FINISH_EPOCH" ] && echo true || echo false)" \
-   '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached}' \
+   '. + {early_stop_attempts: $early_stop_attempts, early_stop_resume_attempts: $early_stop_resume_attempts, minimum_runtime_reached: $minimum_runtime_reached, safeguard_retries: $safeguard_retries, safeguard_retry_limit: $safeguard_retry_limit, safeguard_retries_exhausted: $safeguard_retries_exhausted}' \
    "$RUN/meta.json" > "$META_TMP" && mv "$META_TMP" "$RUN/meta.json"
 # Session stores must be in place before usage is summarized (cleanup would otherwise copy them only at exit).
 save_sessions

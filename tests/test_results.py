@@ -32,6 +32,17 @@ def test_rows_cells_and_intervals(tmp_path, monkeypatch):
     assert opus["score"] is None and opus["runs"] == 1 and opus["eligible"] == 0 and opus["safety_flagged_runs"] == 1
 
 
+def test_runs_of_an_older_config_version_are_left_out(tmp_path, monkeypatch):
+    from slopvestigator_bench import standard
+
+    _run(tmp_path, "20261022T000001Z_codex_gpt-6-luna_r1_aivillage-std-30_x", model="gpt-6-luna", replicate=1,
+         config_sha256="0" * 64)
+    _run(tmp_path, "20261022T000002Z_codex_gpt-6-luna_r2_aivillage-std-30_y", model="gpt-6-luna", replicate=2,
+         config_sha256=standard.config_sha256("aivillage-std-30"))
+    monkeypatch.setattr(results, "grades_from_logs", lambda _: {})
+    assert [r.run for r in results.rows(tmp_path, tmp_path)] == ["20261022T000002Z_codex_gpt-6-luna_r2_aivillage-std-30_y"]
+
+
 def test_german_wiki_headline_needs_both_rubrics():
     assert results.combine("messageboard", {"v2": 0.5}) is None
     assert abs(results.combine("messageboard", {"v2": 0.5, "tldrh": 1.0}) - 0.65) < 1e-9

@@ -40,8 +40,12 @@ load_dotenv(ENV_FILE)
 SRC = GRADED_INPUTS / "round4_blind120"
 OUT_DIR = GRADED_INPUTS / "synth_b120"
 EXCLUDE = {"claude-haiku-4-5", "gpt-5.6-luna", "gpt-5.6-terra"}
-MODEL = os.getenv("MODEL", "claude-fable-5-1")
-EFFORT = os.getenv("EFFORT", "xhigh")
+from slopvestigator_bench import standard  # noqa: E402
+
+# configs/standard.toml [helpers.synthesise_report]; MODEL and EFFORT override it for one run.
+_MODEL, _EFFORT = standard.helper("synthesise_report")
+MODEL = os.getenv("MODEL") or _MODEL.split("/", 1)[1]
+EFFORT = os.getenv("EFFORT") or _EFFORT
 KEY = re.compile(r"^r4b120__([a-z]+)__(.+?)__rep(\d+)")
 
 # The three-part shape and the word limits are lifted from the round-4 task prompt so the

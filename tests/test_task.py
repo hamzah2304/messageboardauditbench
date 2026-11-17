@@ -231,7 +231,7 @@ def test_config_error_lists_names() -> None:
 def test_all_public_configs_build(config_name: str) -> None:
     cfg = _load_config(config_name)
 
-    expected_prompt = "context" if config_name == "context" else "blind-v2"
+    expected_prompt = {"context": "context", "wiki-std-10": "wiki-v3", "wiki-std-30": "wiki-v3"}.get(config_name, "blind-v2")
     assert cfg["prompt"] == expected_prompt
     assert (repo_root() / "sandbox" / "prompts" / f"{cfg['prompt']}.txt").is_file()
     assert cfg["data_variant"] in {

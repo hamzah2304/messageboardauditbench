@@ -1,0 +1,192 @@
+{
+  "judge": "codex/gpt-6.1-sol",
+  "effort": "high",
+  "rubric": "answer-key",
+  "grading_code_commit": "7a8c937",
+  "source": "Original standard cohort plus completed supplementary standard runs",
+  "trials": 347,
+  "eligible": 329,
+  "missing_reports": 9,
+  "scores": "First up to five eligible standard-condition reports per cell; declared shortfalls; equal eval weights.",
+  "formulas": {
+    "german-wiki": "Mean over 12 headline findings",
+    "transluce": "Weighted mean over 13 headline findings; F3 weight 0.5",
+    "aivillage": "Mean of the best 20 of 96 finding scores"
+  },
+  "models": [
+    {
+      "id": "claude-opus-5",
+      "label": "Opus 5",
+      "harness": "claude",
+      "lab": "anthropic",
+      "color": "#d97757"
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "label": "Sonnet 5.5",
+      "harness": "claude",
+      "lab": "anthropic",
+      "color": "#d97757"
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "label": "Haiku 5.5",
+      "harness": "claude",
+      "lab": "anthropic",
+      "color": "#d97757"
+    },
+    {
+      "id": "gpt-6-astra",
+      "label": "GPT-6 Astra",
+      "harness": "codex",
+      "lab": "openai",
+      "color": "#202126"
+    },
+    {
+      "id": "gpt-6.1-sol",
+      "label": "GPT-6.1 Sol",
+      "harness": "codex",
+      "lab": "openai",
+      "color": "#202126"
+    },
+    {
+      "id": "gpt-6-luna",
+      "label": "GPT-6 Luna",
+      "harness": "codex",
+      "lab": "openai",
+      "color": "#202126"
+    },
+    {
+      "id": "meta/muse-wonder",
+      "label": "Muse Wonder",
+      "harness": "react",
+      "lab": "meta",
+      "color": "#0668e1"
+    },
+    {
+      "id": "moonshotai/kimi-k3.1-pro",
+      "label": "Kimi K3.1 Pro",
+      "harness": "react",
+      "lab": "moonshot",
+      "color": "#c2185b"
+    },
+    {
+      "id": "z-ai/glm-5.3",
+      "label": "GLM 5.3",
+      "harness": "react",
+      "lab": "zai",
+      "color": "#00897b"
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash-1017",
+      "label": "DeepSeek V4.1 Flash",
+      "harness": "react",
+      "lab": "deepseek",
+      "color": "#7c55b6"
+    },
+    {
+      "id": "x-ai/grok-4.7",
+      "label": "Grok 4.7",
+      "harness": "react",
+      "lab": "xai",
+      "color": "#5f6368"
+    }
+  ],
+  "cost_method": {
+    "x_axis": "Mean USD per attempted run across 15 trials per model and budget (five on each eval). Includes excluded attempts. Judge cost is excluded.",
+    "react": "Recorded OpenRouter run cost.",
+    "claude": "CLI-reported API-equivalent list cost; one missing CLI cost uses the token fallback. Not subscription cash spend.",
+    "codex": "Token estimate using the pinned lineup input/output rates and cached input at 10% of input rate. Not subscription cash spend.",
+    "rates_usd_per_million": {
+      "claude-opus-5": {
+        "input": 5.0,
+        "output": 25.0
+      },
+      "claude-sonnet-5-5": {
+        "input": 2.0,
+        "output": 10.0
+      },
+      "claude-haiku-5-5": {
+        "input": 0.1,
+        "output": 0.5
+      },
+      "gpt-6-astra": {
+        "input": 10.0,
+        "output": 50.0
+      },
+      "gpt-6.1-sol": {
+        "input": 2.0,
+        "output": 10.0
+      },
+      "gpt-6-luna": {
+        "input": 0.1,
+        "output": 0.5
+      },
+      "meta/muse-wonder": {
+        "input": 4.0,
+        "output": 20.0
+      },
+      "moonshotai/kimi-k3.1-pro": {
+        "input": 2.0,
+        "output": 10.0
+      },
+      "z-ai/glm-5.3": {
+        "input": 0.08,
+        "output": 1.4
+      },
+      "deepseek/deepseek-v4.1-flash-1017": {
+        "input": 0.15,
+        "output": 0.6
+      },
+      "x-ai/grok-4.7": {
+        "input": 2.0,
+        "output": 6.0
+      }
+    },
+    "rates_source_commit": "7a8c937",
+    "rates_source": "configs/lineup.toml",
+    "score_aggregation": "Compute the eligible-run mean separately for each eval, then take their unweighted arithmetic mean. Each eval gets one third of the weight.",
+    "aggregation": "Mean attempted-run cost within each eval, then equal mean of the three evals; all failed and excluded attempts included."
+  },
+  "color_source": "Original benchmark plots: scripts/viewers/build_benchmarks_figure.py and configs/lineup.toml (7a8c937), one color per lab.",
+  "grade_exports": {
+    "german-wiki": "../../german-wiki/results/2026-11-17-grades.jsonl",
+    "transluce": "../../transluce/results/2026-11-17-grades.jsonl",
+    "aivillage": "../../aivillage/results/2026-11-17-grades.jsonl"
+  },
+  "selected": 329,
+  "grading_inputs": {
+    "german-wiki": {
+      "judge": "codex/gpt-6.1-sol",
+      "effort": "high",
+      "rubric": "answer-key",
+      "prompt_sha256": "fb1846a9fd864676e76e3adcb8abe3768cf1708470f813f8fecb5464ea188157",
+      "findings_sha256": "e8c2b692ad35323fa87eb52abeee7565072a60e97fa85361a6867dfcc5694df1",
+      "source_sha256": "dcec8843f182b1b74c32b84e9dd9c555e6f018960039671ea0e8188044962bba"
+    },
+    "transluce": {
+      "judge": "codex/gpt-6.1-sol",
+      "effort": "high",
+      "rubric": "answer-key",
+      "prompt_sha256": "7dff278e1f96f87f4c9784ac37fdc46164a9ac9fe5d93c28b92a17e6ea477778",
+      "findings_sha256": "1dbc618689a9a2d7371711f7eb10fc72d1992d95eb30e0bf79faf53687cf79ee",
+      "article_sha256": "4d3c8c0cd5d4378c281cc260d64d0abc813b3c7d60fbc1418d024429ffe84a9f"
+    },
+    "aivillage": {
+      "judge": "codex/gpt-6.1-sol",
+      "effort": "high",
+      "rubric": "answer-key",
+      "prompt_sha256": "c09683ee1ae4886b645ec059200c6dd1d85adcdb0e2c938055ce64749feb3253",
+      "findings_sha256": "43f6e0ad1b61a5365a1f5a33bd524700b08e5f21dfac14a32c05e4469dd7c938"
+    }
+  },
+  "publication": "Numeric grades omit report text, judge quotes, reasons and raw responses. Original hashes refer to the local archive.",
+  "condition_configs": {
+    "wiki-std-10": "77f07bbf4b5c0b578eed2c74e1d3f2b5b2c9c9304768bee5086eda82504f3fe2",
+    "wiki-std-30": "e356dbe33289c00766c50684e986f237a4df45f0b46ce425e25e390ae64b6791",
+    "urlquery-std-10": "77158dbcd9265d86733e84fc6104fcad3a9086e946a616e6bb2f8626f093fe66",
+    "urlquery-std-30": "48b0019258525ce03eb9ef536b6f2b30fa3ddabcf41687dfd2e548df0f0c6c5f",
+    "aivillage-std-10": "121d91336baeecd699f957cb1e70bf4c60563a155cafbccbd8ba050a07d724a7",
+    "aivillage-std-30": "0bf548529e18eaa5923dd94850c89fa68a81d6234ffb1d8bb945dbe2689b7a5e"
+  }
+}

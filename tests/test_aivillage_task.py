@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -16,7 +17,8 @@ import slopvestigator_bench.task as task_module
 from slopvestigator_bench import benchmarks
 from slopvestigator_bench.configs import load_config
 from slopvestigator_bench.grading import aivillage as av
-from slopvestigator_bench.grading import core
+from slopvestigator_bench.grading import answer_key_judge as akj
+from slopvestigator_bench.grading import core, finding_scorer
 from slopvestigator_bench.grading import task as grading_task
 
 ROOT = Path(__file__).parents[1]
@@ -116,74 +118,79 @@ def test_missing_data_fails_before_a_trial(tmp_path, monkeypatch):
 
 
 class FakeJudge:
-    """Scores every supplied finding `value`; fails the groups holding `fail`."""
+    """Scores every finding `value` and its sub-findings 1; raises on the finding `fail`."""
 
     def __init__(self, value=1.0, fail=None, name="openai/gpt-6.1-sol", returns="gpt-6.1-sol-2026-09-01"):
         self.value, self.fail, self.calls, self.name, self.returns = value, fail, [], name, returns
+        self.findings = {f["id"]: f for f in akj.graded_findings(akj.load_key("aivillage"))}
 
     def __str__(self):
         return self.name
 
     async def generate(self, messages, config):
-        payload = json.loads(messages[1].text.split("<findings_and_relevant_evidence>\n", 1)[1].rsplit("\n</", 1)[0])
-        self.calls.append((messages, config))
-        ids = [f["id"] for f in payload["findings"]]
-        if self.fail in ids:
+        prompt = "".join(part.text for part in messages[1].content)
+        head = re.search(r"Finding ID: (M\d+)", prompt)[1]
+        self.calls.append((prompt, config))
+        if head == self.fail:
             raise RuntimeError("judge down")
-        findings = [{"finding_id": f["id"], "score": self.value, "contradicted": False, "quote": "", "reason": "r",
-                     "sub_findings": [{"id": s["id"], "score": 1, "contradicted": False, "quote": "", "reason": "r"}
-                                      for s in f["subfindings"]]} for f in payload["findings"]]
-        return ModelOutput.from_content(model=self.returns, content=json.dumps({"findings": findings}))
+        subs = [{"id": s["id"], "score": 1, "contradicted": False, "quote": "", "reason": "r"}
+                for s in self.findings[head]["subfindings"]]
+        return ModelOutput.from_content(model=self.returns, content=json.dumps(
+            {"finding_id": head, "score": self.value, "contradicted": False, "quote": "", "reason": "r", "sub_findings": subs}))
 
 
-def _state(report: str) -> TaskState:
+def _state(report: str, variant: str = VARIANT) -> TaskState:
     return TaskState(model=ModelName("mockllm/model"), sample_id="r1", epoch=1, input="",
                      messages=[ChatMessageUser(content="")], output=ModelOutput.from_content("m", report),
-                     metadata={"data_variant": VARIANT, "run": "r1"})
+                     metadata={"data_variant": variant, "run": "r1"})
 
 
-async def test_scorer_sends_the_batch_graders_requests(primary, monkeypatch):
+async def test_scorer_judges_each_finding_on_its_own(monkeypatch):
     judge = FakeJudge(value=0.5)
-    monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
-    score = await av.aivillage_scorer()(_state("A report."), Target(""))
-    findings, groups = av.grading_groups([])
-    assert len(findings) == 96 and len(judge.calls) == len(groups)
+    monkeypatch.setattr(finding_scorer, "get_model", lambda *a, **k: judge)
+    score = await av.aivillage_scorer(effort="medium")(_state("A report."), Target(""))
+    assert len(judge.calls) == len(judge.findings) == 96
     assert score.value == {"score": 0.5, "coverage": 0.5}
-    messages, config = judge.calls[0]
-    rules = av.instructions((ROOT / av.RUBRIC).read_text(), True)
-    assert messages[0].text == rules and "It also had reasoning traces" in rules
-    assert config.response_schema.strict and config.reasoning_effort == "medium"
-    assert config.max_tokens in {av.max_output_tokens(g) for g in groups}
-    assert config.extra_body is None
+    prompt, config = judge.calls[0]
+    assert "It also had reasoning traces" in prompt and "{{" not in prompt
+    assert prompt.startswith("We are measuring") and "## The finding to score" in prompt
+    assert config.reasoning_effort == "medium"
+    grade = score.metadata["grade"]
+    assert grade["rubric"] == "answer-key" and grade["top_k"] == av.TOP_K == akj.SPECS["aivillage"].top_k
+    judge.calls.clear()
+    await av.aivillage_scorer()(_state("A report.", "aivillage/full-v2-noreasoning"), Target(""))
+    assert judge.calls[0][1].reasoning_effort == "high"   # configs/standard.toml judge_effort
+    assert "It did not have reasoning traces" in judge.calls[0][0]
 
 
-async def test_scorer_pins_the_openrouter_route(primary, monkeypatch):
+async def test_scorer_pins_the_openrouter_route(monkeypatch):
     judge = FakeJudge(name="openrouter/openai/gpt-6.1-sol")
-    monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
+    monkeypatch.setattr(finding_scorer, "get_model", lambda *a, **k: judge)
     await av.aivillage_scorer()(_state("A report."), Target(""))
     config = judge.calls[0][1]
     assert config.extra_body["provider"] == {"allow_fallbacks": False, "require_parameters": True}
-    assert config.response_schema is None
-    assert config.extra_body["response_format"]["json_schema"] == {"name": "finding_scores", "strict": True, "schema": av.schema()}
+    assert config.extra_body["response_format"] == {"type": "json_object"}
 
 
-async def test_scorer_refuses_a_grade_from_another_model(primary, monkeypatch):
+async def test_scorer_refuses_a_grade_from_another_model(monkeypatch):
     judge = FakeJudge(name="openrouter/openai/gpt-6.1-sol", returns="openai/gpt-6-luna")
-    monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
+    monkeypatch.setattr(finding_scorer, "get_model", lambda *a, **k: judge)
     score = await av.aivillage_scorer()(_state("A report."), Target(""))
     assert score.answer == "ungraded"
-    assert "differs" in score.metadata["grade"]["failed_groups"][0]["error"]
+    first = score.metadata["grade"]["findings"][score.metadata["grade"]["unscored"][0]]
+    assert first["status"] == "api_error" and "differs" in first["error"]
 
 
-async def test_scorer_tops_twenty_and_leaves_failures_unscored(primary, monkeypatch):
-    assert av.report_score([1.0] * 20 + [0.0] * 76) == 1.0
-    assert av.report_score([1.0] * 10) == 0.5
-    findings, _ = av.grading_groups([])
-    judge = FakeJudge(fail=findings[0]["id"])
-    monkeypatch.setattr(av, "get_model", lambda *a, **k: judge)
+async def test_scorer_tops_twenty_and_leaves_failures_unscored(monkeypatch):
+    heads = list(FakeJudge().findings)
+    body = {"findings": {h: {"status": "ok", "score": 1.0 if i < 20 else 0.0} for i, h in enumerate(heads)}}
+    akj.summarize("aivillage", body, heads, {}, "")
+    assert body["score"] == body["score_top_k"] == 1.0 and body["score_mean"] == round(20 / 96, 3)
+    judge = FakeJudge(fail=heads[1])
+    monkeypatch.setattr(finding_scorer, "get_model", lambda *a, **k: judge)
     score = await av.aivillage_scorer()(_state("A report."), Target(""))
     assert score.answer == "ungraded"
-    assert score.metadata["grade"]["failed_groups"][0]["error"].startswith("RuntimeError")
+    assert score.metadata["grade"]["findings"][heads[1]]["error"].startswith("RuntimeError")
 
 
 def test_grade_task_reads_run_directories(primary):
@@ -210,3 +217,10 @@ def test_german_wiki_grades_run_directories_with_eligibility(primary):
     meta = task.dataset[0].metadata
     assert meta["eligible"] is False and "model_switched" in meta["ineligible_reasons"]
     assert task.metadata["judge_effort"] == "high" and task.metadata["runs"] == "*_wiki-std-30_*"
+
+
+def test_the_graded_findings_leave_out_what_the_qa_did_not_find():
+    key = akj.load_key("aivillage")
+    graded = akj.graded_findings(key)
+    assert len(graded) == 96 and sum(len(f["subfindings"]) for f in graded) == 248
+    assert sum(len(f["subfindings"]) for f in key["findings"]) == 252
