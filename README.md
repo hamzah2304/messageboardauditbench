@@ -5,13 +5,30 @@ investigators found? Three benchmarks ask this about three real incidents. In ea
 agent gets the logs in a sandbox with no internet and a time budget, writes a report, and a
 judge scores the report against findings taken from human write-ups.
 
-**The best agents recover about half of what the humans found, and which model is best
-depends on the incident.** At 30 minutes, GPT-6 Astra is at or near the top on all three,
-while Kimi K3 leads on Transluce (52%) but is in the lower half on the German wiki (32%). Each
-benchmark has its own score and judge, so compare a model across a row, not numbers
-between columns.
+## Performance and cost across all three evals
 
-![Each model's score on the three benchmarks at 30 minutes.](docs/figures/benchmarks_by_model.png)
+The latest evaluation compares 11 models at 10 and 30 minutes, with five trials per
+model, eval and time budget. Each point below gives German wiki, Transluce and
+AI Village equal weight: it averages the three eval means, rather than pooling
+all reports. Open points show 10 minutes; filled points show 30 minutes.
+
+![Mean performance across three evals versus mean USD per run at 10 and 30 minutes.](docs/figures/eval-options/performance-vs-cost.png)
+
+USD is recorded API spend for ReAct, API-equivalent cost for Claude Code, and a
+token-based estimate for Codex. It includes all attempts and excludes grading.
+The axis is logarithmic. See the
+[results snapshot and cost assumptions](benchmarks/results/2026-11-16/README.md).
+
+The 30-minute breakdown shows individual runs as small dots and their means as
+diamonds, with one panel per eval. Both figures use the established lab colors.
+The shared preview also lets you drag the cost plot’s model labels, save their
+positions under your name, and download an adjusted SVG.
+
+![Individual thirty-minute scores and means on each of the three evals.](docs/figures/eval-options/eval-breakdown.png)
+
+The average summarizes three different rubric scores, not accuracy. Scoring
+retains the existing report exclusions, and models use different scaffolds;
+small differences should not be treated as established model or scaffold effects.
 
 The German wiki benchmark is written up on LessWrong:
 [How good are slop-vestigators?](https://www.lesswrong.com/posts/wt4kk6vFPEhkXvF8Q/how-good-are-slop-vestigators)
@@ -24,7 +41,10 @@ The German wiki benchmark is written up on LessWrong:
 
 Each details page says how to get the data, run a trial and grade it.
 
-## Score against cost
+## Earlier experiments
+
+These older figures use different model lineups, rubrics or judges and are not
+directly comparable with the latest evaluation above.
 
 Every plot below puts score against the estimated cost of a run at list prices, on a log
 scale, with one colour per lab.
