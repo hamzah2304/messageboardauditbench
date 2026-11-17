@@ -15,11 +15,14 @@ sys.path.insert(0, str(ROOT))
 
 
 def verify(snapshot):
+    from slopvestigator_bench import standard
     from slopvestigator_bench.grading import answer_key_judge as akj
 
     rows = list(map(json.loads, (snapshot/'runs.jsonl').read_text().splitlines()))
     provenance = json.loads((snapshot/'provenance.json').read_text())
     selection = json.loads((snapshot/'selection.json').read_text())
+    assert provenance['condition_configs'] == {standard.config_name(e,b): standard.config_sha256(standard.config_name(e,b))
+                                               for e in ('messageboard','urlquery','aivillage') for b in (10,30)}
     assert len(rows) == provenance['trials'] == len({r['run'] for r in rows})
     assert set(selection['runs']) == {r['run'] for r in rows if r['selected']}
     assert len(selection['runs']) == 330

@@ -78,6 +78,9 @@ def main():
     provenance = json.loads((initial/'provenance.json').read_text())
     models = {m['id']: m for m in provenance['models']}
     rates = provenance['cost_method']['rates_usd_per_million']
+    provider, judge_model = provenance['judge'].split('/', 1)
+    storage_model = f'codex_{judge_model}' if provider == 'codex' else judge_model
+    grade_directory = fj.judge_dir(storage_model, provenance['effort'])
     baseline = {r['run'] for r in map(json.loads, (initial/'runs.jsonl').read_text().splitlines())}
     found_baseline = set()
     rows, grades = [], {b: [] for b in EVAL_IDS}
@@ -91,7 +94,7 @@ def main():
         stamp = akj.stamp(bench, provenance['judge'], provenance['effort'], source, key)
         inputs[bench] = stamp
         run_root = args.archive/'runs'/('urlquery' if bench == 'transluce' else '')
-        grade_root = args.archive/'benchmarks'/bench/('reports/graded' if bench == 'transluce' else 'graded-answer-key')/fj.judge_dir(provenance['judge'], provenance['effort'])
+        grade_root = args.archive/'benchmarks'/bench/('reports/graded' if bench == 'transluce' else 'graded-answer-key')/grade_directory
         for run in sorted(run_root.glob('*_r*_*std-*')):
             if not (run/'meta.json').is_file():
                 continue

@@ -42,6 +42,7 @@ def test_numeric_export_drops_all_free_text():
 def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monkeypatch):
     import json
 
+    from slopvestigator_bench import standard
     from slopvestigator_bench.grading import answer_key_judge as akj
 
     spec = importlib.util.spec_from_file_location('verify_eval_results', Path(__file__).parents[1]/'scripts/verify_eval_results.py')
@@ -71,6 +72,8 @@ def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monk
     (tmp_path/'runs.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
     (tmp_path/'selection.json').write_text(json.dumps({'runs':[r['run'] for r in rows]}))
     (tmp_path/'provenance.json').write_text(json.dumps({'trials':330,'models':[{'id':m} for m in models],
+                                                     'condition_configs':{standard.config_name(e,b): standard.config_sha256(standard.config_name(e,b))
+                                                                          for e in ('messageboard','urlquery','aivillage') for b in (10,30)},
                                                      'grade_exports':{e:f'{e}-grades.jsonl' for e in evals},
                                                      'judge':'test','effort':'high','grading_inputs':{e:({**stamp, 'article_sha256':'0'*64} if e=='transluce' else stamp) for e in evals}}))
     (tmp_path/'summary.json').write_text(json.dumps(summary))

@@ -24,9 +24,10 @@ diamonds, with one panel per eval. Colors identify model labs.
 
 ![Individual thirty-minute scores and means on each of the three evals.](docs/figures/results/eval-breakdown.png)
 
-The average summarizes three different rubric scores, not accuracy. Scoring
-retains the existing report exclusions, and models use different scaffolds;
-small differences should not be treated as established model or scaffold effects.
+The average summarizes three different rubric scores, not accuracy. Scores describe
+eligible reports; excluded attempts remain in the data and cost averages. Models use
+different scaffolds, and small differences should not be treated as established model
+or scaffold effects.
 
 The German wiki benchmark is written up on LessWrong:
 [How good are slop-vestigators?](https://www.lesswrong.com/posts/wt4kk6vFPEhkXvF8Q/how-good-are-slop-vestigators)

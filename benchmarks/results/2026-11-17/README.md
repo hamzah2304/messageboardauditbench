@@ -6,6 +6,14 @@ equal weight. The [30-minute breakdown](../../../docs/figures/results/eval-break
 shows the five selected reports per model and eval as small dots, with their mean as
 a diamond. SVG and PDF exports accompany both figures.
 
+## Run conditions
+
+Runs use high effort, no subagents and the benchmark-specific standard prompts.
+The nominal budgets are 10 and 30 minutes. Eligibility requires at least 90% of
+the budget, and the runner allows up to five additional minutes before forced
+termination. The exact settings are in [standard.toml](../../../configs/standard.toml);
+the snapshot records the hashes of all six generated condition configs.
+
 ## Reports and selection
 
 Each model, eval and time budget contributes the first five eligible reports in
