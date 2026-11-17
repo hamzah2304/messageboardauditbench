@@ -1,11 +1,11 @@
 # Performance and cost across three evals
 
-The headline figure shows performance averaged equally across German wiki, Transluce and AI Village against mean USD per run, with both 10- and 30-minute points. The single-panel breakdown shows the same mean as a large diamond and each eval mean as a small shape. It removes the previous per-eval panels and count columns.
+The headline figure shows performance averaged equally across German wiki, Transluce and AI Village against mean USD per run, with both 10- and 30-minute points. The 30-minute breakdown restores the individual-run view: small dots for report scores and diamonds for their means, with one panel per eval and no count columns. Both figures use the established lab colors from the original benchmark plots.
 
 - [Performance versus USD](../../../docs/figures/eval-options/performance-vs-cost.png)
-- [Overall mean and eval breakdown](../../../docs/figures/eval-options/eval-breakdown.png)
+- [Individual runs and means by eval](../../../docs/figures/eval-options/eval-breakdown.png)
 
-SVG and PDF exports accompany both PNGs. The model colors match between the two figures. Earlier plot alternatives remain in `draft/` and `refined/` as design history, but are not the current results presentation.
+SVG and PDF exports accompany both PNGs. The lab colors match between the two figures. The shared HTML preview lets you drag cost-plot labels, saves layouts under your reviewer name through ui-kit, and exports the adjusted SVG. PNG/PDF downloads retain the default label positions. Earlier plot alternatives remain in `draft/` and `refined/` as design history, but are not the current results presentation.
 
 ## Averaging
 

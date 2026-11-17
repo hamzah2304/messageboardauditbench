@@ -26,10 +26,8 @@ DATA = ROOT / 'benchmarks/results/2026-11-16'
 OUT = ROOT / 'docs/figures/eval-options'
 EVALS = ['german-wiki', 'transluce', 'aivillage']
 NAMES = ['German wiki', 'Transluce', 'AI Village']
-MARKERS = ['^', 's', 'o']
 INK, MUTED = '#172b3b', '#5c6c78'
-PALETTE = ['#2364a8', '#b96927', '#208470', '#874a9d', '#ca4857', '#4d7a27',
-           '#947229', '#526cc4', '#9c4c76', '#3c8fa1', '#525b68']
+
 
 
 def aggregate(rows):
@@ -81,7 +79,8 @@ def main():
     assert all(r['cost_usd'] >= 0 for r in rows)
     summary = aggregate(rows)
     models = sorted([r for r in summary if r['budget'] == 30], key=lambda x: -x['score'])
-    colors = {m['model']: PALETTE[i] for i, m in enumerate(models)}
+    provenance = json.loads((DATA / 'provenance.json').read_text())
+    colors = {m['id']: m['color'] for m in provenance['models']}
     by_key = {(r['model'], r['budget']): r for r in summary}
     OUT.mkdir(parents=True, exist_ok=True)
     (DATA/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
@@ -121,45 +120,45 @@ def main():
         ax.scatter(a['cost_usd'], a['score'], s=78, facecolors='white', edgecolors=c, linewidths=2, zorder=4)
         ax.scatter(b['cost_usd'], b['score'], s=90, c=c, edgecolors='white', linewidths=.8, zorder=5)
         dx, dy = offsets[m['model']]
-        ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=(dx,dy), textcoords='offset points',
+        annotation = ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=(dx,dy), textcoords='offset points',
                     fontsize=10, color=c, weight='bold', ha='left' if dx >= 0 else 'right', va='center',
                     arrowprops={'arrowstyle':'-', 'color':c, 'lw':.6, 'alpha':.65}, zorder=6)
+        label_id = m['model'].replace('/', '-').replace('.', '-')
+        annotation.set_gid('model-label-' + label_id)
+        annotation.arrow_patch.set_gid('model-leader-' + label_id)
     fig.text(.04, .12, 'Cost: recorded ReAct API spend; Claude Code API-equivalent cost; Codex token-based estimate. Subscription cash spend is not shown.', fontsize=9, color=MUTED)
     fig.text(.04, .075, 'Mean cost includes all attempts and excludes grading. Scores retain the existing report exclusions. Different model scaffolds remain confounded.', fontsize=9, color=MUTED)
     fig.text(.04, .035, 'An equal-weight average of three rubric scores, not accuracy. Five trials per eval and budget; judge: GPT-6.1 Sol, high effort.', fontsize=9, color=MUTED)
     save(fig, 'performance-vs-cost')
 
-    fig, ax = plt.subplots(figsize=(13, 10.5))
-    fig.subplots_adjust(left=.24, right=.96, top=.79, bottom=.19)
-    fig.text(.04, .95, 'The average, and the three evals behind it', fontsize=23, weight='bold')
-    fig.text(.04, .905, 'One row per model. Large diamonds are the equal-eval mean; small shapes are the individual eval means.', fontsize=11, color=MUTED)
-    handles = [Line2D([],[],marker='D',color=INK,ls='',markersize=8,label='Overall mean')]
-    handles += [Line2D([],[],marker=mark,color=MUTED,ls='',markersize=6,label=name) for mark,name in zip(MARKERS,NAMES)]
-    fig.legend(handles=handles, loc='upper left', bbox_to_anchor=(.033,.875), frameon=False, ncol=4, fontsize=10)
-    ax.set_xlim(0, 85)
-    ax.set_ylim(len(models)-.45, -.65)
-    ax.set_xticks(range(0, 81, 10))
-    ax.set_yticks([])
-    ax.grid(axis='x', color='#e3e9ed', linewidth=.8)
-    ax.set_axisbelow(True)
-    ax.set_xlabel('Eval score (0–100)', labelpad=12)
-    for i,m in enumerate(models):
-        c=colors[m['model']]
-        ax.text(-.04, i, m['label'], transform=ax.get_yaxis_transform(), ha='right', va='center', fontsize=10.5, color=c, weight='bold')
-        ax.axhline(i+.5, color='#eff2f4', lw=.7)
-        for budget, shift in [(10,-.22),(30,.22)]:
-            r = by_key[m['model'], budget]
-            y = i + shift
-            ax.text(-.008,y,str(budget),transform=ax.get_yaxis_transform(),ha='right',va='center',fontsize=7.5,color=MUTED)
-            xs=[r['evals'][ev]['score'] for ev in EVALS]
-            ax.plot([min(xs),max(xs)],[y+.10,y+.10],c='#dde3e8',lw=1,zorder=1)
-            for x,mark in zip(xs,MARKERS):
-                ax.scatter(x,y+.10,s=30,marker=mark,facecolors='white' if budget==10 else '#788995',
-                           edgecolors='#788995',linewidths=1,zorder=3)
-            ax.scatter(r['score'],y-.10,s=85,marker='D',facecolors='white' if budget==10 else c,
-                       edgecolors=c,linewidths=1.7,zorder=4)
-    fig.text(.04,.095,'Open marks / upper line: 10 minutes. Filled marks / lower line: 30 minutes. Models are ordered by their 30-minute overall mean.',fontsize=9,color=MUTED)
-    fig.text(.04,.05,'Small points show eval averages, not individual trials or uncertainty. Report exclusions and scaffold differences are documented with the data.',fontsize=9,color=MUTED)
+    # Restore the original option 1: individual 30-minute runs and their mean,
+    # with one panel per eval. Counts remain in the downloadable data.
+    order = sorted(provenance['models'], key=lambda m: ['codex', 'claude', 'react'].index(m['harness']))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 8.5), sharey=True)
+    fig.subplots_adjust(left=.205, right=.97, top=.77, bottom=.20, wspace=.14)
+    fig.text(.035, .945, 'How do models compare after 30 minutes?', fontsize=23, weight='bold')
+    fig.text(.035, .89, 'Small dots show individual runs; diamonds show the mean. Colors follow the model labs, matching the cost plot.', fontsize=11, color=MUTED)
+    for ax, ev, name in zip(axes, EVALS, NAMES):
+        ax.set_title(name, loc='left', fontsize=15, weight='bold', pad=16)
+        ax.set_xlim(0, 100)
+        ax.set_ylim(len(order)-.5, -.5)
+        ax.set_yticks([])
+        ax.set_xticks([0, 25, 50, 75, 100])
+        ax.grid(axis='x', color='#e3e9ed', linewidth=.8)
+        ax.set_axisbelow(True)
+        ax.set_xlabel('Eval score (0–100)', labelpad=12)
+        for boundary in [2.5, 5.5]:
+            ax.axhline(boundary, color='#d7dfe5', lw=.8)
+        for i, m in enumerate(order):
+            values = [r['score']*100 for r in rows if r['model']==m['id'] and r['benchmark']==ev and r['budget']==30 and r['eligible']]
+            jitter = [0] if len(values)==1 else [(.26*k/(len(values)-1))-.13 for k in range(len(values))]
+            c = colors[m['id']]
+            ax.scatter(values, [i+j for j in jitter], s=25, c=c, alpha=.48, zorder=3)
+            ax.scatter(statistics.fmean(values), i, s=78, marker='D', c=c, edgecolors='white', linewidths=.8, zorder=4)
+    for i, m in enumerate(order):
+        fig.text(.19, .77-(i+.5)*(.77-.20)/len(order), m['label'], ha='right', va='center', fontsize=10.5, color=colors[m['id']])
+    fig.text(.035, .105, 'Report exclusions are unchanged; counts and reasons are in the data. Run spread is shown directly, not as a confidence interval.', fontsize=9, color=MUTED)
+    fig.text(.035, .065, 'Each eval has its own rubric. Models use different scaffolds. Judge: GPT-6.1 Sol, high effort.', fontsize=9, color=MUTED)
     save(fig, 'eval-breakdown')
     print('Wrote two figures in SVG, PNG and PDF, plus 22 model-budget summaries.')
 

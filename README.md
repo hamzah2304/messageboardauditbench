@@ -19,11 +19,12 @@ token-based estimate for Codex. It includes all attempts and excludes grading;
 it is not subscription cash spend. The axis is logarithmic. See the
 [results snapshot and cost assumptions](benchmarks/results/2026-11-16/README.md).
 
-The breakdown uses one large point for the overall mean and three small points
-for the eval means. Model colors match the cost plot. Both budgets appear in
-each row; the small points are eval averages, not individual runs or uncertainty.
+The 30-minute breakdown shows individual runs as small dots and their means as
+diamonds, with one panel per eval. Both figures use the established lab colors.
+The shared preview also lets you drag the cost plot’s model labels, save their
+positions under your name, and download an adjusted SVG.
 
-![Overall mean and three eval means per model, showing both time budgets in one panel.](docs/figures/eval-options/eval-breakdown.png)
+![Individual thirty-minute scores and means on each of the three evals.](docs/figures/eval-options/eval-breakdown.png)
 
 The average summarizes three different rubric scores, not accuracy. Scoring
 retains the existing report exclusions, and models use different scaffolds;
