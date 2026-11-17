@@ -49,7 +49,12 @@ async def _judge(model: Model, claim: str, report: str) -> tuple[bool, str]:
 
 
 @scorer(metrics=[mean(), stderr()])
-def rubric_scorer(judge: str | Model = "anthropic/claude-sonnet-5") -> Scorer:
+def rubric_scorer(judge: str | Model | None = None) -> Scorer:
+    """The legacy starter rubric; the judge defaults to the standard judge (configs/standard.toml)."""
+    if judge is None:
+        from slopvestigator_bench import standard
+
+        judge = standard.judge()[0]
     rubric = _load_rubric()
 
     async def score(state: TaskState, target: Target) -> Score:

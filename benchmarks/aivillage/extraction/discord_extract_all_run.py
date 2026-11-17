@@ -29,7 +29,13 @@ spec = importlib.util.spec_from_file_location('sample_run', ROOT/'runs/discord-e
 sample = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sample)
 assert sample.PROMPT == (OUT/'extraction-prompt.md').read_text()
-sample.EFFORT = 'medium'  # the only change from the 10-conversation run's request
+# configs/standard.toml [helpers.discord_extract_all]: the sample run's model at medium effort,
+# the only change from the 10-conversation run's request.
+sys.path.insert(0, str(OUT.parents[2]))
+from slopvestigator_bench import standard  # noqa: E402
+
+_model, sample.EFFORT = standard.helper('discord_extract_all')
+sample.MODEL = _model.split('/', 1)[1]
 lock = threading.Lock()
 spent = 0.0
 

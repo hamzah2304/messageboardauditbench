@@ -6,7 +6,8 @@ embedded dump ground truth + grading_mode, and flags over-claims. Aggregates to
 report/rubrics/graded_<key>.json (per-claim scores + accuracy + overclaim count).
 
 Usage:  cd report/rubrics && python grade_with_rubrics.py gpt opus haiku luna
-Env:    OPENAI_API_KEY (../../../.env), MODEL (default gpt-5.6-sol), EFFORT (default xhigh).
+Env:    OPENAI_API_KEY (../../../.env). MODEL and EFFORT default to the standard judge
+        (configs/standard.toml).
 """
 import json, os, re, sys
 from pathlib import Path
@@ -47,9 +48,10 @@ def _variant_arg():
     return os.getenv("RUBRIC_VARIANT") or None
 VARIANT = _variant_arg()
 
-DEFAULT_MODEL = core.DEFAULT_JUDGE
-MODEL = os.getenv("MODEL", DEFAULT_MODEL)
-EFFORTS = [os.getenv("EFFORT", "xhigh"), "high", "medium"]
+from slopvestigator_bench import standard
+_JUDGE, _EFFORT = standard.judge()
+MODEL = os.getenv("MODEL") or _JUDGE.rsplit("/", 1)[-1]
+EFFORTS = [os.getenv("EFFORT") or _EFFORT, "high", "medium"]
 WORKERS = int(os.getenv("WORKERS", "12"))   # sheet calls in flight at once
 IS_ANTHROPIC = MODEL.startswith("claude")
 

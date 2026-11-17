@@ -8,6 +8,10 @@ by autonomous OpenAI agents that used it to coordinate on a web-retrieval task. 
 investigators wrote up what happened. We give an agent the raw dump, and nothing else,
 and score its report against that write-up.
 
+The [current evaluation](../../README.md) uses five eligible reports per model and time
+budget, scored against the [12-headline answer key](answer-key.json). Its score is the
+mean of those 12 headline scores. See the [grading method](../../docs/answer-keys.md).
+
 ## The task
 
 An agent gets the stripped log dump in a network-isolated container, a time budget, and a
@@ -43,7 +47,13 @@ scripts/collect_reports.py                 # runs/ -> benchmarks/german-wiki/rep
 ```
 
 The eval runs the registered finding and summary graders inline; `--no-score` defers
-them. Every script resolves its inputs through `slopvestigator_bench/paths.py`, so the repo works from a plain
+them. On verbatim and raw_stripped data the finding grader is the answer key
+(`answer-key.json`), graded as every benchmark is: one judge call per headline finding with
+its sub-findings (`slopvestigator_bench/grading/answer_key_judge.py`), with the prompt
+`judge/finding_sheet_answer_key.md` and the human report as context. `german_wiki_report_grade` defaults to `-T rubric=answer-key`, and
+`scripts/grade_answer_key.py --benchmark german-wiki` is the batch grader. The key names OpenAI, so
+verbatim_anthropic data keeps the v2 sheets. The historical numbers below use the v2 sheets
+(`-T rubric=v2` reproduces them); the current answer-key score averages the 12 headlines. Every script resolves its inputs through `slopvestigator_bench/paths.py`, so the repo works from a plain
 clone.
 
 The draft incidents are not Inspect conditions. Pilot one through the subscription
@@ -53,7 +63,7 @@ runner, which accepts any config:
 CONFIG=rubyhack BUDGET_MIN=10 sandbox/docker/run_trial.sh react moonshotai/kimi-k3 1
 ```
 
-## Publication snapshot
+## Historical publication snapshot
 
 This checkout contains the round-4 benchmark and the followup and provider-swap
 ablations used for the blog. Earlier rounds, seed baselines, prototype results,
@@ -71,7 +81,7 @@ headline figures combine them using `scripts/viewers/build_headline_figures.py` 
 
 Start with:
 
-- [Results figures](../../viewers/figures/results_figures.md), with the plot sources and captions.
+- [Results figures](../../scripts/viewers/figures/results_figures.md), with the plot sources and captions.
 - [Evidence index](../../benchmarks/german-wiki/docs/benchmark-data-index.md), linking the current reports, grades,
   rubric-validation evidence, and ablations.
 - [Inspect log downloads](../../benchmarks/german-wiki/docs/artifacts/inspect-logs.md), with checksums and a manifest
@@ -126,7 +136,7 @@ The agent must not see `benchmarks/german-wiki/` — it holds the answer key.
 works and no index file is needed.
 
 ```bash
-# both sheets, into an Inspect log each
+# both sheets, into an Inspect log each (the published v2 sheets; the default is rubric=answer-key)
 uv run inspect eval slopvestigator_bench/german_wiki_report_grade \
   -T dir=/abs/path/to/my-reports -T rubric=v2 \
   --model-role grader=anthropic/claude-fable-5-1

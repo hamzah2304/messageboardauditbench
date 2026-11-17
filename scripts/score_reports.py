@@ -185,8 +185,8 @@ def main() -> int:
             print(
                 "Grade a report set first:\n"
                 "  uv run inspect eval slopvestigator_bench/german_wiki_report_grade \\\n"
-                f"    -T dir=<your reports> -T rubric={label} "
-                "--model-role grader=anthropic/claude-fable-5-1\n"
+                f"    -T dir=<your reports> -T rubric={label}   # the standard judge; the published\n"
+                "    # figures used Fable 5.1 (-T judge=anthropic/claude-fable-5-1) at their tags\n"
                 "  uv run python scripts/export_grades.py logs/<the run>.eval",
                 file=sys.stderr,
             )

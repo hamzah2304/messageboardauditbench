@@ -8,9 +8,8 @@
 #
 # MODEL    the agent's Inspect model (required)
 # AGENT    react (default), claude or codex; claude/codex need an Anthropic/OpenAI MODEL
-# JUDGE    the grader for every eval; unset, each eval uses its own default judge
-#          (German wiki: openai/gpt-5.6-sol, Transluce: anthropic/claude-opus-5-5,
-#          AI Village: openai/gpt-6.1-sol), which needs that provider's key
+# JUDGE    the grader for every eval; unset, every eval uses the standard judge
+#          (configs/standard.toml: openai/gpt-6.1-sol at high effort), which needs an OpenAI key
 # MINUTES  trial budget in minutes (default 5)
 #
 # Needs Docker, uv sync, the provider keys in .env or the environment, and each eval's

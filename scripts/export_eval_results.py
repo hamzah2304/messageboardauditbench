@@ -70,7 +70,8 @@ def main():
     ap.add_argument('--output', type=Path, default=ROOT/'benchmarks/results/2026-11-17')
     args = ap.parse_args()
     from slopvestigator_bench import eligibility, standard
-    from slopvestigator_bench.grading import answer_key_judge as akj, findings as fj
+    from slopvestigator_bench.grading import answer_key_judge as akj
+    from slopvestigator_bench.grading import findings as fj
 
     initial = ROOT/'benchmarks/results/2026-11-16'
     provenance = json.loads((initial/'provenance.json').read_text())
@@ -86,10 +87,10 @@ def main():
         heads = [f['id'] for f in findings]
         weights = akj.headline_weights(findings)
         source = akj.source_text(bench, 'full' if bench == 'transluce' else None)
-        stamp = akj.stamp(bench, 'codex/gpt-6.1-sol', 'high', source, key)
+        stamp = akj.stamp(bench, provenance['judge'], provenance['effort'], source, key)
         inputs[bench] = stamp
         run_root = args.archive/'runs'/('urlquery' if bench == 'transluce' else '')
-        grade_root = args.archive/'benchmarks'/bench/('reports/graded' if bench == 'transluce' else 'graded-answer-key')/'judge_codex_gpt_6_1_sol_high'
+        grade_root = args.archive/'benchmarks'/bench/('reports/graded' if bench == 'transluce' else 'graded-answer-key')/fj.judge_dir(provenance['judge'], provenance['effort'])
         for run in sorted(run_root.glob('*_r*_*std-*')):
             if not (run/'meta.json').is_file():
                 continue
@@ -99,6 +100,8 @@ def main():
             if model not in models or budget not in (10,30) or not 1 <= rep < 90:
                 continue
             if meta.get('agent', meta.get('harness')) != models[model]['harness']:
+                continue
+            if meta.get('config') != standard.config_name(ev, budget):
                 continue
             if not standard.same_condition(meta, standard.config_name(ev, budget)):
                 if run.name in baseline:
@@ -161,6 +164,8 @@ def main():
                       source='Original standard cohort plus completed supplementary standard runs',
                       scores='First five eligible standard-condition reports per cell; equal eval weights.', grading_inputs=inputs,
                       publication='Numeric grades omit report text, judge quotes, reasons and raw responses. Original hashes refer to the local archive.')
+    provenance['condition_configs'] = {standard.config_name(ev,b): standard.config_sha256(standard.config_name(ev,b))
+                                       for ev in EVAL_IDS.values() for b in (10,30)}
     provenance['cost_method']['aggregation'] = 'Mean attempted-run cost within each eval, then equal mean of the three evals; all failed and excluded attempts included.'
     (args.output/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
     print(f'Exported {len(rows)} attempts, {sum(r["selected"] for r in rows)} selected reports.')

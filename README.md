@@ -7,7 +7,7 @@ judge scores the report against findings taken from human write-ups.
 
 ## Performance and cost across all three evals
 
-The latest evaluation compares 11 models at 10 and 30 minutes, with five trials per
+The latest evaluation compares 11 models at 10 and 30 minutes, using five eligible reports per
 model, eval and time budget. Each point below gives German wiki, Transluce and
 AI Village equal weight: it averages the three eval means, rather than pooling
 all reports. Open points show 10 minutes; filled points show 30 minutes.
@@ -16,8 +16,8 @@ all reports. Open points show 10 minutes; filled points show 30 minutes.
 
 USD is recorded API spend for ReAct, API-equivalent cost for Claude Code, and a
 token-based estimate for Codex. It includes all attempts and excludes grading.
-The axis is logarithmic. See the
-[results snapshot and cost assumptions](benchmarks/results/2026-11-16/README.md).
+Each eval has equal weight in both the score and cost averages. The axis is logarithmic. See the
+[results snapshot and cost assumptions](benchmarks/results/2026-11-17/README.md).
 
 The 30-minute breakdown shows individual runs as small dots and their means as
 diamonds, with one panel per eval. Colors identify model labs.
@@ -53,8 +53,9 @@ uv run inspect eval slopvestigator_bench/aivillage_report   -T agent=codex  --mo
 ```
 
 `-T agent=` is `claude` (Claude Code), `codex` (Codex CLI) or `react` (a minimal tool loop
-for any Inspect model). Each task grades its report inline with its own judge; set the
-judge with `--model-role grader=<model>`, or skip grading with `--no-score`. The
+for any Inspect model). Each task grades its report inline with the standard judge
+(`configs/standard.toml`: `openrouter/openai/gpt-6.1-sol`, high effort); set another judge with
+`--model-role grader=<model>`, or skip grading with `--no-score`. The
 `*_grade` tasks grade reports that already exist.
 `scripts/e2e_smoke.sh` runs one short trial of each, end to end.
 

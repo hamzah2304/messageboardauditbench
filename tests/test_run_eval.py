@@ -74,3 +74,23 @@ def test_shared_state_is_linked_not_copied(tmp_path):
     assert (worktree / "runs").is_symlink() and (worktree / "data/transluce").is_symlink()
     assert (worktree / "data/verbatim/events.jsonl").is_symlink()
     assert not (worktree / "data/verbatim").is_symlink()
+
+
+def test_an_explicit_tagged_version_runs_from_its_tag_unless_head_is_that_commit(monkeypatch, tmp_path):
+    """dev carries post-release changes (the standard judge) under the released version numbers;
+    asking for the released version must run the tag, not this checkout."""
+    current = SPECS["aivillage"].eval_version
+    tag = f"aivillage-report-v{current}"
+    monkeypatch.setattr(run_eval, "tags_for", lambda name: [tag] if name == "aivillage-report" else [])
+    monkeypatch.setattr(run_eval, "primary_root", lambda: tmp_path)
+    monkeypatch.setattr(run_eval, "commit_of", lambda ref: {"HEAD": "b" * 40}.get(ref, "a" * 40))
+    planned = run_eval.plan("aivillage-report", current, "grade")
+    assert planned["tag"] == tag and planned["checkout"] == tmp_path / ".worktrees" / f"version-{tag}"
+    # No --version: this checkout, as before.
+    assert run_eval.plan("aivillage-report", None, "grade")["tag"] is None
+    # HEAD is the tagged commit: in place.
+    monkeypatch.setattr(run_eval, "commit_of", lambda ref: "a" * 40)
+    assert run_eval.plan("aivillage-report", current, "grade")["tag"] is None
+    # This checkout's version with no tag yet: in place.
+    monkeypatch.setattr(run_eval, "tags_for", lambda name: [])
+    assert run_eval.plan("aivillage-report", current, "grade")["tag"] is None

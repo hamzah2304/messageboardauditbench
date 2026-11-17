@@ -119,6 +119,8 @@ def rows(primary: Path, log_dir: Path | None) -> list[Row]:
                 if not meta_path.is_file():
                     continue
                 meta = json.loads(meta_path.read_text())
+                if not standard.same_condition(meta, config):  # an older version of this config name
+                    continue
                 started = any(p.stat().st_size > 0 for p in run_dir.glob("transcript*.jsonl"))
                 if "exit_code" not in meta and not started:  # never reached the model (see run_matrix)
                     continue

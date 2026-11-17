@@ -24,8 +24,11 @@ PRIMARY = Path(subprocess.check_output(["git", "rev-parse", "--path-format=absol
                                        cwd=ROOT, text=True).strip()).parent
 CSV = PRIMARY / "data/aivillage/aidigest-posts-with-x-stats.csv"
 PROMPT = ROOT / "benchmarks/aivillage/x-findings-prompt.md"
-MODEL = "gpt-6-luna"
-REASONING = "low"
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from slopvestigator_bench import standard  # noqa: E402
+MODEL, REASONING = standard.helper("x_screen")   # configs/standard.toml [helpers.x_screen]
+MODEL = MODEL.split("/", 1)[1]
 INPUT_RATE, OUTPUT_RATE = 0.10 / 1e6, 0.50 / 1e6
 BATCH = 15
 VILLAGE_START, VILLAGE_END = "2025-04-02", "2026-09-21"

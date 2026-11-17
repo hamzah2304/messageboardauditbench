@@ -56,6 +56,14 @@ MIN_REVISION_SECONDS = 60
 MAX_EARLY_STOP_CONTINUATIONS = 8
 CLAUDE_CONFIG_DIR = "/work/.mbab-claude"
 CODEX_HOME = "/work/.codex"
+# Codex turns its collaboration tools (spawn_agent etc.) on per model through the model catalog,
+# whatever the multi_agent feature says. With multi_agent off, the subscription runner points
+# Codex at its built-in catalog with that field removed; native runs do the same.
+CODEX_MODEL_CATALOG = f"{CODEX_HOME}/model-catalog.json"
+_STRIP_MULTI_AGENT = (
+    "import json, sys; d = json.load(sys.stdin); "
+    "[m.pop('multi_agent_version', None) for m in d['models']]; json.dump(d, sys.stdout)"
+)
 
 
 def _hook_config() -> dict:
@@ -204,6 +212,8 @@ def inspect_agent(
             config_overrides={
                 "features.hooks": "true",
                 **{f"features.{name}": "false" for name in codex_features_off},
+                **({"model_catalog_json": json.dumps(CODEX_MODEL_CATALOG)}
+                   if "multi_agent" in codex_features_off else {}),
                 **(codex_config or {}),
             },
         )
@@ -310,6 +320,17 @@ async def _prepare_budget(
     )
 
     return preflight
+
+
+async def _write_codex_catalog_without_multi_agent() -> None:
+    """Codex's built-in model catalog minus multi_agent_version (see CODEX_MODEL_CATALOG)."""
+    result = await sandbox().exec([
+        "sh", "-c",
+        "mkdir -p /tmp/ch && CODEX_HOME=/tmp/ch codex-real debug models 2>/dev/null "
+        f"| python3 -c \"{_STRIP_MULTI_AGENT}\" > {CODEX_MODEL_CATALOG}",
+    ])
+    if not result.success:
+        raise RuntimeError(f"could not write the Codex model catalog: {result.stderr[:300]}")
 
 
 def _usage_metadata(usages: Sequence[ModelUsage]) -> dict[str, int | float | str]:
@@ -521,6 +542,8 @@ def inspect_native_agent(
             if not seeded.success:
                 raise RuntimeError(f"could not seed {REPORT_PATH}: {seeded.stderr}")
             state.metadata["seed_report_words"] = count_words(seed_report)
+        if agent == "codex" and "multi_agent" in codex_features_off:
+            await _write_codex_catalog_without_multi_agent()
         selected = inspect_agent(
             agent,
             claude_disallowed_tools=claude_disallowed_tools,

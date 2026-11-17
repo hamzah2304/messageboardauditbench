@@ -69,7 +69,7 @@ elif [ -n "${OPENROUTER_API_KEY:-}" ]; then ok "react: OPENROUTER_API_KEY in env
 else warn "react: none.  export OPENROUTER_API_KEY or write runs/.openrouter_key"; fi
 
 echo "judge keys"
-[ -n "${OPENAI_API_KEY:-}" ] && ok "OPENAI_API_KEY (direct OpenAI models; default grader gpt-5.6-sol)" || warn "OPENAI_API_KEY not set; select a grader route with available credentials"
+[ -n "${OPENAI_API_KEY:-}" ] && ok "OPENAI_API_KEY (direct OpenAI models; the standard judge in configs/standard.toml is one)" || warn "OPENAI_API_KEY not set; select a grader route with available credentials"
 [ -n "${ANTHROPIC_API_KEY:-}" ] && ok "ANTHROPIC_API_KEY (direct Anthropic models)" || warn "ANTHROPIC_API_KEY not set; needed only for direct Anthropic API calls"
 
 echo

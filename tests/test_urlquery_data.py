@@ -26,6 +26,11 @@ def raw(scan_id):
 
 @pytest.fixture
 def catalog(monkeypatch):
+    # These tests use tiny synthetic payloads, independent of host disk capacity.
+    import shutil
+
+    capacity = shutil.disk_usage(Path(__file__).parent)
+    monkeypatch.setattr(acquire.shutil, "disk_usage", lambda _: capacity._replace(free=100 * 1024**3))
     rows = [{"report_id": i, "report_date_utc": "2026-01-01T00:00:00Z"} for i in IDS]
     monkeypatch.setattr(acquire, "catalog", lambda *_: rows)
     monkeypatch.setattr(prepare, "catalog", lambda *_: rows)
@@ -223,3 +228,14 @@ def test_trial_validation_refuses_unsettled_or_wrong_path(tmp_path, cfg, catalog
     prepare.build(cfg, cache, wrong)
     with pytest.raises(ValueError, match="version/path"):
         validate_trial_data("urlquery", wrong)
+
+
+def test_acquisition_stops_at_disk_guard(tmp_path, cfg, catalog, monkeypatch):
+    import shutil
+
+    capacity = shutil.disk_usage(tmp_path)
+    monkeypatch.setattr(acquire.shutil, "disk_usage", lambda _: capacity._replace(free=0))
+    monkeypatch.setattr(acquire, "public_get", lambda *_: pytest.fail("Must not download with insufficient disk"))
+    result = acquire.collect(cfg, tmp_path, limit=1)
+    assert result["disk_guard"] == 1
+    assert not result["complete"]

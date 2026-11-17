@@ -70,3 +70,15 @@ def test_other_models_keep_four_connection_default() -> None:
 
     assert result.returncode == 0
     assert "--max-connections 4" in result.stdout
+
+
+def test_budget_fraction_and_judge_come_from_the_task_unless_given() -> None:
+    plain = _dry_run("mockllm/model")
+    assert plain.returncode == 0, plain.stderr
+    for flag in ("time_limit_minutes=", "min_runtime_fraction=", "judge="):
+        assert flag not in plain.stdout  # the task reads the config and the standard judge
+    given = _dry_run("mockllm/model", "--time-limit-minutes", "10", "--min-runtime-fraction", "0",
+                     "--judge", "openai/gpt-6.1-sol")
+    assert "-T time_limit_minutes=10" in given.stdout
+    assert "-T min_runtime_fraction=0" in given.stdout
+    assert "-T judge=openai/gpt-6.1-sol" in given.stdout

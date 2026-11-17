@@ -107,7 +107,8 @@ def sheet_scorer(
     Args:
       rubric: a key of `core.MODES`, including the wiki's "v2"/"tldrh" and
         Mythos 5's "m5"/"m5tldrh" and RubyHack's "rh"/"rhtldrh" pairs.
-      judge: the grading model. Resolved at scoring time through the `grader` model role,
+      judge: the grading model; defaults to the standard judge (configs/standard.toml), with
+        its effort. Resolved at scoring time through the `grader` model role,
         so `--model-role grader=openai/gpt-5.6-sol` works as it does for the other scorers.
       variant: a rubric variant (`core.VARIANTS`); the task derives it from the data
         variant, so a verbatim_anthropic run is judged against the swapped answer key.
@@ -117,6 +118,10 @@ def sheet_scorer(
     A report with any failed sheet is unscored: the surviving sheets' grades stay in the
     metadata, but no score is computed from part of the rubric.
     """
+    if judge is None:
+        from slopvestigator_bench import standard
+
+        judge, effort = standard.judge()[0], effort or standard.judge()[1]
     if rubric not in core.MODES:
         raise ValueError(f"unknown rubric {rubric!r}; expected one of {sorted(core.MODES)}")
     core.load_sheets(rubric, variant)  # Validate assets before launching an agent.

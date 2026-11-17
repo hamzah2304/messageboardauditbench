@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Prepare a frozen AI Village grading plan, then run it with resumable API jobs."""
+"""Reproduce the published v1.0 AI Village grades: a frozen grading plan (findings/final-findings.json,
+three findings per call with judge-prompt-v8.txt), run with resumable API jobs. New grades use the
+answer key through scripts/grade_answer_key.py --benchmark aivillage."""
 from __future__ import annotations
 
 import argparse

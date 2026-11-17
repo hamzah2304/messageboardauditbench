@@ -36,7 +36,10 @@ JSON_ONLY = (
     "after it, and no markdown code fences."
 )
 
-DEFAULT_JUDGE = "gpt-5.6-sol"
+# The judge whose grades sit at benchmarks/german-wiki/graded/ itself (round 4); every other judge's
+# grades go under judge_<model>/. A storage layout, not a choice of judge: the judge that grades
+# comes from configs/standard.toml.
+ROOT_GRADES_JUDGE = "gpt-5.6-sol"
 
 
 @dataclass(frozen=True)
@@ -359,15 +362,15 @@ def aggregate(
 def out_dir(judge: str, mode: str, variant: str | None = None) -> Path:
     """Where a judge's grades for one rubric are filed.
 
-    The default judge keeps writing to benchmarks/german-wiki/graded/ (where every committed grade
-    lives); any other judge gets its own namespace so the two never collide. A rubric
+    The round-4 judge keeps writing to benchmarks/german-wiki/graded/ (where its committed grades
+    live); any other judge gets its own namespace so the two never collide. A rubric
     variant gets a further subdirectory, so grades against the swapped answer key never
     sit next to grades against the real one.
     """
     _check_variant(variant)
     graded = repo_root() / "benchmarks" / "german-wiki" / "graded"
     name = judge_name(judge)
-    path = graded if name == DEFAULT_JUDGE else graded / f"judge_{sanitise(name)}"
+    path = graded if name == ROOT_GRADES_JUDGE else graded / f"judge_{sanitise(name)}"
     if mode != "recall":
         path = path / mode
     if variant:

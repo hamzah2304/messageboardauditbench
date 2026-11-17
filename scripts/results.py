@@ -11,7 +11,7 @@ counts of runs, eligible and safety-flagged) and docs/figures/standard_results.{
 
 Grade the runs with, per eval (German wiki takes two rubrics):
   uv run inspect eval slopvestigator_bench/german_wiki_report_grade -T runs='*_wiki-std-*' -T rubric=v2 \\
-      -T judge=openai/gpt-6.1-sol -T judge_effort=high --log-dir logs/standard-grades
+      -T judge=openrouter/openai/gpt-6.1-sol -T judge_effort=high --log-dir logs/standard-grades
   (and -T rubric=tldrh; transluce_report_grade and aivillage_report_grade with runs='*_<prefix>-std-*')
 """
 

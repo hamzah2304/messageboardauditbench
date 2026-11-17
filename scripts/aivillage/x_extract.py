@@ -23,8 +23,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PROMPT_PATH = ROOT / "benchmarks/aivillage/x-findings-prompt.md"
-MODEL = "gpt-6.1-sol"
-EFFORT = "high"
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from slopvestigator_bench import standard  # noqa: E402
+MODEL, EFFORT = standard.helper("x_extract")   # configs/standard.toml [helpers.x_extract]
+MODEL = MODEL.split("/", 1)[1]
 MAX_OUTPUT = 24000  # 12,000 truncated two long threads in the full run
 # USD per token: input, cached input, output (https://developers.openai.com/api/docs/models/gpt-6.1-sol).
 RATES = (2e-6, 0.1e-6, 10e-6)

@@ -27,7 +27,10 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "configs/aivillage-verify.toml"
 TEMPLATE = ROOT / "sandbox/prompts/aivillage-verify-v3.txt"
 DATA = Path("/home/oscar_gilg18/Dev/MessageBoardAuditBench/data/aivillage/full-v2-reasoning")
-MODEL = "claude-sonnet-5-5"
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from slopvestigator_bench import standard  # noqa: E402
+MODEL = standard.helper("aivillage_verify")[0].split("/", 1)[1]   # configs/standard.toml
 LAUNCH = datetime.date(2025, 4, 2)  # Day 1 of the Village
 GROUP_SIZE = 8
 MINUTES_PER_FINDING = 5
