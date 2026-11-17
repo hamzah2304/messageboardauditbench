@@ -81,6 +81,8 @@ def main():
     provenance = json.loads((DATA / 'provenance.json').read_text())
     colors = {m['id']: m['color'] for m in provenance['models']}
     by_key = {(r['model'], r['budget']): r for r in summary}
+    initial = json.loads((ROOT / 'benchmarks/results/2026-11-16/summary.json').read_text())
+    label_anchors = {r['model']: r for r in initial if r['budget'] == 30}
     OUT.mkdir(parents=True, exist_ok=True)
     (DATA/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
 
@@ -123,7 +125,11 @@ def main():
         shift = approved['model-label-' + label_id]
         dx += shift['dx']
         dy -= shift['dy']
-        annotation = ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=(dx,dy), textcoords='offset points',
+        # Preserve the approved page positions when supplemental runs move the data points.
+        old = label_anchors[m['model']]
+        x, y = ax.transData.transform((old['cost_usd'], old['score']))
+        text_position = ax.transData.inverted().transform((x+dx*fig.dpi/72, y+dy*fig.dpi/72))
+        annotation = ax.annotate(m['label'], (b['cost_usd'],b['score']), xytext=text_position, textcoords='data',
                     fontsize=10, color=c, weight='bold', ha=anchor, va='center',
                     arrowprops={'arrowstyle':'-', 'color':c, 'lw':.6, 'alpha':.65}, zorder=6)
         label_id = m['model'].replace('/', '-').replace('.', '-')

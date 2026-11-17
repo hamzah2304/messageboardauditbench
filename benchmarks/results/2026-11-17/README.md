@@ -52,8 +52,8 @@ rates are frozen for this evaluation.
 ## Verify and reproduce
 
 The public export includes numeric grades for
-[German wiki](german-wiki-grades.jsonl), [Transluce](transluce-grades.jsonl) and
-[AI Village](aivillage-grades.jsonl). They retain every finding and subfinding score,
+[German wiki](../../german-wiki/results/2026-11-17-grades.jsonl), [Transluce](../../transluce/results/2026-11-17-grades.jsonl) and
+[AI Village](../../aivillage/results/2026-11-17-grades.jsonl). They retain every finding and subfinding score,
 contradiction flags and provenance hashes. Raw reports and judge quotations can
 contain credentials reproduced from the source logs, so those remain in the local
 archive. Their hashes identify the originals; the public numeric export supports
@@ -70,7 +70,8 @@ uv run scripts/plot_eval_results.py
 
 The verifier checks the rubric and prompt hashes, every report score, selection
 rule, all 66 condition cells, and the 22 model–budget averages in
-[summary.json](summary.json). Plotting uses isolated, pinned dependencies. To
+[summary.json](summary.json). The archived Transluce article is identified by its hash; checking its bytes requires
+the local archive. Plotting uses isolated, pinned dependencies. To
 re-export from the original local archive:
 
 ```bash

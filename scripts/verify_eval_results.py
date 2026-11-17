@@ -50,10 +50,14 @@ def verify(snapshot):
         findings = akj.graded_findings(key)
         heads = {f['id'] for f in findings}
         weights = akj.headline_weights(findings)
-        source = akj.source_text(bench, 'full' if bench == 'transluce' else None)
+        # The Transluce article is an archived, untracked input. Check its recorded
+        # fingerprint across grades without requiring that private archive in a clone.
+        source = None if bench == 'transluce' else akj.source_text(bench)
         stamp = akj.stamp(bench, provenance['judge'], provenance['effort'], source, key)
+        if bench == 'transluce':
+            stamp['article_sha256'] = provenance['grading_inputs'][bench]['article_sha256']
         assert stamp == provenance['grading_inputs'][bench]
-        grades = list(map(json.loads, (snapshot/f'{bench}-grades.jsonl').read_text().splitlines()))
+        grades = list(map(json.loads, (snapshot/provenance['grade_exports'][bench]).read_text().splitlines()))
         assert {g['run'] for g in grades} == {r['run'] for r in rows if r['benchmark']==bench and r['report_exists']}
         for grade in grades:
             assert set(grade) <= grade_keys

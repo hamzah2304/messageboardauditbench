@@ -53,7 +53,7 @@ def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monk
     monkeypatch.setattr(akj,'graded_findings',lambda _:findings)
     monkeypatch.setattr(akj,'headline_weights',lambda _: {})
     monkeypatch.setattr(akj,'source_text',lambda *_:None)
-    monkeypatch.setattr(akj,'stamp',lambda *_:stamp)
+    monkeypatch.setattr(akj,'stamp',lambda *_:dict(stamp))
     models = [f'model-{i}' for i in range(11)]
     evals = ('german-wiki','transluce','aivillage')
     rows, summary = [], []
@@ -71,10 +71,12 @@ def test_public_verifier_rejects_extra_text_and_duplicate_summary(tmp_path, monk
     (tmp_path/'runs.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
     (tmp_path/'selection.json').write_text(json.dumps({'runs':[r['run'] for r in rows]}))
     (tmp_path/'provenance.json').write_text(json.dumps({'trials':330,'models':[{'id':m} for m in models],
-                                                     'judge':'test','effort':'high','grading_inputs':dict.fromkeys(evals,stamp)}))
+                                                     'grade_exports':{e:f'{e}-grades.jsonl' for e in evals},
+                                                     'judge':'test','effort':'high','grading_inputs':{e:({**stamp, 'article_sha256':'0'*64} if e=='transluce' else stamp) for e in evals}}))
     (tmp_path/'summary.json').write_text(json.dumps(summary))
     for bench in evals:
-        grades = [{**stamp,'run':r['run'],'report_sha256':'0'*64,'n_scored':20,'n_findings':20,
+        bench_stamp = {**stamp, 'article_sha256':'0'*64} if bench=='transluce' else stamp
+        grades = [{**bench_stamp,'run':r['run'],'report_sha256':'0'*64,'n_scored':20,'n_findings':20,
                    'headline_weights':{},'score':.5,'findings':{
                        f['id']:{'score':.5,'contradicted':False,'sub_findings':[]} for f in findings}}
                   for r in rows if r['benchmark']==bench]

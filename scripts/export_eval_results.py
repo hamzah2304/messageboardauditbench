@@ -11,6 +11,7 @@ import copy
 import hashlib
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -157,8 +158,12 @@ def main():
     selection = {'rule': 'First five eligible standard-condition reports by replicate number; no score-based selection. All attempts retained for cost.',
                  'runs': [r['run'] for r in rows if r['selected']]}
     (args.output/'selection.json').write_text(json.dumps(selection, indent=2)+'\n')
+    provenance['grade_exports'] = {}
     for bench, values in grades.items():
-        (args.output/f'{bench}-grades.jsonl').write_text(''.join(json.dumps(g, sort_keys=True)+'\n' for g in values))
+        grade_path = ROOT/'benchmarks'/bench/'results'/f'{args.output.name}-grades.jsonl'
+        grade_path.parent.mkdir(parents=True, exist_ok=True)
+        grade_path.write_text(''.join(json.dumps(g, sort_keys=True)+'\n' for g in values))
+        provenance['grade_exports'][bench] = os.path.relpath(grade_path, args.output)
     provenance.update(trials=len(rows), eligible=sum(r['eligible'] for r in rows),
                       selected=sum(r['selected'] for r in rows), missing_reports=sum(not r['report_exists'] for r in rows),
                       source='Original standard cohort plus completed supplementary standard runs',
